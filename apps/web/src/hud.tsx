@@ -61,7 +61,7 @@ export function Hud({ state, content }: { state: WorldState; content: ContentPac
           Wind {state.wind.strength} from {Math.round(state.wind.fromDeg)}°
         </div>
         <div>
-          {pointOfSail(content, offWind)} · {Math.round(offWind)}° off the wind
+          {pointOfSail(content, offWind).name} · {Math.round(offWind)}° off the wind
         </div>
         <div>Sails</div>
         <div>{ship.sails}</div>

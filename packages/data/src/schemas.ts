@@ -30,7 +30,10 @@ export const navigationSchema = z.object({
   sailSettings: z.record(z.enum(['furled', 'half', 'full']), z.number().min(0).max(1)),
   rigTurnFactor: z.record(rig, z.number().positive()),
   windStrength: z.record(windStrength, z.number().min(0)),
-  pointsOfSail: z.array(z.object({ maxDeg: z.number(), name: z.string() })).min(1),
+  // Ids name the sprite states too (art pipeline section 4), so they are a closed set.
+  pointsOfSail: z
+    .array(z.object({ id: z.enum(['irons', 'close', 'beam', 'broad', 'run']), maxDeg: z.number(), name: z.string() }))
+    .min(1),
 });
 
 export const spriteSchema = z.object({

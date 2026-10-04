@@ -1,6 +1,6 @@
 {
   "ship.brig.world": {
-    "$comment": "45 deg camera render, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (64 / 3.7) = 7.3 px below the cell centre. sail_luff0/1 are render-only: sails set but in the no-go zone.",
+    "$comment": "45 deg camera render, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (64 / 3.7) = 7.3 px below the cell centre. Set sails are drawn per point of sail and tack (_p wind from port, _s from starboard): yards braced, canvas bellied downwind; in irons two frames flap.",
     "cell": 64,
     "facings": 32,
     "pivot": {
@@ -8,11 +8,29 @@
       "y": 0.615
     },
     "anims": [
-      "sail_full",
-      "sail_half",
       "sail_furled",
-      "sail_luff0",
-      "sail_luff1"
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
     ]
   }
 }

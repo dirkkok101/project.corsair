@@ -3,7 +3,7 @@ import type { ContentPack, TileMap } from '@corsair/data';
 import { Application, Assets, Container, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { createWake, createWindStreaks, windVector } from './effects';
-import { angleOffWind, polarAt } from '@corsair/systems-navigation';
+import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
 import { paintCoast, paintDeepWater } from './water';
 
@@ -15,8 +15,7 @@ export const VIEW_HEIGHT = 270;
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
 const SWELL_DRIFT_PX = 6;
-// Sails set in the no-go zone (polar below this) are drawn luffing, flapping between two frames.
-const LUFF_BELOW_POLAR = 0.02;
+// In irons the slack canvas flaps between two frames.
 const LUFF_FRAME_MS = 180;
 
 export interface Renderer {
@@ -64,11 +63,15 @@ export async function createRenderer(
 
   const sailAnim = (ship: Ship, state: WorldState, nowMs: number): string => {
     if (ship.sails === 'furled') return 'sail_furled';
-    const polar = content.polars[content.ships[ship.classId]!.polar]!;
-    if (polarAt(polar, angleOffWind(ship.headingDeg, state.wind.fromDeg)) < LUFF_BELOW_POLAR) {
-      return Math.floor(nowMs / LUFF_FRAME_MS) % 2 ? 'sail_luff1' : 'sail_luff0';
-    }
-    return `sail_${ship.sails}`;
+    // Wind angle relative to the bow: positive means the wind comes over the starboard side.
+    let rel = normalizeDeg(state.wind.fromDeg - ship.headingDeg);
+    if (rel > 180) rel -= 360;
+    const tack = rel >= 0 ? 's' : 'p';
+    const point = pointOfSail(content, Math.abs(rel)).id;
+    const base = `sail_${ship.sails}_${point}`;
+    if (point === 'run') return base;
+    if (point === 'irons') return `${base}_${tack}${Math.floor(nowMs / LUFF_FRAME_MS) % 2}`;
+    return `${base}_${tack}`;
   };
   let lastMs: number | undefined;
   let swellX = 0;

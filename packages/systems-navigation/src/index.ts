@@ -20,9 +20,9 @@ export function polarAt(polar: Polar, offWindDeg: number): number {
   return polar.values[i]! * (1 - t) + polar.values[i + 1]! * t;
 }
 
-export function pointOfSail(content: ContentPack, offWindDeg: number): string {
+export function pointOfSail(content: ContentPack, offWindDeg: number) {
   const points = content.navigation.pointsOfSail;
-  return (points.find((p) => offWindDeg <= p.maxDeg) ?? points[points.length - 1]!).name;
+  return points.find((p) => offWindDeg <= p.maxDeg) ?? points[points.length - 1]!;
 }
 
 /** Speed on the ship class's 1-10 scale, for the HUD. */

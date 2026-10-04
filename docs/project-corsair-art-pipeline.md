@@ -52,7 +52,7 @@ Estimates for v1.0, rounded. "Unique" is what has to be produced after mirroring
 
 | Asset group | In-game frames | Unique to produce | How |
 |---|---|---|---|
-| World-map ships (12 × 32 × 5: 3 sail states + 2 luff frames) | 1,920 | 1,920 rendered, ~1,020 hand-checked | Blender renders, hand pass at 64 px |
+| World-map ships (12 × 32 × 23 sail sprites, see scenes S1) | 8,832 | 8,832 rendered, ~4,450 hand-checked (port tack mirrors starboard) | Blender renders, hand pass at 64 px |
 | Combat ships (same counts at 128×128) | 576 | 576 rendered, light cleanup | Blender renders |
 | Ship damage overlays (4 families × 3 tiers) | 192 | 192 rendered | Material states through the same cameras |
 | Ship sinking | — | ~0 bespoke | In-engine tilt and water mask plus shared VFX |

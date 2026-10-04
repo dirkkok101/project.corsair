@@ -122,7 +122,7 @@ Fog of war is a runtime mask, not art. The day/night tint is the palette shader.
 
 ### Ships
 
-Twelve classes, four families. World cell is 64×64, pivot at the hull centre on the waterline, 32 facings, drawn from a 45° orthographic camera over the top-down map (art pipeline, section 4), three sail states (`sail_full`, `sail_half`, `sail_furled`). Two more frames, `sail_luff0` and `sail_luff1`, are render-only: when sails are set but the ship points into the no-go zone, the renderer alternates them so the slack, grey canvas flaps. The flag is a few pixels on the sprite, tinted by nation. It is not its own facing set.
+Twelve classes, four families. World cell is 64×64, pivot at the hull centre on the waterline, 32 facings, drawn from a 45° orthographic camera over the top-down map (art pipeline, section 4), three sail states (`sail_full`, `sail_half`, `sail_furled`). Set sails are drawn per point of sail (the `id`s in `navigation.json`) and tack, so the wind shows as sail angle and shape, not just colour: yards braced round to meet the wind (square when running, about 20° on a broad reach, 35° on a beam reach, 45° close-hauled), canvas bellied downwind, jib and spanker swung to leeward. In irons the canvas is slack and grey, with two frames that flap. The world set per class is `sail_furled`, `sail_{full,half}_run`, `sail_{full,half}_{broad,beam,close}_{p,s}` and `sail_{full,half}_irons_{p,s}{0,1}`: 23 sprites. `_p` is wind from port, `_s` from starboard. The flag is a few pixels on the sprite, tinted by nation. It is not its own facing set.
 
 | Class | Family | Id subject | M1 |
 |---|---|---|---|
@@ -141,7 +141,7 @@ Twelve classes, four families. World cell is 64×64, pivot at the hull centre on
 
 Example id: `ship.brig.world.sail_full.f03`.
 
-M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. The other eight stay grey boxes until M3. Full set is 12 × 32 × 5 = 1,920 frames, matching the pipeline. Mirroring can cut the 64 px hand pass to 17 facings.
+M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. The other eight stay grey boxes until M3. Full set is 12 × 32 × 23 = 8,832 frames, matching the pipeline. Port-tack frames are mirrors of starboard-tack frames, which roughly halves the 64 px hand pass.
 
 Damage is not drawn on the world map. A worn hull uses the `sail_furled` pose plus a darker palette row if needed. Sinking in a storm is the storm sprite plus the ship fading, not a bespoke animation.
 
@@ -495,7 +495,7 @@ If the masts read at 1× next to the water, script `art:snap` and `art:validate`
 
 ## 20. Choices still open
 
-- World-map sail states: settled. `sail_half` reads at 64 px (courses furled, topsails set), so the world map keeps all three plus the two luff frames.
+- World-map sail states: settled. `sail_half` reads at 64 px (courses furled, topsails set), so the world map keeps all three, each drawn per point of sail and tack.
 - Militia as a seventh drawing, or a soldier recolor. Decide when the soldier sprite exists.
 - Stealth actors at 16 or at 24. Draw the player once at each size in the M0-adjacent hand test and keep one.
 - Courtyard backdrop can wait until M4. M2 duels all use the brig deck.
