@@ -92,7 +92,8 @@ describe('sailing model', () => {
     const sim = createSim({ ...world, wind: { fromDeg: 180, strength: 'fresh' }, ships: { player: ship } }, [
       createNavigationSystem(content, map),
     ]);
-    sim.step(4 * TICKS_PER_SECOND);
+    // Sail until it touches land, however fast the current wind tuning makes it.
+    for (let t = 0; t < 30 * TICKS_PER_SECOND && !sim.state.ships.player!.blocked; t++) sim.step();
     expect(sim.state.ships.player!.blocked).toBe(true);
     const contactY = sim.state.ships.player!.y;
     sim.step(4 * TICKS_PER_SECOND);

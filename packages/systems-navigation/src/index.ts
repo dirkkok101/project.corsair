@@ -1,4 +1,4 @@
-import type { EmittedEvent, Ship, System, WorldState } from '@corsair/core';
+import type { EmittedEvent, Ship, System, Wind, WorldState } from '@corsair/core';
 import { isLand, tileAt } from '@corsair/data';
 import type { ContentPack, Polar, TileMap } from '@corsair/data';
 
@@ -25,14 +25,34 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
   return points.find((p) => offWindDeg <= p.maxDeg) ?? points[points.length - 1]!;
 }
 
+/**
+ * Speed the ship settles at on its current heading, in tiles per second (PRD section 4):
+ * v = v_base * P(theta) * W_s * sail setting. Hull, crew, load and current are not modelled yet.
+ */
+export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): number {
+  const nav = content.navigation;
+  const cls = content.ships[ship.classId]!;
+  return (
+    cls.speed *
+    nav.tilesPerSecondPerSpeedPoint *
+    polarAt(content.polars[cls.polar]!, angleOffWind(ship.headingDeg, wind.fromDeg)) *
+    nav.windStrength[wind.strength]! *
+    nav.sailSettings[ship.sails]!
+  );
+}
+
+/** Tiles per second on the ship class's 1-10 speed scale, for the HUD. */
+export function toSpeedPoints(content: ContentPack, tilesPerSecond: number): number {
+  return tilesPerSecond / content.navigation.tilesPerSecondPerSpeedPoint;
+}
+
 /** Speed on the ship class's 1-10 scale, for the HUD. */
 export function speedPoints(content: ContentPack, ship: Ship): number {
   return ship.speed / content.navigation.tilesPerSecondPerSpeedPoint;
 }
 
 /**
- * PRD section 4 sailing model: v = v_base * P(theta) * W_s * H * C * L + v_current, times the sail setting.
- * Hull, crew, load and current are not modelled yet (H = C = L = 1, no current).
+ * Each tick a ship eases toward `targetSpeed`, turns by its helm, and moves; land stops or slides it.
  * Shallows are drawn but don't block; draft checks come with the real map.
  */
 export function createNavigationSystem(content: ContentPack, map: TileMap): System {
@@ -40,14 +60,7 @@ export function createNavigationSystem(content: ContentPack, map: TileMap): Syst
 
   const sail = (ship: Ship, state: WorldState, dt: number): { ship: Ship; events: EmittedEvent[] } => {
     const cls = content.ships[ship.classId]!;
-    const polar = content.polars[cls.polar]!;
-    const offWind = angleOffWind(ship.headingDeg, state.wind.fromDeg);
-    const target =
-      cls.speed *
-      nav.tilesPerSecondPerSpeedPoint *
-      polarAt(polar, offWind) *
-      nav.windStrength[state.wind.strength]! *
-      nav.sailSettings[ship.sails]!;
+    const target = targetSpeed(content, ship, state.wind);
     const speed = ship.speed + (target - ship.speed) * Math.min(1, nav.accelPerSecond * dt);
     const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]!;
     const headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);

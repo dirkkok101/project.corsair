@@ -144,7 +144,7 @@ v = v_{base} \cdot P(\theta) \cdot W_s \cdot H \cdot C \cdot L + v_{current}
 
 - v_base = ship class top speed (`ships.json`).
 - P(θ) = polar curve by angle to wind, a per-rig lookup table of 16 points. Square-riggers peak on a broad reach and stall close-hauled; fore-and-aft rigs point higher.
-- W_s = wind strength multiplier (calm 0.2, light 0.6, fresh 1.0, strong 1.15, gale 0.8 with damage risk).
+- W_s = wind strength multiplier (calm 0.15, light 0.5, fresh 0.8, strong 1.0, gale 1.1 with damage risk). Each step up must be clearly faster; the first playtest found 1.0 to 1.15 too small to feel, and a slower gale read as a bug while damage isn't modelled.
 - H = sail condition, 0 to 1. C = crew factor: below minimum crew, speed drops linearly.
 - L = load factor: cargo and cannon above 75% of capacity slow the ship.
 - v_current = map current vector at the tile.
