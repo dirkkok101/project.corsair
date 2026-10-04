@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '../src';
 
 const content = loadContent();
-const map = buildTileMap(content.map);
+const map = buildTileMap(content.maps.placeholder);
 
 function openSea(headingDeg: number, windFromDeg = 0): WorldState {
-  const world = createWorld(content);
+  const world = createWorld(content.maps.placeholder);
   // Open water far from the island, with room to sail 10 s at full speed in any direction.
   const ship = { ...world.ships.player!, x: 200, y: 200, headingDeg };
   return { ...world, wind: { fromDeg: windFromDeg, strength: 'fresh' }, ships: { player: ship } };
@@ -73,7 +73,7 @@ describe('sailing model', () => {
   });
 
   it('stops at land, stays on water and reports the contact once', () => {
-    const world = createWorld(content);
+    const world = createWorld(content.maps.placeholder);
     // West of the island on its centre line, heading east into it, wind on the beam.
     const ship = { ...world.ships.player!, x: 30, y: 38.5, headingDeg: 90 };
     const sim = createSim({ ...world, wind: { fromDeg: 0, strength: 'fresh' }, ships: { player: ship } }, [
@@ -87,7 +87,7 @@ describe('sailing model', () => {
   });
 
   it('slides along the coast instead of sticking when it meets land at an angle', () => {
-    const world = createWorld(content);
+    const world = createWorld(content.maps.placeholder);
     // Heading ENE onto the straight west face of the island (x = 42, rows 30 to 35).
     const ship = { ...world.ships.player!, x: 38, y: 34.5, headingDeg: 70 };
     const sim = createSim({ ...world, wind: { fromDeg: 180, strength: 'fresh' }, ships: { player: ship } }, [
@@ -104,7 +104,7 @@ describe('sailing model', () => {
   });
 
   it('reports a fresh contact after sailing clear and coming back', () => {
-    const world = createWorld(content);
+    const world = createWorld(content.maps.placeholder);
     const start = { ...world.ships.player!, x: 38, y: 38.5, headingDeg: 90 };
     const sim = createSim({ ...world, wind: { fromDeg: 0, strength: 'fresh' }, ships: { player: start } }, [
       createNavigationSystem(content, map),
@@ -156,7 +156,7 @@ describe('determinism', () => {
   };
 
   function run(): string[] {
-    const sim = createSim(createWorld(content), [createNavigationSystem(content, map)]);
+    const sim = createSim(createWorld(content.maps.placeholder), [createNavigationSystem(content, map)]);
     const hashes: string[] = [];
     for (let t = 0; t < 600; t++) {
       const cmd = script[t];
@@ -174,13 +174,13 @@ describe('determinism', () => {
   });
 
   it('replays a recorded input log to the same final state', () => {
-    const live = createSim(createWorld(content), [createNavigationSystem(content, map)]);
+    const live = createSim(createWorld(content.maps.placeholder), [createNavigationSystem(content, map)]);
     for (let t = 0; t < 600; t++) {
       const cmd = script[t];
       if (cmd) live.send(cmd);
       live.step();
     }
-    const replay = createSim(createWorld(content), [createNavigationSystem(content, map)]);
+    const replay = createSim(createWorld(content.maps.placeholder), [createNavigationSystem(content, map)]);
     const inputs = [...live.inputs()];
     while (replay.state.tick < 600) {
       for (const r of inputs.filter((i) => i.tick === replay.state.tick + 1)) replay.send(r.command);

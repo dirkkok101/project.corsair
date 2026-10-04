@@ -1,0 +1,115 @@
+{
+  "$comment": "Prevailing winds by region and season, PRD section 3. fromDeg is the direction the wind blows FROM, clockwise from north. dry = Dec-May, wet = Jun-Nov. First matching zone wins, so small zones come first; the Caribbean Sea zone is the fallback.",
+  "defaultZone": "zone.caribbean_sea",
+  "zones": [
+    {
+      "$comment": "NE trades blow fresh along Panama in the dry season; the wet season brings light, shifting winds, squalls and calms as the ITCZ sits overhead.",
+      "id": "zone.darien_mosquito",
+      "name": "Gulf of Darién & Mosquito Coast",
+      "polygon": [[-84.0, 8.0], [-76.0, 8.0], [-76.0, 9.6], [-79.0, 10.0], [-82.0, 12.5], [-82.6, 15.2], [-84.0, 15.2]],
+      "seasons": {
+        "dry": { "fromDeg": 35, "spreadDeg": 25, "strength": { "calm": 0.04, "light": 0.2, "fresh": 0.5, "strong": 0.24, "gale": 0.02 } },
+        "wet": { "fromDeg": 100, "spreadDeg": 60, "strength": { "calm": 0.15, "light": 0.45, "fresh": 0.3, "strong": 0.08, "gale": 0.02 } }
+      },
+      "events": [
+        { "id": "calm", "months": [6, 7, 8, 9, 10, 11], "chancePerDay": 0.1, "fromDeg": 0, "strength": "calm", "durationDays": [1, 3] }
+      ]
+    },
+    {
+      "$comment": "Easterly trades funnel through the Yucatán Channel, backing ESE in summer; the tail of Gulf northers reaches here in winter.",
+      "id": "zone.gulf_of_honduras",
+      "name": "Gulf of Honduras & Yucatán Channel",
+      "polygon": [[-89.5, 15.0], [-82.6, 15.2], [-83.0, 18.0], [-84.5, 21.8], [-86.8, 21.8], [-87.5, 21.0], [-88.5, 18.0]],
+      "seasons": {
+        "dry": { "fromDeg": 80, "spreadDeg": 25, "strength": { "calm": 0.03, "light": 0.2, "fresh": 0.5, "strong": 0.25, "gale": 0.02 } },
+        "wet": { "fromDeg": 100, "spreadDeg": 30, "strength": { "calm": 0.05, "light": 0.3, "fresh": 0.45, "strong": 0.18, "gale": 0.02 } }
+      },
+      "events": [
+        { "id": "norther", "months": [11, 12, 1, 2], "chancePerDay": 0.03, "fromDeg": 340, "strength": "fresh", "durationDays": [1, 2] }
+      ]
+    },
+    {
+      "$comment": "The Caribbean low-level jet makes the Colombian and Venezuelan coast the windiest part of the sea: strong ENE trades peaking Jan-Mar with a secondary July maximum.",
+      "id": "zone.spanish_main",
+      "name": "Spanish Main",
+      "polygon": [[-76.0, 8.5], [-61.5, 9.8], [-61.5, 11.2], [-66.0, 11.6], [-72.0, 12.8], [-76.0, 11.8]],
+      "seasons": {
+        "dry": { "fromDeg": 70, "spreadDeg": 20, "strength": { "calm": 0.01, "light": 0.1, "fresh": 0.45, "strong": 0.39, "gale": 0.05 } },
+        "wet": { "fromDeg": 80, "spreadDeg": 25, "strength": { "calm": 0.03, "light": 0.17, "fresh": 0.5, "strong": 0.27, "gale": 0.03 } }
+      }
+    },
+    {
+      "$comment": "Steady ENE trades in winter veering E to ESE in summer; the hurricane track crosses here.",
+      "id": "zone.lesser_antilles",
+      "name": "Lesser Antilles",
+      "polygon": [[-64.5, 10.6], [-59.0, 10.6], [-59.0, 18.8], [-64.5, 18.8]],
+      "seasons": {
+        "dry": { "fromDeg": 75, "spreadDeg": 20, "strength": { "calm": 0.02, "light": 0.15, "fresh": 0.53, "strong": 0.27, "gale": 0.03 } },
+        "wet": { "fromDeg": 95, "spreadDeg": 25, "strength": { "calm": 0.04, "light": 0.24, "fresh": 0.5, "strong": 0.19, "gale": 0.03 } }
+      }
+    },
+    {
+      "$comment": "ENE trades in winter interrupted by cold fronts from the north; summer flow is SE on the flank of the Bermuda High. The Gulf Stream runs north through the Straits.",
+      "id": "zone.florida_bahamas",
+      "name": "Florida Straits & Bahamas",
+      "polygon": [[-83.0, 22.8], [-80.5, 23.0], [-77.0, 21.0], [-71.0, 21.0], [-71.0, 27.5], [-79.0, 31.0], [-81.5, 31.0], [-81.0, 25.5], [-83.0, 24.8]],
+      "seasons": {
+        "dry": { "fromDeg": 70, "spreadDeg": 35, "strength": { "calm": 0.04, "light": 0.24, "fresh": 0.45, "strong": 0.24, "gale": 0.03 } },
+        "wet": { "fromDeg": 120, "spreadDeg": 30, "strength": { "calm": 0.08, "light": 0.37, "fresh": 0.42, "strong": 0.11, "gale": 0.02 } }
+      },
+      "events": [
+        { "id": "norther", "months": [11, 12, 1, 2, 3], "chancePerDay": 0.05, "fromDeg": 340, "strength": "strong", "durationDays": [1, 3] }
+      ]
+    },
+    {
+      "$comment": "North coasts of Cuba, Hispaniola and Puerto Rico, the Old Bahama Channel and the Windward Passage: ENE trades, with land and sea breezes inshore and weak fronts in winter.",
+      "id": "zone.windward_passage",
+      "name": "Windward Passage & Greater Antilles North",
+      "polygon": [[-80.5, 22.6], [-77.0, 21.0], [-71.0, 21.0], [-64.5, 19.8], [-64.5, 18.3], [-68.0, 18.3], [-72.0, 19.5], [-74.5, 19.5], [-75.5, 19.9], [-78.0, 20.5]],
+      "seasons": {
+        "dry": { "fromDeg": 70, "spreadDeg": 25, "strength": { "calm": 0.03, "light": 0.19, "fresh": 0.5, "strong": 0.25, "gale": 0.03 } },
+        "wet": { "fromDeg": 95, "spreadDeg": 25, "strength": { "calm": 0.05, "light": 0.27, "fresh": 0.48, "strong": 0.17, "gale": 0.03 } }
+      },
+      "events": [
+        { "id": "norther", "months": [12, 1, 2], "chancePerDay": 0.03, "fromDeg": 0, "strength": "fresh", "durationDays": [1, 2] }
+      ]
+    },
+    {
+      "$comment": "Bay of Campeche and the Texas coast. Onshore ESE-SE flow between fronts; winter nortes arrive often and hard, the classic hazard for ships off Veracruz.",
+      "id": "zone.gulf_west",
+      "name": "Western Gulf of Mexico",
+      "polygon": [[-98.0, 18.0], [-90.0, 18.0], [-90.0, 31.0], [-98.0, 31.0]],
+      "seasons": {
+        "dry": { "fromDeg": 110, "spreadDeg": 40, "strength": { "calm": 0.06, "light": 0.3, "fresh": 0.4, "strong": 0.2, "gale": 0.04 } },
+        "wet": { "fromDeg": 115, "spreadDeg": 30, "strength": { "calm": 0.08, "light": 0.4, "fresh": 0.4, "strong": 0.1, "gale": 0.02 } }
+      },
+      "events": [
+        { "id": "norther", "months": [10, 11, 12, 1, 2, 3], "chancePerDay": 0.09, "fromDeg": 350, "strength": "strong", "durationDays": [1, 3] },
+        { "id": "norther_gale", "months": [11, 12, 1, 2], "chancePerDay": 0.02, "fromDeg": 350, "strength": "gale", "durationDays": [1, 2] }
+      ]
+    },
+    {
+      "$comment": "Eastern Gulf and the Campeche Bank: easterlies variable with passing fronts in winter, SE-ESE in summer.",
+      "id": "zone.gulf_east",
+      "name": "Eastern Gulf of Mexico",
+      "polygon": [[-90.0, 21.0], [-87.0, 21.6], [-84.5, 22.0], [-83.0, 22.8], [-83.0, 24.8], [-81.0, 25.5], [-81.5, 31.0], [-90.0, 31.0]],
+      "seasons": {
+        "dry": { "fromDeg": 90, "spreadDeg": 45, "strength": { "calm": 0.06, "light": 0.3, "fresh": 0.42, "strong": 0.19, "gale": 0.03 } },
+        "wet": { "fromDeg": 120, "spreadDeg": 35, "strength": { "calm": 0.1, "light": 0.42, "fresh": 0.38, "strong": 0.08, "gale": 0.02 } }
+      },
+      "events": [
+        { "id": "norther", "months": [11, 12, 1, 2, 3], "chancePerDay": 0.06, "fromDeg": 340, "strength": "strong", "durationDays": [1, 3] }
+      ]
+    },
+    {
+      "$comment": "Open central Caribbean: NE-E trades year-round, strongest Dec-Apr with a July maximum (the mid-summer drought) before easing in Sep-Oct.",
+      "id": "zone.caribbean_sea",
+      "name": "Caribbean Sea",
+      "polygon": [[-84.0, 11.5], [-75.5, 11.0], [-64.0, 12.0], [-64.0, 18.3], [-68.0, 18.3], [-72.0, 19.5], [-78.0, 20.0], [-83.0, 21.0], [-84.5, 19.0]],
+      "seasons": {
+        "dry": { "fromDeg": 70, "spreadDeg": 20, "strength": { "calm": 0.02, "light": 0.15, "fresh": 0.5, "strong": 0.3, "gale": 0.03 } },
+        "wet": { "fromDeg": 85, "spreadDeg": 20, "strength": { "calm": 0.03, "light": 0.2, "fresh": 0.5, "strong": 0.24, "gale": 0.03 } }
+      }
+    }
+  ]
+}

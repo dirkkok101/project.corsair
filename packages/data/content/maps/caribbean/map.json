@@ -1,0 +1,30 @@
+{
+  "$comment": "The Caribbean, PRD section 3. Equirectangular over the bounds: about 2.5 km per tile. Layers are built by tools/map/build-caribbean.ts from real elevation and bathymetry.",
+  "id": "map.caribbean",
+  "width": 1600,
+  "height": 1100,
+  "tileSize": 24,
+  "bounds": {
+    "lonMin": -98,
+    "lonMax": -59,
+    "latMin": 7,
+    "latMax": 31
+  },
+  "layers": {
+    "terrain": "terrain.png",
+    "elevation": "elevation.png",
+    "zones": "zones.png"
+  },
+  "start": {
+    "shipId": "player",
+    "classId": "ship.brig",
+    "lon": -76.8,
+    "lat": 17.82,
+    "headingDeg": 180
+  },
+  "startDate": "1660-03-01",
+  "wind": {
+    "fromDeg": 67.5,
+    "strength": "fresh"
+  }
+}

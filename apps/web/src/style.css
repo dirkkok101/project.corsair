@@ -15,7 +15,52 @@ body {
 }
 
 #stage canvas {
+  display: block;
   image-rendering: pixelated;
+}
+
+.viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+.labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 1px 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #ebede9;
+  background: rgb(9 10 20 / 0.7);
+  border-left: 3px solid #819796;
+}
+
+.label-spain {
+  border-color: #e8c170;
+}
+
+.label-england {
+  border-color: #cf573c;
+}
+
+.label-france {
+  border-color: #73bed3;
+}
+
+.label-netherlands {
+  border-color: #de9e41;
+}
+
+.label-pirate {
+  border-color: #090a14;
+  background: rgb(65 29 49 / 0.85);
 }
 
 .hud {

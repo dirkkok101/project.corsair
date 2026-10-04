@@ -1,6 +1,6 @@
 import type { EmittedEvent, Ship, System, Wind, WorldState } from '@corsair/core';
-import { isLand, tileAt } from '@corsair/data';
-import type { ContentPack, Polar, TileMap } from '@corsair/data';
+import { isLand, startOf, tileAt } from '@corsair/data';
+import type { ContentPack, MapDef, Polar, TileMap } from '@corsair/data';
 
 export function normalizeDeg(deg: number): number {
   return ((deg % 360) + 360) % 360;
@@ -124,13 +124,14 @@ export function createNavigationSystem(content: ContentPack, map: TileMap): Syst
 }
 
 /** Initial world for a map: the player's ship at the map's start, at rest. */
-export function createWorld(content: ContentPack): WorldState {
-  const { start, wind } = content.map;
+export function createWorld(def: MapDef): WorldState {
+  const { start, wind } = def;
+  const at = startOf(def);
   const ship: Ship = {
     id: start.shipId,
     classId: start.classId,
-    x: start.x,
-    y: start.y,
+    x: at.x,
+    y: at.y,
     headingDeg: start.headingDeg,
     speed: 0,
     helm: 0,

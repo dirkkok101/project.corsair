@@ -2,3 +2,4 @@
 *.blend1
 node_modules/
 dist/
+tools/map/.cache/

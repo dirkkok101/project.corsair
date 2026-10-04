@@ -1,5 +1,5 @@
 import type { Ship, WorldState } from '@corsair/core';
-import type { ContentPack, TileMap } from '@corsair/data';
+import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { Application, Assets, Container, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { createWake, createWindStreaks, windVector } from './effects';
@@ -25,6 +25,8 @@ export interface Renderer {
   canvas: HTMLCanvasElement;
   /** `nowMs` is the frame time (requestAnimationFrame's timestamp); it only drives visual effects. */
   render(state: WorldState, nowMs: number): void;
+  /** Top-left of the view in world pixels, for overlays such as town labels. */
+  camera(): { x: number; y: number };
 }
 
 /** `spriteUrls` maps `{sprite}.{anim}` (e.g. `ship.brig.world.sail_full`) to frame URLs ordered f00..fNN. */
@@ -32,6 +34,7 @@ export async function createRenderer(
   content: ContentPack,
   map: TileMap,
   spriteUrls: Record<string, string[]>,
+  settlements: PlacedSettlement[] = [],
 ): Promise<Renderer> {
   // Must be set before any texture loads, or sprites get smoothed.
   TextureSource.defaultOptions.scaleMode = 'nearest';
@@ -90,6 +93,17 @@ export async function createRenderer(
     frames[id] = await Promise.all(urls.map((u) => Assets.load<PixiTexture>(u)));
   }
 
+  // Towns sit between the water effects and the ships, which are added later and so draw on top.
+  const town = content.sprites.settlement;
+  for (const s of settlements) {
+    if (!town) break;
+    const anim = s.type === 'haven' ? 'pirate.haven' : `${s.nation}.${s.size}`;
+    const sprite = new Sprite(frames[`settlement.${anim}`]![0]!);
+    sprite.anchor.set(town.pivot.x, town.pivot.y);
+    sprite.position.set(Math.round(s.x * ts), Math.round(s.y * ts));
+    world.addChild(sprite);
+  }
+
   const shipSprites = new Map<string, Sprite>();
 
   const sailAnim = (ship: Ship, state: WorldState, nowMs: number): string => {
@@ -110,6 +124,7 @@ export async function createRenderer(
 
   return {
     canvas: app.canvas,
+    camera: () => ({ x: -world.position.x, y: -world.position.y }),
     render(state, nowMs) {
       const dt = lastMs === undefined ? 0 : Math.min((nowMs - lastMs) / 1000, 0.1);
       lastMs = nowMs;

@@ -32,5 +32,29 @@
       "sail_half_irons_s0",
       "sail_half_irons_s1"
     ]
+  },
+  "settlement": {
+    "$comment": "World-map town sprites, one frame each, 45 deg camera like the ships (tools/art/render_towns.py). Nation variants of a size share a silhouette. Pivot is the ground under the town centre.",
+    "cell": 96,
+    "facings": 1,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.612
+    },
+    "anims": [
+      "spain.hamlet",
+      "spain.town",
+      "spain.city",
+      "england.hamlet",
+      "england.town",
+      "england.city",
+      "france.hamlet",
+      "france.town",
+      "france.city",
+      "netherlands.hamlet",
+      "netherlands.town",
+      "netherlands.city",
+      "pirate.haven"
+    ]
   }
 }
