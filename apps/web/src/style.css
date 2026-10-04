@@ -58,6 +58,67 @@ body {
   border-color: #de9e41;
 }
 
+.minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 360px;
+  image-rendering: pixelated;
+  border: 1px solid #394a50;
+}
+
+.chart {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(9 10 20 / 0.85);
+}
+
+.chart[hidden] {
+  display: none;
+}
+
+.chart-sheet {
+  position: relative;
+  width: min(96vw, calc(92vh * 1600 / 1100));
+  border: 2px solid #c09473;
+}
+
+.chart-sheet canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.chart-port {
+  position: absolute;
+  transform: translate(-3px, -50%);
+  padding: 0 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: #ebede9;
+  background: rgb(9 10 20 / 0.6);
+  border-left: 3px solid #819796;
+  pointer-events: none;
+}
+
+.chart-player {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  background: #e8c170;
+  border: 2px solid #090a14;
+  border-radius: 50%;
+}
+
+.chart-hint {
+  position: absolute;
+  top: 12px;
+  color: #a8b5b2;
+}
+
 .label-pirate {
   border-color: #090a14;
   background: rgb(65 29 49 / 0.85);

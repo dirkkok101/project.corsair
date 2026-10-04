@@ -145,7 +145,7 @@ export function paintTerrainChunk(map: TileMap, tx0: number, ty0: number, size: 
         const tone = Math.max(0, Math.min(2, Math.round(1 - blend(slope) * RELIEF + dither)));
         colour = ramp[tone]!;
         // Canopy: small clumps of the darker tone so jungle doesn't read as flat paint.
-        if (ramp === RAMP.jungle && tone > 0 && noise(wx >> 2, wy >> 2, 7) < 0.1) colour = ramp[tone - 1]!;
+        if (ramp === RAMP.jungle && tone > 0 && noise(wx >> 1, wy >> 1, 7) < 0.1) colour = ramp[tone - 1]!;
       } else if (lf > SURF_ABOVE) {
         // Broken surf line hugging the coast.
         colour = noise(wx >> 1, wy, 9) < 0.7 ? SURF : FOAM;

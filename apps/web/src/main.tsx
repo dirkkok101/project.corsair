@@ -6,6 +6,7 @@ import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
 import { Hud } from './hud';
+import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
 
@@ -65,6 +66,7 @@ async function main() {
   viewport.appendChild(renderer.canvas);
   const labels = createLabels(viewport, settlements, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
+  const charts = createCharts(stage, map, settlements);
   let scale = 1;
   const fit = () => {
     scale = Math.max(1, Math.floor(Math.min(innerWidth / VIEW_WIDTH, innerHeight / VIEW_HEIGHT)));
@@ -91,6 +93,7 @@ async function main() {
     }
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), scale);
+    charts.update(sim.state.ships[def.start.shipId]);
     render(<Hud state={sim.state} content={content} />, hudRoot);
     requestAnimationFrame(frame);
   };

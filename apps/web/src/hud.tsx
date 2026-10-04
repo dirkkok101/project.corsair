@@ -100,7 +100,7 @@ export function Hud({ state, content }: { state: WorldState; content: ContentPac
         </div>
       </div>
       <WindRose polar={polar} wind={state.wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · [ ] turn wind · 1–5 wind strength</div>
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · M chart · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }
