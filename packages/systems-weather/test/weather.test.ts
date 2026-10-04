@@ -100,7 +100,62 @@ describe('weather over time', () => {
     }
   });
 
-  it('moves storms along their heading and drops them when they end', () => {
+  it('drops a storm on its end day even while it is still on the map', () => {
+    const start = newSim(9).state;
+    const storm: Storm = { id: 'storm.test', x: 800, y: 550, radius: 30, headingDeg: 270, speed: 1, endDay: 2 };
+    const sim = createSim({ ...start, weather: { ...start.weather!, storms: [storm] } }, [
+      createWeatherSystem(content, def, map),
+    ]);
+    sim.step(2 * day - 1);
+    expect(sim.state.weather!.storms).toHaveLength(1);
+    sim.step(1);
+    expect(sim.state.weather!.storms).toHaveLength(0);
+    const ended = sim.events().find((e) => e.type === 'StormDissipated')!;
+    expect(ended.tick).toBe(2 * day);
+    expect(ended.payload.x).toBeGreaterThan(700);
+  });
+
+  it('moves winds into the new season range when the season turns', () => {
+    // 31 May into 1 June: every zone must sit inside its wet-season spread within a day.
+    const may31 = { ...def, startDate: '1660-05-31' };
+    const sim = createSim(withWeather(createWorld(may31), content, may31, 21), [
+      createWeatherSystem(content, may31, map),
+    ]);
+    sim.step(2 * day);
+    for (const zone of content.windZones.zones) {
+      const w = sim.state.weather!.zones[zone.id]!;
+      if (w.event) continue;
+      const wet = zone.seasons.wet;
+      const off = Math.abs(((((w.fromDeg - wet.fromDeg) % 360) + 540) % 360) - 180);
+      expect(off).toBeLessThanOrEqual(wet.spreadDeg + 1e-9);
+    }
+  });
+
+  it('replays hurricane season identically, storms and all', () => {
+    // September with a certain daily spawn, so natural storms form during the run.
+    const sept = { ...def, startDate: '1660-09-01' };
+    const stormy = {
+      ...content,
+      weather: { ...content.weather, storms: { ...content.weather.storms, spawnChancePerDay: { '9': 1 } } },
+    };
+    const run = () => {
+      const sim = createSim(withWeather(createWorld(sept), stormy, sept, 77), [
+        createWeatherSystem(stormy, sept, map),
+        createNavigationSystem(stormy, map, createWindField(stormy, map)),
+      ]);
+      const hashes: string[] = [];
+      for (let t = 0; t < 3 * day + 5; t++) {
+        sim.step();
+        if (t % 90 === 0) hashes.push(sim.hash());
+      }
+      return { hashes, formed: sim.events().filter((e) => e.type === 'StormFormed').length };
+    };
+    const a = run();
+    expect(a.formed).toBeGreaterThanOrEqual(2);
+    expect(run()).toEqual(a);
+  });
+
+  it('moves storms along their heading and drops them once they end or leave the map', () => {
     const sim = newSim(5);
     const { x, y } = tileOf(def, -65, 15);
     sim.send({ type: 'SpawnStorm', x, y });

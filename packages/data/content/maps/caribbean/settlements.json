@@ -5,7 +5,7 @@
   { "$comment": "Waterfront facing San Juan de Ulúa.", "id": "town.veracruz", "name": "Veracruz", "nation": "spain", "type": "town", "size": "city", "lon": -96.13, "lat": 19.20 },
   { "id": "town.campeche", "name": "Campeche", "nation": "spain", "type": "town", "size": "town", "lon": -90.53, "lat": 19.85 },
   { "id": "town.san_juan", "name": "San Juan", "nation": "spain", "type": "town", "size": "town", "lon": -66.11, "lat": 18.47 },
-  { "$comment": "City lies ~7 km up a narrow-mouthed bay; placed between the waterfront and El Morro so it snaps to open water.", "id": "town.santiago_de_cuba", "name": "Santiago de Cuba", "nation": "spain", "type": "town", "size": "town", "lon": -75.85, "lat": 20.00 },
+  { "$comment": "City lies ~7 km up a narrow-mouthed bay; placed between the waterfront and El Morro so it snaps to the coast at map scale.", "id": "town.santiago_de_cuba", "name": "Santiago de Cuba", "nation": "spain", "type": "town", "size": "town", "lon": -75.85, "lat": 20.00 },
   { "$comment": "Caribbean terminus of the Panama treasure route; Nombre de Dios was abandoned for Portobelo in 1597.", "id": "town.portobelo", "name": "Portobelo", "nation": "spain", "type": "town", "size": "town", "lon": -79.66, "lat": 9.55 },
   { "id": "town.santa_marta", "name": "Santa Marta", "nation": "spain", "type": "town", "size": "town", "lon": -74.21, "lat": 11.24 },
   { "$comment": "Pearl-fishing port of Río de la Hacha.", "id": "town.rio_de_la_hacha", "name": "Río de la Hacha", "nation": "spain", "type": "town", "size": "hamlet", "lon": -72.91, "lat": 11.55 },

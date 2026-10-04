@@ -51,14 +51,12 @@ export function decodeRasterMap(
     }
     return png.data as Uint8Array;
   };
-  return {
-    width: def.width,
-    height: def.height,
-    tileSize: def.tileSize,
-    tiles: read('terrain', layers.terrain),
-    elevation: read('elevation', layers.elevation),
-    zones: read('zones', layers.zones),
-  };
+  const tiles = read('terrain', layers.terrain);
+  const elevation = read('elevation', layers.elevation);
+  const max = (data: Uint8Array) => data.reduce((m, v) => (v > m ? v : m), 0);
+  if (max(tiles) > Tile.Mountain) throw new Error(`${def.id} terrain: unknown terrain index ${max(tiles)}`);
+  if (max(elevation) > 7) throw new Error(`${def.id} elevation: band above 7`);
+  return { width: def.width, height: def.height, tileSize: def.tileSize, tiles, elevation, zones: read('zones', layers.zones) };
 }
 
 /**

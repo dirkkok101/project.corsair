@@ -132,12 +132,20 @@ export function createSky(viewW: number, viewH: number, tileSize: number) {
         stormSprites.delete(id);
       }
       const centre = { x: view.x + viewW / 2, y: view.y + viewH / 2 };
+      // Judge "in the storm" at the ship, like the HUD; the view centre only when there is no ship.
+      const here = ship ?? centre;
+      const reach = Math.hypot(viewW, viewH);
       let inStorm = false;
       for (const storm of storms) {
         const cx = storm.x * tileSize;
         const cy = storm.y * tileSize;
         const r = storm.radius * tileSize;
-        if (Math.hypot(centre.x - cx, centre.y - cy) < r) inStorm = true;
+        if (Math.hypot(here.x - cx, here.y - cy) < r) inStorm = true;
+        // Storms far from the view build no sprites, and hide any they have.
+        if (Math.hypot(centre.x - cx, centre.y - cy) - r > reach) {
+          for (const s of stormSprites.get(storm.id) ?? []) s.visible = false;
+          continue;
+        }
         // Puff counts scale with the storm: bands keep an even spacing, overcast an even density.
         const bandLength = 2 * Math.PI * ARM_TURNS * r * 0.56;
         const perArm = Math.ceil(bandLength / ARM_SPACING_PX);

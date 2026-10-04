@@ -102,7 +102,7 @@ async function main() {
     }
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), scale);
-    charts.update(sim.state.ships[def.start.shipId]);
+    charts.update(sim.state.ships[def.start.shipId], renderer.camera());
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     render(

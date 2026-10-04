@@ -18,7 +18,10 @@ export const VIEW_HEIGHT = 540;
 const SWELL_DRIFT_PX = 9;
 // Terrain is painted lazily in square chunks around the camera; a full map is far too big for one texture.
 const CHUNK_TILES = 32;
-const MAX_CHUNKS = 24;
+const MAX_CHUNKS = 30;
+// Chunks within this many pixels beyond the view are painted ahead, one per frame, so sailing into
+// a new chunk rarely has to paint it on the spot (each is ~590k pixels).
+const PREFETCH_PX = 384;
 // In irons the slack canvas flaps between two frames.
 const LUFF_FRAME_MS = 180;
 
@@ -74,16 +77,31 @@ export async function createRenderer(
   const chunkPx = CHUNK_TILES * ts;
   // Insertion order doubles as LRU order: a chunk is re-inserted whenever it's on screen.
   const chunks = new Map<string, Sprite | null>();
+  const paint = (cx: number, cy: number) => {
+    const canvas = paintTerrainChunk(map, cx * CHUNK_TILES, cy * CHUNK_TILES, CHUNK_TILES);
+    const chunk = canvas ? new Sprite(Texture.from(canvas)) : null;
+    chunk?.position.set(cx * chunkPx, cy * chunkPx);
+    if (chunk) terrain.addChild(chunk);
+    return chunk;
+  };
   const ensureChunks = (viewX: number, viewY: number) => {
-    for (let cy = Math.floor(viewY / chunkPx); cy <= Math.floor((viewY + VIEW_HEIGHT) / chunkPx); cy++) {
-      for (let cx = Math.floor(viewX / chunkPx); cx <= Math.floor((viewX + VIEW_WIDTH) / chunkPx); cx++) {
+    let prefetchBudget = 1;
+    const x0 = Math.floor((viewX - PREFETCH_PX) / chunkPx);
+    const x1 = Math.floor((viewX + VIEW_WIDTH + PREFETCH_PX) / chunkPx);
+    const y0 = Math.floor((viewY - PREFETCH_PX) / chunkPx);
+    const y1 = Math.floor((viewY + VIEW_HEIGHT + PREFETCH_PX) / chunkPx);
+    for (let cy = y0; cy <= y1; cy++) {
+      for (let cx = x0; cx <= x1; cx++) {
         const key = `${cx},${cy}`;
         let chunk = chunks.get(key);
         if (chunk === undefined) {
-          const canvas = paintTerrainChunk(map, cx * CHUNK_TILES, cy * CHUNK_TILES, CHUNK_TILES);
-          chunk = canvas ? new Sprite(Texture.from(canvas)) : null;
-          chunk?.position.set(cx * chunkPx, cy * chunkPx);
-          if (chunk) terrain.addChild(chunk);
+          const visible =
+            cx * chunkPx < viewX + VIEW_WIDTH &&
+            (cx + 1) * chunkPx > viewX &&
+            cy * chunkPx < viewY + VIEW_HEIGHT &&
+            (cy + 1) * chunkPx > viewY;
+          if (!visible && prefetchBudget-- <= 0) continue;
+          chunk = paint(cx, cy);
         }
         chunks.delete(key);
         chunks.set(key, chunk);

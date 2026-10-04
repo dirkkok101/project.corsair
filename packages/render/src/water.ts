@@ -35,6 +35,11 @@ const DITHER = 0.6; // fraction of a tone step the ordered dither spans
 // 4x4 ordered dither, so tone gradients read as pixel-art bands rather than noise.
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16 - 0.5);
 
+/** Bilinear blend of the four field values around grid index k (row stride n). */
+function bilinear(f: Float32Array, k: number, n: number, fx: number, fy: number): number {
+  return (f[k]! * (1 - fx) + f[k + 1]! * fx) * (1 - fy) + (f[k + n]! * (1 - fx) + f[k + n + 1]! * fx) * fy;
+}
+
 /** Cheap integer hash so the speckle is the same on every load. */
 function noise(x: number, y: number, salt = 0): number {
   let h = (x * 374761393 + y * 668265263 + salt * 2147483647) | 0;
@@ -129,27 +134,25 @@ export function paintTerrainChunk(map: TileMap, tx0: number, ty0: number, size: 
       const i0 = Math.min(Math.floor(u), n - 2);
       const fx = u - i0;
       const k = j0 * n + i0;
-      const blend = (f: Float32Array) =>
-        (f[k]! * (1 - fx) + f[k + 1]! * fx) * (1 - fy) + (f[k + n]! * (1 - fx) + f[k + n + 1]! * fx) * fy;
 
       const wx = tx0 * ts + pxl;
       const wy = ty0 * ts + py;
       const dither = BAYER[(wy & 3) * 4 + (wx & 3)]! * DITHER;
-      const lf = blend(land);
+      const lf = bilinear(land, k, n, fx, fy);
       let colour: Rgb | undefined;
 
       if (lf >= COAST) {
-        const e = blend(elev);
+        const e = bilinear(elev, k, n, fx, fy);
         const ramp =
           lf < BEACH_BELOW ? RAMP.beach : e >= MOUNTAIN_FROM ? RAMP.mountain : e >= HILLS_FROM ? RAMP.hills : RAMP.jungle;
-        const tone = Math.max(0, Math.min(2, Math.round(1 - blend(slope) * RELIEF + dither)));
+        const tone = Math.max(0, Math.min(2, Math.round(1 - bilinear(slope, k, n, fx, fy) * RELIEF + dither)));
         colour = ramp[tone]!;
         // Canopy: small clumps of the darker tone so jungle doesn't read as flat paint.
         if (ramp === RAMP.jungle && tone > 0 && noise(wx >> 1, wy >> 1, 7) < 0.1) colour = ramp[tone - 1]!;
       } else if (lf > SURF_ABOVE) {
         // Broken surf line hugging the coast.
         colour = noise(wx >> 1, wy, 9) < 0.7 ? SURF : FOAM;
-      } else if (blend(shoal) >= COAST) {
+      } else if (bilinear(shoal, k, n, fx, fy) >= COAST) {
         colour = noise(wx, wy, 1) < 0.05 ? RAMP.shallow[2]! : RAMP.shallow[1]!;
       }
 

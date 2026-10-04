@@ -47,6 +47,11 @@ describe('caribbean map', () => {
     expect(map.zones.length).toBe(def.width * def.height);
   });
 
+  it('only uses wind zone indices that exist (rebuild zones.png after editing wind_zones.json)', () => {
+    const max = map.zones.reduce((m, v) => (v > m ? v : m), 0);
+    expect(max).toBeLessThanOrEqual(content.windZones.zones.length);
+  });
+
   it('puts known places on the right terrain', () => {
     const at = (lon: number, lat: number) => {
       const { x, y } = tileOf(def, lon, lat);

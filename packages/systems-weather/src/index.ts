@@ -34,12 +34,14 @@ export function zoneAt(content: ContentPack, map: TileMap, x: number, y: number)
 export function stormWindAt(storm: Storm, x: number, y: number): Wind | undefined {
   const dx = x - storm.x;
   const dy = y - storm.y;
-  const r = Math.hypot(dx, dy);
-  if (r > storm.radius) return undefined;
+  // Squared distances: exact on every engine, so the gale/strong boundary replays identically.
+  const r2 = dx * dx + dy * dy;
+  if (r2 > storm.radius * storm.radius) return undefined;
   // Counter-clockwise tangent in east/north terms (map y grows southward): toward (east, north) = (dy, dx),
   // so its compass bearing is atan2(east, north) = atan2(dy, dx).
   const toBearing = normalizeDeg((Math.atan2(dy, dx) * 180) / Math.PI);
-  return { fromDeg: normalizeDeg(toBearing + 180), strength: r < storm.radius * 0.6 ? 'gale' : 'strong' };
+  const gale = storm.radius * 0.6;
+  return { fromDeg: normalizeDeg(toBearing + 180), strength: r2 < gale * gale ? 'gale' : 'strong' };
 }
 
 /** Wind at a tile: a storm wins, then the zone's weather, then the fallback global wind. */
@@ -84,7 +86,7 @@ export function initialWeather(content: ContentPack, def: RasterMapDef, seed: nu
 export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map: TileMap): System {
   const w = content.weather;
   const ticksPerDay = content.calendar.ticksPerDay;
-  const checkTicks = Math.round((ticksPerDay * w.checkEveryHours) / 24);
+  const checkTicks = Math.max(1, Math.round((ticksPerDay * w.checkEveryHours) / 24));
   const { lonMin, lonMax, latMin, latMax } = def.bounds;
   // Equirectangular tiles are close to square; average the two axes for km conversions.
   const midLat = ((latMin + latMax) / 2) * (Math.PI / 180);
@@ -153,10 +155,10 @@ export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map
         if (!player) return undefined;
         const zone = zoneAt(content, map, player.x, player.y);
         const wind = { fromDeg: normalizeDeg(command.fromDeg), strength: command.strength };
-        return {
-          state: { ...state, weather: { ...weather, zones: { ...weather.zones, [zone.id]: wind } } },
-          events: [{ type: 'WindChanged', entityIds: [zone.id], payload: { ...wind } }],
-        };
+        const ended = weather.zones[zone.id]?.event;
+        const events: EmittedEvent[] = [{ type: 'WindChanged', entityIds: [zone.id], payload: { ...wind } }];
+        if (ended) events.push({ type: 'WindEventEnded', entityIds: [zone.id], payload: { id: ended.id } });
+        return { state: { ...state, weather: { ...weather, zones: { ...weather.zones, [zone.id]: wind } } }, events };
       }
       return undefined;
     },
@@ -209,14 +211,18 @@ export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map
             continue;
           }
           let { fromDeg, strength } = current;
-          if (rng.float() < w.shiftChance) {
-            fromDeg = fromDeg + rng.range(-w.maxShiftDeg, w.maxShiftDeg);
+          // A wind left over from the last season jumps straight into this season's range.
+          const seasonTurned = Math.abs(diffDeg(fromDeg, prevailing.fromDeg)) > prevailing.spreadDeg;
+          if (seasonTurned || rng.float() < w.shiftChance) {
+            fromDeg = seasonTurned ? prevailing.fromDeg : fromDeg + rng.range(-w.maxShiftDeg, w.maxShiftDeg);
             // Stay within the season's spread around its prevailing direction.
             const off = diffDeg(fromDeg, prevailing.fromDeg);
             if (Math.abs(off) > prevailing.spreadDeg) fromDeg = prevailing.fromDeg + Math.sign(off) * prevailing.spreadDeg;
             fromDeg = normalizeDeg(fromDeg);
           }
-          if (rng.float() < w.strengthChangeChance) strength = rng.weighted<WindStrength>(prevailing.strength);
+          if (seasonTurned || rng.float() < w.strengthChangeChance) {
+            strength = rng.weighted<WindStrength>(prevailing.strength);
+          }
           if (fromDeg !== current.fromDeg || strength !== current.strength) zones[zone.id] = { fromDeg, strength };
         }
       }

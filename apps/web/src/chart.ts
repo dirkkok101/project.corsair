@@ -83,7 +83,8 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
   });
 
   return {
-    update(player: Ship | undefined) {
+    /** `camera` is the top-left of the view in world pixels. */
+    update(player: Ship | undefined, camera: { x: number; y: number }) {
       if (!player) return;
       // Minimap: a window on the overview centred on the ship, clamped to the map.
       const sx = Math.max(0, Math.min(map.width - MINIMAP_TILES.w, Math.round(player.x - MINIMAP_TILES.w / 2)));
@@ -96,7 +97,9 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
       const vw = VIEW_WIDTH / map.tileSize;
       const vh = VIEW_HEIGHT / map.tileSize;
       mctx.strokeStyle = '#ebede9';
-      mctx.strokeRect(Math.round(player.x - sx - vw / 2) + 0.5, Math.round(player.y - sy - vh / 2) + 0.5, vw, vh);
+      const vx = camera.x / map.tileSize - sx;
+      const vy = camera.y / map.tileSize - sy;
+      mctx.strokeRect(Math.round(vx) + 0.5, Math.round(vy) + 0.5, vw, vh);
       mctx.fillStyle = '#e8c170';
       mctx.fillRect(Math.round(player.x - sx) - 1, Math.round(player.y - sy) - 1, 3, 3);
 
