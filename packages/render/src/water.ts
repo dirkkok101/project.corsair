@@ -30,19 +30,19 @@ function px(ctx: CanvasRenderingContext2D, colour: string, x: number, y: number,
 }
 
 /**
- * A 64x64 seamless deep-water swatch: small wave crests (light dash over a dark trough pixel).
- * It is drawn as a tiling sprite that drifts downwind.
+ * A 96x96 seamless deep-water swatch: small wave crests (light dash over a dark trough pixel).
+ * It is drawn as a screen-sized tiling sprite that drifts downwind.
  */
 export function paintDeepWater(): HTMLCanvasElement {
-  const size = 64;
+  const size = 96;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d')!;
   px(ctx, C.deep, 0, 0, size, size);
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 27; i++) {
     const x = Math.floor(noise(i, 1) * size);
     const y = Math.floor(noise(i, 2) * size);
-    const len = 2 + Math.floor(noise(i, 3) * 4);
+    const len = 3 + Math.floor(noise(i, 3) * 6);
     for (let k = 0; k < len; k++) {
       const cx = (x + k) % size;
       // A crest bows up in the middle: ends one pixel lower than the centre.
@@ -54,31 +54,44 @@ export function paintDeepWater(): HTMLCanvasElement {
   return canvas;
 }
 
-/** Everything except deep water: shallows with speckle and surf, sand, grass. Deep tiles stay transparent. */
-export function paintCoast(map: TileMap): HTMLCanvasElement {
+/**
+ * One square chunk of everything except deep water: shallows with speckle and surf, sand, grass.
+ * Deep tiles stay transparent so the drifting swell shows through. Returns null for an all-deep chunk.
+ * Noise is keyed on world pixels, so neighbouring chunks join seamlessly.
+ */
+export function paintTerrainChunk(map: TileMap, tx0: number, ty0: number, size: number): HTMLCanvasElement | null {
   const ts = map.tileSize;
-  const canvas = document.createElement('canvas');
-  canvas.width = map.width * ts;
-  canvas.height = map.height * ts;
-  const ctx = canvas.getContext('2d')!;
   const at = (x: number, y: number): Tile =>
     x < 0 || y < 0 || x >= map.width || y >= map.height ? Tile.Deep : map.tiles[y * map.width + x]!;
+  let any = false;
+  for (let ty = ty0; ty < ty0 + size && !any; ty++) {
+    for (let tx = tx0; tx < tx0 + size && !any; tx++) any = at(tx, ty) !== Tile.Deep;
+  }
+  if (!any) return null;
 
-  for (let ty = 0; ty < map.height; ty++) {
-    for (let tx = 0; tx < map.width; tx++) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size * ts;
+  const ctx = canvas.getContext('2d')!;
+  const px = (colour: string, wx: number, wy: number, w = 1, h = 1) => {
+    ctx.fillStyle = colour;
+    ctx.fillRect(wx - tx0 * ts, wy - ty0 * ts, w, h);
+  };
+
+  for (let ty = ty0; ty < ty0 + size; ty++) {
+    for (let tx = tx0; tx < tx0 + size; tx++) {
       const tile = at(tx, ty);
       if (tile === Tile.Deep) continue;
       const ox = tx * ts;
       const oy = ty * ts;
       const base = tile === Tile.Shallow ? C.shallow : tile === Tile.Sand ? C.sand : C.grass;
-      px(ctx, base, ox, oy, ts, ts);
+      px(base, ox, oy, ts, ts);
       for (let y = 0; y < ts; y++) {
         for (let x = 0; x < ts; x++) {
           const n = noise(ox + x, oy + y, tile);
-          if (tile === Tile.Shallow && n < 0.06) px(ctx, C.shallowLight, ox + x, oy + y);
-          if (tile === Tile.Sand && n < 0.08) px(ctx, C.sandDark, ox + x, oy + y);
-          if (tile === Tile.Grass && n < 0.07) px(ctx, C.grassDark, ox + x, oy + y);
-          if (tile === Tile.Grass && n > 0.95) px(ctx, C.grassLight, ox + x, oy + y);
+          if (tile === Tile.Shallow && n < 0.06) px(C.shallowLight, ox + x, oy + y);
+          if (tile === Tile.Sand && n < 0.08) px(C.sandDark, ox + x, oy + y);
+          if (tile === Tile.Grass && n < 0.07) px(C.grassDark, ox + x, oy + y);
+          if (tile === Tile.Grass && n > 0.95) px(C.grassLight, ox + x, oy + y);
         }
       }
       if (tile !== Tile.Shallow) continue;
@@ -95,8 +108,8 @@ export function paintCoast(map: TileMap): HTMLCanvasElement {
           const n = noise(ox + i * 7, oy + dx * 3 + dy * 5, 9);
           const [ax, ay] = dx !== 0 ? [dx > 0 ? ts - 1 : 0, i] : [i, dy > 0 ? ts - 1 : 0];
           const [bx, by] = dx !== 0 ? [ax - dx, ay] : [ax, ay - dy];
-          px(ctx, n < 0.75 ? C.surf : C.foam, ox + ax, oy + ay);
-          if (n < 0.45) px(ctx, C.foam, ox + bx, oy + by);
+          px(n < 0.75 ? C.surf : C.foam, ox + ax, oy + ay);
+          if (n < 0.45) px(C.foam, ox + bx, oy + by);
         }
       }
     }

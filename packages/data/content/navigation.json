@@ -1,6 +1,6 @@
 {
   "$comment": "Sailing tuning, PRD section 4. Hull, crew and load factors and currents are deferred; they are 1 and 0 for now. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet.",
-  "tilesPerSecondPerSpeedPoint": 0.25,
+  "tilesPerSecondPerSpeedPoint": 1,
   "turnDegPerSecondPerPoint": 6,
   "accelPerSecond": 0.6,
   "sailSettings": {

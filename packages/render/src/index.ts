@@ -5,16 +5,19 @@ import type { Texture as PixiTexture } from 'pixi.js';
 import { createWake, createWindStreaks, windVector } from './effects';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
-import { paintCoast, paintDeepWater } from './water';
+import { paintDeepWater, paintTerrainChunk } from './water';
 
 export { facingIndex } from './facing';
 
-/** Logical frame from the art pipeline: everything is composed at 480x270 and integer-scaled. */
-export const VIEW_WIDTH = 480;
-export const VIEW_HEIGHT = 270;
+/** Logical frame from the art pipeline: everything is composed at 960x540 and integer-scaled. */
+export const VIEW_WIDTH = 960;
+export const VIEW_HEIGHT = 540;
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
-const SWELL_DRIFT_PX = 6;
+const SWELL_DRIFT_PX = 9;
+// Terrain is painted lazily in square chunks around the camera; a full map is far too big for one texture.
+const CHUNK_TILES = 32;
+const MAX_CHUNKS = 24;
 // In irons the slack canvas flaps between two frames.
 const LUFF_FRAME_MS = 180;
 
@@ -49,10 +52,38 @@ export async function createRenderer(
   const ts = map.tileSize;
   const worldW = map.width * ts;
   const worldH = map.height * ts;
-  const swell = new TilingSprite({ texture: Texture.from(paintDeepWater()), width: worldW, height: worldH });
+  // Deep water is one screen-sized tiling sprite under the world, scrolled with the camera.
+  const swell = new TilingSprite({ texture: Texture.from(paintDeepWater()), width: VIEW_WIDTH, height: VIEW_HEIGHT });
+  app.stage.addChildAt(swell, 0);
+  const terrain = new Container();
   const streaks = createWindStreaks(map);
   const wake = createWake(map);
-  world.addChild(swell, new Sprite(Texture.from(paintCoast(map))), streaks.view, wake.view);
+  world.addChild(terrain, streaks.view, wake.view);
+
+  const chunkPx = CHUNK_TILES * ts;
+  // Insertion order doubles as LRU order: a chunk is re-inserted whenever it's on screen.
+  const chunks = new Map<string, Sprite | null>();
+  const ensureChunks = (viewX: number, viewY: number) => {
+    for (let cy = Math.floor(viewY / chunkPx); cy <= Math.floor((viewY + VIEW_HEIGHT) / chunkPx); cy++) {
+      for (let cx = Math.floor(viewX / chunkPx); cx <= Math.floor((viewX + VIEW_WIDTH) / chunkPx); cx++) {
+        const key = `${cx},${cy}`;
+        let chunk = chunks.get(key);
+        if (chunk === undefined) {
+          const canvas = paintTerrainChunk(map, cx * CHUNK_TILES, cy * CHUNK_TILES, CHUNK_TILES);
+          chunk = canvas ? new Sprite(Texture.from(canvas)) : null;
+          chunk?.position.set(cx * chunkPx, cy * chunkPx);
+          if (chunk) terrain.addChild(chunk);
+        }
+        chunks.delete(key);
+        chunks.set(key, chunk);
+      }
+    }
+    while (chunks.size > MAX_CHUNKS) {
+      const [oldest, chunk] = chunks.entries().next().value!;
+      chunks.delete(oldest);
+      chunk?.destroy({ texture: true, textureSource: true });
+    }
+  };
 
   const frames: Record<string, PixiTexture[]> = {};
   for (const [id, urls] of Object.entries(spriteUrls)) {
@@ -109,7 +140,8 @@ export async function createRenderer(
       const drift = SWELL_DRIFT_PX * content.navigation.windStrength[state.wind.strength]! * dt;
       swellX += vx * drift;
       swellY += vy * drift;
-      swell.tilePosition.set(Math.round(swellX), Math.round(swellY));
+      swell.tilePosition.set(Math.round(world.position.x + swellX), Math.round(world.position.y + swellY));
+      ensureChunks(-world.position.x, -world.position.y);
       streaks.update(state.wind, dt, { x: -world.position.x, y: -world.position.y, w: VIEW_WIDTH, h: VIEW_HEIGHT });
       app.render();
     },

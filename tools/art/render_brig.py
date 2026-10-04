@@ -1,4 +1,4 @@
-"""Builds the low-poly brig and renders the world-map set: 23 sail sprites x 32 facings at 64 px.
+"""Builds the low-poly brig and renders the world-map set: 23 sail sprites x 32 facings at 96 px (960x540 view).
 
 Run from the repo root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/art/render_brig.py -- "$PWD" <tmp dir>
@@ -317,7 +317,7 @@ def snap(flat, lit):
     return out
 
 
-# Locked world-map camera (art pipeline section 4): orthographic, 45 deg, 64 px cell.
+# Locked world-map camera (art pipeline section 4): orthographic, 45 deg, 96 px cell; the framing (ortho 3.7) is fixed, so the pivot fraction never changes with cell size.
 FACINGS = 32
 cam_data.ortho_scale = 3.7
 cam_data.clip_end = 100
@@ -325,7 +325,7 @@ T = Vector((0, 0, 0.6))
 e = math.radians(45)
 cam.location = T + Vector((0, -math.cos(e), math.sin(e))) * 20
 cam.rotation_euler = (T - cam.location).to_track_quat('-Z', 'Y').to_euler()
-sc.render.resolution_x = sc.render.resolution_y = 64
+sc.render.resolution_x = sc.render.resolution_y = 96
 
 tmp = os.path.join(TMP, 'brig_pass.png')
 for state, objs in STATES.items():

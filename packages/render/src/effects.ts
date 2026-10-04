@@ -6,17 +6,17 @@ import { Graphics } from 'pixi.js';
 // Visual-only tuning. These never feed the sim, so they live with the renderer, not in content.
 const STREAKS: Record<WindStrength, { count: number; speedPx: number; length: number; colour: number }> = {
   calm: { count: 0, speedPx: 0, length: 0, colour: 0xa4dddb },
-  light: { count: 10, speedPx: 18, length: 4, colour: 0xa4dddb },
-  fresh: { count: 22, speedPx: 32, length: 6, colour: 0xa4dddb },
-  strong: { count: 36, speedPx: 46, length: 8, colour: 0xebede9 },
-  gale: { count: 54, speedPx: 64, length: 10, colour: 0xebede9 },
+  light: { count: 40, speedPx: 27, length: 6, colour: 0xa4dddb },
+  fresh: { count: 88, speedPx: 48, length: 9, colour: 0xa4dddb },
+  strong: { count: 144, speedPx: 69, length: 12, colour: 0xebede9 },
+  gale: { count: 216, speedPx: 96, length: 15, colour: 0xebede9 },
 };
 const STREAK_LIFE_S = 1.6;
 const WAKE_LIFE_S = 1.4;
-const WAKE_SPREAD_PX_PER_S = 7;
+const WAKE_SPREAD_PX_PER_S = 10.5;
 const WAKE_MIN_SPEED = 0.15; // tiles per second
 // The stern sits about this far behind the waterline pivot in the 45 deg sprite; vertical is foreshortened.
-const STERN_PX = { along: 15, vertical: 0.7 };
+const STERN_PX = { along: 22, vertical: 0.7 };
 
 /** Unit vector the wind blows TOWARD, in screen space (y down). */
 export function windVector(wind: Wind): [number, number] {

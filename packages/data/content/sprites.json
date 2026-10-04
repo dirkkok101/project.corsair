@@ -1,7 +1,7 @@
 {
   "ship.brig.world": {
-    "$comment": "45 deg camera render, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (64 / 3.7) = 7.3 px below the cell centre. Set sails are drawn per point of sail and tack (_p wind from port, _s from starboard): yards braced, canvas bellied downwind; in irons two frames flap.",
-    "cell": 64,
+    "$comment": "45 deg camera render, 96 px cell, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (96 / 3.7) = 11 px below the cell centre. Set sails are drawn per point of sail and tack (_p wind from port, _s from starboard): yards braced, canvas bellied downwind; in irons two frames flap.",
+    "cell": 96,
     "facings": 32,
     "pivot": {
       "x": 0.5,

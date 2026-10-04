@@ -9,7 +9,8 @@ const map = buildTileMap(content.map);
 
 function openSea(headingDeg: number, windFromDeg = 0): WorldState {
   const world = createWorld(content);
-  const ship = { ...world.ships.player!, x: 15, y: 15, headingDeg };
+  // Open water far from the island, with room to sail 10 s at full speed in any direction.
+  const ship = { ...world.ships.player!, x: 200, y: 200, headingDeg };
   return { ...world, wind: { fromDeg: windFromDeg, strength: 'fresh' }, ships: { player: ship } };
 }
 
@@ -104,27 +105,34 @@ describe('sailing model', () => {
 
   it('reports a fresh contact after sailing clear and coming back', () => {
     const world = createWorld(content);
-    const ship = { ...world.ships.player!, x: 38, y: 38.5, headingDeg: 90 };
-    const sim = createSim({ ...world, wind: { fromDeg: 0, strength: 'fresh' }, ships: { player: ship } }, [
+    const start = { ...world.ships.player!, x: 38, y: 38.5, headingDeg: 90 };
+    const sim = createSim({ ...world, wind: { fromDeg: 0, strength: 'fresh' }, ships: { player: start } }, [
       createNavigationSystem(content, map),
     ]);
     const blocked = () => sim.events().filter((e) => e.type === 'ShipBlocked').length;
-    sim.step(10 * TICKS_PER_SECOND);
-    expect(blocked()).toBe(1);
+    const ship = () => sim.state.ships.player!;
     const turn = (helm: 1 | 0) => sim.send({ type: 'SetHelm', shipId: 'player', helm });
-    turn(1);
-    sim.step(Math.round((180 / 30.6) * TICKS_PER_SECOND));
-    turn(0);
-    sim.step(8 * TICKS_PER_SECOND);
-    expect(sim.state.ships.player!.blocked).toBe(false);
-    turn(1);
-    sim.step(Math.round((180 / 30.6) * TICKS_PER_SECOND));
-    turn(0);
-    sim.step(30 * TICKS_PER_SECOND);
-    // Sliding along a stepped tile coast can make and break contact a few times; a flood would mean
-    // the once-per-contact rule is broken.
+    const steerTo = (headingDeg: number) => {
+      turn(1);
+      for (let t = 0; t < 30 * TICKS_PER_SECOND && Math.abs(angleOffWind(ship().headingDeg, headingDeg)) > 3; t++) sim.step();
+      turn(0);
+      sim.step();
+    };
+    const stepUntil = (done: () => boolean) => {
+      for (let t = 0; t < 60 * TICKS_PER_SECOND && !done(); t++) sim.step();
+    };
+
+    stepUntil(() => ship().blocked);
+    expect(blocked()).toBe(1);
+    steerTo(270);
+    sim.step(5 * TICKS_PER_SECOND);
+    expect(ship().blocked).toBe(false);
+    steerTo(90);
+    stepUntil(() => ship().blocked);
+    // Turning against a stepped tile coast makes and breaks contact a few times. A broken
+    // once-per-contact rule would instead fire on most of the ~1,000 ticks this test runs.
     expect(blocked()).toBeGreaterThanOrEqual(2);
-    expect(blocked()).toBeLessThan(6);
+    expect(blocked()).toBeLessThan(12);
   });
 });
 
