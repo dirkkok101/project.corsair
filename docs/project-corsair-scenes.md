@@ -162,7 +162,7 @@ World-map settlement sprites are single cells, not the harbour illustration. Abo
 
 The 13 colonial and pirate sprites are rendered from low-poly Blender models with the same locked 45° camera as the ships (`tools/art/render_towns.py`, output in `art/generated/settlements/`). Nation variants of a size share geometry; only roof colour and flag change.
 
-On the map, the 34 historical settlements of c.1660 come from `settlements.json` by longitude and latitude. Each snaps to the nearest coastal tile at load; one more than 3 tiles from the coast fails validation.
+On the map, the 45 historical settlements of c.1660 come from `settlements.json` by longitude and latitude. Each snaps to the nearest coastal tile at load; one more than 3 tiles from the coast fails validation.
 
 | Marker | Id | Cell | Notes |
 |---|---|---|---|

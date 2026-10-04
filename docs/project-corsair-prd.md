@@ -135,7 +135,7 @@ Deferred. The whole map is visible for now. The rules below still stand for when
 
 - Terrain drawn as an autotiled tilemap from a sprite atlas (Wang or blob tiles for coastlines).
 - Until the autotile set exists, the renderer paints terrain procedurally from the palette. Coasts are smooth contours blended between tile centres, and relief is shaded from elevation. Collision stays on the tile grid.
-- Settlements sit on the map from `settlements.json` (34 historical settlements of c.1660, by longitude and latitude). Each snaps to the nearest coastal tile at load; one more than 3 tiles from the coast fails validation.
+- Settlements sit on the map from `settlements.json` (45 historical settlements of c.1660, by longitude and latitude). Each snaps to the nearest coastal tile at load; one more than 3 tiles from the coast fails validation.
 - Settlements, ships, storms and markers drawn as sprites with 8 or 16 facing directions.
 - Scene cameras and the sprite list for each view are in `docs/project-corsair-scenes.md`.
 - Minimap in the corner: a window of about 240 x 135 tiles around the ship. A full sea chart screen (M key) shows the whole map with every port, and later known prices, routes and treasure notes. Both draw from a one-pixel-per-tile overview of the map, not new art. While fog of war is deferred they show every tile.
