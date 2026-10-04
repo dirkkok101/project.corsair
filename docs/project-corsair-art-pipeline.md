@@ -16,12 +16,12 @@ This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers
 
 ## 1. Principles
 
-- **Real pixels only.** At 480×270 logical resolution, AI "fake pixel" output is not shippable. Every asset ends on-grid, on-palette, with binary alpha.
+- **Real pixels only.** At 960×540 logical resolution, AI "fake pixel" output is not shippable. Every asset ends on-grid, on-palette, with binary alpha.
 - **One palette, enforced by a script.** The day/night palette shader only works if every pixel is an exact palette colour.
 - **Layers over frames.** Hulls, sails, damage, bodies, weapons and costumes are separate layers. This keeps the frame count manageable.
 - **AI where it's strong, 3D and hand work where it isn't.** No AI tool does 16 directions, so ships come from 3D. AI is used for characters, drafts and concept work.
 - **Placeholder first.** Sprite ids live in game data, so every milestone can run on greybox art.
-- **Art is validated like data.** A missing sprite id or an off-palette pixel fails CI.
+- **Art is validated like data.** A missing sprite id or an off-palette pixel fails the `pnpm verify` gate before a merge. There is no CI.
 - **Original art only.** No prompt, reference image or style note may name the original game, its box art or another studio's work.
 - **Free-first for M0.** Prefer $0 tools (Blender, Pixelorama/LibreSprite, Autotiler, Maghwyn/Foozle/framemill) until the brig spike proves the look. Paid (Aseprite, PixelOver, PixelLab, RD) only after that, or if already owned.
 
@@ -29,19 +29,20 @@ This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers
 
 | Item | Decision |
 |---|---|
-| Logical resolution | 480×270, integer scaling only, nearest-neighbour filtering |
+| Logical resolution | 960×540, integer scaling only, nearest-neighbour filtering: 2× at 1080p, 4× at 4K, 2× with borders at 1440p. Was 480×270; the player wanted to see more of the world without losing pixel fidelity, and chose finer art over a smaller view. Every pixel size below grew 1.5× to match. |
 | Palette | One project palette `art/palette/corsair.gpl`, 32 to 48 colours. Shortlist: Apollo (46), Lospec500 (42), Pear36 (36), Endesga 32. Apollo is the front-runner for its sea blues, jungle greens and wood browns. Each colour gets a matching night entry (section 6). |
 | Outline | 1 px dark outline on characters, ships and units. None on tiles or harbour backgrounds. |
 | Alpha | 0 or 255 only. VFX atlases excepted. |
-| Tile size | 16×16 |
-| World-map ships | 64×64 cell, 32 facings |
-| Combat ships | 128×128 cell, 16 facings |
+| Tile size | 24×24 |
+| World-map ships | 96×96 cell, 32 facings |
+| Combat ships | 192×192 cell, 16 facings |
+| World-map settlements | 96×96 cell, same locked 45° camera as the ships |
 | Ship camera | Orthographic, 45° elevation, locked. The map tiles stay top-down. |
-| Duel characters | 64×64 cell, side view |
-| Land-battle units | 32×32 cell, camera still open |
-| Stealth and on-foot party | 32×32 generated, finished by hand at 16×16 or 24×24 (AI tools are not reliable below 32) |
-| Portraits | 64×64 face area on a 64×80 card, layered parts |
-| Harbour screens | 480×270 layered scenes |
+| Duel characters | 96×96 cell, side view |
+| Land-battle units | 48×48 cell, camera still open |
+| Stealth and on-foot party | 48×48 generated, finished by hand at 24×24 or 36×36 (AI tools are not reliable below 32) |
+| Portraits | 96×96 face area on a 96×120 card, layered parts |
+| Harbour screens | 960×540 layered scenes |
 | Facing convention | f00 = north, then clockwise: 11.25° steps to f31 for world-map ships, 22.5° steps to f15 for combat ships |
 | Pivots | Ships: hull centre at the waterline. At 45° this sits below the cell centre, so it must come from the atlas, not the cell. Characters and units: centre-bottom at the feet. Stored per frame in the atlas JSON. |
 | Animation timing | Driven by sim ticks (30 per second). Each duel frame carries a phase tag (wind-up, active, recovery) and a tick duration from `fencing_moves.json`. Ambient loops run at 8 to 12 fps. |
@@ -52,8 +53,8 @@ Estimates for v1.0, rounded. "Unique" is what has to be produced after mirroring
 
 | Asset group | In-game frames | Unique to produce | How |
 |---|---|---|---|
-| World-map ships (12 × 32 × 23 sail sprites, see scenes S1) | 8,832 | 8,832 rendered, ~4,450 hand-checked (port tack mirrors starboard) | Blender renders, hand pass at 64 px |
-| Combat ships (same counts at 128×128) | 576 | 576 rendered, light cleanup | Blender renders |
+| World-map ships (12 × 32 × 23 sail sprites, see scenes S1) | 8,832 | 8,832 rendered, ~4,450 hand-checked (port tack mirrors starboard) | Blender renders, hand pass at 96 px |
+| Combat ships (same counts at 192×192) | 576 | 576 rendered, light cleanup | Blender renders |
 | Ship damage overlays (4 families × 3 tiers) | 192 | 192 rendered | Material states through the same cameras |
 | Ship sinking | — | ~0 bespoke | In-engine tilt and water mask plus shared VFX |
 | Duel captain base body (~14 animations) | ~90 | ~90 | AI anchor + skeleton animation + pixel editor |
@@ -62,8 +63,8 @@ Estimates for v1.0, rounded. "Unique" is what has to be produced after mirroring
 | Background crew loops | ~32 | ~32 | AI + pixel editor |
 | Land-battle units (7 types × 5 actions) | ~700 | ~525 | AI templates + pixel editor |
 | Dance (player and partner) | ~24 | ~24 | AI pose boards + pixel editor |
-| Stealth and on-foot party | ~70 | ~50 | Hand at 16–24 px |
-| Settlement world-map sprites | ~26 | ~26 | AI concept + hand |
+| Stealth and on-foot party | ~70 | ~50 | Hand at 24–36 px |
+| Settlement world-map sprites | ~26 | ~26 | 12 colonial towns and the pirate haven rendered from low-poly Blender models (section 4); the rest AI concept + hand |
 | Terrain autotiles | ~150 | ~150 | ~16 tiles per terrain layer × 9, plus a river edge set (section 5) |
 | Harbour screen kits | — | ~90 pieces | AI concept with style lock, snapped, split into pieces |
 | Portrait parts | — | ~60 parts | Layered kit (section 7) |
@@ -80,25 +81,27 @@ The research settled this (`docs/corsair-pixel-art-research.md` Part A §1). No 
 
 **Primary: low-poly Blender models rendered to pixels.**
 
-1. Model one low-poly hull per class. Sails (furled, half, full), flags and damage states are separate meshes or materials. Keep parts thick enough to read at 64 px; avoid 1 px ropes in geometry.
+1. Model one low-poly hull per class. Sails (furled, half, full), flags and damage states are separate meshes or materials. Keep parts thick enough to read at 96 px; avoid 1 px ropes in geometry.
 2. Render with an **orthographic** camera at **45° elevation**, locked for the whole production, no anti-aliasing, nearest/filter size 0, transparent BG. The ship rotates under the fixed camera: **32 facings (11.25°) for the world map**, 16 (22.5°) for combat. 16 world facings looked steppy in play: at a brig's turn rate the sprite only changed every 0.7 s. Same framing every shot.
 3. **Batch helpers (prefer free):** Maghwyn `blender_directional_spritesheets` (native 4/8/**16**/32), FoozleCC blender_scripts (extend 8-dir to 16), or framemill (headless Blender → 16 sheets; GPL tool, your renders are your art). **Optional paid:** Sprite Sheet Maker (GPL, check Blender version), PixelOver ($19.99 one-time). Blender To Pixels (free) is useful for trying out looks.
-4. Render at **128×128 directly** for combat and at **64×64 directly** for the world map. Don't downscale the 128s to make the 64s; thin masts and rigging turn to noise that way. Display scale is a separate nearest-neighbour integer upscale.
+4. Render at **192×192 directly** for combat and at **96×96 directly** for the world map. Don't downscale the 192s to make the 96s; thin masts and rigging turn to noise that way. Display scale is a separate nearest-neighbour integer upscale.
 5. Snap every frame to the palette with the section 8 scripts. Render two passes per frame: a flat pass to identify each material, and a lit pass to pick a dark, mid or light step from that material's 3-colour ramp in `corsair.gpl`. Snapping a lit render straight to the nearest palette colour turns white sails brown.
-6. Cleanup in **Pixelorama or LibreSprite** ($0) or **Aseprite** if already owned: light at 128 px, a hand pass at 64 px (masts, bowsprit, flag, outline gaps). Plan on the 64 px pass as the real cost.
+6. Cleanup in **Pixelorama or LibreSprite** ($0) or **Aseprite** if already owned: light at 192 px, a hand pass at 96 px (masts, bowsprit, flag, outline gaps). Plan on the 96 px pass as the real cost.
 7. Damage overlays are rendered through the same cameras, so they line up in every facing.
 
-The locked read is the 45° row of the brig tilt spike (`art/generated/ships/brig-tilt-spike/`, model in `art/masters/ships/brig-3d-spike.blend`). At 45° the masts, stacked sails, flag, hull side and bow all read at 1× on the 480×270 map. Straight overhead was tried and rejected: an honest overhead render of a real model shows yards and deck but no sail, so it reads as a rowboat. The crescent sails in overhead packs such as Foozle's Scallywag Ships are hand-painted, and a 3D render can't produce them.
+The locked read is the 45° row of the brig tilt spike (`art/generated/ships/brig-tilt-spike/`, model in `art/masters/ships/brig-3d-spike.blend`). At 45° the masts, stacked sails, flag, hull side and bow all read at 1× on the 480×270 map the spike was judged on. Straight overhead was tried and rejected: an honest overhead render of a real model shows yards and deck but no sail, so it reads as a rowboat. The crescent sails in overhead packs such as Foozle's Scallywag Ships are hand-painted, and a 3D render can't produce them.
 
-The world map stays a top-down tilemap. Only ships, and later settlements, are drawn at 45°.
+The world map stays a top-down tilemap. Only ships and settlements are drawn at 45°.
 
-Mirroring is optional here, since renders are cheap. It's still useful to cut the 64 px hand pass to 17 facings and mirror the other 15 when hull asymmetry allows.
+**Settlements** use the same path. Low-poly Blender models are rendered by `tools/art/render_towns.py` into 96×96 cells with the locked 45° camera, output in `art/generated/settlements/`. The ids are `settlement.{spain,england,france,netherlands}.{hamlet,town,city}` and `settlement.pirate.haven`: 13 sprites. Nation variants of a size share geometry; only roof colour and flag change.
+
+Mirroring is optional here, since renders are cheap. It's still useful to cut the 96 px hand pass to 17 facings and mirror the other 15 when hull asymmetry allows.
 
 **Fallback: rotate at high res with RotSprite or cleanEdge.** This only works for a straight-overhead view, because a 45° view changes shape with heading rather than just rotating. Use it only if the 45° decision is reversed. If the Blender look doesn't fit the rest of the art, draw one top-down master per class and rotate it with RotSprite (Aseprite; confirm in LibreSprite) or cleanEdge (Clean Rotate extension). The Lospec Pixel Art Rotator compares nearest, RotSprite and cleanEdge side by side for free. Research fitness rank: RotSprite-from-one-facing is **worst** at 16–32 px for ships (masts/rails vanish) — treat it as a redraw starting point, not a shippable facing set.
 
 **M0 spike:** model the brig and render all 16 facings at both sizes with the free Blender path. Test RotSprite and cleanEdge on the same ship. Judge at 1× and 4× on the actual world map before committing or buying PixelOver / Aseprite / AI credits.
 
-**Spike result (2026-10-04):** a real low-poly brig was rendered at 90°, 60° and 45°, and 45° was chosen. The earlier `art/masters/ships/brig.blend` is a flat decal (every mesh has zero height), not a 3D model, so it can't test this pipeline. Still open: the hand pass at 64 px (1 px masts, short bowsprit, thin hull side) and the RotSprite comparison.
+**Spike result (2026-10-04):** a real low-poly brig was rendered at 90°, 60° and 45°, and 45° was chosen. The earlier `art/masters/ships/brig.blend` is a flat decal (every mesh has zero height), not a 3D model, so it can't test this pipeline. Still open: the hand pass at 96 px (1 px masts, short bowsprit, thin hull side) and the RotSprite comparison.
 
 Sources: section 13, items S1 to S12; research Part A §1–2 and Part B.
 
@@ -106,13 +109,14 @@ Sources: section 13, items S1 to S12; research Part A §1–2 and Part B.
 
 - **Method:** one layer per terrain, stacked by priority: deep water, shallows, reef, beach, swamp, jungle, hills, mountain. Each layer is a 16-tile corner set (dual-grid, 15 tiles plus empty) drawn over transparency. That's about 16 × 9 ≈ 150 tiles in total, and it never explodes into combinations of every terrain pair.
 - **Rivers:** a separate edge-based set on top.
+- **Until the set exists:** the renderer paints terrain procedurally from the palette. Coasts are smooth contours blended between tile centres, and relief is shaded from elevation. Collision stays on the tile grid. Only deep, shallow, beach, jungle, hills and mountain are in the map so far.
 - **Variants:** add alternative fills or minitiles only if the map looks repetitive.
 - **Authoring tools (free-first):**
   - **Pixelorama / LibreSprite** (or Aseprite if owned) for painting the template.
   - **Autotiler 2.0** (MIT, free web/app): 13-tile template → blob47 / dual-grid; exports Tiled `.tsx` / Wang and engine sheets. Prefer this over paid AutoBlob for M0.
   - **Tiled** terrains / Automapping for coast–reef layout and cliffs (research Part A §4 coast recipe still applies; engine import is Pixi, not Godot).
   - Tilesetter can expand a base and an edge image into full sets.
-  - PixelLab's tileset tool can export dual-grid 15-tile sheets at 16 px, but nobody has reviewed its quality independently. Use it for first drafts only, then clean and snap.
+  - PixelLab's tileset tool can export dual-grid 15-tile sheets at 16 px (our tiles are now 24 px), but nobody has reviewed its quality independently. Use it for first drafts only, then clean and snap.
 - **Engine:** @pixi/tilemap v5 supports PixiJS v8. It caps at 16k tiles per tilemap, so the 1,600 × 1,100 tile map must be chunked. The chunk size also suits streaming (a PRD open question).
 
 Sources: section 13, items T1 to T10; research Part A §4 and Part B §C.
@@ -135,7 +139,7 @@ Sources: section 13, items P1 to P6.
 
 Governors, daughters, captains and villains are generated per game, so portraits are a layered kit, not one-off images.
 
-- Every part is drawn on one fixed 64×64 face template. Eyes, mouth and neck sit on identical pixels across all faces.
+- Every part is drawn on one fixed 96×96 face template. Eyes, mouth and neck sit on identical pixels across all faces.
 - Layer order: back hair, body and clothing, head, features, makeup, beard, moustache, accessories, front hair, hat.
 - Skin, hair and cloth use their own palette ramps, recoloured by the same palette shader. That gives variety without more parts.
 - The portrait is picked from the character's seed, so the same NPC always looks the same and bug reports reproduce.
@@ -151,12 +155,12 @@ A package in the pnpm workspace. It uses Node/TypeScript for orchestration and v
 | Command | Does |
 |---|---|
 | `pnpm art:snap` | 1) Detect the true pixel grid on generated images with Retro Diffusion's Pixel Art Fixer (MIT, Rust CLI) or unfake (WASM/CLI). 2) Downsample by mode, one majority colour per cell, not nearest. 3) Map to `corsair.gpl` by nearest colour in OKLab, dithering off. 4) Force binary alpha. 5) Apply the outline rule. 6) Crop into the target cell. Animation strips share one grid and palette. |
-| `pnpm art:render` | Batch-render Blender ship files from the locked 45° camera: 32 facings at 64 px, 16 at 128 px. `tools/art/render_brig.py` is the first one (brig world set) (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
+| `pnpm art:render` | Batch-render Blender ship files from the locked 45° camera: 32 facings at 96 px, 16 at 192 px. `tools/art/render_brig.py` is the first one (brig world set); `tools/art/render_towns.py` renders the settlement set (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
 | `pnpm art:mirror` | Produce mirrored facings from the declared mirror map |
 | `pnpm art:align` | Align frames to the pivot and normalise baseline |
 | `pnpm art:index` | Convert packed atlases to palette-index textures for the day/night filter |
 | `pnpm art:pack` | Pack atlases (free-tex-packer-core) into PixiJS spritesheet JSON + PNG, with pivots, animation lists and duel phase tags |
-| `pnpm art:validate` | CI check, see below |
+| `pnpm art:validate` | Verify-gate check, see below |
 
 Implementation notes:
 
@@ -239,7 +243,7 @@ Sprite ids follow the content id style: `{kind}.{subject}.{variant}.{anim}.{faci
 
 | Milestone | Art needed |
 |---|---|
-| M0 Foundations | Palette with night row, spec, pipeline scripts, greybox atlas, `art:validate` in CI. Spikes: brig in Blender via free 16-dir path (plus RotSprite/cleanEdge comparison), one duel pose set through PixelLab and Retro Diffusion, snap-tool bake-off on our own output. |
+| M0 Foundations | Palette with night row, spec, pipeline scripts, greybox atlas, `art:validate` in the `pnpm verify` gate. Spikes: brig in Blender via free 16-dir path (plus RotSprite/cleanEdge comparison), one duel pose set through PixelLab and Retro Diffusion, snap-tool bake-off on our own output. |
 | M1 Sailing and trade | Terrain layers, 3 to 4 world-map ship classes, 5 settlement sprites and basic harbour screens, storm, goods icons, day/night filter |
 | M2 Combat | Combat sprites for 4 classes, damage overlays, duel base body with 3 weapons and 2 costumes, crew loops, combat VFX |
 | M3 Living world | All nation building styles, world-map sprites for every class the AI sails |
@@ -251,7 +255,7 @@ Sprite ids follow the content id style: `{kind}.{subject}.{variant}.{anim}.{faci
 - Land-battle camera: top-down, 4 facings, specified in `docs/project-corsair-scenes.md`. The PRD still has the rules question of turn-based versus real-time with pause. The art is the same either way.
 - World-map sail states: 3, or just full and furled at 32 px?
 - Does the Blender render look sit well next to hand/AI-drawn characters? The M0 spike decides.
-- Ship cell height at 45°: masts make the bow-up and bow-down facings tight in 64×64. Either grow the world cell to 64×80 or shrink the ship. Decide in the 64 px hand pass.
+- Ship cell height at 45°: masts make the bow-up and bow-down facings tight in 96×96. Either grow the world cell to 96×120 or shrink the ship. Decide in the 96 px hand pass.
 - Who does hand cleanup? The duel set is the biggest block; budget a contract pixel artist if nobody on the team will.
 - Final palette: Apollo as-is, or a custom palette built from it?
 - Paid tool choice: PixelLab subscription, Retro Diffusion one-time, or both. Decide after the M0 duel spike. Default until then: free stack only for ships/tiles.

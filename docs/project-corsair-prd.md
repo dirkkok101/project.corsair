@@ -59,7 +59,8 @@ A typical loop takes 5 to 15 real minutes. The world map is the only place where
 
 ### Time and ageing
 
-- One world-map day passes every 2 to 4 real seconds at normal speed, faster in open water with wind astern.
+- One world-map day is 540 ticks, which is 18 real seconds at normal speed (`calendar.json`). A day lasts about as long as a brig's real day's run on the real-scale map, so voyage lengths and seasons stay believable.
+- Voyage pace: a brig makes about 6 tiles a second on a fresh broad reach, so Havana to Cartagena takes about 2 real minutes.
 - Minigames pause world time and then charge a fixed cost (a battle = 1 day, a land march = 2 to 6 days, a dance = 0 days).
 - The captain starts at about 20. From age 35, each year adds a chance that a stat drops (fencing reflexes, eyesight in gunnery).
 - Wounds from lost duels and battles lower health. Health, age and fame decide when the governor stops offering new work.
@@ -81,19 +82,21 @@ The player can retire at any port. The game scores the career and picks a retire
 
 ## 3. World map
 
-The world is a single tile map of the Caribbean, about 1,600 x 1,100 tiles at 16 px per tile, rendered as a scrolling top-down view. Geography, regions and spawn rules are data. The same map file drives rendering, pathfinding, weather and AI routing.
+The world is a single tile map of the Caribbean, 1,600 x 1,100 tiles at 24 px per tile, rendered as a scrolling top-down view. The projection is equirectangular over longitude −98 to −59 and latitude 7 to 31, about 2.5 km per tile. Geography, regions and spawn rules are data. The same map file drives rendering, pathfinding, weather and AI routing.
+
+The layers live in `packages/data/content/maps/caribbean/` and are built by `node tools/map/build-caribbean.ts` from AWS Terrain Tiles (Terrarium encoding). Attribution: the tiles' sources include NOAA ETOPO1, NASA SRTM and USGS GMTED.
 
 ### Map layers
 
 | Layer | Contents | Source |
 |---|---|---|
-| Terrain | Deep water, shallows, reef, beach, jungle, hills, mountain, swamp, river | `maps/caribbean/terrain.png` (colour-indexed) + `terrain_types.json` |
+| Terrain | Deep water, shallows, reef, beach, jungle, hills, mountain, swamp, river. Built so far: deep, shallow, beach, jungle, hills, mountain. Reef, swamp and river are not built yet. | `maps/caribbean/terrain.png` (colour-indexed) + `terrain_types.json` |
 | Elevation | 0 to 7 per land tile; affects march speed and sight | `elevation.png` |
 | Regions | 14 named sea and land regions (Spanish Main, Windward Isles, Gulf of Honduras...) | `regions.json` polygons |
 | Features | Settlements, reefs, sandbars, wrecks, landmarks for treasure maps | `features.json` |
 | Currents | Vector field, 8 directions, strength 0 to 3 | `currents.json` |
-| Wind zones | Prevailing wind by region and season | `wind_zones.json` |
-| Fog of war | Per-tile explored flag, stored in the save | runtime |
+| Wind zones | Prevailing wind by region and season; one zone per tile | `zones.png` + `wind_zones.json` |
+| Fog of war | Per-tile explored flag, stored in the save. Deferred: the whole map is visible for now. | runtime |
 
 ### Terrain rules
 
@@ -108,10 +111,15 @@ The world is a single tile map of the Caribbean, about 1,600 x 1,100 tiles at 16
 - Wind has a direction (16 points) and strength (calm, light, fresh, strong, gale).
 - Each wind zone runs a small state machine. Prevailing direction shifts slowly; gusts and calms are random events drawn from the seeded RNG.
 - Seasons: dry (Dec to May) and hurricane (Jun to Nov). Storm spawn rates come from `weather.json`.
+- Built: 9 wind zones in `wind_zones.json`, each with a dry-season and a wet-season prevailing wind and a spread. Zone events add Gulf northers (Oct to Mar) and wet-season calms off Darién. Zone winds drift every 6 game hours (`weather.json`).
+- Storms spawn east of the Lesser Antilles in hurricane season (peak Aug to Oct, about 3 to 4 a season), track west-north-west and recurve north-east past 25°N. Inside a storm the wind turns counter-clockwise: gale near the eye, strong at the edge. Storm damage to sails and crew is not modelled yet.
+- Weather state and its seeded RNG stream live in the world state, so weather replays deterministically.
 - Storms are moving map objects with a radius. Inside one, sails take damage, crew can be lost overboard, and ships drift.
 - Storms can wreck AI treasure fleets, which seeds new lost-treasure sites (section 10).
 
 ### Fog of war and discovery
+
+Deferred. The whole map is visible for now. The rules below still stand for when it is built.
 
 - The map starts known for the home region and major town positions (from period charts).
 - Tiles within the ship's sight radius become explored. Sight radius comes from ship type, crew lookouts, time of day and weather.
@@ -126,9 +134,11 @@ The world is a single tile map of the Caribbean, about 1,600 x 1,100 tiles at 16
 ### Rendering
 
 - Terrain drawn as an autotiled tilemap from a sprite atlas (Wang or blob tiles for coastlines).
+- Until the autotile set exists, the renderer paints terrain procedurally from the palette. Coasts are smooth contours blended between tile centres, and relief is shaded from elevation. Collision stays on the tile grid.
+- Settlements sit on the map from `settlements.json` (34 historical settlements of c.1660, by longitude and latitude). Each snaps to the nearest coastal tile at load; one more than 3 tiles from the coast fails validation.
 - Settlements, ships, storms and markers drawn as sprites with 8 or 16 facing directions.
 - Scene cameras and the sprite list for each view are in `docs/project-corsair-scenes.md`.
-- Minimap in the corner, with explored tiles only. A full sea chart screen shows towns, known prices, routes and treasure notes.
+- Minimap in the corner: a window of about 240 x 135 tiles around the ship. A full sea chart screen (M key) shows the whole map with every port, and later known prices, routes and treasure notes. Both draw from a one-pixel-per-tile overview of the map, not new art. While fog of war is deferred they show every tile.
 
 ## 4. Navigation
 
@@ -351,7 +361,7 @@ Ships slow by up to 20% over months at sea unless careened at a shipwright or on
 
 ### Sprites
 
-Each class has a world-map sprite (32 directions, 64 x 64) and a combat sprite (16 directions, 128 x 128), both drawn from a 45° camera, with frames for sails furled, half and full, damage overlays, and a sinking animation.
+Each class has a world-map sprite (32 directions, 96 x 96) and a combat sprite (16 directions, 192 x 192), both drawn from a 45° camera, with frames for sails furled, half and full, damage overlays, and a sinking animation.
 
 ## 8. Forts
 
@@ -613,7 +623,7 @@ The renderer never mutates state. Every change enters through the command bus an
 | UI | Preact + CSS over the canvas | Menus, journal, trade screens are easier as DOM |
 | Build | Vite, pnpm workspaces | Fast dev loop, one package per module |
 | Data validation | JSON Schema + Ajv (or Zod generating schema) | Validate content at build and at boot |
-| Tests | Vitest (core), Playwright (browser smoke) | Core tests run in milliseconds in Node |
+| Tests | Vitest (core), Playwright (browser end-to-end through `window.__corsair`) | Core tests run in milliseconds in Node |
 | Audio | Howler.js | Simple sprite-sheet audio |
 | Saves | IndexedDB + JSON file export | Save is a serialised state snapshot plus version |
 | Packaging (later) | Tauri wrapper for desktop stores | Same web build, ships to Steam or itch.io |
@@ -622,7 +632,7 @@ Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The des
 
 ### Modules (pnpm packages)
 
-- `@corsair/core`: state store, command bus, event bus, clock, seeded RNG (PCG32 or xoshiro128), system scheduler.
+- `@corsair/core`: state store, command bus, event bus, clock, seeded RNG (xoshiro128**, named streams), system scheduler.
 - `@corsair/systems-*`: one package per system (weather, navigation, economy, settlements, politics, news, ai-captains, treasure, romance, career, crew, fleet).
 - `@corsair/minigame-*`: sea-battle, fencing, land-battle, dance, stealth, trade. Each exports `init(snapshot, params)`, `step(input)`, `result()`.
 - `@corsair/data`: loaders, schemas, content-pack merging (base game + mods).
@@ -643,7 +653,7 @@ Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The des
 Full art production spec, frame budget and tooling: see `docs/project-corsair-art-pipeline.md`.
 
 - Texture atlases built with a packer (free-tex-packer or TexturePacker) into JSON + PNG. Sprite and animation names are referenced from game data, so art can change without code changes.
-- Target resolution: 480 x 270 logical, pixel-art style, scaled by integer factors (up to 4K). Keeps the art budget small.
+- Target resolution: 960 x 540 logical, pixel-art style, integer-scaled with nearest-neighbour: 2x at 1080p, 4x at 4K. At 1440p it shows at 2x with borders, which keeps the integer-scaling rule. This was 480 x 270; the player wanted to see more of the world without losing pixel fidelity, and chose finer art over a smaller view. Every pixel size grew 1.5x to match.
 - Ships: 32 facings on the world map, 16 in combat. Characters in duels: side-view frame animations per move.
 - Tile art: autotile sets for coast, reef and jungle.
 
@@ -676,7 +686,7 @@ content/
     fencing_moves.json
     land_units.json
     dances.json
-    weather.json  wind_zones.json  currents.json
+    currents.json
     routes.json
     treasure_rules.json
     events/*.json
@@ -684,7 +694,7 @@ content/
     names/*.json           # name tables for captains, governors, daughters, ships
     text/en.json           # all player-facing strings
     sprites/atlas.json     # sprite and animation ids
-    maps/caribbean/        # terrain.png, elevation.png, regions.json, features.json
+    maps/caribbean/        # terrain.png, elevation.png, zones.png, settlements.json, weather.json, wind_zones.json, regions.json, features.json
   schemas/*.schema.json
 ```
 
@@ -773,7 +783,7 @@ content/
 
 ### Tooling
 
-- `pnpm data:validate`: schema + cross-reference check (runs in CI and on file save).
+- `pnpm data:validate`: schema + cross-reference check (runs in the `pnpm verify` gate and on file save).
 - `pnpm data:report`: prints derived tables (ship value per gun, price ranges per town) for balance review.
 - A simple in-browser data editor for ships, goods and events is a v1.1 goal.
 
@@ -785,7 +795,7 @@ Any game state must be reproducible from a seed, a content-pack version and an i
 
 - Same seed + same packs + same commands = same state hash at every tick, in browser and Node.
 - Fixed-step simulation. Floating point limited to operations that behave the same across engines; state hashing uses rounded values.
-- Named RNG streams per system. A CI job runs a 20-year headless career twice and fails if hashes diverge.
+- Named RNG streams per system. The verify gate runs a 20-year headless career twice before a merge and fails if hashes diverge.
 
 ### Event log
 
@@ -814,7 +824,11 @@ In the browser this is `window.__corsair`. In Node it is the `corsair` CLI with 
 - A scenario is JSON: starting state overrides, a list of commands, and assertions.
 - Example: "Brig vs frigate, wind fresh from the east, player to windward" with the assertion "frigate win rate between 60% and 80% over 500 seeds".
 - Example: "Capture a convoy bound for Havana" with the assertion "Havana sugar price rises by at least 10% within 60 days".
-- Scenarios live next to the system they test and run in CI with Vitest.
+- Scenarios live next to the system they test and run with Vitest in the verify gate.
+
+### Verify gate
+
+There is no CI. A merge to main is gated on a local `pnpm verify` run: typecheck, unit tests (including the determinism and replay tests), production build, and Playwright end-to-end tests that drive the game through `window.__corsair`.
 
 ### Invariants (checked every tick in debug builds)
 
@@ -854,7 +868,7 @@ Build the observability and headless tooling first, then add gameplay in vertica
 
 **Roadmap (diagram):**
 
-1. **M0 Foundations** — core, data pipeline, debug API, headless runner, CI. *Gate: 20-year run replays with identical hashes.*
+1. **M0 Foundations** — core, data pipeline, debug API, headless runner, `pnpm verify` gate. *Gate: 20-year run replays with identical hashes.*
 2. **M1 Sailing and trade slice** — world map, navigation, weather, 5 towns, trading, saves. *Gate: sail, trade and save loop holds for 30 min.*
 3. **M2 Combat slice** — sea battle, boarding, fencing, 4 ship classes. *Gate: matchup win rates inside target bands.*
 4. **M3 Living world** — economy sim, settlements, politics, news, AI captains. *Gate: 1,000 soak careers, zero invariant breaks.*
@@ -879,7 +893,7 @@ Each gate is a scripted check from section 16, except the M1 fun check, which is
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Determinism breaks from float differences across browsers | Replay and tests become unreliable | Fixed-point or rounded maths in core; cross-engine hash test in CI |
+| Determinism breaks from float differences across browsers | Replay and tests become unreliable | Fixed-point or rounded maths in core; cross-engine hash test in the verify gate |
 | Scope creep across six minigames | Nothing gets polished | Vertical slices; cut stealth and dance to simple versions if M4 slips |
 | Art budget for sprites | Delays or inconsistent look | Low logical resolution, limited palette, atlas pipeline from day one |
 | Balance drift as systems interact | Degenerate strategies (trade loops, fort farming) | Soak reports and outlier flags on every change |
@@ -892,5 +906,5 @@ Each gate is a scripted check from section 16, except the M1 fun check, which is
 - Only the flagship fights (classic), or allow a second ship in sea battles later?
 - Land battles: turn-based tactical (current plan) or real-time with pause?
 - Is the romance target a daughter only, or configurable at career start?
-- One continuous map at 16 px tiles, or chunked streaming for a larger map later?
+- One continuous map at 24 px tiles, or chunked streaming for a larger map later?
 - Release path: free web build, paid itch.io build, or Steam via a desktop wrapper?
