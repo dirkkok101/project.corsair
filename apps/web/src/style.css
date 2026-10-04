@@ -1,0 +1,56 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #090a14;
+  color: #ebede9;
+  font: 13px/1.4 ui-monospace, Menlo, monospace;
+}
+
+#stage {
+  position: relative;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+#stage canvas {
+  image-rendering: pixelated;
+}
+
+.hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 8px 12px;
+  background: rgb(9 10 20 / 0.75);
+  border: 1px solid #394a50;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+  align-items: center;
+}
+
+.hud-wind {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+}
+
+.hud-keys {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  color: #819796;
+}
+
+.hud-rose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgb(9 10 20 / 0.75);
+  border: 1px solid #394a50;
+}

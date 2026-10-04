@@ -1,0 +1,18 @@
+{
+  "ship.brig.world": {
+    "$comment": "45 deg camera render, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (64 / 3.7) = 7.3 px below the cell centre. sail_luff0/1 are render-only: sails set but in the no-go zone.",
+    "cell": 64,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled",
+      "sail_luff0",
+      "sail_luff1"
+    ]
+  }
+}

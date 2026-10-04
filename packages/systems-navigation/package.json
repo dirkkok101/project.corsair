@@ -1,0 +1,7 @@
+{
+  "name": "@corsair/systems-navigation",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@corsair/core": "workspace:*", "@corsair/data": "workspace:*" }
+}

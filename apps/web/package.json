@@ -1,0 +1,16 @@
+{
+  "name": "@corsair/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@corsair/core": "workspace:*",
+    "@corsair/data": "workspace:*",
+    "@corsair/render": "workspace:*",
+    "@corsair/systems-navigation": "workspace:*",
+    "preact": "^11.0.0"
+  }
+}

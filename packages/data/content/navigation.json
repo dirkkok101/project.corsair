@@ -1,0 +1,16 @@
+{
+  "$comment": "Sailing tuning, PRD section 4. Hull, crew and load factors and currents are deferred; they are 1 and 0 for now.",
+  "tilesPerSecondPerSpeedPoint": 0.25,
+  "turnDegPerSecondPerPoint": 6,
+  "accelPerSecond": 0.6,
+  "sailSettings": { "furled": 0, "half": 0.6, "full": 1 },
+  "rigTurnFactor": { "square": 0.85, "mixed": 0.92, "fore_and_aft": 1 },
+  "windStrength": { "calm": 0.2, "light": 0.6, "fresh": 1, "strong": 1.15, "gale": 0.8 },
+  "pointsOfSail": [
+    { "maxDeg": 45, "name": "In irons" },
+    { "maxDeg": 70, "name": "Close-hauled" },
+    { "maxDeg": 110, "name": "Beam reach" },
+    { "maxDeg": 150, "name": "Broad reach" },
+    { "maxDeg": 180, "name": "Running" }
+  ]
+}

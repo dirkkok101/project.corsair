@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ship.brig",
+    "family": "brig",
+    "nameKey": "ship.brig.name",
+    "rig": "square",
+    "guns": 18,
+    "maxCrew": 150,
+    "minCrew": 30,
+    "cargo": 100,
+    "speed": 8,
+    "turn": 6,
+    "draft": 2,
+    "hull": 85,
+    "polar": "polar.square",
+    "price": 6500,
+    "eras": ["1620", "1640", "1660", "1680"],
+    "sprites": { "world": "ship.brig.world" }
+  }
+]

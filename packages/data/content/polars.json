@@ -1,0 +1,7 @@
+{
+  "polar.square": {
+    "$comment": "Speed fraction by angle off the wind: index i is i * stepDeg, 0 = head to wind, 180 = running. Square rig stalls inside ~50 deg and peaks on a broad reach.",
+    "stepDeg": 12,
+    "values": [0, 0, 0, 0, 0.05, 0.35, 0.6, 0.8, 0.92, 1, 1, 0.97, 0.9, 0.82, 0.75, 0.7]
+  }
+}

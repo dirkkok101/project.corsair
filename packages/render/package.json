@@ -1,0 +1,14 @@
+{
+  "name": "@corsair/render",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@corsair/core": "workspace:*",
+    "@corsair/data": "workspace:*",
+    "pixi.js": "^8.22.0",
+    "@corsair/systems-navigation": "workspace:*"
+  }
+}
