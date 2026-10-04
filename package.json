@@ -5,11 +5,14 @@
   "packageManager": "pnpm@12.9.1",
   "scripts": {
     "dev": "pnpm --filter @corsair/web dev",
-    "build": "pnpm --filter @corsair/web build",
+    "build": "vite build apps/web",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "e2e": "playwright test",
+    "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build apps/web && playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
     "fast-png": "^8.0.0",
     "typescript": "^7.0.2",

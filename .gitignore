@@ -3,3 +3,5 @@
 node_modules/
 dist/
 tools/map/.cache/
+test-results/
+playwright-report/
