@@ -10,8 +10,7 @@ body {
 #stage {
   position: relative;
   height: 100%;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
 }
 
 #stage canvas {

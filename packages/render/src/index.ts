@@ -10,9 +10,9 @@ import { paintDeepWater, paintTerrainChunk } from './water';
 
 export { facingIndex } from './facing';
 
-/** Logical frame from the art pipeline: everything is composed at 960x540 and integer-scaled. */
-export const VIEW_WIDTH = 960;
-export const VIEW_HEIGHT = 540;
+import { MIN_VIEW_HEIGHT, MIN_VIEW_WIDTH } from './view';
+
+export * from './view';
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
 const SWELL_DRIFT_PX = 9;
@@ -31,6 +31,10 @@ export interface Renderer {
   render(state: WorldState, nowMs: number): void;
   /** Top-left of the view in world pixels, for overlays such as town labels. */
   camera(): { x: number; y: number };
+  /** Logical view size in art pixels. */
+  view(): { width: number; height: number };
+  /** Resize the logical view (see fitView); the canvas is CSS-scaled by the caller. */
+  resize(width: number, height: number): void;
 }
 
 /** `spriteUrls` maps `{sprite}.{anim}` (e.g. `ship.brig.world.sail_full`) to frame URLs ordered f00..fNN. */
@@ -48,8 +52,8 @@ export async function createRenderer(
   const app = new Application();
   // autoStart off: the game loop calls render() after sim ticks instead of Pixi's ticker.
   await app.init({
-    width: VIEW_WIDTH,
-    height: VIEW_HEIGHT,
+    width: MIN_VIEW_WIDTH,
+    height: MIN_VIEW_HEIGHT,
     antialias: false,
     resolution: 1,
     background: '#3c5e8b',
@@ -62,14 +66,16 @@ export async function createRenderer(
   const worldW = map.width * ts;
   const worldH = map.height * ts;
   // Deep water is one screen-sized tiling sprite under the world, scrolled with the camera.
-  const swell = new TilingSprite({ texture: Texture.from(paintDeepWater()), width: VIEW_WIDTH, height: VIEW_HEIGHT });
+  let viewW = MIN_VIEW_WIDTH;
+  let viewH = MIN_VIEW_HEIGHT;
+  const swell = new TilingSprite({ texture: Texture.from(paintDeepWater()), width: viewW, height: viewH });
   app.stage.addChildAt(swell, 0);
   const terrain = new Container();
   const streaks = createWindStreaks(map);
   const wake = createWake(map);
   world.addChild(terrain, streaks.view, wake.view);
   // Clouds and storms are sky: a layer above the world (and its ships) that scrolls with it.
-  const sky = createSky(VIEW_WIDTH, VIEW_HEIGHT, ts);
+  const sky = createSky(viewW, viewH, ts);
   // The storm gloom darkens the sea under the ships; the clouds go above everything.
   world.addChildAt(sky.gloom, 1);
   app.stage.addChild(sky.layer);
@@ -87,18 +93,18 @@ export async function createRenderer(
   const ensureChunks = (viewX: number, viewY: number) => {
     let prefetchBudget = 1;
     const x0 = Math.floor((viewX - PREFETCH_PX) / chunkPx);
-    const x1 = Math.floor((viewX + VIEW_WIDTH + PREFETCH_PX) / chunkPx);
+    const x1 = Math.floor((viewX + viewW + PREFETCH_PX) / chunkPx);
     const y0 = Math.floor((viewY - PREFETCH_PX) / chunkPx);
-    const y1 = Math.floor((viewY + VIEW_HEIGHT + PREFETCH_PX) / chunkPx);
+    const y1 = Math.floor((viewY + viewH + PREFETCH_PX) / chunkPx);
     for (let cy = y0; cy <= y1; cy++) {
       for (let cx = x0; cx <= x1; cx++) {
         const key = `${cx},${cy}`;
         let chunk = chunks.get(key);
         if (chunk === undefined) {
           const visible =
-            cx * chunkPx < viewX + VIEW_WIDTH &&
+            cx * chunkPx < viewX + viewW &&
             (cx + 1) * chunkPx > viewX &&
-            cy * chunkPx < viewY + VIEW_HEIGHT &&
+            cy * chunkPx < viewY + viewH &&
             (cy + 1) * chunkPx > viewY;
           if (!visible && prefetchBudget-- <= 0) continue;
           chunk = paint(cx, cy);
@@ -151,6 +157,16 @@ export async function createRenderer(
   return {
     canvas: app.canvas,
     camera: () => ({ x: -world.position.x, y: -world.position.y }),
+    view: () => ({ width: viewW, height: viewH }),
+    resize(width, height) {
+      if (width === viewW && height === viewH) return;
+      viewW = width;
+      viewH = height;
+      app.renderer.resize(width, height);
+      swell.width = width;
+      swell.height = height;
+      sky.resize(width, height);
+    },
     render(state, nowMs) {
       const dt = lastMs === undefined ? 0 : Math.min((nowMs - lastMs) / 1000, 0.1);
       lastMs = nowMs;
@@ -171,9 +187,9 @@ export async function createRenderer(
 
       const player = state.ships.player;
       if (player) {
-        const cx = Math.round(player.x * ts - VIEW_WIDTH / 2);
-        const cy = Math.round(player.y * ts - VIEW_HEIGHT / 2);
-        world.position.set(-clamp(cx, 0, worldW - VIEW_WIDTH), -clamp(cy, 0, worldH - VIEW_HEIGHT));
+        const cx = Math.round(player.x * ts - viewW / 2);
+        const cy = Math.round(player.y * ts - viewH / 2);
+        world.position.set(-clamp(cx, 0, worldW - viewW), -clamp(cy, 0, worldH - viewH));
         wake.update(player, dt);
       }
 
@@ -181,14 +197,14 @@ export async function createRenderer(
       const view = { x: -world.position.x, y: -world.position.y };
       const wind = player
         ? windAt(state, player.x, player.y)
-        : windAt(state, (view.x + VIEW_WIDTH / 2) / ts, (view.y + VIEW_HEIGHT / 2) / ts);
+        : windAt(state, (view.x + viewW / 2) / ts, (view.y + viewH / 2) / ts);
       const [vx, vy] = windVector(wind);
       const drift = SWELL_DRIFT_PX * content.navigation.windStrength[wind.strength]! * dt;
       swellX += vx * drift;
       swellY += vy * drift;
       swell.tilePosition.set(Math.round(world.position.x + swellX), Math.round(world.position.y + swellY));
       ensureChunks(-world.position.x, -world.position.y);
-      streaks.update(wind, dt, { ...view, w: VIEW_WIDTH, h: VIEW_HEIGHT });
+      streaks.update(wind, dt, { ...view, w: viewW, h: viewH });
       sky.layer.position.copyFrom(world.position);
       sky.gloom.position.set(view.x, view.y);
       sky.update(wind, state.weather?.storms ?? [], dt, view, player && { x: player.x * ts, y: player.y * ts });

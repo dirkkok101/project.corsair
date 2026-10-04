@@ -1,6 +1,6 @@
 import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
-import { createRenderer, VIEW_HEIGHT, VIEW_WIDTH } from '@corsair/render';
+import { createRenderer, fitView } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, stormWindAt, withWeather, zoneAt } from '@corsair/systems-weather';
 import { render } from 'preact';
@@ -75,11 +75,14 @@ async function main() {
   const labels = createLabels(viewport, settlements, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
   const charts = createCharts(stage, map, settlements);
+  // CSS pixels per art pixel; the device-pixel scale behind it is always a whole number.
   let scale = 1;
   const fit = () => {
-    scale = Math.max(1, Math.floor(Math.min(innerWidth / VIEW_WIDTH, innerHeight / VIEW_HEIGHT)));
-    renderer.canvas.style.width = `${VIEW_WIDTH * scale}px`;
-    renderer.canvas.style.height = `${VIEW_HEIGHT * scale}px`;
+    const view = fitView(innerWidth, innerHeight, devicePixelRatio);
+    renderer.resize(view.width, view.height);
+    scale = view.scale / devicePixelRatio;
+    renderer.canvas.style.width = `${view.cssWidth}px`;
+    renderer.canvas.style.height = `${view.cssHeight}px`;
   };
   fit();
   window.addEventListener('resize', fit);
@@ -101,8 +104,8 @@ async function main() {
       acc -= dt;
     }
     renderer.render(sim.state, now);
-    labels.update(renderer.camera(), scale);
-    charts.update(sim.state.ships[def.start.shipId], renderer.camera());
+    labels.update(renderer.camera(), renderer.view(), scale);
+    charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view());
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     render(

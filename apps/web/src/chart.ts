@@ -1,7 +1,6 @@
 import type { Ship } from '@corsair/core';
 import { Tile } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
-import { VIEW_HEIGHT, VIEW_WIDTH } from '@corsair/render';
 
 // The map at one pixel per tile, palette colours shaded by elevation. The minimap crops it and
 // the sea chart (PRD S2) shows it whole; neither needs new art.
@@ -84,7 +83,7 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
 
   return {
     /** `camera` is the top-left of the view in world pixels. */
-    update(player: Ship | undefined, camera: { x: number; y: number }) {
+    update(player: Ship | undefined, camera: { x: number; y: number }, view: { width: number; height: number }) {
       if (!player) return;
       // Minimap: a window on the overview centred on the ship, clamped to the map.
       const sx = Math.max(0, Math.min(map.width - MINIMAP_TILES.w, Math.round(player.x - MINIMAP_TILES.w / 2)));
@@ -94,8 +93,8 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
         mctx.fillStyle = NATION_COLOURS[s.nation];
         mctx.fillRect(Math.floor(s.x - sx) - 1, Math.floor(s.y - sy) - 1, 3, 3);
       }
-      const vw = VIEW_WIDTH / map.tileSize;
-      const vh = VIEW_HEIGHT / map.tileSize;
+      const vw = view.width / map.tileSize;
+      const vh = view.height / map.tileSize;
       mctx.strokeStyle = '#ebede9';
       const vx = camera.x / map.tileSize - sx;
       const vy = camera.y / map.tileSize - sy;

@@ -76,7 +76,9 @@ const jitter = (i: number, salt: number) => {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 };
 
-export function createSky(viewW: number, viewH: number, tileSize: number) {
+export function createSky(width: number, height: number, tileSize: number) {
+  let viewW = width;
+  let viewH = height;
   const fair = PUFF_SHAPES.map((s) => paintPuff(s, FAIR));
   const grey = PUFF_SHAPES.map((s) => paintPuff(s, STORM));
   const layer = new Container();
@@ -98,6 +100,12 @@ export function createSky(viewW: number, viewH: number, tileSize: number) {
     layer,
     /** View-sized overlay for the world (under ships) that darkens the sea inside a storm. */
     gloom,
+    resize(w: number, h: number) {
+      viewW = w;
+      viewH = h;
+      gloom.width = w;
+      gloom.height = h;
+    },
     update(
       wind: Wind,
       storms: Storm[],
