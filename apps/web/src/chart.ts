@@ -23,6 +23,38 @@ const NATION_COLOURS: Record<PlacedSettlement['nation'], string> = {
   pirate: '#090a14',
 };
 
+// Label placement order: capitals, then cities, towns, hamlets. The first to claim a spot keeps it.
+const RANK = { capital: 0, city: 1, town: 2, hamlet: 3 } as const;
+const PLACEMENTS = ['right', 'left', 'above', 'below'] as const;
+
+/**
+ * Greedy label placement: try each side of the port's dot and keep the first spot that overlaps
+ * no earlier label and no other port's dot. A town or hamlet name that fits nowhere is hidden;
+ * its dot still shows it on hover.
+ */
+function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTMLElement }[]) {
+  const rank = (s: PlacedSettlement) => (s.type === 'capital' ? RANK.capital : RANK[s.size]);
+  // Dots are obstacles too, so a name never hides another port.
+  const dots = new Map(pins.map((p) => [p.s.id, p.dot.getBoundingClientRect()]));
+  const labels: DOMRect[] = [];
+  const hit = (r: DOMRect, o: DOMRect) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top;
+  for (const { s, label } of [...pins].sort((a, b) => rank(a.s) - rank(b.s))) {
+    label.hidden = false;
+    const clear = (r: DOMRect) => !labels.some((o) => hit(r, o)) && ![...dots].some(([id, o]) => id !== s.id && hit(r, o));
+    const spot = PLACEMENTS.find((where) => {
+      label.dataset.place = where;
+      return clear(label.getBoundingClientRect());
+    });
+    // Capitals and cities always keep their name, on the right if nothing is clear.
+    if (!spot && rank(s) > RANK.city) {
+      label.hidden = true;
+      continue;
+    }
+    if (!spot) label.dataset.place = 'right';
+    labels.push(label.getBoundingClientRect());
+  }
+}
+
 function paintOverview(map: TileMap): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = map.width;
@@ -63,13 +95,20 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
   sheet.className = 'chart-sheet';
   sheet.style.aspectRatio = `${map.width} / ${map.height}`;
   sheet.appendChild(overview);
-  for (const s of settlements) {
-    const pin = sheet.appendChild(document.createElement('div'));
-    pin.className = `chart-port label-${s.nation}`;
-    pin.textContent = s.name;
-    pin.style.left = `${(s.x / map.width) * 100}%`;
-    pin.style.top = `${(s.y / map.height) * 100}%`;
-  }
+  // Every port gets a dot; its name is placed later by layoutLabels, which needs the chart visible.
+  const pins = settlements.map((s) => {
+    const dot = sheet.appendChild(document.createElement('div'));
+    dot.className = `chart-dot label-${s.nation}`;
+    dot.title = s.name;
+    const label = sheet.appendChild(document.createElement('div'));
+    label.className = `chart-port label-${s.nation}`;
+    label.textContent = s.name;
+    for (const el of [dot, label]) {
+      el.style.left = `${(s.x / map.width) * 100}%`;
+      el.style.top = `${(s.y / map.height) * 100}%`;
+    }
+    return { s, dot, label };
+  });
   const marker = sheet.appendChild(document.createElement('div'));
   marker.className = 'chart-player';
   const hint = chart.appendChild(document.createElement('div'));
@@ -77,7 +116,10 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
   hint.textContent = 'Sea chart · M to close';
 
   window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'm') chart.hidden = !chart.hidden;
+    if (e.key.toLowerCase() === 'm') {
+      chart.hidden = !chart.hidden;
+      if (!chart.hidden) layoutLabels(pins);
+    }
     if (e.key === 'Escape') chart.hidden = true;
   });
 

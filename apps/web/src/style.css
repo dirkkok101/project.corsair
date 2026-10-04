@@ -90,9 +90,40 @@ body {
   height: 100%;
 }
 
+.chart-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  background: currentColor;
+  border: 1px solid #090a14;
+  border-left-width: 1px;
+  padding: 0;
+}
+
+.chart-dot.label-spain {
+  color: #e8c170;
+}
+
+.chart-dot.label-england {
+  color: #cf573c;
+}
+
+.chart-dot.label-france {
+  color: #73bed3;
+}
+
+.chart-dot.label-netherlands {
+  color: #de9e41;
+}
+
+.chart-dot.label-pirate {
+  color: #a8b5b2;
+}
+
 .chart-port {
   position: absolute;
-  transform: translate(-3px, -50%);
+  transform: translate(6px, -50%);
   padding: 0 4px;
   font-size: 11px;
   white-space: nowrap;
@@ -100,6 +131,22 @@ body {
   background: rgb(9 10 20 / 0.6);
   border-left: 3px solid #819796;
   pointer-events: none;
+}
+
+.chart-port[data-place='left'] {
+  transform: translate(calc(-100% - 6px), -50%);
+}
+
+.chart-port[data-place='above'] {
+  transform: translate(-50%, calc(-100% - 5px));
+}
+
+.chart-port[data-place='below'] {
+  transform: translate(-50%, 5px);
+}
+
+.chart-port[hidden] {
+  display: none;
 }
 
 .chart-player {

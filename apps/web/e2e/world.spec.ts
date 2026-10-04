@@ -48,7 +48,7 @@ test('opens the sea chart with every port', async ({ page }) => {
   await boot(page);
   await page.keyboard.press('m');
   await expect(page.locator('.chart')).toBeVisible();
-  await expect(page.locator('.chart-port')).toHaveCount(34);
+  await expect(page.locator('.chart-port')).toHaveCount(45);
   await page.screenshot({ path: 'test-results/chart.png' });
   await page.keyboard.press('m');
   await expect(page.locator('.chart')).toBeHidden();
