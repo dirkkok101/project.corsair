@@ -351,7 +351,7 @@ Ships slow by up to 20% over months at sea unless careened at a shipwright or on
 
 ### Sprites
 
-Each class has a world-map sprite (16 directions, 32 x 32) and a combat sprite (16 directions, 64 x 64) with frames for sails furled, half and full, damage overlays, and a sinking animation.
+Each class has a world-map sprite (16 directions, 64 x 64) and a combat sprite (16 directions, 128 x 128), both drawn from a 45° camera, with frames for sails furled, half and full, damage overlays, and a sinking animation.
 
 ## 8. Forts
 

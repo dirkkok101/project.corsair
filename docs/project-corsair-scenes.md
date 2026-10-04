@@ -122,7 +122,7 @@ Fog of war is a runtime mask, not art. The day/night tint is the palette shader.
 
 ### Ships
 
-Twelve classes, four families. World cell is 64×64, pivot at the hull centre, 16 facings, three sail states (`sail_full`, `sail_half`, `sail_furled`). The flag is a few pixels on the sprite, tinted by nation. It is not its own 16-facing set.
+Twelve classes, four families. World cell is 64×64, pivot at the hull centre on the waterline, 16 facings, drawn from a 45° orthographic camera over the top-down map (art pipeline, section 4), three sail states (`sail_full`, `sail_half`, `sail_furled`). The flag is a few pixels on the sprite, tinted by nation. It is not its own 16-facing set.
 
 | Class | Family | Id subject | M1 |
 |---|---|---|---|

@@ -36,13 +36,14 @@ This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers
 | Tile size | 16×16 |
 | World-map ships | 64×64 cell, 16 facings |
 | Combat ships | 128×128 cell, 16 facings |
+| Ship camera | Orthographic, 45° elevation, locked. The map tiles stay top-down. |
 | Duel characters | 64×64 cell, side view |
 | Land-battle units | 32×32 cell, camera still open |
 | Stealth and on-foot party | 32×32 generated, finished by hand at 16×16 or 24×24 (AI tools are not reliable below 32) |
 | Portraits | 64×64 face area on a 64×80 card, layered parts |
 | Harbour screens | 480×270 layered scenes |
 | Facing convention | f00 = north, then clockwise in 22.5° steps to f15 |
-| Pivots | Ships: hull centre. Characters and units: centre-bottom at the feet. Stored per frame in the atlas JSON. |
+| Pivots | Ships: hull centre at the waterline. At 45° this sits below the cell centre, so it must come from the atlas, not the cell. Characters and units: centre-bottom at the feet. Stored per frame in the atlas JSON. |
 | Animation timing | Driven by sim ticks (30 per second). Each duel frame carries a phase tag (wind-up, active, recovery) and a tick duration from `fencing_moves.json`. Ambient loops run at 8 to 12 fps. |
 
 ## 3. Asset inventory and frame budget
@@ -80,20 +81,24 @@ The research settled this (`docs/corsair-pixel-art-research.md` Part A §1). No 
 **Primary: low-poly Blender models rendered to pixels.**
 
 1. Model one low-poly hull per class. Sails (furled, half, full), flags and damage states are separate meshes or materials. Keep parts thick enough to read at 64 px; avoid 1 px ropes in geometry.
-2. Render 16 angles with an **orthographic** camera on a fixed Empty (tilt locked for the whole production), no anti-aliasing, nearest/filter size 0, flat or cel lighting, transparent BG. Rotate Empty by **22.5° × 16**. Same framing every shot.
+2. Render 16 angles with an **orthographic** camera at **45° elevation**, locked for the whole production, no anti-aliasing, nearest/filter size 0, transparent BG. The ship rotates under the fixed camera by **22.5° × 16**. Same framing every shot.
 3. **Batch helpers (prefer free):** Maghwyn `blender_directional_spritesheets` (native 4/8/**16**/32), FoozleCC blender_scripts (extend 8-dir to 16), or framemill (headless Blender → 16 sheets; GPL tool, your renders are your art). **Optional paid:** Sprite Sheet Maker (GPL, check Blender version), PixelOver ($19.99 one-time). Blender To Pixels (free) is useful for trying out looks.
 4. Render at **128×128 directly** for combat and at **64×64 directly** for the world map. Don't downscale the 128s to make the 64s; thin masts and rigging turn to noise that way. Display scale is a separate nearest-neighbour integer upscale.
-5. Snap every frame to the palette with the section 8 scripts.
+5. Snap every frame to the palette with the section 8 scripts. Render two passes per frame: a flat pass to identify each material, and a lit pass to pick a dark, mid or light step from that material's 3-colour ramp in `corsair.gpl`. Snapping a lit render straight to the nearest palette colour turns white sails brown.
 6. Cleanup in **Pixelorama or LibreSprite** ($0) or **Aseprite** if already owned: light at 128 px, a hand pass at 64 px (masts, bowsprit, flag, outline gaps). Plan on the 64 px pass as the real cost.
 7. Damage overlays are rendered through the same cameras, so they line up in every facing.
 
-The locked drawing reference for these top-down ships is Foozle's Scallywag Ships (CC0). Match that read: straight overhead, long pointed bow, two light crescent sails on dark yards, a deck grate, and a small bow wave. Paint original pixels in `corsair.gpl`. Do not import the pack.
+The locked read is the 45° row of the brig tilt spike (`art/generated/ships/brig-tilt-spike/`, model in `art/masters/ships/brig-3d-spike.blend`). At 45° the masts, stacked sails, flag, hull side and bow all read at 1× on the 480×270 map. Straight overhead was tried and rejected: an honest overhead render of a real model shows yards and deck but no sail, so it reads as a rowboat. The crescent sails in overhead packs such as Foozle's Scallywag Ships are hand-painted, and a 3D render can't produce them.
+
+The world map stays a top-down tilemap. Only ships, and later settlements, are drawn at 45°.
 
 Mirroring is optional here, since renders are cheap. It's still useful to cut the 64 px hand pass to 9 facings and mirror the other 7 when hull asymmetry allows.
 
-**Fallback: rotate at high res with RotSprite or cleanEdge.** If the Blender look doesn't fit the rest of the art, draw one top-down master per class and rotate it with RotSprite (Aseprite; confirm in LibreSprite) or cleanEdge (Clean Rotate extension). The Lospec Pixel Art Rotator compares nearest, RotSprite and cleanEdge side by side for free. Research fitness rank: RotSprite-from-one-facing is **worst** at 16–32 px for ships (masts/rails vanish) — treat it as a redraw starting point, not a shippable facing set.
+**Fallback: rotate at high res with RotSprite or cleanEdge.** This only works for a straight-overhead view, because a 45° view changes shape with heading rather than just rotating. Use it only if the 45° decision is reversed. If the Blender look doesn't fit the rest of the art, draw one top-down master per class and rotate it with RotSprite (Aseprite; confirm in LibreSprite) or cleanEdge (Clean Rotate extension). The Lospec Pixel Art Rotator compares nearest, RotSprite and cleanEdge side by side for free. Research fitness rank: RotSprite-from-one-facing is **worst** at 16–32 px for ships (masts/rails vanish) — treat it as a redraw starting point, not a shippable facing set.
 
 **M0 spike:** model the brig and render all 16 facings at both sizes with the free Blender path. Test RotSprite and cleanEdge on the same ship. Judge at 1× and 4× on the actual world map before committing or buying PixelOver / Aseprite / AI credits.
+
+**Spike result (2026-10-04):** a real low-poly brig was rendered at 90°, 60° and 45°, and 45° was chosen. The earlier `art/masters/ships/brig.blend` is a flat decal (every mesh has zero height), not a 3D model, so it can't test this pipeline. Still open: the hand pass at 64 px (1 px masts, short bowsprit, thin hull side) and the RotSprite comparison.
 
 Sources: section 13, items S1 to S12; research Part A §1–2 and Part B.
 
@@ -146,7 +151,7 @@ A package in the pnpm workspace. It uses Node/TypeScript for orchestration and v
 | Command | Does |
 |---|---|
 | `pnpm art:snap` | 1) Detect the true pixel grid on generated images with Retro Diffusion's Pixel Art Fixer (MIT, Rust CLI) or unfake (WASM/CLI). 2) Downsample by mode, one majority colour per cell, not nearest. 3) Map to `corsair.gpl` by nearest colour in OKLab, dithering off. 4) Force binary alpha. 5) Apply the outline rule. 6) Crop into the target cell. Animation strips share one grid and palette. |
-| `pnpm art:render` | Batch-render Blender ship files to 16 facings at 32 and 64 px (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
+| `pnpm art:render` | Batch-render Blender ship files to 16 facings at 64 and 128 px from the locked 45° camera (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
 | `pnpm art:mirror` | Produce mirrored facings from the declared mirror map |
 | `pnpm art:align` | Align frames to the pivot and normalise baseline |
 | `pnpm art:index` | Convert packed atlases to palette-index textures for the day/night filter |
@@ -246,6 +251,7 @@ Sprite ids follow the content id style: `{kind}.{subject}.{variant}.{anim}.{faci
 - Land-battle camera: top-down, 4 facings, specified in `docs/project-corsair-scenes.md`. The PRD still has the rules question of turn-based versus real-time with pause. The art is the same either way.
 - World-map sail states: 3, or just full and furled at 32 px?
 - Does the Blender render look sit well next to hand/AI-drawn characters? The M0 spike decides.
+- Ship cell height at 45°: masts make the bow-up and bow-down facings tight in 64×64. Either grow the world cell to 64×80 or shrink the ship. Decide in the 64 px hand pass.
 - Who does hand cleanup? The duel set is the biggest block; budget a contract pixel artist if nobody on the team will.
 - Final palette: Apollo as-is, or a custom palette built from it?
 - Paid tool choice: PixelLab subscription, Retro Diffusion one-time, or both. Decide after the M0 duel spike. Default until then: free stack only for ships/tiles.
