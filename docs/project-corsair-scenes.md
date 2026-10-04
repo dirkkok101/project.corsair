@@ -20,7 +20,7 @@ The PRD also needs a layered harbour, service panels, a night stealth entry, a s
 - **One palette.** Day, dusk and night are rows in the palette shader. Scenes are not repainted for night.
 - **Outlines.** 1 px dark outline on ships, characters and units. No outline on tiles, clouds, water, or harbour backgrounds.
 - **Alpha.** 0 or 255, except the VFX atlas.
-- **Ids** follow `{kind}.{subject}.{variant}.{anim}.{facing}`. Ships use `f00`–`f15` from north, clockwise, 22.5° steps. Top-down people and units use `n`, `e`, `s`, `w`.
+- **Ids** follow `{kind}.{subject}.{variant}.{anim}.{facing}`. World-map ships use `f00`–`f31` from north, clockwise, 11.25° steps; combat ships use `f00`–`f15`, 22.5° steps. Top-down people and units use `n`, `e`, `s`, `w`.
 - **A unit sprite is a body of troops**, about three figures inside a 32×32 cell, so the land battle reads as armies. Cavalry is one horse and rider in that same cell.
 - **Greybox first.** Every id in this doc exists as a flat rect before any final art. A missing id fails `art:validate`.
 - **Frame budgets** match the art pipeline (about 2,300 to 2,500 hand-touched frames). This doc assigns those frames to scenes. It does not raise the budget.
@@ -122,7 +122,7 @@ Fog of war is a runtime mask, not art. The day/night tint is the palette shader.
 
 ### Ships
 
-Twelve classes, four families. World cell is 64×64, pivot at the hull centre on the waterline, 16 facings, drawn from a 45° orthographic camera over the top-down map (art pipeline, section 4), three sail states (`sail_full`, `sail_half`, `sail_furled`). The flag is a few pixels on the sprite, tinted by nation. It is not its own 16-facing set.
+Twelve classes, four families. World cell is 64×64, pivot at the hull centre on the waterline, 32 facings, drawn from a 45° orthographic camera over the top-down map (art pipeline, section 4), three sail states (`sail_full`, `sail_half`, `sail_furled`). Two more frames, `sail_luff0` and `sail_luff1`, are render-only: when sails are set but the ship points into the no-go zone, the renderer alternates them so the slack, grey canvas flaps. The flag is a few pixels on the sprite, tinted by nation. It is not its own facing set.
 
 | Class | Family | Id subject | M1 |
 |---|---|---|---|
@@ -141,7 +141,7 @@ Twelve classes, four families. World cell is 64×64, pivot at the hull centre on
 
 Example id: `ship.brig.world.sail_full.f03`.
 
-M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. The other eight stay grey boxes until M3. Full set is 12 × 16 × 3 = 576 frames, matching the pipeline. Mirroring can cut the 64 px hand pass to 9 facings.
+M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. The other eight stay grey boxes until M3. Full set is 12 × 32 × 5 = 1,920 frames, matching the pipeline. Mirroring can cut the 64 px hand pass to 17 facings.
 
 Damage is not drawn on the world map. A worn hull uses the `sail_furled` pose plus a darker palette row if needed. Sinking in a storm is the storm sprite plus the ship fading, not a bespoke animation.
 
@@ -364,7 +364,7 @@ One size each, no tier split:
 | Jesuit mission | Chapel, cross, two huts. 4 pieces. |
 | Native village | Huts, canoe, fire. 3 pieces. |
 
-Ships at anchor reuse the world-map ship sprite at 64 px, `sail_furled`, facing `f04` or `f12` so the bow points along the quay. No separate anchor drawing.
+Ships at anchor reuse the world-map ship sprite at 64 px, `sail_furled`, facing `f08` or `f24` so the bow points along the quay. No separate anchor drawing.
 
 Clickable buildings are hotspots in data, not extra art.
 
@@ -495,7 +495,7 @@ If the masts read at 1× next to the water, script `art:snap` and `art:validate`
 
 ## 20. Choices still open
 
-- World-map sail states at 64 px may drop `sail_half`. Combat keeps all three. Greybox ids for `sail_half` stay either way.
+- World-map sail states: settled. `sail_half` reads at 64 px (courses furled, topsails set), so the world map keeps all three plus the two luff frames.
 - Militia as a seventh drawing, or a soldier recolor. Decide when the soldier sprite exists.
 - Stealth actors at 16 or at 24. Draw the player once at each size in the M0-adjacent hand test and keep one.
 - Courtyard backdrop can wait until M4. M2 duels all use the brig deck.

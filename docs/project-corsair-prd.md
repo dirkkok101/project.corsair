@@ -351,7 +351,7 @@ Ships slow by up to 20% over months at sea unless careened at a shipwright or on
 
 ### Sprites
 
-Each class has a world-map sprite (16 directions, 64 x 64) and a combat sprite (16 directions, 128 x 128), both drawn from a 45° camera, with frames for sails furled, half and full, damage overlays, and a sinking animation.
+Each class has a world-map sprite (32 directions, 64 x 64) and a combat sprite (16 directions, 128 x 128), both drawn from a 45° camera, with frames for sails furled, half and full, damage overlays, and a sinking animation.
 
 ## 8. Forts
 
@@ -644,7 +644,7 @@ Full art production spec, frame budget and tooling: see `docs/project-corsair-ar
 
 - Texture atlases built with a packer (free-tex-packer or TexturePacker) into JSON + PNG. Sprite and animation names are referenced from game data, so art can change without code changes.
 - Target resolution: 480 x 270 logical, pixel-art style, scaled by integer factors (up to 4K). Keeps the art budget small.
-- Ships: 16 facings. Characters in duels: side-view frame animations per move.
+- Ships: 32 facings on the world map, 16 in combat. Characters in duels: side-view frame animations per move.
 - Tile art: autotile sets for coast, reef and jungle.
 
 ### Performance targets

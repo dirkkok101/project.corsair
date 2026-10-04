@@ -34,7 +34,7 @@ This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers
 | Outline | 1 px dark outline on characters, ships and units. None on tiles or harbour backgrounds. |
 | Alpha | 0 or 255 only. VFX atlases excepted. |
 | Tile size | 16×16 |
-| World-map ships | 64×64 cell, 16 facings |
+| World-map ships | 64×64 cell, 32 facings |
 | Combat ships | 128×128 cell, 16 facings |
 | Ship camera | Orthographic, 45° elevation, locked. The map tiles stay top-down. |
 | Duel characters | 64×64 cell, side view |
@@ -42,7 +42,7 @@ This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers
 | Stealth and on-foot party | 32×32 generated, finished by hand at 16×16 or 24×24 (AI tools are not reliable below 32) |
 | Portraits | 64×64 face area on a 64×80 card, layered parts |
 | Harbour screens | 480×270 layered scenes |
-| Facing convention | f00 = north, then clockwise in 22.5° steps to f15 |
+| Facing convention | f00 = north, then clockwise: 11.25° steps to f31 for world-map ships, 22.5° steps to f15 for combat ships |
 | Pivots | Ships: hull centre at the waterline. At 45° this sits below the cell centre, so it must come from the atlas, not the cell. Characters and units: centre-bottom at the feet. Stored per frame in the atlas JSON. |
 | Animation timing | Driven by sim ticks (30 per second). Each duel frame carries a phase tag (wind-up, active, recovery) and a tick duration from `fencing_moves.json`. Ambient loops run at 8 to 12 fps. |
 
@@ -52,7 +52,7 @@ Estimates for v1.0, rounded. "Unique" is what has to be produced after mirroring
 
 | Asset group | In-game frames | Unique to produce | How |
 |---|---|---|---|
-| World-map ships (12 × 16 × 3 sail states) | 576 | 576 rendered, ~324 hand-checked | Blender renders, hand pass at 64 px |
+| World-map ships (12 × 32 × 5: 3 sail states + 2 luff frames) | 1,920 | 1,920 rendered, ~1,020 hand-checked | Blender renders, hand pass at 64 px |
 | Combat ships (same counts at 128×128) | 576 | 576 rendered, light cleanup | Blender renders |
 | Ship damage overlays (4 families × 3 tiers) | 192 | 192 rendered | Material states through the same cameras |
 | Ship sinking | — | ~0 bespoke | In-engine tilt and water mask plus shared VFX |
@@ -81,7 +81,7 @@ The research settled this (`docs/corsair-pixel-art-research.md` Part A §1). No 
 **Primary: low-poly Blender models rendered to pixels.**
 
 1. Model one low-poly hull per class. Sails (furled, half, full), flags and damage states are separate meshes or materials. Keep parts thick enough to read at 64 px; avoid 1 px ropes in geometry.
-2. Render 16 angles with an **orthographic** camera at **45° elevation**, locked for the whole production, no anti-aliasing, nearest/filter size 0, transparent BG. The ship rotates under the fixed camera by **22.5° × 16**. Same framing every shot.
+2. Render with an **orthographic** camera at **45° elevation**, locked for the whole production, no anti-aliasing, nearest/filter size 0, transparent BG. The ship rotates under the fixed camera: **32 facings (11.25°) for the world map**, 16 (22.5°) for combat. 16 world facings looked steppy in play: at a brig's turn rate the sprite only changed every 0.7 s. Same framing every shot.
 3. **Batch helpers (prefer free):** Maghwyn `blender_directional_spritesheets` (native 4/8/**16**/32), FoozleCC blender_scripts (extend 8-dir to 16), or framemill (headless Blender → 16 sheets; GPL tool, your renders are your art). **Optional paid:** Sprite Sheet Maker (GPL, check Blender version), PixelOver ($19.99 one-time). Blender To Pixels (free) is useful for trying out looks.
 4. Render at **128×128 directly** for combat and at **64×64 directly** for the world map. Don't downscale the 128s to make the 64s; thin masts and rigging turn to noise that way. Display scale is a separate nearest-neighbour integer upscale.
 5. Snap every frame to the palette with the section 8 scripts. Render two passes per frame: a flat pass to identify each material, and a lit pass to pick a dark, mid or light step from that material's 3-colour ramp in `corsair.gpl`. Snapping a lit render straight to the nearest palette colour turns white sails brown.
@@ -92,7 +92,7 @@ The locked read is the 45° row of the brig tilt spike (`art/generated/ships/bri
 
 The world map stays a top-down tilemap. Only ships, and later settlements, are drawn at 45°.
 
-Mirroring is optional here, since renders are cheap. It's still useful to cut the 64 px hand pass to 9 facings and mirror the other 7 when hull asymmetry allows.
+Mirroring is optional here, since renders are cheap. It's still useful to cut the 64 px hand pass to 17 facings and mirror the other 15 when hull asymmetry allows.
 
 **Fallback: rotate at high res with RotSprite or cleanEdge.** This only works for a straight-overhead view, because a 45° view changes shape with heading rather than just rotating. Use it only if the 45° decision is reversed. If the Blender look doesn't fit the rest of the art, draw one top-down master per class and rotate it with RotSprite (Aseprite; confirm in LibreSprite) or cleanEdge (Clean Rotate extension). The Lospec Pixel Art Rotator compares nearest, RotSprite and cleanEdge side by side for free. Research fitness rank: RotSprite-from-one-facing is **worst** at 16–32 px for ships (masts/rails vanish) — treat it as a redraw starting point, not a shippable facing set.
 
@@ -151,7 +151,7 @@ A package in the pnpm workspace. It uses Node/TypeScript for orchestration and v
 | Command | Does |
 |---|---|
 | `pnpm art:snap` | 1) Detect the true pixel grid on generated images with Retro Diffusion's Pixel Art Fixer (MIT, Rust CLI) or unfake (WASM/CLI). 2) Downsample by mode, one majority colour per cell, not nearest. 3) Map to `corsair.gpl` by nearest colour in OKLab, dithering off. 4) Force binary alpha. 5) Apply the outline rule. 6) Crop into the target cell. Animation strips share one grid and palette. |
-| `pnpm art:render` | Batch-render Blender ship files to 16 facings at 64 and 128 px from the locked 45° camera (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
+| `pnpm art:render` | Batch-render Blender ship files from the locked 45° camera: 32 facings at 64 px, 16 at 128 px. `tools/art/render_brig.py` is the first one (brig world set) (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
 | `pnpm art:mirror` | Produce mirrored facings from the declared mirror map |
 | `pnpm art:align` | Align frames to the pivot and normalise baseline |
 | `pnpm art:index` | Convert packed atlases to palette-index textures for the day/night filter |
@@ -170,7 +170,7 @@ Implementation notes:
 - frames in one animation have different cell sizes, or a pivot is missing
 - a sprite or animation id referenced in any content JSON is missing from the atlas
 - a duel, dance or unit animation's frame count or phase tags don't match its data file
-- a facing set is incomplete (16 for ships, 4 for top-down characters)
+- a facing set is incomplete (32 for world-map ships, 16 for combat ships, 4 for top-down characters)
 
 Rendering check: `render.screenshot` scenarios (PRD section 16) for the world map at day and night, a sea battle and a duel, at 1× and 4×.
 
