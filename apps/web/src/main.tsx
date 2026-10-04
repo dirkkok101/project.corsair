@@ -1,7 +1,8 @@
-import { createSim, TICKS_PER_SECOND } from '@corsair/core';
+import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, VIEW_HEIGHT, VIEW_WIDTH } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
+import { createWeatherSystem, createWindField, stormWindAt, withWeather, zoneAt } from '@corsair/systems-weather';
 import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
@@ -52,12 +53,19 @@ async function main() {
     zones: await layer(def.layers.zones),
   });
   const settlements = placeSettlements(def, map, content.settlements);
-  const sim = createSim(createWorld(def), [createNavigationSystem(content, map)]);
+  // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
+  const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+  const windAt = createWindField(content, map);
+  const sim = createSim(withWeather(createWorld(def), content, def, seed), [
+    createWeatherSystem(content, def, map),
+    createNavigationSystem(content, map, windAt),
+  ]);
   const renderer = await createRenderer(
     content,
     map,
     { ...groupFrames(shipFrames), ...groupFrames(townFrames) },
     settlements,
+    windAt,
   );
 
   const stage = document.getElementById('stage')!;
@@ -77,8 +85,9 @@ async function main() {
   window.addEventListener('resize', fit);
 
   const loop: LoopControl = { paused: false };
-  window.__corsair = createDebugApi(sim, loop);
-  bindInput(sim, def.start.shipId);
+  window.__corsair = { ...createDebugApi(sim, loop), seed };
+  const player = () => sim.state.ships[def.start.shipId]!;
+  bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
 
   // Fixed 30 Hz sim under a variable frame rate; the cap stops a background tab from fast-forwarding.
   const dt = 1 / TICKS_PER_SECOND;
@@ -94,7 +103,19 @@ async function main() {
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), scale);
     charts.update(sim.state.ships[def.start.shipId]);
-    render(<Hud state={sim.state} content={content} />, hudRoot);
+    const ship = player();
+    const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
+    render(
+      <Hud
+        state={sim.state}
+        content={content}
+        wind={windAt(sim.state, ship.x, ship.y)}
+        date={formatDate(dateOf(def.startDate, day))}
+        seaArea={zoneAt(content, map, ship.x, ship.y).name}
+        inStorm={(sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y))}
+      />,
+      hudRoot,
+    );
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

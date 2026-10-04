@@ -1,6 +1,5 @@
-import type { WorldState } from '@corsair/core';
+import type { Wind, WorldState } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
-import type { Wind } from '@corsair/core';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
 
@@ -66,25 +65,37 @@ function WindRose({
   );
 }
 
-export function Hud({ state, content }: { state: WorldState; content: ContentPack }) {
+export interface HudProps {
+  state: WorldState;
+  content: ContentPack;
+  /** Wind where the ship is. */
+  wind: Wind;
+  date: string;
+  seaArea: string;
+  inStorm: boolean;
+}
+
+export function Hud({ state, content, wind, date, seaArea, inStorm }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
   const cls = content.ships[ship.classId]!;
-  const offWind = angleOffWind(ship.headingDeg, state.wind.fromDeg);
+  const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
   const nav = content.navigation;
   const polar = content.polars[cls.polar]!;
-  const drive = nav.windStrength[state.wind.strength]! * nav.sailSettings[ship.sails]!;
+  const drive = nav.windStrength[wind.strength]! * nav.sailSettings[ship.sails]!;
   const strongest = Math.max(...Object.values(nav.windStrength)) * Math.max(...Object.values(nav.sailSettings));
   const best = cls.speed * Math.max(...polar.values) * drive;
   return (
     <>
       <div class="hud">
+        <div class="hud-date">{date}</div>
+        <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>
         {/* The arrow shows where the wind blows to; fromDeg is where it comes from. */}
-        <div class="hud-wind" style={{ transform: `rotate(${state.wind.fromDeg}deg)` }} title="Wind">
+        <div class="hud-wind" style={{ transform: `rotate(${wind.fromDeg}deg)` }} title="Wind">
           ↓
         </div>
         <div>
-          Wind {state.wind.strength} from {Math.round(state.wind.fromDeg)}°
+          Wind {wind.strength} from {Math.round(wind.fromDeg)}°
         </div>
         <div>
           {pointOfSail(content, offWind).name} · {Math.round(offWind)}° off the wind
@@ -95,11 +106,11 @@ export function Hud({ state, content }: { state: WorldState; content: ContentPac
         <div>{Math.round(ship.headingDeg)}°</div>
         <div>Speed</div>
         <div>
-          {speedPoints(content, ship).toFixed(1)} → {toSpeedPoints(content, targetSpeed(content, ship, state.wind)).toFixed(1)}
+          {speedPoints(content, ship).toFixed(1)} → {toSpeedPoints(content, targetSpeed(content, ship, wind)).toFixed(1)}
           {ship.blocked ? ' · aground' : ''}
         </div>
       </div>
-      <WindRose polar={polar} wind={state.wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
+      <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
       <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · M chart · [ ] turn wind · 1–5 wind strength</div>
     </>
   );

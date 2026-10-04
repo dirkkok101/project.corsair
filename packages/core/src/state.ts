@@ -1,3 +1,5 @@
+import type { RngState } from './rng';
+
 export type WindStrength = 'calm' | 'light' | 'fresh' | 'strong' | 'gale';
 
 /** Helm: -1 = turn to port (anticlockwise), 0 = hold course, 1 = turn to starboard. */
@@ -28,16 +30,48 @@ export interface Ship {
   blocked: boolean;
 }
 
+/** A tropical storm or hurricane: a moving circle of violent wind (PRD section 3). Tile units. */
+export interface Storm {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  headingDeg: number;
+  /** Tiles per game day. */
+  speed: number;
+  endDay: number;
+}
+
+export interface ZoneWeather {
+  fromDeg: number;
+  strength: WindStrength;
+  /** A zone event (a norther, a calm) overrides the seasonal wind until endDay. */
+  event?: { id: string; endDay: number };
+}
+
+export interface WeatherState {
+  /** Current wind per wind zone id. */
+  zones: Record<string, ZoneWeather>;
+  storms: Storm[];
+  nextStormId: number;
+}
+
 export interface WorldState {
   tick: number;
+  /** Fallback wind where no weather system runs (the test maps). */
   wind: Wind;
   ships: Record<string, Ship>;
+  weather?: WeatherState;
+  /** Named RNG streams, one per system, so one system's draws never shift another's. */
+  rng?: Record<string, RngState>;
 }
 
 export type Command =
   | { type: 'SetHelm'; shipId: string; helm: Helm }
   | { type: 'SetSails'; shipId: string; sails: SailSetting }
-  | { type: 'SetWind'; fromDeg: number; strength: WindStrength };
+  | { type: 'SetWind'; fromDeg: number; strength: WindStrength }
+  /** Debug: start a storm centred on a tile. */
+  | { type: 'SpawnStorm'; x: number; y: number };
 
 export interface GameEvent {
   tick: number;

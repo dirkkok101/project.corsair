@@ -1,0 +1,4 @@
+{
+  "$comment": "Game time, PRD section 2. A day lasts about as long as a brig's real day's run (~90 tiles at ~5 tiles/s), so voyage lengths and seasons stay believable: 540 ticks at 30 per second is 18 s.",
+  "ticksPerDay": 540
+}

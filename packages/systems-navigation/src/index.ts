@@ -55,12 +55,16 @@ export function speedPoints(content: ContentPack, ship: Ship): number {
  * Each tick a ship eases toward `targetSpeed`, turns by its helm, and moves; land stops or slides it.
  * Shallows are drawn but don't block; draft checks come with the real map.
  */
-export function createNavigationSystem(content: ContentPack, map: TileMap): System {
+export function createNavigationSystem(
+  content: ContentPack,
+  map: TileMap,
+  windAt: (state: WorldState, x: number, y: number) => Wind = (state) => state.wind,
+): System {
   const nav = content.navigation;
 
   const sail = (ship: Ship, state: WorldState, dt: number): { ship: Ship; events: EmittedEvent[] } => {
     const cls = content.ships[ship.classId]!;
-    const target = targetSpeed(content, ship, state.wind);
+    const target = targetSpeed(content, ship, windAt(state, ship.x, ship.y));
     const speed = ship.speed + (target - ship.speed) * Math.min(1, nav.accelPerSecond * dt);
     const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]!;
     const headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);

@@ -11,6 +11,7 @@
     "@corsair/data": "workspace:*",
     "@corsair/render": "workspace:*",
     "@corsair/systems-navigation": "workspace:*",
-    "preact": "^11.0.0"
+    "preact": "^11.0.0",
+    "@corsair/systems-weather": "workspace:*"
   }
 }

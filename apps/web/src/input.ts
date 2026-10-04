@@ -7,7 +7,8 @@ const WIND_STEP_DEG = 22.5; // the PRD's 16 wind points
 const SAILS: SailSetting[] = ['furled', 'half', 'full'];
 
 /** Keyboard → commands. Helm is sent only when it changes, which keeps the input log small. */
-export function bindInput(sim: Sim, shipId: string): void {
+/** `windHere` is the wind at the player's ship; the wind keys adjust it (debug). */
+export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void {
   const held = new Set<string>();
   // Commands apply on the next tick, so two keys in one tick must build on what was sent, not on
   // state; otherwise the second wind key undoes the first. Once a tick passes, state is the truth
@@ -17,10 +18,10 @@ export function bindInput(sim: Sim, shipId: string): void {
   let sailsSentAt = -1;
   let sentSails: SailSetting = 'full';
   let sentHelm: Helm = 0;
-  let sentWind: Wind = sim.state.wind;
+  let sentWind: Wind = windHere();
   const currentHelm = () =>
     sim.state.tick === helmSentAt ? sentHelm : (sim.state.ships[shipId]?.helm ?? 0);
-  const currentWind = () => (sim.state.tick === windSentAt ? sentWind : sim.state.wind);
+  const currentWind = () => (sim.state.tick === windSentAt ? sentWind : windHere());
   const currentSails = () =>
     sim.state.tick === sailsSentAt ? sentSails : (sim.state.ships[shipId]?.sails ?? 'full');
 

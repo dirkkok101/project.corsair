@@ -126,9 +126,13 @@ export const weatherSchema = z.object({
     speedKmPerDay: range,
     headingDeg: range,
     recurveNorthOfLat: z.number(),
+    /** How fast a storm north of recurveNorthOfLat turns toward the north-east. */
+    recurveDegPerDay: z.number().min(0),
     lifetimeDays: range,
   }),
 });
+
+export const calendarSchema = z.object({ ticksPerDay: z.number().int().positive() });
 
 export type ShipClass = z.infer<typeof shipClassSchema>;
 export type Polar = z.infer<typeof polarSchema>;
@@ -140,3 +144,4 @@ export type MapDef = ProceduralMapDef | RasterMapDef;
 export type Settlement = z.infer<typeof settlementSchema>;
 export type WindZones = z.infer<typeof windZonesSchema>;
 export type Weather = z.infer<typeof weatherSchema>;
+export type Calendar = z.infer<typeof calendarSchema>;

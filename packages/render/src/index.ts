@@ -1,10 +1,11 @@
-import type { Ship, WorldState } from '@corsair/core';
+import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { Application, Assets, Container, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { createWake, createWindStreaks, windVector } from './effects';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
+import { createSky } from './sky';
 import { paintDeepWater, paintTerrainChunk } from './water';
 
 export { facingIndex } from './facing';
@@ -35,6 +36,8 @@ export async function createRenderer(
   map: TileMap,
   spriteUrls: Record<string, string[]>,
   settlements: PlacedSettlement[] = [],
+  /** Wind at a tile; defaults to the single global wind of the test maps. */
+  windAt: (state: WorldState, x: number, y: number) => Wind = (state) => state.wind,
 ): Promise<Renderer> {
   // Must be set before any texture loads, or sprites get smoothed.
   TextureSource.defaultOptions.scaleMode = 'nearest';
@@ -62,6 +65,11 @@ export async function createRenderer(
   const streaks = createWindStreaks(map);
   const wake = createWake(map);
   world.addChild(terrain, streaks.view, wake.view);
+  // Clouds and storms are sky: a layer above the world (and its ships) that scrolls with it.
+  const sky = createSky(VIEW_WIDTH, VIEW_HEIGHT, ts);
+  // The storm gloom darkens the sea under the ships; the clouds go above everything.
+  world.addChildAt(sky.gloom, 1);
+  app.stage.addChild(sky.layer);
 
   const chunkPx = CHUNK_TILES * ts;
   // Insertion order doubles as LRU order: a chunk is re-inserted whenever it's on screen.
@@ -109,7 +117,7 @@ export async function createRenderer(
   const sailAnim = (ship: Ship, state: WorldState, nowMs: number): string => {
     if (ship.sails === 'furled') return 'sail_furled';
     // Wind angle relative to the bow: positive means the wind comes over the starboard side.
-    let rel = normalizeDeg(state.wind.fromDeg - ship.headingDeg);
+    let rel = normalizeDeg(windAt(state, ship.x, ship.y).fromDeg - ship.headingDeg);
     if (rel > 180) rel -= 360;
     const tack = rel >= 0 ? 's' : 'p';
     const point = pointOfSail(content, Math.abs(rel)).id;
@@ -151,13 +159,21 @@ export async function createRenderer(
         wake.update(player, dt);
       }
 
-      const [vx, vy] = windVector(state.wind);
-      const drift = SWELL_DRIFT_PX * content.navigation.windStrength[state.wind.strength]! * dt;
+      // Water and sky show the wind where the camera is looking: the player's ship, or the view centre.
+      const view = { x: -world.position.x, y: -world.position.y };
+      const wind = player
+        ? windAt(state, player.x, player.y)
+        : windAt(state, (view.x + VIEW_WIDTH / 2) / ts, (view.y + VIEW_HEIGHT / 2) / ts);
+      const [vx, vy] = windVector(wind);
+      const drift = SWELL_DRIFT_PX * content.navigation.windStrength[wind.strength]! * dt;
       swellX += vx * drift;
       swellY += vy * drift;
       swell.tilePosition.set(Math.round(world.position.x + swellX), Math.round(world.position.y + swellY));
       ensureChunks(-world.position.x, -world.position.y);
-      streaks.update(state.wind, dt, { x: -world.position.x, y: -world.position.y, w: VIEW_WIDTH, h: VIEW_HEIGHT });
+      streaks.update(wind, dt, { ...view, w: VIEW_WIDTH, h: VIEW_HEIGHT });
+      sky.layer.position.copyFrom(world.position);
+      sky.gloom.position.set(view.x, view.y);
+      sky.update(wind, state.weather?.storms ?? [], dt, view, player && { x: player.x * ts, y: player.y * ts });
       app.render();
     },
   };

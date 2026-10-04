@@ -196,6 +196,9 @@ importers:
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../../packages/systems-navigation
+      '@corsair/systems-weather':
+        specifier: workspace:*
+        version: link:../../packages/systems-weather
       preact:
         specifier: ^11.0.0
         version: 11.0.0
@@ -234,6 +237,19 @@ importers:
       '@corsair/data':
         specifier: workspace:*
         version: link:../data
+
+  packages/systems-weather:
+    dependencies:
+      '@corsair/core':
+        specifier: workspace:*
+        version: link:../core
+      '@corsair/data':
+        specifier: workspace:*
+        version: link:../data
+    devDependencies:
+      '@corsair/systems-navigation':
+        specifier: workspace:*
+        version: link:../systems-navigation
 
 packages:
 
