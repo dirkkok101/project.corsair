@@ -66,8 +66,10 @@ export function createHarbour(shipFrame: () => Texture | undefined) {
   let viewH = HARBOUR_HEIGHT;
 
   const layout = () => {
-    // Whole-pixel scale, centred; the margins carry on the sky above and the sea below.
-    const s = Math.max(1, Math.floor(Math.min(viewW / HARBOUR_WIDTH, viewH / HARBOUR_HEIGHT)));
+    // The scene covers the whole view, centred and cropped at the edges: a band of plain sky and sea
+    // around a painting (worse, around a room) looks broken. At 16:9 the scale is a whole number; in
+    // other windows it is a little over, which repeats the odd pixel row but never shows a margin.
+    const s = Math.max(viewW / HARBOUR_WIDTH, viewH / HARBOUR_HEIGHT);
     scene.scale.set(s);
     scene.position.set(Math.round((viewW - HARBOUR_WIDTH * s) / 2), Math.round((viewH - HARBOUR_HEIGHT * s) / 2));
     const horizon = scene.position.y + 250 * s;

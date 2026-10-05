@@ -255,17 +255,17 @@ body {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
-  /* A light veil: the harbour scene should still show around the market. */
-  background: rgb(9 10 20 / 0.25);
+  /* The panel lies along the bottom like a ledger on the counter, leaving the scene above it clear. */
+  place-items: end center;
+  padding-bottom: 12px;
 }
 
 .port-panel {
   width: min(900px, 96vw);
-  max-height: 90vh;
+  max-height: 62vh;
   overflow: auto;
-  padding: 16px 20px;
-  background: rgb(21 29 40 / 0.96);
+  padding: 10px 18px;
+  background: rgb(21 29 40 / 0.82);
   border: 2px solid #c09473;
   color: #ebede9;
 }
@@ -275,11 +275,21 @@ body {
   justify-content: space-between;
   align-items: end;
   border-bottom: 1px solid #394a50;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
+}
+
+/* Name, standing and trade lean on as few lines as fit, to keep the scene above in view. */
+.port-head > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
 }
 
 .port-name {
-  font-size: 22px;
+  font-family: 'Pirata One', serif;
+  font-size: 30px;
+  line-height: 1;
   color: #e8c170;
 }
 
@@ -294,7 +304,7 @@ body {
 .port-tabs {
   display: flex;
   gap: 14px;
-  margin: 10px 0;
+  margin: 6px 0;
 }
 
 .port-tabs .active {
@@ -320,7 +330,7 @@ body {
   margin: 0;
   padding: 0;
   list-style: none;
-  min-height: 160px;
+  min-height: 120px;
 }
 
 .tavern li {
@@ -338,7 +348,7 @@ body {
 }
 
 .tavern-quiet {
-  min-height: 160px;
+  min-height: 120px;
 }
 
 .market {
@@ -354,7 +364,7 @@ body {
 }
 
 .market td {
-  padding: 4px 6px 4px 0;
+  padding: 2px 6px 2px 0;
   border-bottom: 1px solid #202e37;
 }
 
@@ -441,8 +451,41 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 8px;
   color: #819796;
+}
+
+/* Short windows: smaller rows, and the footer note gives way. */
+@media (max-height: 760px) {
+  .port-panel {
+    max-height: 72vh;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  .port-name {
+    font-size: 24px;
+  }
+
+  .market td {
+    padding: 1px 6px 1px 0;
+  }
+
+  .market button {
+    padding: 0 6px;
+  }
+
+  .port-foot {
+    margin-top: 4px;
+  }
+
+  .port-foot > span {
+    display: none;
+  }
+
+  .port-foot .leave {
+    margin-left: auto;
+  }
 }
 
 .hud-saved {
@@ -468,15 +511,25 @@ body {
   image-rendering: pixelated;
 }
 
+/* Pirata One (SIL OFL 1.1, art/game/fonts/PirataOne-OFL.txt), bundled so the title needs no network. */
+@font-face {
+  font-family: 'Pirata One';
+  src: url('../../../art/game/fonts/PirataOne-Regular.ttf') format('truetype');
+  font-display: block;
+}
+
 .start-title {
   margin: 0;
-  font-size: clamp(32px, 6vw, 72px);
+  font-family: 'Pirata One', serif;
+  font-size: clamp(56px, 9vw, 132px);
   font-weight: normal;
-  letter-spacing: 0.04em;
-  color: #e8c170;
+  line-height: 1;
+  color: #ebede9;
+  /* A thick ink outline (eight hard offsets) and a deep drop shadow lift it off the warm sky. */
   text-shadow:
-    3px 3px 0 #241527,
-    -1px -1px 0 #241527;
+    3px 0 0 #241527, -3px 0 0 #241527, 0 3px 0 #241527, 0 -3px 0 #241527,
+    3px 3px 0 #241527, -3px 3px 0 #241527, 3px -3px 0 #241527, -3px -3px 0 #241527,
+    6px 8px 0 #752438;
 }
 
 .start-panel {
@@ -639,14 +692,16 @@ body {
   color: #819796;
 }
 
+/* In the sky, clear of the town, the quay and the ship at anchor. */
 .port-bar {
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  top: 12px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 16px;
+  white-space: nowrap;
   padding: 8px 14px;
   color: #ebede9;
   background: rgb(21 29 40 / 0.92);
