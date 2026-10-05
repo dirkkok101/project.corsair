@@ -1,0 +1,200 @@
+{
+  "fiddle": {
+    "name": "Solo violin (arco, vibrato, forte)",
+    "samples": [
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_55.wav",
+        "midi": 55
+      },
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_60.wav",
+        "midi": 60
+      },
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_64.wav",
+        "midi": 64
+      },
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_69.wav",
+        "midi": 69
+      },
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_72.wav",
+        "midi": 72
+      },
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_76.wav",
+        "midi": 76
+      },
+      {
+        "file": "art/audio/instruments/fiddle/fiddle_81.wav",
+        "midi": 81
+      }
+    ],
+    "range": [
+      53,
+      83
+    ],
+    "notes": "Sustained bowed notes; the steady part starts ~0.3s in, so long notes can loop from there. VSCO names are scientific pitch. The E5 (76) sample is ~19 cents sharp."
+  },
+  "flute": {
+    "name": "Flute (sustained, no vibrato) - tin-whistle stand-in",
+    "samples": [
+      {
+        "file": "art/audio/instruments/flute/flute_69.wav",
+        "midi": 69
+      },
+      {
+        "file": "art/audio/instruments/flute/flute_72.wav",
+        "midi": 72
+      },
+      {
+        "file": "art/audio/instruments/flute/flute_76.wav",
+        "midi": 76
+      },
+      {
+        "file": "art/audio/instruments/flute/flute_81.wav",
+        "midi": 81
+      },
+      {
+        "file": "art/audio/instruments/flute/flute_84.wav",
+        "midi": 84
+      },
+      {
+        "file": "art/audio/instruments/flute/flute_88.wav",
+        "midi": 88
+      }
+    ],
+    "range": [
+      67,
+      90
+    ],
+    "notes": "Upper flute register chosen for a whistle-like melody voice. VSCO flute names are an octave below sounding pitch (file \"C4\" sounds C5 = 72)."
+  },
+  "bass": {
+    "name": "Solo double bass (pizzicato)",
+    "samples": [
+      {
+        "file": "art/audio/instruments/bass/bass_36.wav",
+        "midi": 36
+      },
+      {
+        "file": "art/audio/instruments/bass/bass_40.wav",
+        "midi": 40
+      },
+      {
+        "file": "art/audio/instruments/bass/bass_44.wav",
+        "midi": 44
+      },
+      {
+        "file": "art/audio/instruments/bass/bass_49.wav",
+        "midi": 49
+      },
+      {
+        "file": "art/audio/instruments/bass/bass_52.wav",
+        "midi": 52
+      },
+      {
+        "file": "art/audio/instruments/bass/bass_56.wav",
+        "midi": 56
+      }
+    ],
+    "range": [
+      34,
+      58
+    ],
+    "notes": "Plucked bass line. VSCO contrabass names are an octave below sounding pitch (file \"C1\" sounds C2 = 36)."
+  },
+  "harp": {
+    "name": "Concert harp (mf) - plucked lute/guitar stand-in",
+    "samples": [
+      {
+        "file": "art/audio/instruments/harp/harp_55.wav",
+        "midi": 55
+      },
+      {
+        "file": "art/audio/instruments/harp/harp_59.wav",
+        "midi": 59
+      },
+      {
+        "file": "art/audio/instruments/harp/harp_62.wav",
+        "midi": 62
+      },
+      {
+        "file": "art/audio/instruments/harp/harp_65.wav",
+        "midi": 65
+      },
+      {
+        "file": "art/audio/instruments/harp/harp_69.wav",
+        "midi": 69
+      },
+      {
+        "file": "art/audio/instruments/harp/harp_72.wav",
+        "midi": 72
+      },
+      {
+        "file": "art/audio/instruments/harp/harp_76.wav",
+        "midi": 76
+      }
+    ],
+    "range": [
+      53,
+      78
+    ],
+    "notes": "Plucked strings; no CC0 guitar or lute note set was found. Samples sit ~10 cents flat of A440."
+  },
+  "frame_drum": {
+    "name": "Large hand drum (frame-drum / bodhran stand-in)",
+    "samples": [
+      {
+        "file": "art/audio/instruments/frame_drum/frame_drum_1.wav",
+        "midi": 60
+      },
+      {
+        "file": "art/audio/instruments/frame_drum/frame_drum_2.wav",
+        "midi": 60
+      }
+    ],
+    "range": [
+      60,
+      60
+    ],
+    "notes": "Hand hits on a large ethnic drum, forte and mezzo-piano. Unpitched; root 60 = recorded speed."
+  },
+  "bass_drum": {
+    "name": "Concert bass drum",
+    "samples": [
+      {
+        "file": "art/audio/instruments/bass_drum/bass_drum_1.wav",
+        "midi": 60
+      }
+    ],
+    "range": [
+      60,
+      60
+    ],
+    "notes": "Single hit with the tail cut to 1s. Unpitched; root 60 = recorded speed."
+  },
+  "tambourine": {
+    "name": "Tambourine",
+    "samples": [
+      {
+        "file": "art/audio/instruments/tambourine/tambourine_1.wav",
+        "midi": 60
+      },
+      {
+        "file": "art/audio/instruments/tambourine/tambourine_2.wav",
+        "midi": 60
+      },
+      {
+        "file": "art/audio/instruments/tambourine/tambourine_3.wav",
+        "midi": 60
+      }
+    ],
+    "range": [
+      60,
+      60
+    ],
+    "notes": "Down-stroke, up-stroke and a hit. Unpitched; root 60 = recorded speed."
+  }
+}

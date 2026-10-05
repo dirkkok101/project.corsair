@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { ambienceTargets } from '../src/mix';
 import type { AudioInputs } from '../src/mix';
 
-const calmSea: AudioInputs = { wind: 0.5, offWindDeg: 120, speed: 0.5, sailsSet: true, luffing: false, inStorm: false, coast: 0 };
+const calmSea: AudioInputs = {
+  wind: 0.5,
+  offWindDeg: 120,
+  speed: 0.5,
+  sailsSet: true,
+  luffing: false,
+  inStorm: false,
+  coast: 0,
+  harbour: 0,
+  hour: 12,
+  sails: 'full',
+};
 
 describe('ambienceTargets', () => {
   it('swells the sea with the wind', () => {

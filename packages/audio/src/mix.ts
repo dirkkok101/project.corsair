@@ -17,6 +17,12 @@ export interface AudioInputs {
   inStorm: boolean;
   /** 1 on the coast, falling to 0 at the edge of the coastal band. */
   coast: number;
+  /** 1 next to a town, falling to 0 beyond earshot. */
+  harbour: number;
+  /** Game hour, 0-24. */
+  hour: number;
+  /** Sail setting id (furled, half, full), to hear sail being set or taken in. */
+  sails: string;
 }
 
 export interface AmbienceTargets {

@@ -148,6 +148,22 @@ export const weatherSchema = z.object({
 
 export const calendarSchema = z.object({ ticksPerDay: z.number().int().positive() });
 
+export const musicSchema = z.object({
+  tunes: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      source: z.string(),
+      /** lively: under full sail in fair wind; gentle: easier sailing; night: after dark. */
+      mood: z.enum(['lively', 'gentle', 'night']),
+      bpm: z.number().positive(),
+      beatsPerBar: z.number().int().positive(),
+      melody: z.string(),
+      chords: z.string(),
+    }),
+  ),
+});
+
 export type ShipClass = z.infer<typeof shipClassSchema>;
 export type Polar = z.infer<typeof polarSchema>;
 export type NavigationConfig = z.infer<typeof navigationSchema>;
@@ -159,3 +175,5 @@ export type Settlement = z.infer<typeof settlementSchema>;
 export type WindZones = z.infer<typeof windZonesSchema>;
 export type Weather = z.infer<typeof weatherSchema>;
 export type Calendar = z.infer<typeof calendarSchema>;
+export type Music = z.infer<typeof musicSchema>;
+export type Tune = Music['tunes'][number];

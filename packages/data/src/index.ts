@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import calendarJson from '../content/calendar.json';
+import musicJson from '../content/music.json';
 import caribbeanMap from '../content/maps/caribbean/map.json';
 import settlementsJson from '../content/maps/caribbean/settlements.json';
 import weatherJson from '../content/maps/caribbean/weather.json';
@@ -11,6 +12,7 @@ import shipsJson from '../content/ships.json';
 import spritesJson from '../content/sprites.json';
 import {
   calendarSchema,
+  musicSchema,
   navigationSchema,
   polarSchema,
   proceduralMapSchema,
@@ -23,6 +25,7 @@ import {
 } from './schemas';
 import type {
   Calendar,
+  Music,
   NavigationConfig,
   Polar,
   ProceduralMapDef,
@@ -47,6 +50,7 @@ export interface ContentPack {
   windZones: WindZones;
   weather: Weather;
   calendar: Calendar;
+  music: Music;
 }
 
 /** Validates the base content at boot; a bad pack throws with the Zod path of the first error. */
@@ -62,6 +66,7 @@ export function loadContent(): ContentPack {
     windZones: windZonesSchema.parse(windZonesJson),
     weather: weatherSchema.parse(weatherJson),
     calendar: calendarSchema.parse(calendarJson),
+    music: musicSchema.parse(musicJson),
   };
   for (const ship of ships) {
     if (!pack.polars[ship.polar]) throw new Error(`${ship.id}: unknown polar ${ship.polar}`);

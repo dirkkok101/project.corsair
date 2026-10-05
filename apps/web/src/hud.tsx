@@ -142,7 +142,7 @@ export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
       {sound ? <div class="hud-sound">{sound}</div> : null}
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · V sound · [ ] turn wind · 1–5 wind strength</div>
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

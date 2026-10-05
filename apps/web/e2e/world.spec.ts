@@ -104,3 +104,15 @@ test('sound starts on the first key, plays, and V mutes it', async ({ page }) =>
   await page.waitForFunction(() => window.__corsair.audio.levels().rms < 0.0005);
   await expect(page.locator('.hud-sound')).toContainText('Sound off');
 });
+
+test('the band strikes up a tune after the opening quiet, and N silences the music', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.__corsair));
+  await page.keyboard.press('Shift');
+  await page.waitForFunction(() => window.__corsair.audio.levels().samplesReady, undefined, { timeout: 15_000 });
+  await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 15_000 });
+  const title = await page.evaluate(() => window.__corsair.audio.levels().nowPlaying);
+  expect(['Drunken Sailor', 'Scarborough Fair', 'Greensleeves']).toContain(title);
+  await page.keyboard.press('n');
+  expect(await page.evaluate(() => window.__corsair.audio.levels().music)).toBe(false);
+});

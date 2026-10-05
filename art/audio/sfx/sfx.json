@@ -1,0 +1,53 @@
+{
+  "gull": {
+    "files": [
+      "art/audio/sfx/gull_1.wav",
+      "art/audio/sfx/gull_2.wav",
+      "art/audio/sfx/gull_3.wav",
+      "art/audio/sfx/gull_4.wav"
+    ],
+    "notes": "Single gulls (OpenGameArt) and one NPS western-gull flock clip."
+  },
+  "creak": {
+    "files": [
+      "art/audio/sfx/creak_1.wav",
+      "art/audio/sfx/creak_2.wav",
+      "art/audio/sfx/creak_3.wav"
+    ],
+    "notes": "Wooden groans/creaks for the hull; play slowed (playbackRate 0.6-0.9) for a heavier ship."
+  },
+  "canvas": {
+    "files": [
+      "art/audio/sfx/canvas_1.wav",
+      "art/audio/sfx/canvas_2.wav",
+      "art/audio/sfx/canvas_3.wav"
+    ],
+    "notes": "Cloth snaps/rustles for setting or furling sail."
+  },
+  "rope": {
+    "files": [
+      "art/audio/sfx/rope_1.wav",
+      "art/audio/sfx/rope_2.wav"
+    ],
+    "notes": "Short wooden creaks standing in for rope through a block."
+  },
+  "harbour_bell": {
+    "files": [
+      "art/audio/sfx/harbour_bell_1.wav"
+    ],
+    "notes": "Distant church bell tolling (with birdsong); loopable bed with faded ends."
+  },
+  "harbour_crowd": {
+    "files": [
+      "art/audio/sfx/harbour_crowd_1.wav"
+    ],
+    "notes": "Outdoor wharf with voices, faded ends; play low and low-passed for distance. (An indoor restaurant bed was dropped: it may carry background music the recordist could not license.)"
+  },
+  "thunder": {
+    "files": [
+      "art/audio/sfx/thunder_1.wav",
+      "art/audio/sfx/thunder_2.wav"
+    ],
+    "notes": "One sharp clap and one long rolling peal."
+  }
+}

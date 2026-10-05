@@ -1,0 +1,35 @@
+{
+  "$comment": "Traditional public-domain tunes, arranged for the in-game band (fiddle, whistle, plucked bass, harp, drums). Melody tokens are note+octave/beats (e.g. A4/0.5) or r/beats for a rest; | marks a bar and every full bar must add up to beatsPerBar. Chords are one per bar (or chord/beats). The shanties are 19th century, an accepted anachronism for 1660; Greensleeves and Scarborough Fair are period ballads.",
+  "tunes": [
+    {
+      "id": "drunken_sailor",
+      "title": "Drunken Sailor",
+      "source": "Traditional sea shanty, public domain",
+      "mood": "lively",
+      "bpm": 116,
+      "beatsPerBar": 4,
+      "melody": "A4/1 A4/0.5 A4/0.5 A4/1 A4/0.5 A4/0.5 | A4/1 D4/1 F4/1 A4/1 | G4/1 G4/0.5 G4/0.5 G4/1 G4/0.5 G4/0.5 | G4/1 C4/1 E4/1 G4/1 | A4/1 A4/0.5 A4/0.5 A4/1 A4/0.5 A4/0.5 | A4/1 B4/1 C5/1 D5/1 | C5/1 A4/1 G4/1 E4/1 | D4/2 D4/2 | A4/2 A4/1 A4/1 | A4/1 D4/1 F4/1 A4/1 | G4/2 G4/1 G4/1 | G4/1 C4/1 E4/1 G4/1 | A4/2 A4/1 A4/1 | A4/1 B4/1 C5/1 D5/1 | C5/1 A4/1 G4/1 E4/1 | D4/2 D4/2",
+      "chords": "Dm | Dm | C | C | Dm | Dm | C | Dm | Dm | Dm | C | C | Dm | Dm | C | Dm"
+    },
+    {
+      "id": "scarborough_fair",
+      "title": "Scarborough Fair",
+      "source": "Traditional English ballad, public domain",
+      "mood": "gentle",
+      "bpm": 96,
+      "beatsPerBar": 3,
+      "melody": "D4/2 D4/1 | A4/2 A4/1 | E4/1.5 F4/0.5 E4/1 | D4/3 | r/1 A4/1 C5/1 | D5/2 C5/1 | A4/1 B4/1 G4/1 | A4/3 | r/1 D5/1 D5/1 | D5/2 C5/1 | A4/2 A4/1 | G4/1 F4/1 E4/1 | C4/3 | D4/2 A4/1 | G4/2 F4/1 | E4/1 D4/1 C4/1 | D4/3",
+      "chords": "Dm | Dm | C | Dm | Dm | F | G | Am | Dm | F | Dm | C | C | Dm | Dm | C | Dm"
+    },
+    {
+      "id": "greensleeves",
+      "title": "Greensleeves",
+      "source": "Traditional English ballad (16th century), public domain",
+      "mood": "night",
+      "bpm": 150,
+      "beatsPerBar": 6,
+      "melody": "r/5 A4/1 | C5/2 D5/1 E5/1.5 F5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/2 A4/1 A4/1.5 G#4/0.5 A4/1 | B4/2 G#4/1 E4/2 A4/1 | C5/2 D5/1 E5/1.5 F5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/1.5 B4/0.5 A4/1 G#4/1.5 F#4/0.5 G#4/1 | A4/3 A4/3 | G5/3 G5/1.5 F#5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/2 A4/1 A4/1.5 G#4/0.5 A4/1 | B4/2 G#4/1 E4/3 | G5/3 G5/1.5 F#5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/1.5 B4/0.5 A4/1 G#4/1.5 F#4/0.5 G#4/1 | A4/6",
+      "chords": "Am | Am | G | Am | E | Am | G | Am/3 E/3 | Am | C | G | Am | E | C | G | Am/3 E/3 | Am"
+    }
+  ]
+}

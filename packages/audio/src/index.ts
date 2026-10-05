@@ -1,7 +1,14 @@
+import { createBand } from './band';
 import { ambienceTargets } from './mix';
 import type { AmbienceTargets, AudioInputs } from './mix';
+import type { TuneData } from './music';
+import { loadSamples } from './samples';
+import type { SampleManifest } from './samples';
+import { createSfx } from './sfx';
 
 export * from './mix';
+export * from './music';
+export type { SampleManifest } from './samples';
 
 // Ambience is synthesised from one shared noise buffer shaped by filters, so every layer can follow
 // the game smoothly (no loops to crossfade). The engine only listens: it reads what the game passes
@@ -10,6 +17,8 @@ export * from './mix';
 const GLIDE_S = 0.25; // time constant for layer volumes following their targets
 const MASTER = 0.6;
 const MUTE_KEY = 'corsair.muted';
+const MUSIC_KEY = 'corsair.music';
+const MUSIC = 0.45; // the band sits under the sea, not on top of it
 
 type Layer = { gain: GainNode; filter: BiquadFilterNode };
 
@@ -19,9 +28,14 @@ export interface AudioLevels {
   targets: AmbienceTargets | undefined;
   /** RMS of what the speakers get right now (0 when muted or locked), so tests can tell sound is playing. */
   rms: number;
+  music: boolean;
+  /** Title of the tune the band is playing, if any. */
+  nowPlaying: string | undefined;
+  /** Recorded samples are decoded and ready. */
+  samplesReady: boolean;
 }
 
-export function createAudio() {
+export function createAudio(options: { samples?: SampleManifest; tunes?: TuneData[] } = {}) {
   let ctx: AudioContext | undefined;
   let master: GainNode | undefined;
   let meter: AnalyserNode | undefined;
@@ -31,11 +45,16 @@ export function createAudio() {
   let wasLuffing = false;
   let nextFlap = 0;
   let muted = false;
+  let music = true;
   try {
     muted = localStorage.getItem(MUTE_KEY) === '1';
+    music = localStorage.getItem(MUSIC_KEY) !== '0';
   } catch {
-    // Storage can be blocked; sound simply starts unmuted.
+    // Storage can be blocked; sound simply starts unmuted with music.
   }
+  let band: ReturnType<typeof createBand> | undefined;
+  let sfx: ReturnType<typeof createSfx> | undefined;
+  let samplesReady = false;
 
   const noiseLayer = (type: BiquadFilterType, frequency: number, q = 0.7, extra?: BiquadFilterNode): Layer => {
     const src = ctx!.createBufferSource();
@@ -84,6 +103,16 @@ export function createAudio() {
       rain: noiseLayer('highpass', 2600),
       luff: noiseLayer('bandpass', 340, 1.3),
     };
+    band = createBand(ctx, master, options.tunes ?? []);
+    band.setVolume(music ? MUSIC : 0);
+    sfx = createSfx(ctx, master);
+    if (options.samples) {
+      void loadSamples(ctx, options.samples).then((lib) => {
+        band!.setLibrary(lib);
+        sfx!.setLibrary(lib);
+        samplesReady = true;
+      });
+    }
   };
 
   const glide = (param: AudioParam, value: number, tc = GLIDE_S) => param.setTargetAtTime(value, ctx!.currentTime, tc);
@@ -186,13 +215,44 @@ export function createAudio() {
       glide(layers.rain.gain.gain, t.rain);
 
       if (t.luff > 0) scheduleFlaps(t.luff * 0.6);
-      if (wasLuffing && t.luff === 0 && inputs.sailsSet) thump();
+      const filled = wasLuffing && t.luff === 0 && inputs.sailsSet;
+      if (filled) thump();
       wasLuffing = t.luff > 0;
+
+      band?.update({
+        hour: inputs.hour,
+        inStorm: inputs.inStorm,
+        sailsSet: inputs.sailsSet,
+        luffing: inputs.luffing,
+        speed: inputs.speed,
+      });
+      sfx?.update({
+        coast: inputs.coast,
+        harbour: inputs.harbour,
+        wind: Math.min(1, inputs.wind / 1.1),
+        hour: inputs.hour,
+        sails: inputs.sails,
+        filled,
+      });
 
     },
     /** Thunder after a lightning flash; the delay stands for the storm's distance. */
     thunder(delayS = 0.4 + Math.random() * 1.2) {
-      if (ctx?.state === 'running') thunder(delayS);
+      if (ctx?.state !== 'running') return;
+      // A recorded peal when loaded, the synthesised roll until then.
+      if (!sfx?.thunder(delayS)) thunder(delayS);
+    },
+    get music() {
+      return music;
+    },
+    toggleMusic() {
+      music = !music;
+      try {
+        localStorage.setItem(MUSIC_KEY, music ? '1' : '0');
+      } catch {
+        // Not remembered across reloads, but the toggle still works.
+      }
+      band?.setVolume(music ? MUSIC : 0);
     },
     /** For the debug API and tests: what the mixer is aiming at, and whether sound can play. */
     levels(): AudioLevels {
@@ -202,7 +262,7 @@ export function createAudio() {
         meter.getFloatTimeDomainData(buf);
         rms = Math.sqrt(buf.reduce((sum, v) => sum + v * v, 0) / buf.length);
       }
-      return { state: ctx ? ctx.state : 'locked', muted, targets, rms };
+      return { state: ctx ? ctx.state : 'locked', muted, targets, rms, music, nowPlaying: band?.nowPlaying, samplesReady };
     },
   };
 }

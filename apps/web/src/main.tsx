@@ -35,6 +35,31 @@ const townFrames = import.meta.glob<string>('../../../art/generated/settlements/
   query: '?url',
   import: 'default',
 });
+// Recorded sounds and instrument notes (art/audio, CC0 and public domain; see art/audio/CREDITS.json).
+const audioFiles = import.meta.glob<string>('../../../art/audio/**/*.wav', { eager: true, query: '?url', import: 'default' });
+const sfxManifest = import.meta.glob<{ files: string[] }>('../../../art/audio/sfx/sfx.json', { eager: true, import: 'default' });
+const instrumentManifest = import.meta.glob<{ samples: { file: string; midi: number }[] }>(
+  '../../../art/audio/instruments/instruments.json',
+  { eager: true, import: 'default' },
+);
+
+/** Manifest entries name files from the repo root (art/audio/...); map them to served URLs. */
+function sampleManifest() {
+  const url = (file: string) => {
+    const found = Object.entries(audioFiles).find(([p]) => p.endsWith(file.replace(/^art\//, '/art/')));
+    if (!found) throw new Error(`audio file ${file} not found`);
+    return found[1];
+  };
+  const sfx = Object.values(sfxManifest)[0] as unknown as Record<string, { files: string[] }>;
+  const instruments = Object.values(instrumentManifest)[0] as unknown as Record<string, { samples: { file: string; midi: number }[] }>;
+  return {
+    sfx: Object.fromEntries(Object.entries(sfx).map(([id, v]) => [id, v.files.map(url)])),
+    instruments: Object.fromEntries(
+      Object.entries(instruments).map(([id, v]) => [id, v.samples.map((s) => ({ url: url(s.file), midi: s.midi }))]),
+    ),
+  };
+}
+
 // Day, dusk and night rows for the palette swap (art pipeline section 6).
 const paletteFiles = import.meta.glob<string>('../../../art/palette/*.gpl', { eager: true, query: '?raw', import: 'default' });
 const palette = (name: string) => parseGpl(Object.entries(paletteFiles).find(([p]) => p.endsWith(`/${name}`))![1]);
@@ -95,6 +120,12 @@ async function main() {
   let destination: PlacedSettlement | undefined;
   const charts = createCharts(stage, map, settlements, (port) => (destination = port));
   const breezes = createBreezeField(content, def, map);
+  // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
+  const harbourNearness = (x: number, y: number) => {
+    let best = 0;
+    for (const s of settlements) best = Math.max(best, 1 - Math.hypot(s.x - x, s.y - y) / 12);
+    return best;
+  };
   // Distances for the HUD: the map is equirectangular, close enough to square tiles.
   const { lonMin, lonMax, latMin, latMax } = def.bounds;
   const kmPerTile =
@@ -114,12 +145,13 @@ async function main() {
   window.addEventListener('resize', fit);
 
   // Sound needs a user gesture before the browser lets it play; V toggles mute.
-  const audio = createAudio();
+  const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
   const unlock = () => audio.unlock();
   window.addEventListener('keydown', unlock);
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
+    if (e.key.toLowerCase() === 'n' && !e.repeat) audio.toggleMusic();
   });
 
   renderer.onLightning(() => audio.thunder());
@@ -160,6 +192,9 @@ async function main() {
         luffing: pointOfSail(content, offWind).id === 'irons',
         inStorm,
         coast: breezes.coastNearness(ship.x, ship.y),
+        harbour: harbourNearness(ship.x, ship.y),
+        hour,
+        sails: ship.sails,
       },
       now / 1000,
     );

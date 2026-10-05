@@ -1,0 +1,434 @@
+[
+  {
+    "file": "art/audio/sfx/gull_1.wav",
+    "title": "Seagull Ambient 2",
+    "author": "Rango Mango",
+    "source_url": "https://opengameart.org/content/solo-seagull-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": ""
+  },
+  {
+    "file": "art/audio/sfx/gull_2.wav",
+    "title": "Seagull Ambient 4",
+    "author": "Rango Mango",
+    "source_url": "https://opengameart.org/content/solo-seagull-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": ""
+  },
+  {
+    "file": "art/audio/sfx/gull_3.wav",
+    "title": "Seagull Ambient 6",
+    "author": "Rango Mango",
+    "source_url": "https://opengameart.org/content/solo-seagull-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": ""
+  },
+  {
+    "file": "art/audio/sfx/gull_4.wav",
+    "title": "Western Gull (Golden Gate National Recreation Area)",
+    "author": "U.S. National Park Service, Natural Sounds and Night Skies Division",
+    "source_url": "https://www.nps.gov/subjects/sound/sounds-western-gull.htm",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.nps.gov/subjects/sound/gallery.htm",
+    "notes": "A flock calling; first 4s of the 4.7s MP3, decoded to WAV. NPS gallery: \"The files are in the public domain and may be downloaded.\""
+  },
+  {
+    "file": "art/audio/sfx/creak_1.wav",
+    "title": "Tree Creaking",
+    "author": "Department64",
+    "source_url": "https://opengameart.org/content/tree-creaking",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Two long wooden groans (hull-groan stand-in); first 3.7s of the FLAC."
+  },
+  {
+    "file": "art/audio/sfx/creak_2.wav",
+    "title": "Creaky Wooden Swivel Chair",
+    "author": "chocoholic",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Creaky_wooden_swivel_chair.ogg",
+    "licence": "Public domain",
+    "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+    "notes": "Old oak chair creaks, 0.7-4.7s of the source. Commons licence template {{PD-author}} (released into the public domain by the author, worldwide) via PDSounds.org."
+  },
+  {
+    "file": "art/audio/sfx/creak_3.wav",
+    "title": "Creaky Wooden Casket",
+    "author": "stephan",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Creaky_wooden_casket.ogg",
+    "licence": "Public domain",
+    "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+    "notes": "Short wooden creak. Commons licence template {{PD-author}} (released into the public domain by the author, worldwide) via PDSounds.org."
+  },
+  {
+    "file": "art/audio/sfx/canvas_1.wav",
+    "title": "Cloth_01",
+    "author": "OwlishMedia",
+    "source_url": "https://opengameart.org/content/202-more-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Cloth snap/rustle from the \"202 More Sound Effects\" pack, standing in for sail canvas."
+  },
+  {
+    "file": "art/audio/sfx/canvas_2.wav",
+    "title": "Cloth_02",
+    "author": "OwlishMedia",
+    "source_url": "https://opengameart.org/content/202-more-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Cloth snap/rustle from the \"202 More Sound Effects\" pack, standing in for sail canvas."
+  },
+  {
+    "file": "art/audio/sfx/canvas_3.wav",
+    "title": "Cloth_06",
+    "author": "OwlishMedia",
+    "source_url": "https://opengameart.org/content/202-more-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Cloth snap/rustle from the \"202 More Sound Effects\" pack, standing in for sail canvas."
+  },
+  {
+    "file": "art/audio/sfx/rope_1.wav",
+    "title": "creak2",
+    "author": "Kenney (www.kenney.nl)",
+    "source_url": "https://opengameart.org/content/50-rpg-sound-effects",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Wooden creak from the Kenney RPG pack, standing in for a rope/block creak; no CC0 rope-under-load recording was found."
+  },
+  {
+    "file": "art/audio/sfx/rope_2.wav",
+    "title": "wood_squeak_01",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/100-cc0-metal-and-wood-sfx",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Short wood squeak, standing in for a block/sheave creak."
+  },
+  {
+    "file": "art/audio/sfx/harbour_bell_1.wav",
+    "title": "Church bells and bird song",
+    "author": "lezer",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Sound_of_church_bells_and_birds.oga",
+    "licence": "Public domain",
+    "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+    "notes": "Distant church bell tolling heard from a window, with birdsong; 8s from 12s in, faded at both ends. Commons licence template {{PD-author}} (released into the public domain by the author, worldwide) via PDSounds.org."
+  },
+  {
+    "file": "art/audio/sfx/harbour_crowd_1.wav",
+    "title": "Boat by a wharf - 3",
+    "author": "ezwa",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Boat_by_a_wharf_3.ogg",
+    "licence": "Public domain",
+    "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
+    "notes": "Outdoor wharf: boat noises, water and people talking; 8s from 2.5s in, faded at both ends. Commons licence template {{PD-author}} (released into the public domain by the author, worldwide) via PDSounds.org."
+  },
+  {
+    "file": "art/audio/sfx/thunder_1.wav",
+    "title": "sfx100v2_thunder_01",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/100-cc0-sfx-2",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Whole 5.3s thunder clap, decoded from OGG."
+  },
+  {
+    "file": "art/audio/sfx/thunder_2.wav",
+    "title": "Thunder",
+    "author": "U.S. National Park Service, Natural Sounds and Night Skies Division",
+    "source_url": "https://www.nps.gov/subjects/sound/sounds-thunder.htm",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.nps.gov/subjects/sound/gallery.htm",
+    "notes": "Rolling thunder (with rain), 8s from 2.5s into the 46s MP3, faded out. NPS gallery: \"The files are in the public domain and may be downloaded.\""
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_55.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_G3_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 55. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_60.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_C4_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 60. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_64.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_E4_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 64. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_69.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_A4_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 69. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_72.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_C5_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 72. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_76.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_E5_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 76. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/fiddle/fiddle_81.wav",
+    "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_A5_f.wav (Arco Vib)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Violin/Arco Vib",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 81. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/flute/flute_69.wav",
+    "title": "Flute (sustained, no vibrato) - tin-whistle stand-in LDFlute_susNV_A3_v3_1.wav (susNV)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Woodwinds/Flute/susNV",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 69. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/flute/flute_72.wav",
+    "title": "Flute (sustained, no vibrato) - tin-whistle stand-in LDFlute_susNV_C4_v3_1.wav (susNV)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Woodwinds/Flute/susNV",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 72. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/flute/flute_76.wav",
+    "title": "Flute (sustained, no vibrato) - tin-whistle stand-in LDFlute_susNV_E4_v3_1.wav (susNV)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Woodwinds/Flute/susNV",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 76. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/flute/flute_81.wav",
+    "title": "Flute (sustained, no vibrato) - tin-whistle stand-in LDFlute_susNV_A4_v3_1.wav (susNV)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Woodwinds/Flute/susNV",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 81. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/flute/flute_84.wav",
+    "title": "Flute (sustained, no vibrato) - tin-whistle stand-in LDFlute_susNV_C5_v2_1.wav (susNV)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Woodwinds/Flute/susNV",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 84. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/flute/flute_88.wav",
+    "title": "Flute (sustained, no vibrato) - tin-whistle stand-in LDFlute_susNV_E5_v2_1.wav (susNV)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Woodwinds/Flute/susNV",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 88. Trimmed to 2s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass/bass_36.wav",
+    "title": "Solo double bass (pizzicato) BKCtbss_Pizz_C1_v1_rr1.wav (Pizz)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Contrabass/Pizz",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 36. Trimmed to 1.6s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass/bass_40.wav",
+    "title": "Solo double bass (pizzicato) BKCtbss_Pizz_E1_v3_rr1.wav (Pizz)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Contrabass/Pizz",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 40. Trimmed to 1.6s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass/bass_44.wav",
+    "title": "Solo double bass (pizzicato) BKCtbss_Pizz_G#1_v1_rr1.wav (Pizz)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Contrabass/Pizz",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 44. Trimmed to 1.6s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass/bass_49.wav",
+    "title": "Solo double bass (pizzicato) BKCtbss_Pizz_C#2_v1_rr1.wav (Pizz)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Contrabass/Pizz",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 49. Trimmed to 1.6s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass/bass_52.wav",
+    "title": "Solo double bass (pizzicato) BKCtbss_Pizz_E2_v1_rr1.wav (Pizz)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Contrabass/Pizz",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 52. Trimmed to 1.6s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass/bass_56.wav",
+    "title": "Solo double bass (pizzicato) BKCtbss_Pizz_G#2_v1_rr1.wav (Pizz)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Solo Contrabass/Pizz",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 56. Trimmed to 1.6s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_55.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_G3_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 55. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_59.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_B3_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 59. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_62.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_D4_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 62. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_65.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_F4_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 65. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_69.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_A4_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 69. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_72.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_C5_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 72. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/harp/harp_76.wav",
+    "title": "Concert harp (mf) - plucked lute/guitar stand-in KSHarp_E5_mf.wav (Harp)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Strings/Harp",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Root MIDI 76. Trimmed to 1.8s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/frame_drum/frame_drum_1.wav",
+    "title": "Large hand drum (frame-drum / bodhran stand-in) EthnicLargeHand_hit_f_1.wav (hand)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/VSCO 1 Percussion/drums/other/ethnic/giant/hand",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Unpitched one-shot. Trimmed to 0.7s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/frame_drum/frame_drum_2.wav",
+    "title": "Large hand drum (frame-drum / bodhran stand-in) EthnicLargeHand_hit_mp_1.wav (hand)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/VSCO 1 Percussion/drums/other/ethnic/giant/hand",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Unpitched one-shot. Trimmed to 0.7s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/bass_drum/bass_drum_1.wav",
+    "title": "Concert bass drum BDrumNewhit_v4_rr1_Sum.wav (Percussion)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Percussion",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Unpitched one-shot. Trimmed to 1s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/tambourine/tambourine_1.wav",
+    "title": "Tambourine tambourine_Down.wav (varWood)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/VSCO 1 Percussion/varWood",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Unpitched one-shot. Trimmed to 0.5s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/tambourine/tambourine_2.wav",
+    "title": "Tambourine tambourine_up_2.wav (varWood)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/VSCO 1 Percussion/varWood",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Unpitched one-shot. Trimmed to 0.5s with a fade; mono 32000 Hz."
+  },
+  {
+    "file": "art/audio/instruments/tambourine/tambourine_3.wav",
+    "title": "Tambourine Tamb1-Hit_v2_rr1_Sum.wav (Percussion)",
+    "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",
+    "source_url": "https://github.com/sgossner/VSCO-2-CE/tree/master/Percussion",
+    "licence": "CC0 1.0",
+    "licence_url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE",
+    "notes": "Unpitched one-shot. Trimmed to 0.5s with a fade; mono 32000 Hz."
+  }
+]

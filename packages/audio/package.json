@@ -2,6 +2,11 @@
   "name": "@corsair/audio",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": {}
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@corsair/data": "workspace:*"
+  }
 }
