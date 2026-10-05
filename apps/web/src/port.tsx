@@ -1,6 +1,7 @@
 import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import { cargoUsed, quote, referenceStock } from '@corsair/systems-economy';
+import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
   state: WorldState;
@@ -8,9 +9,17 @@ export interface PortProps {
   town: PlacedSettlement;
   shipId: string;
   send: (command: import('@corsair/core').Command) => void;
+  /** Where each building stands on screen, in CSS pixels within the stage. */
+  hotspots: Partial<Record<Service, { left: number; top: number; width: number; height: number }>>;
 }
 
-const SERVICES = ['Merchant', 'Tavern', 'Governor', 'Shipwright'] as const;
+export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
+const SERVICES: { id: Service; name: string }[] = [
+  { id: 'merchant', name: 'Merchant' },
+  { id: 'tavern', name: 'Tavern' },
+  { id: 'governor', name: 'Governor' },
+  { id: 'shipwright', name: 'Shipwright' },
+];
 const NATION: Record<PlacedSettlement['nation'], string> = {
   spain: 'Spanish',
   england: 'English',
@@ -20,14 +29,55 @@ const NATION: Record<PlacedSettlement['nation'], string> = {
 };
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
-/** The port screen: the merchant's market, with the other services still to come. */
-export function Port({ state, content, town, shipId, send }: PortProps) {
+/** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
+export function Port({ state, content, town, shipId, send, hotspots }: PortProps) {
+  // The market opens on arrival; closing it leaves the harbour to look at.
+  const [open, setOpen] = useState<Service | undefined>('merchant');
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(undefined);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const ship = state.ships[shipId]!;
   const market = state.markets?.[town.id] ?? {};
   const gold = state.captain?.gold ?? 0;
   const capacity = content.ships[ship.classId]!.cargo;
   const used = cargoUsed(ship);
   const trade = (type: 'Buy' | 'Sell', good: string, quantity: number) => send({ type, shipId, good, quantity });
+
+  const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
+    const r = hotspots[s.id]!;
+    const ready = s.id === 'merchant';
+    return (
+      <button
+        key={s.id}
+        class={`port-spot${ready ? '' : ' soon'}`}
+        style={{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }}
+        title={ready ? s.name : `${s.name}: coming soon`}
+        onClick={() => ready && setOpen(s.id)}
+      >
+        <span>{ready ? s.name : `${s.name} · soon`}</span>
+      </button>
+    );
+  });
+
+  if (!open) {
+    return (
+      <div class="port port-scene">
+        {spots}
+        <div class="port-bar">
+          <span class="port-name">{town.name}</span>
+          <span>{gold.toLocaleString()} gold</span>
+          <button class="leave" onClick={() => setOpen('merchant')}>
+            Merchant
+          </button>
+          <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
+            Set sail · E
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div class="port">
@@ -49,10 +99,13 @@ export function Port({ state, content, town, shipId, send }: PortProps) {
 
         <nav class="port-tabs">
           {SERVICES.map((s) => (
-            <span class={s === 'Merchant' ? 'active' : 'soon'} title={s === 'Merchant' ? '' : 'Coming soon'}>
-              {s}
+            <span key={s.id} class={s.id === 'merchant' ? 'active' : 'soon'} title={s.id === 'merchant' ? '' : 'Coming soon'}>
+              {s.name}
             </span>
           ))}
+          <button class="port-close" onClick={() => setOpen(undefined)} title="See the harbour (Esc)">
+            Harbour · Esc
+          </button>
         </nav>
 
         <table class="market">

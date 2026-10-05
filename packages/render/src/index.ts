@@ -6,6 +6,8 @@ import { createPennants, createSpray, createWake, createWhitecaps, createWindStr
 import { createDaylight } from './daylight';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
+import { createHarbour } from './harbour';
+import type { HarbourScene } from './harbour';
 import { createSky } from './sky';
 import { createWildlife } from './wildlife';
 import type { WildlifeDefs, WildlifeSound } from './wildlife';
@@ -17,6 +19,8 @@ import { MIN_VIEW_HEIGHT, MIN_VIEW_WIDTH } from './view';
 
 export * from './view';
 export type { WildlifeDefs, WildlifeSound } from './wildlife';
+export type { FlagNation, HarbourScene } from './harbour';
+export { HARBOUR_HEIGHT, HARBOUR_WIDTH } from './harbour';
 export { parseGpl, rowsAt } from './daylight';
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
@@ -42,6 +46,8 @@ export interface Renderer {
   resize(width: number, height: number): void;
   /** Called at each lightning flash, so the app can roll thunder. */
   onLightning(cb: () => void): void;
+  /** The harbour scene shown in port; `show(undefined)` returns to the sea. */
+  harbour: { show(scene: HarbourScene | undefined): Promise<void>; transform(): { x: number; y: number; scale: number } };
   /** Debug: start a sea-life event now, and count the animals on screen. */
   wildlife: { spawn(kind: 'dolphins' | 'flyingFish' | 'whale' | 'pelicans' | 'frigatebird'): void; readonly count: number };
 }
@@ -185,8 +191,22 @@ export async function createRenderer(
   let swellX = 0;
   let swellY = 0;
 
+  // In port the harbour scene replaces the sea view; the player's brig lies at anchor, sails furled, broadside on.
+  const harbour = createHarbour(() => {
+    const player = lastState?.ships.player;
+    if (!player) return undefined;
+    const spriteId = content.ships[player.classId]!.sprites.world;
+    return frames[`${spriteId}.sail_furled`]?.[facingIndex(270, content.sprites[spriteId]!.facings)];
+  });
+  app.stage.addChild(harbour.view);
+  let lastState: WorldState | undefined;
+
   return {
     canvas: app.canvas,
+    harbour: {
+      show: (scene) => harbour.show(scene),
+      transform: () => harbour.transform(),
+    },
     camera: () => ({ x: -world.position.x, y: -world.position.y }),
     view: () => ({ width: viewW, height: viewH }),
     onLightning: (cb) => sky.onLightning(cb),
@@ -201,6 +221,7 @@ export async function createRenderer(
       viewW = width;
       viewH = height;
       app.renderer.resize(width, height);
+      harbour.resize(width, height);
       swell.width = width;
       swell.height = height;
       sky.resize(width, height);
@@ -279,6 +300,10 @@ export async function createRenderer(
       );
       const tpd = content.calendar.ticksPerDay;
       daylight?.setHour(((state.tick % tpd) / tpd) * 24);
+      lastState = state;
+      harbour.update(nowMs);
+      // The opaque scene covers the sea view, so nothing under it needs drawing.
+      for (const child of app.stage.children) if (child !== harbour.view) child.visible = !harbour.visible;
       app.render();
     },
   };

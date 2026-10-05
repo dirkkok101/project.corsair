@@ -2,7 +2,7 @@ import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, fromSave, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
-import type { WildlifeDefs } from '@corsair/render';
+import type { HarbourScene, WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
   createBreezeField,
@@ -20,6 +20,7 @@ import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
+import type { Service } from './port';
 import { createEconomySystem, DOCK_RANGE, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
@@ -69,6 +70,29 @@ function sampleManifest() {
 const wildlifeFrames = import.meta.glob<string>('../../../art/generated/wildlife/*.png', { eager: true, query: '?url', import: 'default' });
 const wildlifeDefs = import.meta.glob('../../../art/generated/wildlife/wildlife.json', { eager: true, import: 'default' });
 
+// Harbour scenes behind the port screen (tools/art/render_harbours.py): one composition per nation and tier.
+const harbourFiles = import.meta.glob<string>('../../../art/generated/harbours/*.png', { eager: true, query: '?url', import: 'default' });
+const harbourDefs = import.meta.glob('../../../art/generated/harbours/harbours.json', { eager: true, import: 'default' });
+interface HarbourDef {
+  layers: { id: string; file?: string; frames?: string[] }[];
+  hotspots: Partial<Record<Service, [number, number, number, number]>>;
+  flag: [number, number];
+  anchor: [number, number];
+}
+
+/** The scene for a settlement: havens have their own; other towns go by nation and size. */
+function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots'] } | undefined {
+  const defs = (Object.values(harbourDefs)[0] ?? {}) as Record<string, HarbourDef>;
+  const tier = { hamlet: 'small', town: 'medium', city: 'large' }[s.size];
+  const def = defs[s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${tier}`];
+  if (!def) return undefined;
+  const url = (file: string) => Object.entries(harbourFiles).find(([p]) => p.endsWith(`/${file.split('/').pop()}`))![1];
+  return {
+    scene: { layers: def.layers.map((l) => (l.frames ?? [l.file!]).map(url)), flag: def.flag, anchor: def.anchor, nation: s.nation },
+    hotspots: def.hotspots,
+  };
+}
+
 // Day, dusk and night rows for the palette swap (art pipeline section 6).
 const paletteFiles = import.meta.glob<string>('../../../art/palette/*.gpl', { eager: true, query: '?raw', import: 'default' });
 const palette = (name: string) => parseGpl(Object.entries(paletteFiles).find(([p]) => p.endsWith(`/${name}`))![1]);
@@ -110,7 +134,9 @@ async function main() {
     ? await chooseCareer(stage, { stored, fingerprint, startDate: def.startDate, ticksPerDay: content.calendar.ticksPerDay, settlements })
     : undefined;
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
-  const seed = resumed?.seed ?? crypto.getRandomValues(new Uint32Array(1))[0]!;
+  // `?seed=N` starts a known world, for replays and tests.
+  const asked = Number(new URLSearchParams(location.search).get('seed') ?? NaN);
+  const seed = resumed?.seed ?? (Number.isInteger(asked) ? asked >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!);
   const windAt = createWindField(content, def, map);
   // The clock starts at the map's start hour; the date is unchanged (still day 0).
   const startTick = Math.round((def.startHour / 24) * content.calendar.ticksPerDay);
@@ -229,6 +255,25 @@ async function main() {
     }
     return best?.s;
   };
+  // One scene object per port, so the renderer sees the same one each frame and loads it once.
+  const harbourScenes = new Map<string, ReturnType<typeof harbourFor>>();
+  const harbourScene = (s: PlacedSettlement) => {
+    if (!harbourScenes.has(s.id)) harbourScenes.set(s.id, harbourFor(s));
+    return harbourScenes.get(s.id);
+  };
+  /** Scene-pixel hotspot rectangles to CSS pixels within the stage, for the clickable buildings. */
+  const hotspotsOnScreen = (spots: HarbourDef['hotspots']) => {
+    const t = renderer.harbour.transform();
+    const canvas = renderer.canvas.getBoundingClientRect();
+    const box = stage.getBoundingClientRect();
+    const px = scale * t.scale;
+    const out: Partial<Record<Service, { left: number; top: number; width: number; height: number }>> = {};
+    for (const [id, [x, y, w, h]] of Object.entries(spots) as [Service, number[]][]) {
+      out[id] = { left: canvas.left - box.left + (t.x * scale) + x! * px, top: canvas.top - box.top + t.y * scale + y! * px, width: w! * px, height: h! * px };
+    }
+    return out;
+  };
+
   // Time acceleration the player asked for; it drops to 1x whenever something needs attention.
   let wantedSpeed = 1;
   const timeScale = (inStorm: boolean) => {
@@ -273,6 +318,9 @@ async function main() {
     wasDocked = Boolean(ship.docked);
     const reach = ship.docked ? undefined : portInReach();
     const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
+    const harbour = town && harbourScene(town);
+    void renderer.harbour.show(harbour?.scene);
+    stage.classList.toggle('in-port', Boolean(town));
     render(
       town ? (
         <Port
@@ -280,6 +328,7 @@ async function main() {
           content={content}
           town={town}
           shipId={ship.id}
+          hotspots={harbour ? hotspotsOnScreen(harbour.hotspots) : {}}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();

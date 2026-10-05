@@ -7,11 +7,11 @@ const musicTitles = music.tunes.map((t) => t.title);
 // Drives the real game through window.__corsair (PRD section 16): the debug API confirms behaviour,
 // screenshots confirm rendering.
 
-async function boot(page: Page) {
+async function boot(page: Page, url = '/') {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/');
+  await page.goto(url);
   await page.waitForFunction(() => Boolean(window.__corsair));
   // Freeze the clock so every check below steps the sim explicitly.
   await page.evaluate(() => window.__corsair.sim.pause());
@@ -153,7 +153,9 @@ test('sea life: dolphins, flying fish, a whale and birds appear on demand', asyn
 });
 
 test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port Royal', async ({ page }) => {
-  const errors = await boot(page);
+  // Most seeds' markets make this run pay, but not all (about 1 in 20 starts too dear); fix one that does.
+  const errors = await boot(page, '/?seed=3');
+  expect(await page.evaluate(() => window.__corsair.seed)).toBe(3);
   // A new career opens within reach of Port Royal.
   await page.evaluate(() => window.__corsair.sim.step(1));
   await expect(page.locator('.hud-prompt')).toContainText('Enter Port Royal');
@@ -182,6 +184,12 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);
   await page.screenshot({ path: 'test-results/port.png' });
+  // Put the market away to see the harbour, then open it again from the merchant's building.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.port-spot', { hasText: 'Merchant' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/harbour.png' });
+  await page.locator('.port-spot', { hasText: 'Merchant' }).click();
+  await expect(page.locator('.market')).toBeVisible();
   await page.keyboard.press('e');
   await expect(page.locator('.port')).toHaveCount(0);
 
@@ -240,4 +248,26 @@ test('sea chart: hovering a port shows the prices last seen there, or that none 
   await page.screenshot({ path: 'test-results/chart-prices.png' });
   await page.locator('.chart-port', { hasText: 'Havana' }).hover();
   await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
+});
+
+test('harbour scenes: a pirate haven has its own scene, and night falls on it too', async ({ page }) => {
+  const errors = await boot(page);
+  await page.evaluate(() => {
+    const port = window.__corsair.ports().find((p) => p.name === 'Tortuga')!;
+    for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [0, 2], [-2, 0], [0, -2]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: port.x + dx!, y: port.y + dy! });
+      window.__corsair.sim.step(1);
+      const s = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(s.x - port.x, s.y - port.y) < 3) return;
+    }
+  });
+  await page.keyboard.press('e');
+  // 14 hours on from 08:00: the debug step runs the clock even in port.
+  await page.evaluate(() => window.__corsair.sim.step(540 * (14 / 24)));
+  await expect(page.locator('.port-name')).toHaveText('Tortuga');
+  await page.keyboard.press('Escape');
+  // A haven has no governor.
+  await expect(page.locator('.port-spot')).toHaveCount(3);
+  await page.screenshot({ path: 'test-results/haven-night.png' });
+  expect(errors).toEqual([]);
 });

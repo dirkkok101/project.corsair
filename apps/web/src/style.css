@@ -255,7 +255,8 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgb(9 10 20 / 0.55);
+  /* A light veil: the harbour scene should still show around the market. */
+  background: rgb(9 10 20 / 0.25);
 }
 
 .port-panel {
@@ -506,4 +507,74 @@ body {
 
 .chart-prices td + td {
   text-align: right;
+}
+
+.port-scene {
+  background: none;
+  display: block;
+}
+
+.port-close {
+  margin-left: auto;
+  font: inherit;
+  color: #a8b5b2;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.port-spot {
+  position: absolute;
+  padding: 0;
+  background: none;
+  border: 1px dashed transparent;
+  cursor: pointer;
+}
+
+.port-spot span {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  transform: translate(-50%, -100%);
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  color: #ebede9;
+  background: rgb(9 10 20 / 0.75);
+}
+
+.port-spot:hover {
+  border-color: #e8c170;
+}
+
+.port-spot.soon {
+  cursor: default;
+}
+
+.port-spot.soon span {
+  color: #819796;
+}
+
+.port-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  color: #ebede9;
+  background: rgb(21 29 40 / 0.92);
+  border: 2px solid #c09473;
+}
+
+/* In port the sailing instruments and the sea's labels make way for the harbour. */
+.in-port .hud,
+.in-port .hud-rose,
+.in-port .hud-keys,
+.in-port .labels,
+#stage.in-port .minimap {
+  display: none;
 }
