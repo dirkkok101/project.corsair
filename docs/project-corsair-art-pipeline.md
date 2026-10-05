@@ -89,11 +89,11 @@ The research settled this (`docs/corsair-pixel-art-research.md` Part A §1). No 
 6. Cleanup in **Pixelorama or LibreSprite** ($0) or **Aseprite** if already owned: light at 192 px, a hand pass at 96 px (masts, bowsprit, flag, outline gaps). Plan on the 96 px pass as the real cost.
 7. Damage overlays are rendered through the same cameras, so they line up in every facing.
 
-The locked read is the 45° row of the brig tilt spike (`art/generated/ships/brig-tilt-spike/`, model in `art/masters/ships/brig-3d-spike.blend`). At 45° the masts, stacked sails, flag, hull side and bow all read at 1× on the 480×270 map the spike was judged on. Straight overhead was tried and rejected: an honest overhead render of a real model shows yards and deck but no sail, so it reads as a rowboat. The crescent sails in overhead packs such as Foozle's Scallywag Ships are hand-painted, and a 3D render can't produce them.
+The locked read is the 45° row of the brig tilt spike (`art/sources/spikes/brig-tilt/`, model in `art/sources/blender/brig-3d-spike.blend`). At 45° the masts, stacked sails, flag, hull side and bow all read at 1× on the 480×270 map the spike was judged on. Straight overhead was tried and rejected: an honest overhead render of a real model shows yards and deck but no sail, so it reads as a rowboat. The crescent sails in overhead packs such as Foozle's Scallywag Ships are hand-painted, and a 3D render can't produce them.
 
 The world map stays a top-down tilemap. Only ships and settlements are drawn at 45°.
 
-**Settlements** use the same path. Low-poly Blender models are rendered by `tools/art/render_towns.py` into 96×96 cells with the locked 45° camera, output in `art/generated/settlements/`. The ids are `settlement.{spain,england,france,netherlands}.{hamlet,town,city}` and `settlement.pirate.haven`: 13 sprites. Nation variants of a size share geometry; only roof colour and flag change.
+**Settlements** use the same path. Low-poly Blender models are rendered by `tools/art/render_towns.py` into 96×96 cells with the locked 45° camera, output in `art/game/settlements/`. The ids are `settlement.{spain,england,france,netherlands}.{hamlet,town,city}` and `settlement.pirate.haven`: 13 sprites. Nation variants of a size share geometry; only roof colour and flag change.
 
 Mirroring is optional here, since renders are cheap. It's still useful to cut the 96 px hand pass to 17 facings and mirror the other 15 when hull asymmetry allows.
 
@@ -101,7 +101,7 @@ Mirroring is optional here, since renders are cheap. It's still useful to cut th
 
 **M0 spike:** model the brig and render all 16 facings at both sizes with the free Blender path. Test RotSprite and cleanEdge on the same ship. Judge at 1× and 4× on the actual world map before committing or buying PixelOver / Aseprite / AI credits.
 
-**Spike result (2026-10-04):** a real low-poly brig was rendered at 90°, 60° and 45°, and 45° was chosen. The earlier `art/masters/ships/brig.blend` is a flat decal (every mesh has zero height), not a 3D model, so it can't test this pipeline. Still open: the hand pass at 96 px (1 px masts, short bowsprit, thin hull side) and the RotSprite comparison.
+**Spike result (2026-10-04):** a real low-poly brig was rendered at 90°, 60° and 45°, and 45° was chosen. The earlier `art/sources/blender/brig.blend` is a flat decal (every mesh has zero height), not a 3D model, so it can't test this pipeline. Still open: the hand pass at 96 px (1 px masts, short bowsprit, thin hull side) and the RotSprite comparison.
 
 Sources: section 13, items S1 to S12; research Part A §1–2 and Part B.
 
@@ -206,7 +206,7 @@ Checked 2026-09-28. Summary only; this is not legal advice. Re-check terms befor
 | AutoBlob | Skip for M0 | $5.99 itch | Prefer Autotiler |
 | AutoSprite | Not planned for ships; optional character volume later | Free tier / $12–$29/mo | ToS puts IP risk on inputs; you own outputs to extent permitted |
 | GPT Image, Gemini image | Concept, harbour scenes, portrait-part drafts | Per image/token | Outputs assigned to or not claimed from the user, "to the extent permitted by law". Gemini free tier may use data for training, so use the paid tier. |
-| Grok Imagine (xAI) | Harbour scenes, service interiors, title art (`art/prompts/grok-imagine.md`) | API per image (from about $0.04) | **Not yet checked.** Read xAI's current terms for output ownership and commercial use before anything from it ships. |
+| Grok Imagine (xAI) | Harbour scenes, service interiors, title art (`art/sources/grok/README.md`) | API per image (from about $0.04) | **Not yet checked.** Read xAI's current terms for output ownership and commercial use before anything from it ships. |
 | Midjourney | Avoid for production | $10 to $120/mo | Companies earning over $1M a year need Pro or Mega to own outputs, and images are public unless in Stealth mode (Pro/Mega). |
 | Flux | Only Schnell (Apache 2.0) or a paid BFL licence | — | Flux Dev weights are non-commercial. |
 
@@ -214,21 +214,32 @@ Checked 2026-09-28. Summary only; this is not legal advice. Re-check terms befor
 
 - **Steam:** AI-generated art that ships in the game is "consumed by players" and must be declared in Steam's content survey. Behind-the-scenes efficiency tools are not the focus. Plan the disclosure wording before the store page goes up.
 - **itch.io:** disclosure for games is encouraged, not required. Tag the build honestly anyway.
-- **Copyright:** the US Copyright Office says prompts alone don't give copyright. Human selection, arrangement and modification can. South Africa's Copyright Act gives authorship of computer-generated works to whoever made the arrangements for creating it, but that hasn't been tested for generative AI. Either way, the heavy hand pass on every shipped asset is what makes the art defensibly ours, and the `art/prompts/` records show it.
-- Every AI-assisted asset gets a `prompts/` record: tool, version, plan, prompt, seed, date and what was changed by hand.
+- **Copyright:** the US Copyright Office says prompts alone don't give copyright. Human selection, arrangement and modification can. South Africa's Copyright Act gives authorship of computer-generated works to whoever made the arrangements for creating it, but that hasn't been tested for generative AI. Either way, the heavy hand pass on every shipped asset is what makes the art defensibly ours, and the prompt records in `art/sources/` show it.
+- Every AI-assisted asset gets a prompt record (`{id}.yaml`) beside its raw output in `art/sources/{tool}/`: tool, version, plan, prompt, seed, date and what was changed by hand.
 
 Sources: section 13, items L1 to L15; research Part A §5 and Part B.
 
 ## 10. Repo layout and naming
 
+Art is split by role: what the game loads, and what it is made from.
+
 ```
 art/
-  palette/corsair.gpl          # plus corsair-night.gpl row definitions
-  masters/                     # .aseprite / .pixelorama / .blend, hi-res layered PNGs (Git LFS)
-  generated/                   # raw AI output, kept for traceability (Git LFS)
-  prompts/                     # one YAML per asset
+  palette/                     # corsair.gpl plus the dusk and night rows
+  audio/                       # sfx, instrument samples, CREDITS.json (loaded by the game)
+  game/                        # everything the game loads: palette-exact, named by sprite id
+    ships/                     # world-map brig frames (tools/art/render_brig.py)
+    settlements/               # world-map towns (render_towns.py)
+    wildlife/                  # sea life frames + wildlife.json (render_wildlife.py)
+    harbours/                  # layered Blender harbour scenes + harbours.json (render_harbours.py)
+    scenes/                    # painted full-frame scenes: harbours with sea frames, interiors, title (import_paintings.ts)
+  sources/                     # what the art is made from; never loaded by the game
+    blender/                   # .blend masters
+    grok/{group}/              # raw Grok output with its prompt record beside it (Git LFS); README.md is the brief
+    references/                # layout references handed to image models (composite_harbours.ts)
+    spikes/                    # retired experiments kept for the record (top-down brig, tilt spike)
 content/base/sprites/
-  atlas-*.json / .png          # packed, indexed output, referenced by id from game data
+  atlas-*.json / .png          # later: packed, indexed output, referenced by id from game data
 docs/
   project-corsair-art-pipeline.md
   project-corsair-prd.md

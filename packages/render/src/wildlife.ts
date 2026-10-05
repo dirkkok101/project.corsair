@@ -8,7 +8,7 @@ import type { Texture } from 'pixi.js';
 // touches the deterministic world state. Each kind is a rare, short event tied to where the ship is,
 // and each tells the player something (open ocean, land near, a calm night) as well as looking alive.
 
-/** Sprite metadata from art/generated/wildlife/wildlife.json, keyed by `wildlife.{animal}.{anim}`. */
+/** Sprite metadata from art/game/wildlife/wildlife.json, keyed by `wildlife.{animal}.{anim}`. */
 export type WildlifeDefs = Record<string, { cell: [number, number]; facings: number; frames: number; pivot: [number, number] }>;
 
 export type WildlifeSound = (id: string, opts: { gain: number; pan: number; lowpass?: number; rate?: number }) => void;

@@ -1,16 +1,16 @@
-// Flattens each harbour composition (art/generated/harbours/harbours.json) into one 960x540 PNG,
+// Flattens each harbour composition (art/game/harbours/harbours.json) into one 960x540 PNG,
 // sea frame 0, for use as a layout reference when painting the scenes with an image model: a
 // repaint that keeps this layout keeps the hotspots, flag point and anchorage in harbours.json.
 //
 //   node tools/art/composite_harbours.ts
 //
-// Writes art/references/harbours/{composition}.png.
+// Writes art/sources/references/harbours/{composition}.png.
 import { decode, encode } from 'fast-png';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..', '..');
-const OUT = join(ROOT, 'art', 'references', 'harbours');
+const OUT = join(ROOT, 'art', 'sources', 'references', 'harbours');
 const W = 960;
 const H = 540;
 
@@ -18,7 +18,7 @@ interface Layer {
   file?: string;
   frames?: string[];
 }
-const defs = JSON.parse(readFileSync(join(ROOT, 'art', 'generated', 'harbours', 'harbours.json'), 'utf8')) as Record<
+const defs = JSON.parse(readFileSync(join(ROOT, 'art', 'game', 'harbours', 'harbours.json'), 'utf8')) as Record<
   string,
   { layers: Layer[] }
 >;

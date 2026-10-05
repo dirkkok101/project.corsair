@@ -11,7 +11,7 @@ from bpy_extras.object_utils import world_to_camera_view
 ARGS = sys.argv[sys.argv.index('--') + 1:]
 REPO, TMP = ARGS[0], ARGS[1]
 ONLY = set(ARGS[2:])
-OUT = os.path.join(REPO, 'art/generated/wildlife')
+OUT = os.path.join(REPO, 'art/game/wildlife')
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(TMP, exist_ok=True)
 

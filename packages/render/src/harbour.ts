@@ -16,9 +16,9 @@ export type FlagNation = 'spain' | 'england' | 'france' | 'netherlands' | 'pirat
 export interface HarbourScene {
   /** Back to front; a layer with several URLs animates through them. */
   layers: string[][];
-  /** Top of the flagpole and the anchorage, in scene pixels. */
-  flag: [number, number];
-  anchor: [number, number];
+  /** Top of the flagpole and the anchorage, in scene pixels; an interior has neither. */
+  flag?: [number, number];
+  anchor?: [number, number];
   nation: FlagNation;
 }
 
@@ -104,10 +104,15 @@ export function createHarbour(shipFrame: () => Texture | undefined) {
       layers = textures.map((frames) => ({ sprite: scene.addChild(new Sprite(frames[0]!)), frames }));
       // The sea is painted over the whole bay, so the ship rides on top of it; the flag flies above all.
       scene.addChild(ship, flag);
-      ship.position.set(next.anchor[0], next.anchor[1]);
+      ship.visible = Boolean(next.anchor);
+      if (next.anchor) ship.position.set(next.anchor[0], next.anchor[1]);
       shown = next;
       layout();
       view.visible = true;
+    },
+    /** Starts loading a scene's textures now, so showing it later doesn't flash the previous one. */
+    preload(next: HarbourScene) {
+      for (const urls of next.layers) for (const u of urls) void Assets.load<Texture>(u);
     },
     get visible() {
       return view.visible;
@@ -118,10 +123,11 @@ export function createHarbour(shipFrame: () => Texture | undefined) {
       for (const l of layers) if (l.frames.length > 1) l.sprite.texture = l.frames[step % l.frames.length]!;
       const tex = shipFrame();
       if (tex) ship.texture = tex;
-      ship.y = shown.anchor[1] + Math.round(Math.sin(nowMs / 900));
+      if (shown.anchor) ship.y = shown.anchor[1] + Math.round(Math.sin(nowMs / 900));
+      flag.clear();
+      if (!shown.flag) return;
       // The cloth flies from the pole top, each column lifted by a slow wave travelling out to the fly.
       const [fx, fy] = shown.flag;
-      flag.clear();
       for (let x = 0; x < FLAG_W; x++) {
         const lift = Math.round(Math.sin(nowMs / 260 - x * 0.7) * (x / FLAG_W) * 1.5);
         for (let y = 0; y < FLAG_H; y++) flag.rect(fx + 1 + x, fy + y + lift, 1, 1).fill(flagPixel(shown.nation, x, y));

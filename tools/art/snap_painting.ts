@@ -21,6 +21,8 @@ export interface SnapOptions {
   saturate: number;
   /** 0 for flat colour; up to 1 for ordered dithering between the two nearest colours. */
   dither: number;
+  /** Darkens the middle of the frame by up to this share of its lightness, fading out to the edges. */
+  calmCentre?: number;
 }
 export const DEFAULT_SNAP: SnapOptions = { chroma: 3, saturate: 1.6, dither: 0 };
 
@@ -83,7 +85,11 @@ export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP): Uint8Array
         }
       }
       const raw = oklab(r / n, g / n, b / n);
-      const lab = [raw[0], raw[1] * opts.saturate, raw[2] * opts.saturate];
+      // Elliptical falloff: 1 at the centre, 0 at the frame's edge.
+      const ex = (x - SCENE_W / 2) / (SCENE_W / 2);
+      const ey = (y - SCENE_H / 2) / (SCENE_H / 2);
+      const calm = (opts.calmCentre ?? 0) * Math.max(0, 1 - Math.hypot(ex, ey));
+      const lab = [raw[0] * (1 - calm), raw[1] * opts.saturate * (1 - calm), raw[2] * opts.saturate * (1 - calm)];
       // The two nearest palette colours; dithering picks the second where the pixel sits between them.
       let best = 0;
       let second = 0;

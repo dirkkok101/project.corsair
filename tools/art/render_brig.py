@@ -9,7 +9,7 @@ from mathutils import Vector
 
 REPO = sys.argv[sys.argv.index('--') + 1]
 TMP = sys.argv[sys.argv.index('--') + 2]
-OUT = os.path.join(REPO, 'art/generated/ships/brig45/world')
+OUT = os.path.join(REPO, 'art/game/ships')
 os.makedirs(OUT, exist_ok=True)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -232,7 +232,7 @@ for setting in ('full', 'half'):
         for frame in (0, 1):
             STATES[f'{setting}_irons_{tack}{frame}'] = rig(f'{setting}_irons_{tack}{frame}', setting, 'irons', side, frame)
 
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(REPO, 'art/masters/ships/brig-45.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(REPO, 'art/sources/blender/brig-45.blend'))
 
 # --- render setup: workbench, studio light (view-space, so light stays consistent per facing) ---
 sc.render.engine = 'BLENDER_WORKBENCH'

@@ -31,12 +31,12 @@ import { chooseCareer } from './start';
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
 // named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
 // that and sorting gives f00..fNN.
-const shipFrames = import.meta.glob<string>('../../../art/generated/ships/brig45/world/*.png', {
+const shipFrames = import.meta.glob<string>('../../../art/game/ships/*.png', {
   eager: true,
   query: '?url',
   import: 'default',
 });
-const townFrames = import.meta.glob<string>('../../../art/generated/settlements/*.png', {
+const townFrames = import.meta.glob<string>('../../../art/game/settlements/*.png', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -67,20 +67,29 @@ function sampleManifest() {
 }
 
 // Sea life sprites (tools/art/render_wildlife.py); the game runs without them until they exist.
-const wildlifeFrames = import.meta.glob<string>('../../../art/generated/wildlife/*.png', { eager: true, query: '?url', import: 'default' });
-const wildlifeDefs = import.meta.glob('../../../art/generated/wildlife/wildlife.json', { eager: true, import: 'default' });
+const wildlifeFrames = import.meta.glob<string>('../../../art/game/wildlife/*.png', { eager: true, query: '?url', import: 'default' });
+const wildlifeDefs = import.meta.glob('../../../art/game/wildlife/wildlife.json', { eager: true, import: 'default' });
 
 // Harbour scenes behind the port screen (tools/art/render_harbours.py): one composition per nation and tier.
-const harbourFiles = import.meta.glob<string>('../../../art/generated/harbours/*.png', { eager: true, query: '?url', import: 'default' });
-const harbourDefs = import.meta.glob('../../../art/generated/harbours/harbours.json', { eager: true, import: 'default' });
-// Painted scenes (tools/art/import_paintings.ts) replace a composition's layers when present. They keep
-// its layout, so its hotspots, flag point and anchorage still apply.
-const paintedFiles = import.meta.glob<string>('../../../art/generated/painted/harbour.*.png', { eager: true, query: '?url', import: 'default' });
+const harbourFiles = import.meta.glob<string>('../../../art/game/harbours/*.png', { eager: true, query: '?url', import: 'default' });
+const harbourDefs = import.meta.glob('../../../art/game/harbours/harbours.json', { eager: true, import: 'default' });
+// Painted scenes (tools/art/import_paintings.ts): a painted harbour replaces its composition's layers
+// (keeping its layout, so hotspots, flag point and anchorage still apply), and interiors stand behind
+// the service panels.
+const sceneFiles = import.meta.glob<string>('../../../art/game/scenes/*.png', { eager: true, query: '?url', import: 'default' });
+const sceneUrl = (name: string) => Object.entries(sceneFiles).find(([p]) => p.endsWith(`/${name}.png`))?.[1];
 interface HarbourDef {
   layers: { id: string; file?: string; frames?: string[] }[];
   hotspots: Partial<Record<Service, [number, number, number, number]>>;
   flag: [number, number];
   anchor: [number, number];
+}
+
+/** The interior behind a service's panel, if one is painted: havens have their own tavern. */
+function interiorFor(s: PlacedSettlement, service: Service): HarbourScene | undefined {
+  const haven = s.nation === 'pirate' || s.type === 'haven';
+  const url = sceneUrl(service === 'tavern' && haven ? 'interior.tavern.pirate' : `interior.${service}`);
+  return url ? { layers: [[url]], nation: s.nation } : undefined;
 }
 
 /** The scene for a settlement: havens have their own; other towns go by nation and size. */
@@ -91,10 +100,12 @@ function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: Harbo
   const def = defs[id];
   if (!def) return undefined;
   const url = (file: string) => Object.entries(harbourFiles).find(([p]) => p.endsWith(`/${file.split('/').pop()}`))![1];
-  const painted = Object.entries(paintedFiles).find(([p]) => p.endsWith(`/${id}.png`))?.[1];
+  const painted = sceneUrl(id);
+  // The painted sea's shimmer frames lie over the painting.
+  const sea = [0, 1, 2, 3].map((f) => sceneUrl(`${id}.sea.f0${f}`)).filter((u): u is string => Boolean(u));
   return {
     scene: {
-      layers: painted ? [[painted]] : def.layers.map((l) => (l.frames ?? [l.file!]).map(url)),
+      layers: painted ? [[painted], ...(sea.length ? [sea] : [])] : def.layers.map((l) => (l.frames ?? [l.file!]).map(url)),
       flag: def.flag,
       anchor: def.anchor,
       nation: s.nation,
@@ -279,6 +290,14 @@ async function main() {
   };
   // One scene object per port, so the renderer sees the same one each frame and loads it once.
   const harbourScenes = new Map<string, ReturnType<typeof harbourFor>>();
+  const interiors = new Map<string, HarbourScene | undefined>();
+  const interior = (s: PlacedSettlement, service: Service) => {
+    const key = `${s.id}:${service}`;
+    if (!interiors.has(key)) interiors.set(key, interiorFor(s, service));
+    return interiors.get(key);
+  };
+  // The service the port screen has open; its interior stands behind the panel instead of the harbour.
+  let service: Service | undefined;
   const harbourScene = (s: PlacedSettlement) => {
     if (!harbourScenes.has(s.id)) harbourScenes.set(s.id, harbourFor(s));
     return harbourScenes.get(s.id);
@@ -336,12 +355,20 @@ async function main() {
     const cls = content.ships[ship.classId]!;
     speedNow = timeScale(inStorm);
     // Autosave on arriving in port, whichever way the Dock command came in.
-    if (ship.docked && !wasDocked) save();
+    if (ship.docked && !wasDocked) {
+      save();
+      // The merchant opens on arrival and the tavern is a click away: have their rooms ready.
+      const here = settlements.find((s) => s.id === ship.docked);
+      for (const svc of ['merchant', 'tavern'] as const) {
+        const room = here && interior(here, svc);
+        if (room) renderer.harbour.preload(room);
+      }
+    }
     wasDocked = Boolean(ship.docked);
     const reach = ship.docked ? undefined : portInReach();
     const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
     const harbour = town && harbourScene(town);
-    void renderer.harbour.show(harbour?.scene);
+    void renderer.harbour.show(town && ((service && interior(town, service)) || harbour?.scene));
     stage.classList.toggle('in-port', Boolean(town));
     render(
       town ? (
@@ -352,6 +379,7 @@ async function main() {
           settlements={settlements}
           shipId={ship.id}
           hotspots={harbour ? hotspotsOnScreen(harbour.hotspots) : {}}
+          onOpen={(s) => (service = s)}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();

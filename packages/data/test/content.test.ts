@@ -26,7 +26,7 @@ describe('ship sprites', () => {
     it(`${ship.id} has a frame file for every anim and facing`, () => {
       const missing = def.anims.flatMap((anim) =>
         Array.from({ length: def.facings }, (_, f) => `${ship.sprites.world}.${anim}.f${String(f).padStart(2, '0')}.png`),
-      ).filter((file) => !existsSync(`${repoRoot}art/generated/ships/brig45/world/${file}`));
+      ).filter((file) => !existsSync(`${repoRoot}art/game/ships/${file}`));
       expect(missing).toEqual([]);
     });
   }
@@ -75,7 +75,7 @@ describe('caribbean map', () => {
     for (const s of placed) {
       const anim = s.type === 'haven' ? 'pirate.haven' : `${s.nation}.${s.size}`;
       expect(town.anims).toContain(anim);
-      expect(existsSync(`${repoRoot}art/generated/settlements/settlement.${anim}.png`)).toBe(true);
+      expect(existsSync(`${repoRoot}art/game/settlements/settlement.${anim}.png`)).toBe(true);
     }
   });
 });

@@ -1,0 +1,827 @@
+{
+ "harbour.spain.small": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.spain.small.town.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.jetty.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.jetty.f00.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f01.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f02.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    332,
+    249,
+    95,
+    87
+   ],
+   "tavern": [
+    524,
+    251,
+    75,
+    83
+   ],
+   "shipwright": [
+    144,
+    273,
+    112,
+    100
+   ]
+  },
+  "flag": [
+   442,
+   233
+  ],
+  "anchor": [
+   691,
+   475
+  ]
+ },
+ "harbour.england.small": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.england.small.town.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.jetty.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.jetty.f00.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f01.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f02.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    332,
+    249,
+    95,
+    87
+   ],
+   "tavern": [
+    524,
+    234,
+    76,
+    100
+   ],
+   "shipwright": [
+    144,
+    273,
+    112,
+    100
+   ]
+  },
+  "flag": [
+   442,
+   233
+  ],
+  "anchor": [
+   691,
+   475
+  ]
+ },
+ "harbour.france.small": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.france.small.town.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.jetty.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.jetty.f00.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f01.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f02.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    332,
+    249,
+    95,
+    87
+   ],
+   "tavern": [
+    524,
+    226,
+    76,
+    108
+   ],
+   "shipwright": [
+    144,
+    273,
+    112,
+    100
+   ]
+  },
+  "flag": [
+   442,
+   233
+  ],
+  "anchor": [
+   691,
+   475
+  ]
+ },
+ "harbour.netherlands.small": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.netherlands.small.town.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.jetty.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.jetty.f00.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f01.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f02.png",
+     "art/game/harbours/harbour.shared.sea.jetty.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    332,
+    249,
+    95,
+    87
+   ],
+   "tavern": [
+    524,
+    223,
+    76,
+    111
+   ],
+   "shipwright": [
+    144,
+    273,
+    112,
+    100
+   ]
+  },
+  "flag": [
+   442,
+   233
+  ],
+  "anchor": [
+   691,
+   475
+  ]
+ },
+ "harbour.spain.medium": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.spain.medium.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.medium.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    251,
+    215,
+    117,
+    110
+   ],
+   "tavern": [
+    472,
+    240,
+    76,
+    83
+   ],
+   "governor": [
+    492,
+    113,
+    104,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   827,
+   182
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.england.medium": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.england.medium.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.medium.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    251,
+    215,
+    117,
+    110
+   ],
+   "tavern": [
+    472,
+    224,
+    77,
+    99
+   ],
+   "governor": [
+    492,
+    113,
+    104,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   827,
+   182
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.france.medium": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.france.medium.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.medium.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    251,
+    215,
+    117,
+    110
+   ],
+   "tavern": [
+    472,
+    216,
+    77,
+    107
+   ],
+   "governor": [
+    492,
+    113,
+    104,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   827,
+   182
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.netherlands.medium": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.netherlands.medium.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.medium.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    251,
+    215,
+    117,
+    110
+   ],
+   "tavern": [
+    472,
+    213,
+    77,
+    110
+   ],
+   "governor": [
+    492,
+    113,
+    104,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   827,
+   182
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.spain.large": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.spain.large.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.large.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    203,
+    215,
+    157,
+    110
+   ],
+   "tavern": [
+    472,
+    240,
+    76,
+    83
+   ],
+   "governor": [
+    527,
+    113,
+    127,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   902,
+   61
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.england.large": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.england.large.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.large.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    203,
+    215,
+    157,
+    110
+   ],
+   "tavern": [
+    472,
+    224,
+    77,
+    99
+   ],
+   "governor": [
+    527,
+    113,
+    127,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   902,
+   61
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.france.large": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.france.large.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.large.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    203,
+    215,
+    157,
+    110
+   ],
+   "tavern": [
+    472,
+    216,
+    77,
+    107
+   ],
+   "governor": [
+    527,
+    113,
+    127,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   902,
+   61
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.netherlands.large": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.netherlands.large.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.shared.fort.large.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.shared.wharf.quay.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.shared.sea.quay.f00.png",
+     "art/game/harbours/harbour.shared.sea.quay.f01.png",
+     "art/game/harbours/harbour.shared.sea.quay.f02.png",
+     "art/game/harbours/harbour.shared.sea.quay.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    203,
+    215,
+    157,
+    110
+   ],
+   "tavern": [
+    472,
+    213,
+    77,
+    110
+   ],
+   "governor": [
+    527,
+    113,
+    127,
+    106
+   ],
+   "shipwright": [
+    0,
+    273,
+    132,
+    100
+   ]
+  },
+  "flag": [
+   902,
+   61
+  ],
+  "anchor": [
+   603,
+   475
+  ]
+ },
+ "harbour.pirate.haven": {
+  "layers": [
+   {
+    "id": "sky",
+    "file": "art/game/harbours/harbour.shared.sky.png"
+   },
+   {
+    "id": "backdrop",
+    "file": "art/game/harbours/harbour.shared.backdrop.png"
+   },
+   {
+    "id": "town",
+    "file": "art/game/harbours/harbour.pirate.haven.town.png"
+   },
+   {
+    "id": "fort",
+    "file": "art/game/harbours/harbour.pirate.haven.fort.png"
+   },
+   {
+    "id": "wharf",
+    "file": "art/game/harbours/harbour.pirate.haven.wharf.png"
+   },
+   {
+    "id": "sea",
+    "frames": [
+     "art/game/harbours/harbour.pirate.haven.sea.f00.png",
+     "art/game/harbours/harbour.pirate.haven.sea.f01.png",
+     "art/game/harbours/harbour.pirate.haven.sea.f02.png",
+     "art/game/harbours/harbour.pirate.haven.sea.f03.png"
+    ]
+   }
+  ],
+  "hotspots": {
+   "merchant": [
+    339,
+    282,
+    88,
+    57
+   ],
+   "tavern": [
+    461,
+    228,
+    131,
+    104
+   ],
+   "shipwright": [
+    126,
+    236,
+    177,
+    125
+   ]
+  },
+  "flag": [
+   843,
+   105
+  ],
+  "anchor": [
+   779,
+   475
+  ]
+ }
+}

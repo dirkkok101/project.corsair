@@ -10,7 +10,7 @@ from bpy_extras.object_utils import world_to_camera_view
 
 REPO = sys.argv[sys.argv.index('--') + 1]
 TMP = sys.argv[sys.argv.index('--') + 2]
-OUT = os.path.join(REPO, 'art/generated/settlements')
+OUT = os.path.join(REPO, 'art/game/settlements')
 os.makedirs(OUT, exist_ok=True)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)

@@ -13,6 +13,8 @@ export interface PortProps {
   send: (command: import('@corsair/core').Command) => void;
   /** Where each building stands on screen, in CSS pixels within the stage. */
   hotspots: Partial<Record<Service, { left: number; top: number; width: number; height: number }>>;
+  /** Told which service is open (undefined for the harbour view), so its interior can be shown. */
+  onOpen: (service: Service | undefined) => void;
 }
 
 export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
@@ -34,9 +36,10 @@ const READY: Service[] = ['merchant', 'tavern'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
-export function Port({ state, content, town, settlements, shipId, send, hotspots }: PortProps) {
+export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen }: PortProps) {
   // The market opens on arrival; closing it leaves the harbour to look at.
   const [open, setOpen] = useState<Service | undefined>('merchant');
+  useEffect(() => onOpen(open), [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(undefined);
     window.addEventListener('keydown', onKey);

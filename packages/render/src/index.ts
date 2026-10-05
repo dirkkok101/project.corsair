@@ -50,6 +50,8 @@ export interface Renderer {
   harbour: {
     show(scene: HarbourScene | undefined): Promise<void>;
     transform(): { x: number; y: number; scale: number };
+    /** Loads a scene's textures ahead of showing it. */
+    preload(scene: HarbourScene): void;
     /** True while the harbour scene covers the sea view. */
     readonly visible: boolean;
   };
@@ -211,6 +213,7 @@ export async function createRenderer(
     harbour: {
       show: (scene) => harbour.show(scene),
       transform: () => harbour.transform(),
+      preload: (scene) => harbour.preload(scene),
       get visible() {
         return harbour.visible;
       },

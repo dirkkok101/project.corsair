@@ -279,7 +279,7 @@ Weekly simulation tick per settlement:
 
 Each town has a harbour screen made of layered sprites (sky, sea, buildings by owner style, fort, ships at anchor). Building sprites switch with size tier and owner nation, so a captured town visibly changes.
 
-Built: 13 compositions (four nations x small, medium and large, plus the pirate haven) from `tools/art/render_harbours.py`, with `harbours.json` giving layers, building hotspots, the flag point and the anchorage. Hamlets use small, towns medium, cities large. The game flies the owner's flag, moors the player's ship, and draws the scene under the day/night palette. Buildings are clickable. Painted versions of all 13 (Grok Imagine, kept to the Blender layouts and snapped to the palette by `tools/art/import_paintings.ts`) now replace the layered renders; their sea is still, where the layered scenes' sea shimmered.
+Built: 13 compositions (four nations x small, medium and large, plus the pirate haven) from `tools/art/render_harbours.py`, with `harbours.json` giving layers, building hotspots, the flag point and the anchorage. Hamlets use small, towns medium, cities large. The game flies the owner's flag, moors the player's ship, and draws the scene under the day/night palette. Buildings are clickable. Painted versions of all 13 (Grok Imagine, kept to the Blender layouts and snapped to the palette by `tools/art/import_paintings.ts`) now replace the layered renders, with four shimmer frames made from each painting's own sea. Painted interiors stand behind the open service: the merchant's counting house, and the tavern (a pirate one in havens); Esc returns to the harbour. A port's rooms are preloaded on docking.
 
 ## 6. Economy
 
