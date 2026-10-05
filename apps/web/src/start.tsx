@@ -5,6 +5,11 @@ import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { exportSave, pickSaveFile } from './save';
 
+// Title painting (tools/art/import_paintings.ts); the screen falls back to plain dark without it.
+const titleArt = Object.values(
+  import.meta.glob<string>('../../../art/game/scenes/title.main.png', { eager: true, query: '?url', import: 'default' }),
+)[0];
+
 export interface StartOptions {
   /** What the browser holds for the career slot, before any checks. */
   raw: unknown;
@@ -57,9 +62,10 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, done }: 
   const fileName = `corsair-${date ? date.replace(/\s+/g, '-') : 'unreadable'}.json`;
 
   return (
-    <div class="start">
+    <div class="start" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
+      {/* The painting leaves its top third open sky for the title; the career panel sits on the sea. */}
+      <h1 class="start-title">Project Corsair</h1>
       <div class="start-panel">
-        <h1>Project Corsair</h1>
         <div class="start-career">
           {save ? (
             <>

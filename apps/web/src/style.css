@@ -457,25 +457,34 @@ body {
 .start {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  background: #090a14;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7vh 16px 6vh;
   color: #ebede9;
+  /* The 960x540 painting fills the screen; nearest-neighbour keeps its pixels square. */
+  background: #090a14 center / cover no-repeat;
+  image-rendering: pixelated;
+}
+
+.start-title {
+  margin: 0;
+  font-size: clamp(32px, 6vw, 72px);
+  font-weight: normal;
+  letter-spacing: 0.04em;
+  color: #e8c170;
+  text-shadow:
+    3px 3px 0 #241527,
+    -1px -1px 0 #241527;
 }
 
 .start-panel {
   width: min(480px, 92vw);
-  padding: 24px 28px;
-  background: #151d28;
+  padding: 20px 28px;
+  background: rgb(21 29 40 / 0.9);
   border: 2px solid #c09473;
   text-align: center;
-}
-
-.start-panel h1 {
-  margin: 0 0 16px;
-  font-size: 28px;
-  font-weight: normal;
-  color: #e8c170;
 }
 
 .start-career {
