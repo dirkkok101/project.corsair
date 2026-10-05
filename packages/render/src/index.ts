@@ -264,14 +264,10 @@ export async function createRenderer(
     render(state, nowMs) {
       const dt = lastMs === undefined ? 0 : Math.min((nowMs - lastMs) / 1000, 0.1);
       lastMs = nowMs;
-      // AI ships show only while the player's lookouts can see them (the traffic system's sightings).
-      const inSight = (ship: Ship) => !ship.ai || (state.captain?.sightings?.[ship.id]?.tick ?? -Infinity) >= state.tick - 1;
-      for (const [id, sprite] of shipSprites) {
-        const ship = state.ships[id];
-        sprite.visible = Boolean(ship && inSight(ship));
-      }
+      // Every ship on screen is drawn: a ship the player is watching never blinks out. (The sim's
+      // sightings only decide what the chart and minimap remember.)
+      for (const [id, sprite] of shipSprites) sprite.visible = Boolean(state.ships[id]);
       for (const ship of Object.values(state.ships)) {
-        if (!inSight(ship)) continue;
         const spriteId = content.ships[ship.classId]!.sprites.world;
         const def = content.sprites[spriteId]!;
         let sprite = shipSprites.get(ship.id);
@@ -332,16 +328,14 @@ export async function createRenderer(
         world.addChild(pennants.view);
       }
       pennants.update(
-        Object.values(state.ships)
-          .filter(inSight)
-          .map((ship) => ({
-            ship,
-            wind: windAt(state, ship.x, ship.y),
-            x: Math.round(ship.x * ts),
-            y: Math.round(ship.y * ts) + Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9),
-            mast: content.sprites[content.ships[ship.classId]!.sprites.world]?.mast,
-            colour: ship.ai ? NATION_PENNANT[ship.ai.nation] : PLAYER_PENNANT,
-          })),
+        Object.values(state.ships).map((ship) => ({
+          ship,
+          wind: windAt(state, ship.x, ship.y),
+          x: Math.round(ship.x * ts),
+          y: Math.round(ship.y * ts) + Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9),
+          mast: content.sprites[content.ships[ship.classId]!.sprites.world]?.mast,
+          colour: ship.ai ? NATION_PENNANT[ship.ai.nation] : PLAYER_PENNANT,
+        })),
         nowMs / 1000,
       );
       const tpd = content.calendar.ticksPerDay;

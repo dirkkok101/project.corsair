@@ -129,7 +129,7 @@ Deferred. The whole map is visible for now. The rules below still stand for when
 - Tiles within the ship's sight radius become explored. Sight radius comes from ship type, crew lookouts, time of day and weather.
 - Unknown settlements, wrecks and treasure landmarks stay hidden until seen or revealed by a map fragment or rumour.
 - Enemy ships show only inside sight radius. Outside it, the player sees a last-known marker that fades.
-- Built for ships: AI ships are drawn only within 18 tiles of the player (9 at night), flying a pennant in their nation's colour. The minimap and sea chart mark every ship seen, fading over three days.
+- Built for ships: every AI ship on screen is drawn, day or night, flying a pennant in its nation's colour; a ship the player is watching never blinks out. The minimap and sea chart remember every ship that came within 30 tiles (beyond the edge of the screen), fading over three days. Shorter sight at night and fog of war for ships wait for lookouts and the fog-of-war work; an 18-tile radius was tried first and made ships vanish while still on screen.
 
 ### Day and night
 
