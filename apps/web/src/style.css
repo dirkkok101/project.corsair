@@ -145,6 +145,16 @@ body {
   transform: translate(-50%, 5px);
 }
 
+.chart-dot,
+.chart-port {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.chart-port.selected {
+  outline: 2px solid #e8c170;
+}
+
 .chart-port[hidden] {
   display: none;
 }
@@ -186,6 +196,10 @@ body {
 .hud-date {
   grid-column: span 2;
   color: #e8c170;
+}
+
+.hud-note {
+  color: #a4dddb;
 }
 
 .hud-storm {

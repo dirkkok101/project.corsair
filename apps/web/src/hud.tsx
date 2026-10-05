@@ -73,9 +73,14 @@ export interface HudProps {
   date: string;
   seaArea: string;
   inStorm: boolean;
+  /** Time of day, "15:00". */
+  time: string;
+  /** Wind source note near coasts ("sea breeze", "land breeze"). */
+  breeze?: string;
+  destination?: { name: string; distanceKm: number; bearingDeg: number; closing: number };
 }
 
-export function Hud({ state, content, wind, date, seaArea, inStorm }: HudProps) {
+export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze, destination }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
   const cls = content.ships[ship.classId]!;
@@ -88,7 +93,9 @@ export function Hud({ state, content, wind, date, seaArea, inStorm }: HudProps) 
   return (
     <>
       <div class="hud">
-        <div class="hud-date">{date}</div>
+        <div class="hud-date">
+          {date} · {time}
+        </div>
         <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>
         {/* The arrow shows where the wind blows to; fromDeg is where it comes from. */}
         <div class="hud-wind" style={{ transform: `rotate(${wind.fromDeg}deg)` }} title="Wind">
@@ -100,6 +107,27 @@ export function Hud({ state, content, wind, date, seaArea, inStorm }: HudProps) 
         <div>
           {pointOfSail(content, offWind).name} · {Math.round(offWind)}° off the wind
         </div>
+        {breeze ? (
+          <>
+            <div />
+            <div class="hud-note">{breeze}</div>
+          </>
+        ) : null}
+        {ship.assist ? (
+          <>
+            <div>Course</div>
+            <div class="hud-note">Beating · {ship.assist.tack} tack</div>
+          </>
+        ) : null}
+        {destination ? (
+          <>
+            <div>To</div>
+            <div>
+              {destination.name} · {Math.round(destination.distanceKm)} km · {Math.round(destination.bearingDeg)}° · closing{' '}
+              {destination.closing.toFixed(1)}
+            </div>
+          </>
+        ) : null}
         <div>Sails</div>
         <div>{ship.sails}</div>
         <div>Heading</div>
@@ -111,7 +139,7 @@ export function Hud({ state, content, wind, date, seaArea, inStorm }: HudProps) 
         </div>
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · M chart · [ ] turn wind · 1–5 wind strength</div>
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

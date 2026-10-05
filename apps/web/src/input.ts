@@ -57,6 +57,14 @@ export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void 
       sim.send({ type: 'SetSails', shipId, sails });
       return;
     }
+    // Tacking aid: T comes about onto the other tack, B holds (or drops) the best upwind course.
+    if (key === 't' || key === 'b') {
+      if (e.repeat) return;
+      const beating = Boolean(sim.state.ships[shipId]?.assist);
+      const assist = key === 't' ? 'tack' : beating ? 'off' : 'beat';
+      sim.send({ type: 'SetAssist', shipId, assist });
+      return;
+    }
     const strength = STRENGTHS[Number(key) - 1];
     if (strength) {
       sendWind({ fromDeg: wind.fromDeg, strength });

@@ -112,6 +112,8 @@ The layers live in `packages/data/content/maps/caribbean/` and are built by `nod
 - Each wind zone runs a small state machine. Prevailing direction shifts slowly; gusts and calms are random events drawn from the seeded RNG.
 - Seasons: dry (Dec to May) and hurricane (Jun to Nov). Storm spawn rates come from `weather.json`.
 - Built: 9 wind zones in `wind_zones.json`, each with a dry-season and a wet-season prevailing wind and a spread. Zone events add Gulf northers (Oct to Mar) and wet-season calms off Darién. Zone winds drift every 6 game hours (`weather.json`).
+- Weather breaks keep the trades from blowing the same way for weeks: winter fronts bring northerlies (Nov to Apr), tropical waves back the wind south-east in summer (Jun to Oct), and spells of variable wind can come in any month.
+- Coastal breezes: within about 30 km of land an onshore sea breeze peaks mid-afternoon and an offshore land breeze before dawn. They add to the zone wind, so a captain can work east along a coast at night, as ships historically did against the trades.
 - Storms spawn east of the Lesser Antilles in hurricane season (peak Aug to Oct, about 3 to 4 a season), track west-north-west and recurve north-east past 25°N. Inside a storm the wind turns counter-clockwise: gale near the eye, strong at the edge. Storm damage to sails and crew is not modelled yet.
 - Weather state and its seeded RNG stream live in the world state, so weather replays deterministically.
 - Storms are moving map objects with a radius. Inside one, sails take damage, crew can be lost overboard, and ships drift.
@@ -153,7 +155,7 @@ v = v_{base} \cdot P(\theta) \cdot W_s \cdot H \cdot C \cdot L + v_{current}
 ```
 
 - v_base = ship class top speed (`ships.json`).
-- P(θ) = polar curve by angle to wind, a per-rig lookup table of 16 points. Square-riggers peak on a broad reach and stall close-hauled; fore-and-aft rigs point higher.
+- P(θ) = polar curve by angle to wind, a per-rig lookup table of 16 points. Square-riggers peak on a broad reach and stall close-hauled; fore-and-aft rigs point higher. Tuned for play: a square rig has no drive inside about 33° and its best upwind course (about 55° off) makes good about 0.38 of top speed. The first playtest found 0.19 too slow to ever sail east against the trades.
 - W_s = wind strength multiplier (calm 0.15, light 0.5, fresh 0.8, strong 1.0, gale 1.1 with damage risk). Each step up must be clearly faster; the first playtest found 1.0 to 1.15 too small to feel, and a slower gale read as a bug while damage isn't modelled.
 - H = sail condition, 0 to 1. C = crew factor: below minimum crew, speed drops linearly.
 - L = load factor: cargo and cannon above 75% of capacity slow the ship.
@@ -190,6 +192,7 @@ Turning rate uses the same inputs, plus a rig-specific turn penalty for square r
 
 - Time acceleration (1x, 2x, 4x) in open water, auto-paused when anything enters sight.
 - Click-to-sail autopilot that routes around shallows for the current fleet draft.
+- Tacking aid (built): B holds the best upwind course on the current tack and follows the wind as it shifts; T comes about onto the other tack; steering by hand takes back control. Clicking a port on the sea chart sets it as the destination, and the HUD shows its distance, bearing and how fast the ship is closing on it.
 - Logbook with every event, visit and rumour, searchable.
 
 ## 5. Settlements

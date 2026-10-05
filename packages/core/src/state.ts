@@ -8,6 +8,9 @@ export type Helm = -1 | 0 | 1;
 /** How much canvas is set (PRD section 4 sail state). */
 export type SailSetting = 'furled' | 'half' | 'full';
 
+/** Which side the wind comes over: starboard tack has it on the starboard (right) side. */
+export type Tack = 'port' | 'starboard';
+
 export interface Wind {
   /** Direction the wind blows FROM, degrees clockwise from north (sailing convention). */
   fromDeg: number;
@@ -26,6 +29,8 @@ export interface Ship {
   speed: number;
   helm: Helm;
   sails: SailSetting;
+  /** Helm assist: hold the best upwind course on a tack until the helm is used by hand. */
+  assist?: { mode: 'beat'; tack: Tack };
   /** True while the ship is pressed against land, so ShipBlocked fires once per contact. */
   blocked: boolean;
 }
@@ -69,6 +74,8 @@ export interface WorldState {
 export type Command =
   | { type: 'SetHelm'; shipId: string; helm: Helm }
   | { type: 'SetSails'; shipId: string; sails: SailSetting }
+  /** Tacking aid: `beat` holds the best upwind course on the current tack, `tack` comes about onto the other. */
+  | { type: 'SetAssist'; shipId: string; assist: 'beat' | 'tack' | 'off' }
   | { type: 'SetWind'; fromDeg: number; strength: WindStrength }
   /** Debug: start a storm centred on a tile. */
   | { type: 'SpawnStorm'; x: number; y: number };

@@ -2,7 +2,17 @@ import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
-import { createWeatherSystem, createWindField, stormWindAt, withWeather, zoneAt } from '@corsair/systems-weather';
+import {
+  createBreezeField,
+  createWeatherSystem,
+  createWindField,
+  hourOf,
+  stormWindAt,
+  withWeather,
+  zoneAt,
+} from '@corsair/systems-weather';
+import type { PlacedSettlement } from '@corsair/data';
+import { speedPoints } from '@corsair/systems-navigation';
 import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
@@ -74,7 +84,15 @@ async function main() {
   viewport.appendChild(renderer.canvas);
   const labels = createLabels(viewport, settlements, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
-  const charts = createCharts(stage, map, settlements);
+  let destination: PlacedSettlement | undefined;
+  const charts = createCharts(stage, map, settlements, (port) => (destination = port));
+  const breezes = createBreezeField(content, def, map);
+  // Distances for the HUD: the map is equirectangular, close enough to square tiles.
+  const { lonMin, lonMax, latMin, latMax } = def.bounds;
+  const kmPerTile =
+    (((lonMax - lonMin) / def.width) * 111.32 * Math.cos((((latMin + latMax) / 2) * Math.PI) / 180) +
+      ((latMax - latMin) / def.height) * 110.57) /
+    2;
   // CSS pixels per art pixel; the device-pixel scale behind it is always a whole number.
   let scale = 1;
   const fit = () => {
@@ -108,6 +126,16 @@ async function main() {
     charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view());
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
+    const hour = hourOf(sim.state.tick, content.calendar.ticksPerDay);
+    const breeze = breezes.at(sim.state.tick, ship.x, ship.y);
+    let course: { name: string; distanceKm: number; bearingDeg: number; closing: number } | undefined;
+    if (destination) {
+      const dx = destination.x - ship.x;
+      const dy = destination.y - ship.y;
+      const bearingDeg = (((Math.atan2(dx, -dy) * 180) / Math.PI) + 360) % 360;
+      const closing = speedPoints(content, ship) * Math.cos(((ship.headingDeg - bearingDeg) * Math.PI) / 180);
+      course = { name: destination.name, distanceKm: Math.hypot(dx, dy) * kmPerTile, bearingDeg, closing };
+    }
     render(
       <Hud
         state={sim.state}
@@ -116,6 +144,9 @@ async function main() {
         date={formatDate(dateOf(def.startDate, day))}
         seaArea={zoneAt(content, map, ship.x, ship.y).name}
         inStorm={(sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y))}
+        time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
+        breeze={breeze && `${breeze.kind} breeze`}
+        destination={course}
       />,
       hudRoot,
     );

@@ -2,7 +2,7 @@ import { createSim, TICKS_PER_SECOND } from '@corsair/core';
 import type { Command, WorldState } from '@corsair/core';
 import { buildTileMap, isLand, loadContent, tileAt } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
-import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '../src';
+import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, polarAt } from '../src';
 
 const content = loadContent();
 const map = buildTileMap(content.maps.placeholder);
@@ -133,6 +133,40 @@ describe('sailing model', () => {
     // once-per-contact rule would instead fire on most of the ~1,000 ticks this test runs.
     expect(blocked()).toBeGreaterThanOrEqual(2);
     expect(blocked()).toBeLessThan(12);
+  });
+});
+
+describe('tacking aid', () => {
+  const square = content.polars['polar.square']!;
+  const off = bestUpwindDeg(square);
+  const offBy = (a: number, b: number) => Math.abs(((((a - b) % 360) + 540) % 360) - 180);
+
+  it('beats on the current tack, tacks onto the other, and hands back to the helm', () => {
+    // Wind from the north; heading east puts it over the port side.
+    const sim = createSim(openSea(90, 0), [createNavigationSystem(content, map)]);
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'beat' });
+    sim.step(5 * TICKS_PER_SECOND);
+    expect(sim.state.ships.player!.assist).toEqual({ mode: 'beat', tack: 'port' });
+    expect(offBy(sim.state.ships.player!.headingDeg, off)).toBeLessThan(0.5);
+
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'tack' });
+    sim.step(6 * TICKS_PER_SECOND);
+    expect(sim.state.ships.player!.assist!.tack).toBe('starboard');
+    expect(offBy(sim.state.ships.player!.headingDeg, 360 - off)).toBeLessThan(0.5);
+
+    sim.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
+    sim.step();
+    expect(sim.state.ships.player!.assist).toBeUndefined();
+    expect(sim.events().some((e) => e.type === 'AssistEnded')).toBe(true);
+  });
+
+  it('makes real ground to windward by beating', () => {
+    const sim = createSim(openSea(45, 0), [createNavigationSystem(content, map)]);
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'beat' });
+    const startY = sim.state.ships.player!.y;
+    sim.step(20 * TICKS_PER_SECOND);
+    // North is toward the wind; y grows southward.
+    expect(startY - sim.state.ships.player!.y).toBeGreaterThan(15);
   });
 });
 

@@ -78,7 +78,14 @@ function paintOverview(map: TileMap): HTMLCanvasElement {
   return canvas;
 }
 
-export function createCharts(parent: HTMLElement, map: TileMap, settlements: PlacedSettlement[]) {
+/** `onSelect` gets the port clicked on the chart, or undefined when the chosen port is clicked again. */
+export function createCharts(
+  parent: HTMLElement,
+  map: TileMap,
+  settlements: PlacedSettlement[],
+  onSelect: (port: PlacedSettlement | undefined) => void,
+) {
+  let selected: PlacedSettlement | undefined;
   const overview = paintOverview(map);
 
   const minimap = parent.appendChild(document.createElement('canvas'));
@@ -107,13 +114,20 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
       el.style.left = `${(s.x / map.width) * 100}%`;
       el.style.top = `${(s.y / map.height) * 100}%`;
     }
+    const choose = () => {
+      selected = selected?.id === s.id ? undefined : s;
+      for (const p of pins) p.label.classList.toggle('selected', p.s.id === selected?.id);
+      onSelect(selected);
+    };
+    dot.addEventListener('click', choose);
+    label.addEventListener('click', choose);
     return { s, dot, label };
   });
   const marker = sheet.appendChild(document.createElement('div'));
   marker.className = 'chart-player';
   const hint = chart.appendChild(document.createElement('div'));
   hint.className = 'chart-hint';
-  hint.textContent = 'Sea chart · M to close';
+  hint.textContent = 'Sea chart · click a port to set your destination · M to close';
 
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') {
@@ -141,6 +155,10 @@ export function createCharts(parent: HTMLElement, map: TileMap, settlements: Pla
       const vx = camera.x / map.tileSize - sx;
       const vy = camera.y / map.tileSize - sy;
       mctx.strokeRect(Math.round(vx) + 0.5, Math.round(vy) + 0.5, vw, vh);
+      if (selected) {
+        mctx.strokeStyle = '#e8c170';
+        mctx.strokeRect(Math.floor(selected.x - sx) - 3.5, Math.floor(selected.y - sy) - 3.5, 8, 8);
+      }
       mctx.fillStyle = '#e8c170';
       mctx.fillRect(Math.round(player.x - sx) - 1, Math.round(player.y - sy) - 1, 3, 3);
 

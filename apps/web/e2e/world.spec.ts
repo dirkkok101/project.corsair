@@ -69,3 +69,25 @@ test('weather: days pass and a storm over the ship takes over the wind', async (
   const formed = await page.evaluate(() => window.__corsair.log.query({ type: 'StormFormed' }).length);
   expect(formed).toBe(1);
 });
+
+test('tacking aid and destination: B beats, T tacks, a chart click sets a course', async ({ page }) => {
+  await boot(page);
+  await page.keyboard.press('b');
+  await page.evaluate(() => window.__corsair.sim.step(150));
+  const beating = await page.evaluate(() => window.__corsair.state.get('ships.player.assist') as { tack: string });
+  expect(beating).toBeTruthy();
+  await expect(page.locator('.hud')).toContainText('Beating');
+
+  await page.keyboard.press('t');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  const tacked = await page.evaluate(() => window.__corsair.state.get('ships.player.assist') as { tack: string });
+  expect(tacked.tack).not.toBe(beating.tack);
+
+  await page.keyboard.press('m');
+  await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
+  await page.keyboard.press('m');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await expect(page.locator('.hud')).toContainText('To');
+  await expect(page.locator('.hud')).toContainText('Cartagena');
+  await page.screenshot({ path: 'test-results/assist.png' });
+});

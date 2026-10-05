@@ -1,4 +1,4 @@
-import type { EmittedEvent, Ship, System, Wind, WorldState } from '@corsair/core';
+import type { EmittedEvent, Ship, System, Tack, Wind, WorldState } from '@corsair/core';
 import { isLand, startOf, tileAt } from '@corsair/data';
 import type { ContentPack, MapDef, Polar, TileMap } from '@corsair/data';
 
@@ -41,6 +41,25 @@ export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): numbe
   );
 }
 
+/**
+ * The angle off the wind that makes the most ground toward it (best velocity made good).
+ * Holding this course on alternate tacks is the fastest way to windward.
+ */
+export function bestUpwindDeg(polar: Polar): number {
+  let best = { deg: 90, vmg: 0 };
+  for (let deg = 0; deg <= 90; deg += 0.5) {
+    const vmg = polarAt(polar, deg) * Math.cos((deg * Math.PI) / 180);
+    if (vmg > best.vmg) best = { deg, vmg };
+  }
+  return best.deg;
+}
+
+/** Which tack a ship is on in this wind. */
+export function tackOf(headingDeg: number, windFromDeg: number): Tack {
+  const rel = normalizeDeg(windFromDeg - headingDeg);
+  return rel <= 180 ? 'starboard' : 'port';
+}
+
 /** Tiles per second on the ship class's 1-10 speed scale, for the HUD. */
 export function toSpeedPoints(content: ContentPack, tilesPerSecond: number): number {
   return tilesPerSecond / content.navigation.tilesPerSecondPerSpeedPoint;
@@ -61,13 +80,28 @@ export function createNavigationSystem(
   windAt: (state: WorldState, x: number, y: number) => Wind = (state) => state.wind,
 ): System {
   const nav = content.navigation;
+  const bestUpwind = new Map<string, number>();
+  const upwindOf = (polarId: string) => {
+    if (!bestUpwind.has(polarId)) bestUpwind.set(polarId, bestUpwindDeg(content.polars[polarId]!));
+    return bestUpwind.get(polarId)!;
+  };
 
   const sail = (ship: Ship, state: WorldState, dt: number): { ship: Ship; events: EmittedEvent[] } => {
     const cls = content.ships[ship.classId]!;
-    const target = targetSpeed(content, ship, windAt(state, ship.x, ship.y));
+    const wind = windAt(state, ship.x, ship.y);
+    const target = targetSpeed(content, ship, wind);
     const speed = ship.speed + (target - ship.speed) * Math.min(1, nav.accelPerSecond * dt);
     const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]!;
-    const headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);
+    let headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);
+    if (ship.assist) {
+      // Steer toward the best upwind course on the chosen tack at the normal turn rate, so the
+      // ship follows the wind as it shifts. Starboard tack keeps the wind on the starboard side.
+      const off = upwindOf(cls.polar);
+      const goal = ship.assist.tack === 'starboard' ? wind.fromDeg - off : wind.fromDeg + off;
+      const diff = ((normalizeDeg(goal - ship.headingDeg) + 540) % 360) - 180;
+      const step = turnRate * dt;
+      headingDeg = normalizeDeg(ship.headingDeg + Math.max(-step, Math.min(step, diff)));
+    }
 
     const rad = (headingDeg * Math.PI) / 180;
     const dx = Math.sin(rad) * speed * dt;
@@ -104,7 +138,27 @@ export function createNavigationSystem(
       if (command.type === 'SetHelm') {
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
-        return { state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, helm: command.helm } } }, events: [] };
+        // Steering by hand takes over from the assist.
+        const { assist, ...rest } = ship;
+        const next = command.helm === 0 ? { ...ship, helm: 0 as const } : { ...rest, helm: command.helm };
+        const events: EmittedEvent[] =
+          assist && command.helm !== 0 ? [{ type: 'AssistEnded', entityIds: [ship.id], payload: {} }] : [];
+        return { state: { ...state, ships: { ...state.ships, [ship.id]: next } }, events };
+      }
+      if (command.type === 'SetAssist') {
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        const { assist: _previous, ...rest } = ship;
+        if (command.assist === 'off') {
+          return { state: { ...state, ships: { ...state.ships, [ship.id]: rest } }, events: [] };
+        }
+        const current: Tack = ship.assist?.tack ?? tackOf(ship.headingDeg, windAt(state, ship.x, ship.y).fromDeg);
+        const tack: Tack = command.assist === 'tack' ? (current === 'port' ? 'starboard' : 'port') : current;
+        const next = { ...rest, helm: 0 as const, assist: { mode: 'beat' as const, tack } };
+        return {
+          state: { ...state, ships: { ...state.ships, [ship.id]: next } },
+          events: [{ type: 'AssistSet', entityIds: [ship.id], payload: { assist: command.assist, tack } }],
+        };
       }
       if (command.type === 'SetSails') {
         const ship = state.ships[command.shipId];
