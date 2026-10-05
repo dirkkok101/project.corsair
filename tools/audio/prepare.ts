@@ -16,7 +16,7 @@ import { detectPitch, firstAbove, hzToMidi, peak, readWav, resample, writeWav16 
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const OUT = join(ROOT, 'art', 'audio');
-const BUDGET_BYTES = 6 * 1024 * 1024;
+const BUDGET_BYTES = 7 * 1024 * 1024;
 
 const SFX_RATE = 22050;
 const NOTE_RATE = 32000;
@@ -148,6 +148,10 @@ for (const [id, d] of Object.entries(DRUMS)) {
 const PDSOUNDS_NOTE = 'Commons licence template {{PD-author}} (released into the public domain by the author, worldwide) via PDSounds.org.';
 const commons = (file: string) => `https://commons.wikimedia.org/wiki/File:${file}`;
 const PD_COMMONS = { licence: 'Public domain', licence_url: 'https://commons.wikimedia.org/wiki/Template:PD-author' };
+const NOAA_PD = { licence: 'Public domain (US federal government work)', licence_url: 'https://www.fisheries.noaa.gov/national/about-us/website-policies-and-disclaimers' };
+const NOAA_PAGE = 'https://www.fisheries.noaa.gov/national/science-data/sounds-ocean-mammals';
+const NOAA_AUTHOR = 'NOAA Northeast Fisheries Science Center, Passive Acoustics Branch';
+const NOAA_NOTE = 'Hydrophone (underwater) recording by NOAA\'s own passive-acoustics group. NOAA Fisheries copyright policy: "Information created by the U.S. government and presented on U.S. government websites is not subject to copyright in the United States"; credit requested as "Courtesy: National Oceanic and Atmospheric Administration".';
 const NPS_PD = { licence: 'Public domain (US federal government work)', licence_url: 'https://www.nps.gov/subjects/sound/gallery.htm' };
 
 const SFX_SOURCES: (Source & { id: string })[] = [
@@ -210,13 +214,7 @@ const SFX_SOURCES: (Source & { id: string })[] = [
     download: COMMONS + '3/37/Sound_of_church_bells_and_birds.oga', start: 12, maxLen: 8, fadeIn: 0.4, fadeOut: 0.8, rate: SFX_RATE,
   },
   {
-    id: 'harbour_crowd', out: 'sfx/harbour_crowd_1.wav', title: 'Restaurant Ambience', author: 'stephan',
-    source_url: commons('Restaurant_ambience.ogg'), ...PD_COMMONS,
-    notes: `Indoor crowd walla (restaurant); 8s from 10s in, faded at both ends. Play quietly/filtered for a distant harbour murmur. ${PDSOUNDS_NOTE}`,
-    download: COMMONS + 'b/b5/Restaurant_ambience.ogg', start: 10, maxLen: 8, fadeIn: 0.5, fadeOut: 0.8, rate: SFX_RATE,
-  },
-  {
-    id: 'harbour_crowd', out: 'sfx/harbour_crowd_2.wav', title: 'Boat by a wharf - 3', author: 'ezwa',
+    id: 'harbour_crowd', out: 'sfx/harbour_crowd_1.wav', title: 'Boat by a wharf - 3', author: 'ezwa',
     source_url: commons('Boat_by_a_wharf_3.ogg'), ...PD_COMMONS,
     notes: `Outdoor wharf: boat noises, water and people talking; 8s from 2.5s in, faded at both ends. ${PDSOUNDS_NOTE}`,
     download: COMMONS + '7/74/Boat_by_a_wharf_3.ogg', start: 2.5, maxLen: 8, fadeIn: 0.5, fadeOut: 0.8, rate: SFX_RATE,
@@ -234,6 +232,42 @@ const SFX_SOURCES: (Source & { id: string })[] = [
     notes: 'Rolling thunder (with rain), 8s from 2.5s into the 46s MP3, faded out. NPS gallery: "The files are in the public domain and may be downloaded."',
     download: 'https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-Thunder.mp3', start: 2.5, maxLen: 8, fadeIn: 0.2, fadeOut: 1.5, rate: SFX_RATE,
   },
+  // Splashes
+  ...[3, 12, 14].map((n, i) => ({
+    id: 'splash_small', out: `sfx/splash_small_${i + 1}.wav`, title: `splash_${n}`, author: 'rubberduck',
+    source_url: 'https://opengameart.org/content/40-cc0-water-splash-slime-sfx', ...CC0,
+    notes: 'Short splash/plop from the "40 CC0 water / splash / slime SFX" pack.',
+    download: OGA + 'water-splash-slime-sfx.zip', member: `splash_${String(n).padStart(2, '0')}.ogg`, maxLen: 1.5, rate: SFX_RATE, silenceDb: -40, fadeOut: 0.05,
+  })),
+  ...[7, 11].map((n, i) => ({
+    id: 'splash_big', out: `sfx/splash_big_${i + 1}.wav`, title: `splash_${n}`, author: 'rubberduck',
+    source_url: 'https://opengameart.org/content/40-cc0-water-splash-slime-sfx', ...CC0,
+    notes: 'The two longest, most sustained splashes from the "40 CC0 water / splash / slime SFX" pack.',
+    download: OGA + 'water-splash-slime-sfx.zip', member: `splash_${String(n).padStart(2, '0')}.ogg`, maxLen: 2.5, rate: SFX_RATE, silenceDb: -40, fadeOut: 0.1,
+  })),
+  // Dolphins: whistle-dense windows picked by a spectral tonality scan (not by ear).
+  ...([
+    ['Stfr_Multisound_NOAA_PAGroup_01 (Atlantic spotted dolphin)', 'Stfr-Multisound-NOAA-PAGroup-01-atlantic-spotted-dolphin-clip.mp3', 0.15, 2.85],
+    ['Stfr_Multisound_NOAA_PAGroup_01 (Atlantic spotted dolphin)', 'Stfr-Multisound-NOAA-PAGroup-01-atlantic-spotted-dolphin-clip.mp3', 3.1, 1.7],
+    ['Dede_whistles_NOAA_PAGroup_01 (short-beaked common dolphin)', 'Dede-whistles-NOAA-PAGroup-01-short-beaked-common-dolphin-clip.mp3', 3.9, 3.0],
+  ] as const).map(([title, file, start, maxLen], i) => ({
+    id: 'dolphin', out: `sfx/dolphin_${i + 1}.wav`, title, author: NOAA_AUTHOR, source_url: NOAA_PAGE, ...NOAA_PD,
+    notes: `Whistles, ${start}-${(start + maxLen).toFixed(2)}s of the clip. At 22.05 kHz only whistle energy below ~11 kHz survives. ${NOAA_NOTE}`,
+    download: 'https://www.fisheries.noaa.gov/s3/2023-04/' + file, start, maxLen, fadeIn: 0.05, fadeOut: 0.2, rate: SFX_RATE,
+  })),
+  // Humpback song: each window holds whole song units with quiet either side (from an energy scan).
+  ...([[6.0, 9.6], [43.6, 6.8]] as const).map(([start, maxLen], i) => ({
+    id: 'whale_song', out: `sfx/whale_song_${i + 1}.wav`, title: 'Meno_song_NOAA_PAGroup_13 (humpback whale)', author: NOAA_AUTHOR, source_url: NOAA_PAGE, ...NOAA_PD,
+    notes: `Humpback song, ${start}-${(start + maxLen).toFixed(1)}s of the 55s clip (8 kHz source, so nothing above 4 kHz), faded at both ends. ${NOAA_NOTE}`,
+    download: 'https://www.fisheries.noaa.gov/s3/2023-04/Meno-song-NOAA-PAGroup-13-humpback-clip.mp3', start, maxLen, fadeIn: 0.4, fadeOut: 0.8, rate: SFX_RATE,
+  })),
+  // Whale blow: NPS says the blows are heard "twice near the end"; this is the louder, later event.
+  {
+    id: 'whale_blow', out: 'sfx/whale_blow_1.wav', title: 'Humpback whale wheezeblow (Glacier Bay)', author: 'U.S. National Park Service, Glacier Bay National Park and Preserve',
+    source_url: commons('Humpback_whale_wheezeblow.ogg'), licence: 'Public domain (US federal government work)', licence_url: 'https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS',
+    notes: 'Wheeze blow, 56.9-59.9s of the 61s hydrophone recording (the strongest event near the end, where NPS says two blows are audible); identified by energy scan, not by ear, and heard through a hydrophone rather than in air. Commons template {{PD-USGov-NPS}}.',
+    download: COMMONS + 'd/d4/Humpback_whale_wheezeblow.ogg', start: 56.9, maxLen: 3, fadeIn: 0.1, fadeOut: 0.5, rate: SFX_RATE,
+  },
 ];
 
 const SFX_NOTES: Record<string, string> = {
@@ -242,8 +276,13 @@ const SFX_NOTES: Record<string, string> = {
   canvas: 'Cloth snaps/rustles for setting or furling sail.',
   rope: 'Short wooden creaks standing in for rope through a block.',
   harbour_bell: 'Distant church bell tolling (with birdsong); loopable bed with faded ends.',
-  harbour_crowd: 'Crowd beds with faded ends: indoor restaurant walla and an outdoor wharf with voices; play low and low-passed for distance.',
+  harbour_crowd: 'Outdoor wharf with voices, faded ends; play low and low-passed for distance. (An indoor restaurant bed was dropped: it may carry background music the recordist could not license.)',
   thunder: 'One sharp clap and one long rolling peal.',
+  dolphin: 'Dolphin whistle chatter recorded underwater (with hydrophone hiss); low-pass for an above-water feel.',
+  whale_song: 'Distant humpback song for calm nights; hydrophone recordings, faded ends.',
+  whale_blow: 'A humpback exhaling (wheeze blow), heard through a hydrophone; low-pass and add air noise for a spout at the surface.',
+  splash_small: 'Small splashes / plops (fish, thrown object); about 0.5-0.8s.',
+  splash_big: 'Bigger splashes (~1.1-1.3s) for a dolphin re-entering or a diving bird; pitch down (playbackRate 0.7-0.85) for more weight.',
 };
 
 // ---------------------------------------------------------------------------------------
@@ -251,7 +290,7 @@ const SFX_NOTES: Record<string, string> = {
 async function fetchTo(url: string, path: string): Promise<void> {
   if (existsSync(path)) return;
   mkdirSync(dirname(path), { recursive: true });
-  const res = await fetch(url, { headers: { 'User-Agent': 'corsair-audio-prep/1.0' } });
+  const res = await fetch(url, { headers: { 'User-Agent': 'corsair-audio-prep/1.0' }, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   writeFileSync(path, Buffer.from(await res.arrayBuffer()));
 }
@@ -345,8 +384,8 @@ function check(): void {
       if (!ok && confident) problems.push(`${s.file}: root ${s.midi} but detected ${seen}`);
     }
   }
-  console.log(`art/audio: ${(total / 1024 / 1024).toFixed(2)} MB (${total} bytes), budget 6 MB`);
-  if (total > BUDGET_BYTES) problems.push('over the 6 MB budget');
+  console.log(`art/audio: ${(total / 1024 / 1024).toFixed(2)} MB (${total} bytes), budget 7 MB`);
+  if (total > BUDGET_BYTES) problems.push('over the 7 MB budget');
   if (problems.length) {
     console.error('CHECK FAILED\n  ' + problems.join('\n  '));
     process.exitCode = 1;

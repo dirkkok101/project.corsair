@@ -144,6 +144,105 @@
     "notes": "Rolling thunder (with rain), 8s from 2.5s into the 46s MP3, faded out. NPS gallery: \"The files are in the public domain and may be downloaded.\""
   },
   {
+    "file": "art/audio/sfx/splash_small_1.wav",
+    "title": "splash_3",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/40-cc0-water-splash-slime-sfx",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Short splash/plop from the \"40 CC0 water / splash / slime SFX\" pack."
+  },
+  {
+    "file": "art/audio/sfx/splash_small_2.wav",
+    "title": "splash_12",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/40-cc0-water-splash-slime-sfx",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Short splash/plop from the \"40 CC0 water / splash / slime SFX\" pack."
+  },
+  {
+    "file": "art/audio/sfx/splash_small_3.wav",
+    "title": "splash_14",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/40-cc0-water-splash-slime-sfx",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Short splash/plop from the \"40 CC0 water / splash / slime SFX\" pack."
+  },
+  {
+    "file": "art/audio/sfx/splash_big_1.wav",
+    "title": "splash_7",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/40-cc0-water-splash-slime-sfx",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "The two longest, most sustained splashes from the \"40 CC0 water / splash / slime SFX\" pack."
+  },
+  {
+    "file": "art/audio/sfx/splash_big_2.wav",
+    "title": "splash_11",
+    "author": "rubberduck",
+    "source_url": "https://opengameart.org/content/40-cc0-water-splash-slime-sfx",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "The two longest, most sustained splashes from the \"40 CC0 water / splash / slime SFX\" pack."
+  },
+  {
+    "file": "art/audio/sfx/dolphin_1.wav",
+    "title": "Stfr_Multisound_NOAA_PAGroup_01 (Atlantic spotted dolphin)",
+    "author": "NOAA Northeast Fisheries Science Center, Passive Acoustics Branch",
+    "source_url": "https://www.fisheries.noaa.gov/national/science-data/sounds-ocean-mammals",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.fisheries.noaa.gov/national/about-us/website-policies-and-disclaimers",
+    "notes": "Whistles, 0.15-3.00s of the clip. At 22.05 kHz only whistle energy below ~11 kHz survives. Hydrophone (underwater) recording by NOAA's own passive-acoustics group. NOAA Fisheries copyright policy: \"Information created by the U.S. government and presented on U.S. government websites is not subject to copyright in the United States\"; credit requested as \"Courtesy: National Oceanic and Atmospheric Administration\"."
+  },
+  {
+    "file": "art/audio/sfx/dolphin_2.wav",
+    "title": "Stfr_Multisound_NOAA_PAGroup_01 (Atlantic spotted dolphin)",
+    "author": "NOAA Northeast Fisheries Science Center, Passive Acoustics Branch",
+    "source_url": "https://www.fisheries.noaa.gov/national/science-data/sounds-ocean-mammals",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.fisheries.noaa.gov/national/about-us/website-policies-and-disclaimers",
+    "notes": "Whistles, 3.1-4.80s of the clip. At 22.05 kHz only whistle energy below ~11 kHz survives. Hydrophone (underwater) recording by NOAA's own passive-acoustics group. NOAA Fisheries copyright policy: \"Information created by the U.S. government and presented on U.S. government websites is not subject to copyright in the United States\"; credit requested as \"Courtesy: National Oceanic and Atmospheric Administration\"."
+  },
+  {
+    "file": "art/audio/sfx/dolphin_3.wav",
+    "title": "Dede_whistles_NOAA_PAGroup_01 (short-beaked common dolphin)",
+    "author": "NOAA Northeast Fisheries Science Center, Passive Acoustics Branch",
+    "source_url": "https://www.fisheries.noaa.gov/national/science-data/sounds-ocean-mammals",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.fisheries.noaa.gov/national/about-us/website-policies-and-disclaimers",
+    "notes": "Whistles, 3.9-6.90s of the clip. At 22.05 kHz only whistle energy below ~11 kHz survives. Hydrophone (underwater) recording by NOAA's own passive-acoustics group. NOAA Fisheries copyright policy: \"Information created by the U.S. government and presented on U.S. government websites is not subject to copyright in the United States\"; credit requested as \"Courtesy: National Oceanic and Atmospheric Administration\"."
+  },
+  {
+    "file": "art/audio/sfx/whale_song_1.wav",
+    "title": "Meno_song_NOAA_PAGroup_13 (humpback whale)",
+    "author": "NOAA Northeast Fisheries Science Center, Passive Acoustics Branch",
+    "source_url": "https://www.fisheries.noaa.gov/national/science-data/sounds-ocean-mammals",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.fisheries.noaa.gov/national/about-us/website-policies-and-disclaimers",
+    "notes": "Humpback song, 6-15.6s of the 55s clip (8 kHz source, so nothing above 4 kHz), faded at both ends. Hydrophone (underwater) recording by NOAA's own passive-acoustics group. NOAA Fisheries copyright policy: \"Information created by the U.S. government and presented on U.S. government websites is not subject to copyright in the United States\"; credit requested as \"Courtesy: National Oceanic and Atmospheric Administration\"."
+  },
+  {
+    "file": "art/audio/sfx/whale_song_2.wav",
+    "title": "Meno_song_NOAA_PAGroup_13 (humpback whale)",
+    "author": "NOAA Northeast Fisheries Science Center, Passive Acoustics Branch",
+    "source_url": "https://www.fisheries.noaa.gov/national/science-data/sounds-ocean-mammals",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://www.fisheries.noaa.gov/national/about-us/website-policies-and-disclaimers",
+    "notes": "Humpback song, 43.6-50.4s of the 55s clip (8 kHz source, so nothing above 4 kHz), faded at both ends. Hydrophone (underwater) recording by NOAA's own passive-acoustics group. NOAA Fisheries copyright policy: \"Information created by the U.S. government and presented on U.S. government websites is not subject to copyright in the United States\"; credit requested as \"Courtesy: National Oceanic and Atmospheric Administration\"."
+  },
+  {
+    "file": "art/audio/sfx/whale_blow_1.wav",
+    "title": "Humpback whale wheezeblow (Glacier Bay)",
+    "author": "U.S. National Park Service, Glacier Bay National Park and Preserve",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Humpback_whale_wheezeblow.ogg",
+    "licence": "Public domain (US federal government work)",
+    "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS",
+    "notes": "Wheeze blow, 56.9-59.9s of the 61s hydrophone recording (the strongest event near the end, where NPS says two blows are audible); identified by energy scan, not by ear, and heard through a hydrophone rather than in air. Commons template {{PD-USGov-NPS}}."
+  },
+  {
     "file": "art/audio/instruments/fiddle/fiddle_55.wav",
     "title": "Solo violin (arco, vibrato, forte) LLVln_ArcoVib_G3_f.wav (Arco Vib)",
     "author": "Versilian Studios LLC (VSCO 2 Community Edition, Sam Gossner)",

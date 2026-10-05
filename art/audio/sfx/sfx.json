@@ -49,5 +49,41 @@
       "art/audio/sfx/thunder_2.wav"
     ],
     "notes": "One sharp clap and one long rolling peal."
+  },
+  "splash_small": {
+    "files": [
+      "art/audio/sfx/splash_small_1.wav",
+      "art/audio/sfx/splash_small_2.wav",
+      "art/audio/sfx/splash_small_3.wav"
+    ],
+    "notes": "Small splashes / plops (fish, thrown object); about 0.5-0.8s."
+  },
+  "splash_big": {
+    "files": [
+      "art/audio/sfx/splash_big_1.wav",
+      "art/audio/sfx/splash_big_2.wav"
+    ],
+    "notes": "Bigger splashes (~1.1-1.3s) for a dolphin re-entering or a diving bird; pitch down (playbackRate 0.7-0.85) for more weight."
+  },
+  "dolphin": {
+    "files": [
+      "art/audio/sfx/dolphin_1.wav",
+      "art/audio/sfx/dolphin_2.wav",
+      "art/audio/sfx/dolphin_3.wav"
+    ],
+    "notes": "Dolphin whistle chatter recorded underwater (with hydrophone hiss); low-pass for an above-water feel."
+  },
+  "whale_song": {
+    "files": [
+      "art/audio/sfx/whale_song_1.wav",
+      "art/audio/sfx/whale_song_2.wav"
+    ],
+    "notes": "Distant humpback song for calm nights; hydrophone recordings, faded ends."
+  },
+  "whale_blow": {
+    "files": [
+      "art/audio/sfx/whale_blow_1.wav"
+    ],
+    "notes": "A humpback exhaling (wheeze blow), heard through a hydrophone; low-pass and add air noise for a spout at the surface."
   }
 }
