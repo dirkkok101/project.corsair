@@ -188,6 +188,38 @@ Turning rate uses the same inputs, plus a rig-specific turn penalty for square r
 - Hailing shows nationality, class, and a hint of cargo or passengers (a governor's daughter, a villain lieutenant, a treasure galleon's pay chest).
 - The player can fly false colours if the flag skill or an item allows it. The AI checks disguise against its own vigilance stat.
 
+### Sound, music and sea life
+
+Sailing is where players spend most of their time, so it should sound and look alive. Every layer is a gameplay cue first and realism second. The audio and the sea life only read the world state and never change it.
+
+- **Ambience (synthesised):**
+  - waves swell with wind strength
+  - the rigging sings loudest close-hauled
+  - water rushes past the hull with speed
+  - sails flap in irons and thump when they fill
+  - surf rises near land, and rain falls in storms
+- **Recorded sounds** (CC0 and public domain, credited in `art/audio/CREDITS.json`):
+  - gulls near land by day
+  - hull creaks with the wind
+  - canvas and rope on sail changes
+  - harbour voices and church bells near towns
+  - thunder after lightning
+  - dolphins and splashes with the sea life
+  - humpback song on calm nights in open sea
+- **The ship's band:**
+  - 11 traditional public-domain tunes in `content/music.json`, arranged for fiddle, whistle, plucked bass, harp and drums, and sequenced live over CC0 instrument samples.
+  - Under full sail at speed the full band plays a lively shanty. Easier sailing gets a gentle tune with fewer instruments, and night gets a slow air. Storms have no music, only wind and thunder.
+  - Tunes rotate with 25 to 50 seconds of quiet between them.
+  - Only traditional tunes are used: modern songs, including instrumental versions of them, are still in copyright.
+- **Sea life** (renderer-only, rare events):
+  - dolphins riding the bow at speed in open water
+  - flying fish bursting from the bow by day
+  - distant whales spouting and showing their flukes
+  - pelicans and frigatebirds near coasts
+  - the odd fish jumping
+- **Controls:** V mutes all sound, N toggles the music. Sound starts on the first key press, as browsers require.
+- **Day and night** is a palette swap through dusk and night rows (art pipeline section 6). A new game starts at 08:00.
+
 ### Quality of life
 
 - Time acceleration (1x, 2x, 4x) in open water, auto-paused when anything enters sight.
@@ -627,7 +659,7 @@ The renderer never mutates state. Every change enters through the command bus an
 | Build | Vite, pnpm workspaces | Fast dev loop, one package per module |
 | Data validation | JSON Schema + Ajv (or Zod generating schema) | Validate content at build and at boot |
 | Tests | Vitest (core), Playwright (browser end-to-end through `window.__corsair`) | Core tests run in milliseconds in Node |
-| Audio | Howler.js | Simple sprite-sheet audio |
+| Audio | Web Audio API directly (`@corsair/audio`) | Ambience is synthesised and follows the game continuously, and music is sequenced live from note data, both of which need the raw API rather than Howler.js's sprite-sheet playback |
 | Saves | IndexedDB + JSON file export | Save is a serialised state snapshot plus version |
 | Packaging (later) | Tauri wrapper for desktop stores | Same web build, ships to Steam or itch.io |
 
