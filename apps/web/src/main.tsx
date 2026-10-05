@@ -1,5 +1,5 @@
 import { createAudio } from '@corsair/audio';
-import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
+import { contentFingerprint, createSim, dateOf, formatDate, fromSave, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { WildlifeDefs } from '@corsair/render';
@@ -24,6 +24,8 @@ import { createEconomySystem, DOCK_RANGE, withEconomy } from '@corsair/systems-e
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
+import { loadStoredSave, storeSave } from './save';
+import { chooseCareer } from './start';
 
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
 // named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
@@ -100,12 +102,21 @@ async function main() {
     zones: await layer(def.layers.zones),
   });
   const settlements = placeSettlements(def, map, content.settlements);
+  const stage = document.getElementById('stage')!;
+  // A stored career gets the start screen; without one the game opens straight onto a new career.
+  const fingerprint = contentFingerprint(content);
+  const stored = await loadStoredSave().then((raw) => (raw ? fromSave(raw, fingerprint).save : undefined)).catch(() => undefined);
+  const resumed = stored
+    ? await chooseCareer(stage, { stored, fingerprint, startDate: def.startDate, ticksPerDay: content.calendar.ticksPerDay, settlements })
+    : undefined;
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
-  const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+  const seed = resumed?.seed ?? crypto.getRandomValues(new Uint32Array(1))[0]!;
   const windAt = createWindField(content, def, map);
   // The clock starts at the map's start hour; the date is unchanged (still day 0).
   const startTick = Math.round((def.startHour / 24) * content.calendar.ticksPerDay);
-  const world = withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed);
+  // A restored state already carries its markets, weather and RNG streams; seeding them again would reset them.
+  const world =
+    resumed?.state ?? withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed);
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
     createEconomySystem(content, settlements),
@@ -125,7 +136,6 @@ async function main() {
     },
   });
 
-  const stage = document.getElementById('stage')!;
   const viewport = stage.appendChild(document.createElement('div'));
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
@@ -173,6 +183,11 @@ async function main() {
         if (port) sim.send({ type: 'Dock', shipId: ship.id, settlementId: port.id });
       }
     }
+    // Ctrl+S (Cmd+S on a Mac) saves the career instead of the browser's "save page".
+    if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (!e.repeat) save();
+    }
     // Time acceleration in open water: = faster, - slower.
     if (e.key === '=' || e.key === '+') wantedSpeed = Math.min(4, wantedSpeed * 2);
     if (e.key === '-') wantedSpeed = Math.max(1, wantedSpeed / 2);
@@ -181,6 +196,13 @@ async function main() {
   renderer.onLightning(() => audio.thunder());
   let audioFailed = false;
 
+  // The HUD flashes "Saved" once the write has landed.
+  let savedAt = -Infinity;
+  const save = () =>
+    storeSave(toSave(sim.state, seed, fingerprint, Date.now()))
+      .then(() => (savedAt = performance.now()))
+      .catch((err) => console.error('save failed', err));
+
   const loop: LoopControl = { paused: false };
   window.__corsair = {
     ...createDebugApi(sim, loop),
@@ -188,6 +210,7 @@ async function main() {
     audio: { levels: () => audio.levels() },
     wildlife: renderer.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
+    snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },
   };
   const player = () => sim.state.ships[def.start.shipId]!;
   bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
@@ -215,6 +238,7 @@ async function main() {
   let acc = 0;
   let last = performance.now();
   let speedNow = 1;
+  let wasDocked = Boolean(player().docked);
   const frame = (now: number) => {
     acc = loop.paused ? 0 : Math.min(acc + ((now - last) / 1000) * speedNow, 0.25 * speedNow);
     last = now;
@@ -240,6 +264,9 @@ async function main() {
     const inStorm = (sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y));
     const cls = content.ships[ship.classId]!;
     speedNow = timeScale(inStorm);
+    // Autosave on arriving in port, whichever way the Dock command came in.
+    if (ship.docked && !wasDocked) save();
+    wasDocked = Boolean(ship.docked);
     const reach = ship.docked ? undefined : portInReach();
     const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
     render(
@@ -309,6 +336,7 @@ async function main() {
         destination={course}
         prompt={reach ? `Enter ${reach.name} · E` : undefined}
         timeScale={speedNow > 1 ? speedNow : wantedSpeed > 1 ? 'held' : undefined}
+        saved={now - savedAt < 2000}
       />,
       hudRoot,
     );

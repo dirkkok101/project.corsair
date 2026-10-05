@@ -256,6 +256,9 @@ importers:
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../systems-navigation
+      '@corsair/systems-weather':
+        specifier: workspace:*
+        version: link:../systems-weather
 
   packages/systems-navigation:
     dependencies:

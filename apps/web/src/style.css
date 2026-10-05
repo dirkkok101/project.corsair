@@ -376,3 +376,81 @@ body {
   margin-top: 12px;
   color: #819796;
 }
+
+.hud-saved {
+  position: absolute;
+  right: 16px;
+  bottom: 16%;
+  padding: 4px 12px;
+  color: #090a14;
+  background: #e8c170;
+}
+
+.start {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #090a14;
+  color: #ebede9;
+}
+
+.start-panel {
+  width: min(480px, 92vw);
+  padding: 24px 28px;
+  background: #151d28;
+  border: 2px solid #c09473;
+  text-align: center;
+}
+
+.start-panel h1 {
+  margin: 0 0 16px;
+  font-size: 28px;
+  font-weight: normal;
+  color: #e8c170;
+}
+
+.start-career {
+  margin-bottom: 18px;
+  font-size: 17px;
+}
+
+.start-sub,
+.start-note {
+  color: #a8b5b2;
+  font-size: 14px;
+}
+
+.start-warn {
+  margin-top: 8px;
+  color: #de9e41;
+  font-size: 14px;
+}
+
+.start-actions,
+.start-files {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.start button {
+  padding: 6px 16px;
+  font: inherit;
+  color: #ebede9;
+  background: #253a5e;
+  border: 1px solid #4f8fba;
+  cursor: pointer;
+}
+
+.start button.primary {
+  color: #090a14;
+  background: #e8c170;
+  border-color: #e8c170;
+}
+
+.start-files button {
+  font-size: 14px;
+  background: transparent;
+}

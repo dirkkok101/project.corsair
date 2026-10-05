@@ -190,3 +190,32 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   expect(await gold()).toBeGreaterThan(startGold);
   expect(errors).toEqual([]);
 });
+
+test('saves: docking autosaves, a reload offers Continue, and the career comes back as it was', async ({ page }) => {
+  const errors = await boot(page);
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  // Docking autosaved; let that flash pass so the next one is the Ctrl+S save landing.
+  await expect(page.locator('.hud-saved')).toBeVisible();
+  await expect(page.locator('.hud-saved')).toHaveCount(0);
+  await page.locator('tr', { hasText: 'Food' }).getByRole('button', { name: '10' }).click();
+  await page.keyboard.press('Control+s');
+  await expect(page.locator('.hud-saved')).toBeVisible();
+  const before = await page.evaluate(() => ({ hash: window.__corsair.state.hash(), seed: window.__corsair.seed }));
+
+  await page.reload();
+  await expect(page.locator('.start')).toContainText('In port at Port Royal');
+  await page.screenshot({ path: 'test-results/start.png' });
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.waitForFunction(() => Boolean(window.__corsair));
+  await expect(page.locator('.port-name')).toHaveText('Port Royal');
+  const after = await page.evaluate(() => ({ hash: window.__corsair.state.hash(), seed: window.__corsair.seed }));
+  expect(after).toEqual(before);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'New career' }).click();
+  await page.waitForFunction(() => Boolean(window.__corsair));
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(1000);
+  expect(errors).toEqual([]);
+});

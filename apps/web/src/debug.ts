@@ -56,6 +56,7 @@ declare global {
       audio: { levels: () => import('@corsair/audio').AudioLevels };
       wildlife: import('@corsair/render').Renderer['wildlife'];
       ports: () => { id: string; name: string; x: number; y: number }[];
+      snapshot: { save: () => import('@corsair/core').Save };
     };
   }
 }

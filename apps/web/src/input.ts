@@ -42,6 +42,8 @@ export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void 
   };
 
   window.addEventListener('keydown', (e) => {
+    // Ctrl/Cmd chords are shortcuts (Ctrl+S saves), not helm or sail orders.
+    if (e.ctrlKey || e.metaKey) return;
     const key = e.key.toLowerCase();
     const wind = currentWind();
     if (key === '[' || key === ']') {

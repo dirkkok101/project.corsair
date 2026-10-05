@@ -84,6 +84,8 @@ export interface HudProps {
   prompt?: string;
   /** Time acceleration in force (2 or 4), or 'held' when it is wanted but paused near land or a storm. */
   timeScale?: number | 'held';
+  /** True for a moment after the career is saved. */
+  saved?: boolean;
 }
 
 export function Hud({
@@ -99,6 +101,7 @@ export function Hud({
   sound,
   prompt,
   timeScale,
+  saved,
 }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
@@ -161,7 +164,8 @@ export function Hud({
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · E port · =/- time · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
+      {saved ? <div class="hud-saved">Saved</div> : null}
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · E port · =/- time · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

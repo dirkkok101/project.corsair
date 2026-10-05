@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createSim } from '@corsair/core';
+import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
-import { createWorld } from '@corsair/systems-navigation';
+import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
+import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import { cargoUsed, createEconomySystem, DOCK_RANGE, midPrice, normalStock, quote, withEconomy } from '../src';
 
@@ -140,5 +141,43 @@ describe('weekly markets', () => {
       }
     }
     expect(run().hash()).toBe(a.hash());
+  });
+});
+
+describe('saves', () => {
+  it('a saved career reads back through JSON and runs on exactly as if it never stopped', () => {
+    const systems = () => [
+      createWeatherSystem(content, def, map),
+      createEconomySystem(content, settlements),
+      createNavigationSystem(content, map, createWindField(content, def, map)),
+    ];
+    const world = createWorld(def);
+    const start = { ...world, ships: { player: { ...world.ships.player!, x: bridgetown.x + 1, y: bridgetown.y + 1 } } };
+    const sim = createSim(withEconomy(withWeather(start, content, def, 5), content, settlements, 5), systems());
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: bridgetown.id });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 15 });
+    sim.applyCommands();
+    sim.send({ type: 'Undock', shipId: 'player' });
+    // Past a weekly market turn, so weather, economy and their RNG streams have all moved.
+    sim.step(day * 8);
+
+    const fingerprint = contentFingerprint(content);
+    const file = JSON.stringify(toSave(sim.state, 5, fingerprint, 0));
+    const { save, contentMismatch } = fromSave(JSON.parse(file), fingerprint);
+    expect(contentMismatch).toBe(false);
+    const restored = createSim(save.state, systems());
+    expect(restored.hash()).toBe(sim.hash());
+
+    sim.step(day * 3);
+    restored.step(day * 3);
+    expect(restored.hash()).toBe(sim.hash());
+    expect(restored.state.ships.player!.cargo.sugar).toBe(15);
+  });
+
+  it('refuses what is not a save, and flags saves made with other content', () => {
+    expect(() => fromSave({ hello: 1 }, 'x')).toThrow();
+    expect(() => fromSave({ format: 99, seed: 1, state: {} }, 'x')).toThrow(/format/);
+    const sim = moored();
+    expect(fromSave(toSave(sim.state, 1, 'old', 0), 'new').contentMismatch).toBe(true);
   });
 });
