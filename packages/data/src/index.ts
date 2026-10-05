@@ -61,6 +61,15 @@ export interface ContentPack {
   economy: Economy;
 }
 
+/**
+ * The content that decides how the world plays, for the save fingerprint: music and sprite
+ * framing only change how it looks and sounds, so editing them must not flag old saves.
+ */
+export function gameplayContent(content: ContentPack): Omit<ContentPack, 'music' | 'sprites'> {
+  const { music: _music, sprites: _sprites, ...rest } = content;
+  return rest;
+}
+
 /** Validates the base content at boot; a bad pack throws with the Zod path of the first error. */
 export function loadContent(): ContentPack {
   const ships = z.array(shipClassSchema).parse(shipsJson);

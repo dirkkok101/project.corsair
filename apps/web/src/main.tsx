@@ -1,6 +1,6 @@
 import { createAudio } from '@corsair/audio';
-import { contentFingerprint, createSim, dateOf, formatDate, fromSave, TICKS_PER_SECOND, toSave } from '@corsair/core';
-import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
+import { contentFingerprint, createSim, dateOf, formatDate, TICKS_PER_SECOND, toSave } from '@corsair/core';
+import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { HarbourScene, WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
@@ -128,10 +128,12 @@ async function main() {
   const settlements = placeSettlements(def, map, content.settlements);
   const stage = document.getElementById('stage')!;
   // A stored career gets the start screen; without one the game opens straight onto a new career.
-  const fingerprint = contentFingerprint(content);
-  const stored = await loadStoredSave().then((raw) => (raw ? fromSave(raw, fingerprint).save : undefined)).catch(() => undefined);
+  // Only gameplay content counts: new music or sprite framing shouldn't flag every old save.
+  const fingerprint = contentFingerprint(gameplayContent(content));
+  // Whatever is stored goes to the start screen, readable or not, so a bad save is never silently replaced.
+  const stored = await loadStoredSave();
   const resumed = stored
-    ? await chooseCareer(stage, { stored, fingerprint, startDate: def.startDate, ticksPerDay: content.calendar.ticksPerDay, settlements })
+    ? await chooseCareer(stage, { raw: stored, fingerprint, startDate: def.startDate, ticksPerDay: content.calendar.ticksPerDay, settlements })
     : undefined;
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
   // `?seed=N` starts a known world, for replays and tests.

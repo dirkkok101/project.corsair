@@ -6,15 +6,15 @@ import { useState } from 'preact/hooks';
 import { exportSave, pickSaveFile } from './save';
 
 export interface StartOptions {
-  /** The stored career, as read from the browser. */
-  stored: Save;
+  /** What the browser holds for the career slot, before any checks. */
+  raw: unknown;
   fingerprint: string;
   startDate: string;
   ticksPerDay: number;
   settlements: PlacedSettlement[];
 }
 
-/** The start screen, shown when a career is saved: resolves to the save to continue, or undefined for a new career. */
+/** The start screen, shown when a career is stored: resolves to the save to continue, or undefined for a new career. */
 export function chooseCareer(root: HTMLElement, opts: StartOptions): Promise<Save | undefined> {
   return new Promise((resolve) => {
     const done = (save: Save | undefined) => {
@@ -25,42 +25,68 @@ export function chooseCareer(root: HTMLElement, opts: StartOptions): Promise<Sav
   });
 }
 
-function Start({ stored, fingerprint, startDate, ticksPerDay, settlements, done }: StartOptions & { done: (save: Save | undefined) => void }) {
-  const [save, setSave] = useState(stored);
+/** A readable save, or why the stored one can't be opened. */
+function read(raw: unknown, fingerprint: string): { save: Save } | { reason: string } {
+  try {
+    return { save: fromSave(raw, fingerprint).save };
+  } catch (e) {
+    return { reason: (e as Error).message };
+  }
+}
+
+function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, done }: StartOptions & { done: (save: Save | undefined) => void }) {
+  const [career, setCareer] = useState(() => ({ raw, ...read(raw, fingerprint) }));
   const [error, setError] = useState<string>();
-  const state = save.state;
-  const ship = Object.values(state.ships)[0];
-  const where = ship?.docked ? settlements.find((s) => s.id === ship.docked)?.name : undefined;
-  const date = formatDate(dateOf(startDate, Math.floor(state.tick / ticksPerDay)));
-  const mismatch = save.content !== fingerprint;
 
   const load = () =>
     pickSaveFile()
-      .then((raw) => {
-        setSave(fromSave(raw, fingerprint).save);
+      .then((file) => {
+        const next = read(file, fingerprint);
+        if ('reason' in next) throw new Error(next.reason);
+        setCareer({ raw: file, ...next });
         setError(undefined);
       })
       .catch((e: Error) => setError(e.message));
+
+  // An unreadable save is kept, not thrown away: the player can still copy it to a file before
+  // starting over, since a new career overwrites the slot on its first save.
+  const save = 'save' in career ? career.save : undefined;
+  const ship = save && Object.values(save.state.ships)[0];
+  const where = ship?.docked ? settlements.find((s) => s.id === ship.docked)?.name : undefined;
+  const date = save ? formatDate(dateOf(startDate, Math.floor(save.state.tick / ticksPerDay))) : undefined;
+  const fileName = `corsair-${date ? date.replace(/\s+/g, '-') : 'unreadable'}.json`;
 
   return (
     <div class="start">
       <div class="start-panel">
         <h1>Project Corsair</h1>
         <div class="start-career">
-          <div>{date}</div>
-          <div class="start-sub">
-            {where ? `In port at ${where}` : 'At sea'} · {(state.captain?.gold ?? 0).toLocaleString()} gold
-          </div>
-          {mismatch ? <div class="start-warn">This save was made with different game data; it may not play the same.</div> : null}
+          {save ? (
+            <>
+              <div>{date}</div>
+              <div class="start-sub">
+                {where ? `In port at ${where}` : 'At sea'} · {(save.state.captain?.gold ?? 0).toLocaleString()} gold
+              </div>
+              {save.content !== fingerprint ? (
+                <div class="start-warn">This save was made with different game rules; it may not play the same.</div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div>Your saved career can't be opened by this version.</div>
+              <div class="start-warn">{'reason' in career ? career.reason : ''}</div>
+              <div class="start-sub">Save it to a file before starting over, so it isn't lost.</div>
+            </>
+          )}
         </div>
         <div class="start-actions">
-          <button class="primary" onClick={() => done(save)}>
+          <button class="primary" disabled={!save} onClick={() => save && done(save)}>
             Continue
           </button>
           <button onClick={() => done(undefined)}>New career</button>
         </div>
         <div class="start-files">
-          <button onClick={() => exportSave(save, `corsair-${date.replace(/\s+/g, '-')}.json`)}>Save to file</button>
+          <button onClick={() => exportSave(career.raw, fileName)}>Save to file</button>
           <button onClick={load}>Load from file</button>
         </div>
         {error ? <div class="start-warn">{error}</div> : null}

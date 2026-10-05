@@ -663,7 +663,7 @@ The renderer never mutates state. Every change enters through the command bus an
 | Data validation | JSON Schema + Ajv (or Zod generating schema) | Validate content at build and at boot |
 | Tests | Vitest (core), Playwright (browser end-to-end through `window.__corsair`) | Core tests run in milliseconds in Node |
 | Audio | Web Audio API directly (`@corsair/audio`) | Ambience is synthesised and follows the game continuously, and music is sequenced live from note data, both of which need the raw API rather than Howler.js's sprite-sheet playback |
-| Saves | IndexedDB + JSON file export | Save is a serialised state snapshot plus version. Built: one career slot, autosaved on docking and on Ctrl+S; it holds the format version, a content fingerprint (a mismatch warns but still loads), the seed and the state. A start screen offers Continue, New career and file save/load when a career is stored; `?seed=N` starts a known world |
+| Saves | IndexedDB + JSON file export | Save is a serialised state snapshot plus version. Built: one career slot, autosaved on docking and on Ctrl+S; it holds the format version, a fingerprint of the gameplay content (everything but music and sprite framing; a mismatch warns but still loads), the seed and the state. A start screen offers Continue, New career and file save/load when a career is stored. A save that can't be read still gets the start screen, with the reason, Continue disabled and Save to file kept, so it is never silently overwritten; `?seed=N` starts a known world |
 | Packaging (later) | Tauri wrapper for desktop stores | Same web build, ships to Steam or itch.io |
 
 Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The design keeps the core engine-free either way.

@@ -445,7 +445,14 @@ body {
   cursor: pointer;
 }
 
-.start button.primary {
+.start button:disabled {
+  color: #577277;
+  background: transparent;
+  border-color: #394a50;
+  cursor: default;
+}
+
+.start button.primary:not(:disabled) {
   color: #090a14;
   background: #e8c170;
   border-color: #e8c170;

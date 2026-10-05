@@ -271,3 +271,29 @@ test('harbour scenes: a pirate haven has its own scene, and night falls on it to
   await page.screenshot({ path: 'test-results/haven-night.png' });
   expect(errors).toEqual([]);
 });
+
+test('saves: an unreadable save is never silently replaced; it can still be saved to a file', async ({ page }) => {
+  await boot(page);
+  // Plant a save from a future format in the career slot.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('corsair', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('saves');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('saves', 'readwrite');
+          tx.objectStore('saves').put({ format: 99, seed: 7, state: { tick: 1 }, note: 'keep me' }, 'career');
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.reload();
+  await expect(page.locator('.start')).toContainText("can't be opened");
+  await expect(page.locator('.start')).toContainText('format 99');
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save to file' }).click()]);
+  const saved = JSON.parse(await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString()));
+  expect(saved.note).toBe('keep me');
+  await page.screenshot({ path: 'test-results/start-unreadable.png' });
+});

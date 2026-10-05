@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
-import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
+import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -172,6 +172,14 @@ describe('saves', () => {
     restored.step(day * 3);
     expect(restored.hash()).toBe(sim.hash());
     expect(restored.state.ships.player!.cargo.sugar).toBe(15);
+  });
+
+  it('fingerprints only gameplay content: new music or sprite framing keeps old saves clean', () => {
+    const base = contentFingerprint(gameplayContent(content));
+    expect(contentFingerprint(gameplayContent({ ...content, music: { ...content.music, tunes: [] } }))).toBe(base);
+    expect(contentFingerprint(gameplayContent({ ...content, sprites: {} }))).toBe(base);
+    const dearSugar = content.goods.map((g) => (g.id === 'sugar' ? { ...g, basePrice: g.basePrice + 1 } : g));
+    expect(contentFingerprint(gameplayContent({ ...content, goods: dearSugar }))).not.toBe(base);
   });
 
   it('refuses what is not a save, and flags saves made with other content', () => {

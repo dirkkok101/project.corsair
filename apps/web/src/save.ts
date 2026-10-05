@@ -34,7 +34,8 @@ export const storeSave = (save: Save) => run('readwrite', (s) => s.put(save, SLO
 /** The stored career, or undefined if there is none (or storage is unavailable, as in some private windows). */
 export const loadStoredSave = () => run<unknown>('readonly', (s) => s.get(SLOT)).catch(() => undefined);
 
-export function exportSave(save: Save, name: string) {
+/** Downloads a save (or whatever the slot holds, if it can't be read) as a JSON file. */
+export function exportSave(save: unknown, name: string) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(save)], { type: 'application/json' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: name });
   a.click();
