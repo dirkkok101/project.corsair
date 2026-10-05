@@ -30,6 +30,86 @@
       "beatsPerBar": 6,
       "melody": "r/5 A4/1 | C5/2 D5/1 E5/1.5 F5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/2 A4/1 A4/1.5 G#4/0.5 A4/1 | B4/2 G#4/1 E4/2 A4/1 | C5/2 D5/1 E5/1.5 F5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/1.5 B4/0.5 A4/1 G#4/1.5 F#4/0.5 G#4/1 | A4/3 A4/3 | G5/3 G5/1.5 F#5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/2 A4/1 A4/1.5 G#4/0.5 A4/1 | B4/2 G#4/1 E4/3 | G5/3 G5/1.5 F#5/0.5 E5/1 | D5/2 B4/1 G4/1.5 A4/0.5 B4/1 | C5/1.5 B4/0.5 A4/1 G#4/1.5 F#4/0.5 G#4/1 | A4/6",
       "chords": "Am | Am | G | Am | E | Am | G | Am/3 E/3 | Am | C | G | Am | E | C | G | Am/3 E/3 | Am"
+    },
+    {
+      "id": "wellerman",
+      "title": "Soon May the Wellerman Come",
+      "source": "Traditional New Zealand whaling song (c. 1860s), public domain; melody from The Session, https://thesession.org/tunes/20383 (setting 1, written in 2/4, barred here in 4/4); chords derived",
+      "mood": "lively",
+      "bpm": 104,
+      "beatsPerBar": 4,
+      "melody": "B4/0.5 E4/0.5 E4/0.25 E4/0.25 G4/0.5 B4/0.5 B4/0.5 B4/0.75 B4/0.25 | C5/0.5 A4/0.5 A4/0.25 A4/0.25 C5/0.5 E5/0.5 B4/0.5 B4/1 | E4/0.5 E4/0.25 E4/0.25 E4/0.5 G4/0.5 B4/0.5 B4/0.5 B4/0.75 B4/0.25 | B4/0.5 A4/0.5 G4/0.5 F#4/0.5 E4/2 | E5/1 E5/0.75 C5/0.25 D5/0.5 B4/0.5 B4/0.75 B4/0.25 | C5/0.5 A4/0.5 A4/0.25 A4/0.25 C5/0.5 E5/0.5 B4/0.5 B4/1 | E5/1 E5/0.5 C5/0.25 C5/0.25 D5/0.25 D5/0.25 B4/0.5 B4/0.75 B4/0.25 | B4/0.5 A4/0.5 G4/0.5 F#4/0.5 E4/2 | B4/0.5 E4/0.5 E4/0.25 E4/0.25 G4/0.5 B4/0.5 B4/0.5 B4/0.75 B4/0.25 | C5/0.5 A4/0.5 A4/0.25 A4/0.25 C5/0.5 E5/0.5 B4/0.5 B4/1 | E4/0.5 E4/0.25 E4/0.25 E4/0.5 G4/0.5 B4/0.5 B4/0.5 B4/0.75 B4/0.25 | B4/0.5 A4/0.5 G4/0.5 F#4/0.5 E4/2 | E5/1 E5/0.75 C5/0.25 D5/0.5 B4/0.5 B4/0.75 B4/0.25 | C5/0.5 A4/0.5 A4/0.25 A4/0.25 C5/0.5 E5/0.5 B4/0.5 B4/1 | E5/1 E5/0.5 C5/0.25 C5/0.25 D5/0.25 D5/0.25 B4/0.5 B4/0.75 B4/0.25 | B4/0.5 A4/0.5 G4/0.5 F#4/0.5 E4/2",
+      "chords": "Em | Am | Em | Em | Em | Am | Em | Em | Em | Am | Em | Em | Em | Am | Em | Em"
+    },
+    {
+      "id": "spanish_ladies",
+      "title": "Spanish Ladies",
+      "source": "Traditional English sea song, public domain; Chappell's version as copied in the Sabine Baring-Gould manuscripts (VWML SBG/1/2/384), https://abcnotation.com/tunePage?a=www.vwml.org/components/com_rbdmdtallis/media/abctranscriptions/abc/SBG-1-2-384-0/0000; chords derived",
+      "mood": "gentle",
+      "bpm": 84,
+      "beatsPerBar": 3,
+      "melody": "r/2 D4/1 | G4/1 G4/1 F#4/1 | G4/2 G4/0.5 A4/0.5 | Bb4/1 A4/1 G4/1 | F#4/1 D4/1.5 D4/0.5 | G4/1 G4/1 F#4/1 | G4/2 G4/0.5 A4/0.5 | Bb4/1 A4/1 G4/1 | A4/2 A4/1 | Bb4/1 A4/1 G4/1 | C5/1 Bb4/1 A4/1 | D5/1 G4/1 G4/0.5 A4/0.5 | F#4/0.5 E4/0.5 D4/1 D5/0.5 C5/0.5 | Bb4/1 A4/1 G4/1 | F#4/1 D4/1 D4/1 | D4/1 G4/1 F#4/1 | G4/2 r/1",
+      "chords": "Gm | Gm | Gm | Gm | D | Gm | Gm | Gm | D | Gm | F | Gm | D | Gm | D | D | Gm"
+    },
+    {
+      "id": "blow_the_man_down",
+      "title": "Blow the Man Down",
+      "source": "Traditional halyard shanty, public domain; melody from the Digital Tradition (collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/BLOWDOWN/0000; chords derived",
+      "mood": "lively",
+      "bpm": 192,
+      "beatsPerBar": 6,
+      "melody": "r/5 F#4/1 | A4/1 B4/1 A4/1 F#4/1 D4/1 F#4/1 | A4/1 B4/1 A4/1 F#4/2 D4/0.5 F#4/0.5 | A4/3 B4/3 | G4/1.5 F#4/0.5 G4/1 E4/2 F#4/1 | G4/1 A4/1 G4/1 E4/1 C#4/1 E4/1 | G4/1 F#4/1 E4/1 B4/3 | A4/1 A4/1 A4/1 A4/2 G4/1 | F#4/1.5 E4/0.5 F#4/1 D4/2 r/1",
+      "chords": "D | D | D | A | Em | A | Em | A | D"
+    },
+    {
+      "id": "college_hornpipe",
+      "title": "The College Hornpipe (Sailor's Hornpipe)",
+      "source": "Traditional hornpipe (18th century), public domain; melody from William Mittell's manuscript, New Romney, Kent, 1799 (Village Music Project), https://abcnotation.com/tunePage?a=www.cpartington.plus.com/Links/Mittell/MITTELL.ABC/0011; chords derived",
+      "mood": "lively",
+      "bpm": 100,
+      "beatsPerBar": 4,
+      "melody": "r/3 Bb4/0.5 A4/0.5 | Bb4/1 Bb3/2 F4/0.5 Eb4/0.5 | D4/0.5 F4/0.5 Bb4/2 D5/0.333333333333333 C5/0.333333333333333 Bb4/0.333333333333333 | C5/1 C4/2 C5/0.5 Bb4/0.5 | A4/0.5 C5/0.5 F5/2 G5/0.5 A5/0.5 | Bb5/0.5 A5/0.5 G5/0.5 F5/0.5 G5/0.5 F5/0.5 Eb5/0.5 D5/0.5 | Eb5/0.5 C5/0.5 D5/0.5 Eb5/0.5 Bb4/0.5 A4/0.5 G4/0.5 F4/0.5 | G4/0.5 Bb4/0.5 A4/0.5 C5/0.5 Bb4/0.5 D5/0.5 C5/0.5 Eb5/0.5 | D5/1 Bb4/2 Bb4/0.5 A4/0.5 | Bb4/1 Bb3/2 F4/0.5 Eb4/0.5 | D4/0.5 F4/0.5 Bb4/2 D5/0.333333333333333 C5/0.333333333333333 Bb4/0.333333333333333 | C5/1 C4/2 C5/0.5 Bb4/0.5 | A4/0.5 C5/0.5 F5/2 G5/0.5 A5/0.5 | Bb5/0.5 A5/0.5 G5/0.5 F5/0.5 G5/0.5 F5/0.5 Eb5/0.5 D5/0.5 | Eb5/0.5 C5/0.5 D5/0.5 Eb5/0.5 Bb4/0.5 A4/0.5 G4/0.5 F4/0.5 | G4/0.5 Bb4/0.5 A4/0.5 C5/0.5 Bb4/0.5 D5/0.5 C5/0.5 Eb5/0.5 | D5/1 Bb4/2 F4/0.5 Eb4/0.5 | D4/0.5 F4/0.5 Bb4/0.5 F4/0.5 D4/0.5 F4/0.5 Bb4/0.5 F4/0.5 | G4/1 Eb4/2 G4/0.5 F4/0.5 | Eb4/0.5 G4/0.5 C5/0.5 G4/0.5 Eb4/0.5 G4/0.5 C5/0.5 G4/0.5 | A4/1 F4/2 Eb5/0.5 D5/0.5 | Eb5/0.5 F5/0.5 G5/1.5 F5/0.5 Eb5/0.5 D5/0.5 | Eb5/0.5 C5/0.5 D5/0.5 Eb5/0.5 Bb4/0.5 A4/0.5 G4/0.5 F4/0.5 | G4/0.333333333333333 A4/0.333333333333333 Bb4/0.333333333333333 A4/0.333333333333333 Bb4/0.333333333333333 C5/0.333333333333333 Bb4/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 Eb5/0.333333333333333 | D5/1 Bb4/2 F4/0.5 Eb4/0.5 | D4/0.5 F4/0.5 Bb4/0.5 F4/0.5 D4/0.5 F4/0.5 Bb4/0.5 F4/0.5 | G4/1 Eb4/2 G4/0.5 F4/0.5 | Eb4/0.5 G4/0.5 C5/0.5 G4/0.5 Eb4/0.5 G4/0.5 C5/0.5 G4/0.5 | A4/1 F4/2 Eb5/0.5 D5/0.5 | Eb5/0.5 F5/0.5 G5/1.5 F5/0.5 Eb5/0.5 D5/0.5 | Eb5/0.5 C5/0.5 D5/0.5 Eb5/0.5 Bb4/0.5 A4/0.5 G4/0.5 F4/0.5 | G4/0.333333333333333 A4/0.333333333333333 Bb4/0.333333333333333 A4/0.333333333333333 Bb4/0.333333333333333 C5/0.333333333333333 Bb4/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 Eb5/0.333333333333333 | D5/1 Bb4/2 r/1",
+      "chords": "Bb | Bb | Bb | Cm | F | Bb | Eb | Eb | Bb | Bb | Bb | Cm | F | Bb | Eb | Eb | Bb | Bb | Eb | Cm | F | Eb | Eb | Eb | Bb | Bb | Eb | Cm | F | Eb | Eb | Eb | Bb"
+    },
+    {
+      "id": "haul_away_joe",
+      "title": "Haul Away Joe",
+      "source": "Traditional short-drag shanty, public domain; melody from Henrik Norbeck's ABC song collection, https://abcnotation.com/tunePage?a=www.norbeck.nu/abc/i/hnsong1/0102; chords derived",
+      "mood": "lively",
+      "bpm": 96,
+      "beatsPerBar": 4,
+      "melody": "B4/0.5 B4/0.5 B4/0.5 F#4/0.5 A4/0.5 A4/0.5 A4/0.5 F#4/0.5 | E4/0.5 E4/0.5 D4/0.5 E4/0.5 F#4/0.5 A4/0.5 A4/1 | B4/1 B4/0.75 F#4/0.25 A4/1.5 F#4/0.5 | E4/0.75 E4/0.25 F#4/1 B3/1.5 F#4/0.5 | B4/0.5 B4/0.5 B4/0.5 F#4/0.5 A4/0.5 A4/0.5 A4/0.5 F#4/0.5 | E4/0.5 E4/0.5 D4/0.5 E4/0.5 F#4/0.5 A4/0.5 A4/1 | B4/1 B4/0.75 F#4/0.25 A4/1.5 F#4/0.5 | E4/0.75 E4/0.25 F#4/1 B3/2 | B4/1 B4/0.75 F#4/0.25 A4/1.5 F#4/0.5 | E4/0.5 E4/0.5 D4/0.5 E4/0.5 F#4/0.5 A4/0.5 A4/1 | B4/1 B4/0.75 F#4/0.25 A4/1.5 F#4/0.5 | E4/0.75 E4/0.25 F#4/1 B3/2",
+      "chords": "Bm | A | Bm | Bm | Bm | A | Bm | Bm | Bm | A | Bm | Bm"
+    },
+    {
+      "id": "lilliburlero",
+      "title": "Lilliburlero",
+      "source": "Traditional English tune (1680s; printed by Playford, set by Purcell), public domain; melody and chords from https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/mindspring.com/~dmilewski/ecdp/3lfpublic/0070",
+      "mood": "lively",
+      "bpm": 100,
+      "beatsPerBar": 2,
+      "melody": "G4/0.333333333333333 A4/0.333333333333333 G4/0.333333333333333 B4/0.666666666666667 B4/0.333333333333333 | A4/0.333333333333333 B4/0.333333333333333 A4/0.333333333333333 C5/1 | B4/0.333333333333333 D5/0.333333333333333 G4/0.333333333333333 C5/0.666666666666667 B4/0.333333333333333 | A4/0.333333333333333 G4/0.333333333333333 F#4/0.333333333333333 G4/1 | G4/0.333333333333333 A4/0.333333333333333 G4/0.333333333333333 B4/0.666666666666667 B4/0.333333333333333 | A4/0.333333333333333 B4/0.333333333333333 A4/0.333333333333333 C5/1 | B4/0.333333333333333 D5/0.333333333333333 G4/0.333333333333333 C5/0.666666666666667 B4/0.333333333333333 | A4/0.333333333333333 G4/0.333333333333333 F#4/0.333333333333333 G4/1 | G5/0.666666666666667 F#5/0.333333333333333 G5/0.666666666666667 D5/0.333333333333333 | D5/0.333333333333333 E5/0.333333333333333 F5/0.333333333333333 E5/0.666666666666667 D5/0.333333333333333 | D5/0.333333333333333 E5/0.333333333333333 F#5/0.333333333333333 G5/0.333333333333333 D5/0.333333333333333 E5/0.333333333333333 | D5/0.333333333333333 C5/0.333333333333333 B4/0.333333333333333 A4/0.666666666666667 D5/0.333333333333333 | E5/0.333333333333333 D5/0.333333333333333 C5/0.333333333333333 B4/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 | E5/0.333333333333333 D5/0.333333333333333 C5/0.333333333333333 B4/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 | E5/0.333333333333333 G5/0.333333333333333 G4/0.333333333333333 C5/0.666666666666667 B4/0.333333333333333 | A4/0.333333333333333 G4/0.333333333333333 F#4/0.333333333333333 G4/1 | G5/0.666666666666667 F#5/0.333333333333333 G5/0.666666666666667 D5/0.333333333333333 | D5/0.333333333333333 E5/0.333333333333333 F5/0.333333333333333 E5/0.666666666666667 D5/0.333333333333333 | D5/0.333333333333333 E5/0.333333333333333 F#5/0.333333333333333 G5/0.333333333333333 D5/0.333333333333333 E5/0.333333333333333 | D5/0.333333333333333 C5/0.333333333333333 B4/0.333333333333333 A4/0.666666666666667 D5/0.333333333333333 | E5/0.333333333333333 D5/0.333333333333333 C5/0.333333333333333 B4/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 | E5/0.333333333333333 D5/0.333333333333333 C5/0.333333333333333 B4/0.333333333333333 C5/0.333333333333333 D5/0.333333333333333 | E5/0.333333333333333 G5/0.333333333333333 G4/0.333333333333333 C5/0.666666666666667 B4/0.333333333333333 | A4/0.333333333333333 G4/0.333333333333333 F#4/0.333333333333333 G4/1",
+      "chords": "G | Am | G | D/1 G/1 | G | Am | G | D/1 G/1 | G/0.666666666666667 D/1 G/0.333333333333333 | F | G | D | Am | C/1.33333333333333 G/0.666666666666667 | Am/1 G/1 | D/1 G/1 | G/0.666666666666667 D/1 G/0.333333333333333 | F | G | D | Am | C/1.33333333333333 G/0.666666666666667 | Am/1 G/1 | D/1 G/1"
+    },
+    {
+      "id": "leave_her_johnny",
+      "title": "Leave Her, Johnny",
+      "source": "Traditional pumping shanty, public domain; melody from the Digital Tradition (collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/LEAVEHER/0000; chords derived",
+      "mood": "gentle",
+      "bpm": 76,
+      "beatsPerBar": 4,
+      "melody": "r/2 G4/1.5 G4/0.5 | C4/1 E4/0.5 G4/0.5 G4/1 C5/0.75 B4/0.25 | A4/1 G4/1 E4/1 C4/1 | D4/1 D4/1 D4/1.5 C4/0.5 | E4/0.5 G4/0.5 G4/1 r/1 G4/0.5 G4/0.5 | A4/1.5 A4/0.5 G4/1 E4/1 | F4/1 G4/1 E4/1 C4/0.5 D4/0.5 | E4/1.5 E4/0.5 G4/1.5 C4/0.5 | D4/1 C4/2 r/1 | D4/1 D4/1 D4/1.5 C4/0.5 | E4/1 G4/2 C5/0.5 B4/0.5 | A4/1 A4/1 A4/1.5 G4/0.5 | E4/1 G4/2 G4/0.5 G4/0.5 | A4/0.5 A4/0.5 A4/1 G4/1 E4/0.5 E4/0.5 | F4/1 G4/1 E4/1 C4/0.5 D4/0.5 | E4/1.5 E4/0.5 E4/1.5 D4/0.5 | D4/0.5 C4/1.5 r/2",
+      "chords": "C | C | C | Dm | C | Am | C | C | C | Dm | C | Am | C | Am | C | C | C"
+    },
+    {
+      "id": "admiral_benbow",
+      "title": "Admiral Benbow",
+      "source": "Traditional English sea ballad (c. 1702), public domain; noted by Cecil Sharp from Sam Bennett, Ilmington, 1909 (VWML CJS2/10/2321), https://abcnotation.com/tunePage?a=www.vwml.org/components/com_rbdmdtallis/media/abctranscriptions/abc/CJS2-10-2321-0/0000; chords derived",
+      "mood": "night",
+      "bpm": 72,
+      "beatsPerBar": 4,
+      "melody": "r/3 D4/1 | G4/1 B4/1 A4/0.5 G4/0.5 F#4/1 | G4/2 B4/1 C5/1 | D5/2 C5/1 B4/1 | A4/1 C5/1 B4/1 A4/1 | G4/1 G4/1 A4/1 F#4/1 | G4/1 D4/1 E4/1 C4/1 | D4/3 C5/1 | B4/1 A4/1 B4/1 C5/1 | D5/3 B4/1 | A4/1 G4/1 F#4/1 E4/1 | D4/1 E4/1 F#4/1 D4/1 | G4/1 G4/1 G4/1 E4/1 | C4/2 B3/1 C4/1 | D4/1 C5/1 B4/1 A4/1 | G4/3 r/1",
+      "chords": "G | G | G | G | Am | G | C | D | G | G | D | D | C | C | D | G"
     }
   ]
 }

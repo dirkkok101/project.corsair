@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import music from '../../../packages/data/content/music.json' with { type: 'json' };
+
+const musicTitles = music.tunes.map((t) => t.title);
 
 // Drives the real game through window.__corsair (PRD section 16): the debug API confirms behaviour,
 // screenshots confirm rendering.
@@ -114,7 +117,7 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   await page.keyboard.press('Shift');
   await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 20_000 });
   const title = await page.evaluate(() => window.__corsair.audio.levels().nowPlaying);
-  expect(['Drunken Sailor', 'Scarborough Fair', 'Greensleeves']).toContain(title);
+  expect(musicTitles).toContain(title);
 
   // The real frame loop, not stepped by hand: the clock must keep moving while notes play.
   const tick0 = await page.evaluate(() => window.__corsair.state.get('tick') as number);
