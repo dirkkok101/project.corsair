@@ -16,13 +16,24 @@ export function referenceStock(content: ContentPack, s: Settlement, good: string
   return (content.economy.normalStock[good] ?? 0) * (content.economy.sizeStock[s.size] ?? 1);
 }
 
-/** Whether a settlement makes a good (and sells it cheap) or needs it (and pays well). Making wins. */
-export function tradeLean(content: ContentPack, s: Pick<Settlement, 'id'>, good: string): 'exports' | 'wants' | undefined {
+/** How strongly a settlement makes or needs a good: its strongest profile rate (0 to 1). Making wins. */
+function lean(content: ContentPack, s: Pick<Settlement, 'id'>, good: string): { side: 'exports' | 'wants'; rate: number } | undefined {
   const e = content.economy;
   const profiles = (e.settlementProfiles[s.id] ?? []).map((p) => e.profiles[p]!);
-  if (profiles.some((p) => (p.produces[good] ?? 0) > 0)) return 'exports';
-  if (profiles.some((p) => (p.consumes[good] ?? 0) > 0)) return 'wants';
+  const makes = Math.max(0, ...profiles.map((p) => p.produces[good] ?? 0));
+  if (makes > 0) return { side: 'exports', rate: Math.min(1, makes) };
+  const needs = Math.max(0, ...profiles.map((p) => p.consumes[good] ?? 0));
+  if (needs > 0) return { side: 'wants', rate: Math.min(1, needs) };
   return undefined;
+}
+
+/**
+ * Whether a port is known for making a good (sells it cheap) or needing it (pays well). Only a
+ * strong lean counts: a town that uses a little sugar isn't a sugar market.
+ */
+export function tradeLean(content: ContentPack, s: Pick<Settlement, 'id'>, good: string): 'exports' | 'wants' | undefined {
+  const l = lean(content, s, good);
+  return l && l.rate >= content.economy.notableLean ? l.side : undefined;
 }
 
 /** What a port is known for: common knowledge, shown before the player has ever called there. */
@@ -37,8 +48,11 @@ export function portTrade(content: ContentPack, s: Pick<Settlement, 'id'>): { ex
 /** The stock a market drifts back to: above the reference where the good is made, below where it is needed. */
 export function normalStock(content: ContentPack, s: Settlement, good: string): number {
   const e = content.economy;
-  const lean = tradeLean(content, s, good);
-  return referenceStock(content, s, good) * (lean === 'exports' ? e.producerStock : lean === 'wants' ? e.consumerStock : 1);
+  // The stock leans in proportion to how much the town makes or needs: a full producer holds
+  // producerStock x the reference, a full consumer consumerStock x, a light one somewhere between.
+  const l = lean(content, s, good);
+  const full = !l ? 1 : l.side === 'exports' ? e.producerStock : e.consumerStock;
+  return referenceStock(content, s, good) * (1 + (full - 1) * (l?.rate ?? 0));
 }
 
 /** Local mid price for one unit at a stock level, before the buy/sell spread. */

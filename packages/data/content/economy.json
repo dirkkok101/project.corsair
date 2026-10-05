@@ -27,8 +27,9 @@
     "luxuries": 25,
     "silver": 10
   },
-  "producerStock": 2.0,
-  "consumerStock": 0.6,
+  "producerStock": 2.5,
+  "consumerStock": 0.4,
+  "notableLean": 0.5,
   "weeklyRecovery": 0.25,
   "harvest": [
     0.8,

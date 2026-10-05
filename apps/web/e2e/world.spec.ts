@@ -153,7 +153,7 @@ test('sea life: dolphins, flying fish, a whale and birds appear on demand', asyn
 });
 
 test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port Royal', async ({ page }) => {
-  // Most seeds' markets make this run pay, but not all (about 1 in 20 starts too dear); fix one that does.
+  // A fixed world keeps the prices checked below the same from run to run.
   const errors = await boot(page, '/?seed=3');
   expect(await page.evaluate(() => window.__corsair.seed)).toBe(3);
   // A new career opens within reach of Port Royal.

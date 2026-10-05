@@ -185,9 +185,11 @@ export const economySchema = z.object({
   sizeStock: z.record(z.string(), z.number().positive()),
   /** Reference (demand) stock per good for a town-sized settlement. */
   normalStock: z.record(z.string(), z.number().positive()),
-  /** Usual stock, as a multiple of the reference, for goods a town produces or consumes. */
+  /** Usual stock, as a multiple of the reference, for a full producer or consumer (rate 1); lighter rates lean less. */
   producerStock: z.number().positive(),
   consumerStock: z.number().positive(),
+  /** A port is known for exporting or wanting a good only at this profile rate or more. */
+  notableLean: z.number().min(0).max(1),
   /** Share of the gap to its usual stock a market closes each week. */
   weeklyRecovery: z.number().min(0).max(1),
   harvest: z.tuple([z.number().min(0), z.number().min(0)]),

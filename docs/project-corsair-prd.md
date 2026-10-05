@@ -302,7 +302,7 @@ All values are placeholders in `goods.json` for balancing.
 
 ### Price model
 
-Each settlement holds stock S and target stock T per good. T is the demand level, the same for every settlement of a size; profiles decide the usual stock S drifts back to, above T where a good is made (2x) and below it where it is needed (0.6x). That gap is what makes a route pay. The local price is:
+Each settlement holds stock S and target stock T per good. T is the demand level, the same for every settlement of a size; profiles decide the usual stock S drifts back to, above T where a good is made and below it where it is needed, in proportion to the profile rate: a full producer (rate 1) holds 2.5x T, a full consumer 0.4x, a town that uses a little (rate 0.3) only slightly under T. That gap is what makes a route pay. Only rates of 0.5 or more make a port known for exporting or wanting a good. The local price is:
 
 ```
 p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{rep}
@@ -313,7 +313,7 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 - m_rep = player reputation modifier on the buy/sell spread only.
 - Buy price = p x (1 + spread); sell price = p x (1 - spread). Spread from difficulty and town type.
 - Each trade moves S immediately, so dumping 200 sugar in one port crashes the price. This makes trade routes self-limiting.
-- Built: m_war and m_rep are still 1. Whole-gold rounding never lets the buy price fall to the sell price. Starting stocks vary by +-30% per seed, so a good route usually pays (a full purse of Bridgetown sugar sold in Port Royal clears a median of about 230 gold) but checking prices first matters: about 1 start in 20 makes it a loss.
+- Built: m_war and m_rep are still 1. Whole-gold rounding never lets the buy price fall to the sell price. Starting stocks vary by +-30% per seed. Over 200 seeds a full purse of Bridgetown sugar sold in Port Royal (a strong market) clears a median of about 330 gold and never loses; sold in Coro, which uses only a little sugar, it makes about 75 and loses one start in five.
 
 ### Production and consumption
 

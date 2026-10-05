@@ -110,9 +110,20 @@ describe('docking and trading', () => {
 
   it('knows what every port exports and wants, from its profiles', () => {
     expect(portTrade(content, bridgetown).exports).toEqual(['sugar']);
-    expect(portTrade(content, bridgetown).wants).toEqual(expect.arrayContaining(['food', 'luxuries', 'cotton']));
+    // Bridgetown uses a little cotton (rate 0.3): too little to be known as a cotton market.
+    expect(portTrade(content, bridgetown).wants).toEqual(['food', 'luxuries']);
     expect(tradeLean(content, portRoyal, 'sugar')).toBe('wants');
     expect(tradeLean(content, bridgetown, 'silver')).toBeUndefined();
+  });
+
+  it('leans stock by how much a port needs a good, so a light need barely raises the price', () => {
+    const coro = town('town.coro'); // cattle coast: uses a little sugar (0.3)
+    const light = midPrice(content, coro, 'sugar', normalStock(content, coro, 'sugar'));
+    const strong = midPrice(content, portRoyal, 'sugar', normalStock(content, portRoyal, 'sugar'));
+    const base = content.goods.find((g) => g.id === 'sugar')!.basePrice;
+    expect(tradeLean(content, coro, 'sugar')).toBeUndefined();
+    expect(light).toBeGreaterThan(base);
+    expect(light - base).toBeLessThan(strong - base);
   });
 
   it('never overfills the hold or overspends', () => {
