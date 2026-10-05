@@ -84,7 +84,7 @@ export function createSfx(ctx: AudioContext, out: AudioNode) {
       if (night && i.openSea && i.calm && now >= next.song) {
         const b = clip('whale_song');
         if (b && next.song > 0) playClip(ctx, out, b, { gain: 0.22, pan: between(-0.7, 0.7), lowpass: 2500 });
-        next.song = now + between(40, 80);
+        next.song = now + between(120, 240);
       }
 
       // Towns: harbour voices by day, a church bell now and then.

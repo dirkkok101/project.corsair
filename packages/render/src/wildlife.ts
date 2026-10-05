@@ -28,6 +28,19 @@ const between = (a: number, b: number) => a + Math.random() * (b - a);
 const facingOf = (deg: number) => ((Math.round((((deg % 360) + 360) % 360) / 45) % 8) + 8) % 8;
 const FRAME_S = 0.12;
 
+// Seconds between chances of each event (a chance only fires where it fits, e.g. dolphins in open
+// water at speed). Rare on purpose: the first playtest found them too frequent at a third of this.
+const EVERY_S = {
+  dolphins: [120, 240],
+  flyingFish: [40, 90],
+  whale: [240, 480],
+  pelicans: [60, 120],
+  frigate: [90, 180],
+  fishJump: [15, 35],
+} as const;
+const DOLPHIN_CALL_CHANCE = 0.15; // per leap
+const FISH_JUMP_SOUND_CHANCE = 0.5;
+
 interface Actor {
   sprite: Sprite;
   update(dt: number): boolean; // false when finished
@@ -89,7 +102,12 @@ export function createWildlife(map: TileMap, frames: Record<string, Texture[]>, 
   const air = new Container();
   const actors: Actor[] = [];
   let effects: ((dt: number) => boolean)[] = [];
-  const timers = { dolphins: between(20, 40), flyingFish: between(6, 12), whale: between(45, 90), pelicans: between(10, 20), frigate: between(15, 30), fishJump: between(3, 7) };
+  // The first chance of each comes after about half its usual wait.
+  const again = (k: keyof typeof EVERY_S) => between(EVERY_S[k][0], EVERY_S[k][1]);
+  const timers = Object.fromEntries(Object.keys(EVERY_S).map((k) => [k, again(k as keyof typeof EVERY_S) / 2])) as Record<
+    keyof typeof EVERY_S,
+    number
+  >;
   let view = { x: 0, y: 0, w: 960, h: 540 };
 
   const has = (id: string) => Boolean(frames[`${id}.d0`]?.length && defs[id]);
@@ -145,7 +163,7 @@ export function createWildlife(map: TileMap, frames: Record<string, Texture[]>, 
             if (frame >= (defs['wildlife.dolphin.leap']?.frames ?? 4)) {
               effects.push(splash(vfx, x, y, 1));
               sound('splash_big', { gain: 0.25, pan: panOf(x), rate: between(1.1, 1.3) });
-              if (Math.random() < 0.35) sound('dolphin', { gain: 0.3, pan: panOf(x), lowpass: 4000 });
+              if (Math.random() < DOLPHIN_CALL_CHANCE) sound('dolphin', { gain: 0.3, pan: panOf(x), lowpass: 4000 });
               state = 'swim';
               t = 0;
               nextLeap = between(1.2, 3.5);
@@ -322,23 +340,23 @@ export function createWildlife(map: TileMap, frames: Record<string, Texture[]>, 
 
       if (timers.dolphins <= 0) {
         if (openSea && c.drive > 0.45 && has('wildlife.dolphin.swim') && has('wildlife.dolphin.leap')) dolphins(ship);
-        timers.dolphins = between(35, 80);
+        timers.dolphins = again('dolphins');
       }
       if (timers.flyingFish <= 0) {
         if (openSea && day && c.drive > 0.3 && has('wildlife.flying_fish.glide')) flyingFish(ship);
-        timers.flyingFish = between(10, 25);
+        timers.flyingFish = again('flyingFish');
       }
       if (timers.whale <= 0) {
         if (openSea && c.coast < 0.05 && has('wildlife.whale.surface') && has('wildlife.whale.fluke')) whale(ship);
-        timers.whale = between(90, 180);
+        timers.whale = again('whale');
       }
       if (timers.pelicans <= 0) {
         if (day && c.coast > 0.3 && has('wildlife.pelican.fly') && has('wildlife.pelican.dive')) pelicans();
-        timers.pelicans = between(20, 40);
+        timers.pelicans = again('pelicans');
       }
       if (timers.frigate <= 0) {
         if (day && c.coast > 0.1 && has('wildlife.frigatebird.soar')) frigate();
-        timers.frigate = between(25, 45);
+        timers.frigate = again('frigate');
       }
       if (timers.fishJump <= 0) {
         // A fish breaks the surface somewhere near: a plop and a ring. No sprite needed.
@@ -346,9 +364,9 @@ export function createWildlife(map: TileMap, frames: Record<string, Texture[]>, 
         const y = py + between(-90, 90);
         if (isWater(x, y)) {
           effects.push(splash(vfx, x, y, 0));
-          sound('splash_small', { gain: 0.18, pan: panOf(x), rate: between(0.9, 1.3) });
+          if (Math.random() < FISH_JUMP_SOUND_CHANCE) sound('splash_small', { gain: 0.18, pan: panOf(x), rate: between(0.9, 1.3) });
         }
-        timers.fishJump = between(4, 10);
+        timers.fishJump = again('fishJump');
       }
 
       for (let i = actors.length - 1; i >= 0; i--) {
