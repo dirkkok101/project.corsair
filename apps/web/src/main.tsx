@@ -1,3 +1,4 @@
+import { createAudio } from '@corsair/audio';
 import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView } from '@corsair/render';
@@ -12,7 +13,7 @@ import {
   zoneAt,
 } from '@corsair/systems-weather';
 import type { PlacedSettlement } from '@corsair/data';
-import { speedPoints } from '@corsair/systems-navigation';
+import { angleOffWind, pointOfSail, speedPoints } from '@corsair/systems-navigation';
 import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
@@ -105,8 +106,17 @@ async function main() {
   fit();
   window.addEventListener('resize', fit);
 
+  // Sound needs a user gesture before the browser lets it play; V toggles mute.
+  const audio = createAudio();
+  const unlock = () => audio.unlock();
+  window.addEventListener('keydown', unlock);
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
+  });
+
   const loop: LoopControl = { paused: false };
-  window.__corsair = { ...createDebugApi(sim, loop), seed };
+  window.__corsair = { ...createDebugApi(sim, loop), seed, audio: { levels: () => audio.levels() } };
   const player = () => sim.state.ships[def.start.shipId]!;
   bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
 
@@ -128,6 +138,22 @@ async function main() {
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     const hour = hourOf(sim.state.tick, content.calendar.ticksPerDay);
     const breeze = breezes.at(sim.state.tick, ship.x, ship.y);
+    const wind = windAt(sim.state, ship.x, ship.y);
+    const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
+    const inStorm = (sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y));
+    const cls = content.ships[ship.classId]!;
+    audio.update(
+      {
+        wind: content.navigation.windStrength[wind.strength]!,
+        offWindDeg: offWind,
+        speed: speedPoints(content, ship) / cls.speed,
+        sailsSet: ship.sails !== 'furled',
+        luffing: pointOfSail(content, offWind).id === 'irons',
+        inStorm,
+        coast: breezes.coastNearness(ship.x, ship.y),
+      },
+      now / 1000,
+    );
     let course: { name: string; distanceKm: number; bearingDeg: number; closing: number } | undefined;
     if (destination) {
       const dx = destination.x - ship.x;
@@ -140,10 +166,11 @@ async function main() {
       <Hud
         state={sim.state}
         content={content}
-        wind={windAt(sim.state, ship.x, ship.y)}
+        wind={wind}
         date={formatDate(dateOf(def.startDate, day))}
         seaArea={zoneAt(content, map, ship.x, ship.y).name}
-        inStorm={(sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y))}
+        inStorm={inStorm}
+        sound={audio.muted ? 'Sound off · V' : audio.unlocked ? undefined : 'Press any key for sound'}
         time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}

@@ -187,6 +187,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@corsair/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
       '@corsair/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -205,6 +208,8 @@ importers:
       preact:
         specifier: ^11.0.0
         version: 11.0.0
+
+  packages/audio: {}
 
   packages/core: {}
 

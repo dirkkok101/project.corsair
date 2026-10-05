@@ -78,9 +78,11 @@ export interface HudProps {
   /** Wind source note near coasts ("sea breeze", "land breeze"). */
   breeze?: string;
   destination?: { name: string; distanceKm: number; bearingDeg: number; closing: number };
+  /** Sound status hint, shown until sound is running (or while muted). */
+  sound?: string;
 }
 
-export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze, destination }: HudProps) {
+export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze, destination, sound }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
   const cls = content.ships[ship.classId]!;
@@ -139,7 +141,8 @@ export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze
         </div>
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · [ ] turn wind · 1–5 wind strength</div>
+      {sound ? <div class="hud-sound">{sound}</div> : null}
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · V sound · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

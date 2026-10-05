@@ -94,6 +94,11 @@ export function createBreezeField(content: ContentPack, def: RasterMapDef, map: 
   const d = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? far : dist[y * w + x]!);
 
   return {
+    /** 1 at the water's edge, falling to 0 at the edge of the coastal band (and 0 on land). */
+    coastNearness(x: number, y: number): number {
+      const here = d(Math.floor(x), Math.floor(y));
+      return here === 0 || here > reach ? 0 : 1 - (here - 1) / reach;
+    },
     /** The breeze at a water tile, or undefined beyond its reach, on land, or at the turn of the day. */
     at(tick: number, x: number, y: number): Breeze | undefined {
       const tx = Math.floor(x);

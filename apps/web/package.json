@@ -12,6 +12,7 @@
     "@corsair/render": "workspace:*",
     "@corsair/systems-navigation": "workspace:*",
     "preact": "^11.0.0",
-    "@corsair/systems-weather": "workspace:*"
+    "@corsair/systems-weather": "workspace:*",
+    "@corsair/audio": "workspace:*"
   }
 }

@@ -51,6 +51,9 @@ export function createDebugApi(sim: Sim, loop: LoopControl) {
 declare global {
   interface Window {
     /** `seed` is the new game's RNG seed: with `replay.inputs()` it reproduces the run. */
-    __corsair: ReturnType<typeof createDebugApi> & { seed: number };
+    __corsair: ReturnType<typeof createDebugApi> & {
+      seed: number;
+      audio: { levels: () => import('@corsair/audio').AudioLevels };
+    };
   }
 }

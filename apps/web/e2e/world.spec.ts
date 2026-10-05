@@ -91,3 +91,16 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
   await expect(page.locator('.hud')).toContainText('Cartagena');
   await page.screenshot({ path: 'test-results/assist.png' });
 });
+
+test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.__corsair));
+  expect(await page.evaluate(() => window.__corsair.audio.levels().state)).toBe('locked');
+  await expect(page.locator('.hud-sound')).toContainText('Press any key');
+  await page.keyboard.press('Shift');
+  await page.waitForFunction(() => window.__corsair.audio.levels().rms > 0.001);
+  await expect(page.locator('.hud-sound')).toHaveCount(0);
+  await page.keyboard.press('v');
+  await page.waitForFunction(() => window.__corsair.audio.levels().rms < 0.0005);
+  await expect(page.locator('.hud-sound')).toContainText('Sound off');
+});

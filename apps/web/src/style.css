@@ -216,6 +216,13 @@ body {
   font-size: 22px;
 }
 
+.hud-sound {
+  position: absolute;
+  bottom: 34px;
+  left: 12px;
+  color: #e8c170;
+}
+
 .hud-keys {
   position: absolute;
   bottom: 12px;
