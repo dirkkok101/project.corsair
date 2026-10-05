@@ -1,0 +1,17 @@
+{
+  "name": "@corsair/systems-traffic",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@corsair/core": "workspace:*",
+    "@corsair/data": "workspace:*",
+    "@corsair/systems-economy": "workspace:*",
+    "@corsair/systems-navigation": "workspace:*"
+  },
+  "devDependencies": {
+    "@corsair/systems-weather": "workspace:*"
+  }
+}

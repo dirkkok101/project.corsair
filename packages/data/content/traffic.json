@@ -1,0 +1,82 @@
+{
+  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share; each role sails one class. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Sight is in tiles from the player's ship (halved at night); hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles. Ships lie in port portDays before sailing on.",
+  "population": 30,
+  "roles": {
+    "merchant": {
+      "share": 0.6,
+      "classId": "ship.fluyt"
+    },
+    "patrol": {
+      "share": 0.2,
+      "classId": "ship.frigate"
+    },
+    "pirate": {
+      "share": 0.2,
+      "classId": "ship.sloop"
+    }
+  },
+  "voyageUnits": 20,
+  "minMargin": 0.3,
+  "maxPerRoute": 2,
+  "sightTiles": 18,
+  "nightSight": 0.5,
+  "hailTiles": 3,
+  "laneCell": 6,
+  "tackTiles": 1.5,
+  "portDays": [
+    1,
+    3
+  ],
+  "names": {
+    "spain": [
+      "Nuestra Señora del Rosario",
+      "San Felipe",
+      "Santa Margarita",
+      "San José",
+      "La Concepción",
+      "Santo Cristo de Burgos",
+      "San Pedro",
+      "La Trinidad"
+    ],
+    "england": [
+      "Swallow",
+      "Mary Rose",
+      "Blessing",
+      "Speedwell",
+      "Prosperous",
+      "Hopewell",
+      "Endeavour",
+      "Good Hope"
+    ],
+    "france": [
+      "Saint-Louis",
+      "La Diligente",
+      "Le Soleil",
+      "La Fortune",
+      "L'Espérance",
+      "Le Saint-Pierre",
+      "La Marguerite",
+      "Le Lys"
+    ],
+    "netherlands": [
+      "Eendracht",
+      "Goude Leeuw",
+      "Hoop",
+      "Zeeland",
+      "Vergulde Draeck",
+      "Witte Valk",
+      "Prins Willem",
+      "Fortuyn"
+    ],
+    "pirate": [
+      "Revenge",
+      "Black Swan",
+      "Fancy",
+      "Ranger",
+      "Adventure",
+      "Delivery",
+      "Night Rambler",
+      "Satisfaction"
+    ]
+  }
+}

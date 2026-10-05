@@ -20,5 +20,27 @@
       0.75,
       0.7
     ]
+  },
+  "polar.fore_aft": {
+    "$comment": "Fore-and-aft rig (sloops): points higher than square rig, with drive from about 24 deg and the best upwind course near 42 deg off, but slower running dead downwind where the big mainsail blankets the jib.",
+    "stepDeg": 12,
+    "values": [
+      0,
+      0,
+      0.3,
+      0.68,
+      0.85,
+      0.94,
+      1,
+      1,
+      0.97,
+      0.93,
+      0.88,
+      0.82,
+      0.76,
+      0.7,
+      0.64,
+      0.6
+    ]
   }
 }

@@ -43,6 +43,8 @@ export const spriteSchema = z.object({
   facings: z.number().int().positive(),
   pivot: z.object({ x: z.number(), y: z.number() }),
   anims: z.array(z.string()).min(1),
+  /** Ships: the masthead the flag streams from, in model units (forward of the pivot, up from the waterline). */
+  mast: z.object({ forward: z.number(), up: z.number() }).optional(),
 });
 
 const shipStart = { shipId: z.string(), classId: z.string(), headingDeg: degrees };
@@ -229,6 +231,29 @@ export const economySchema = z.object({
   settlementProfiles: z.record(z.string(), z.array(z.string()).min(1)),
 });
 
+const nation = z.enum(['spain', 'england', 'france', 'netherlands', 'pirate']);
+
+export const trafficSchema = z.object({
+  population: z.number().int().min(0),
+  roles: z.object({
+    merchant: z.object({ share: z.number().min(0).max(1), classId: z.string() }),
+    patrol: z.object({ share: z.number().min(0).max(1), classId: z.string() }),
+    pirate: z.object({ share: z.number().min(0).max(1), classId: z.string() }),
+  }),
+  /** Most units a merchant buys per voyage. */
+  voyageUnits: z.number().int().positive(),
+  /** A merchant buys only while the far port pays this share over its price. */
+  minMargin: z.number().min(0),
+  maxPerRoute: z.number().int().positive(),
+  sightTiles: z.number().positive(),
+  nightSight: z.number().min(0).max(1),
+  hailTiles: z.number().positive(),
+  laneCell: z.number().int().positive(),
+  tackTiles: z.number().min(0),
+  portDays: z.tuple([z.number().min(0), z.number().min(0)]),
+  names: z.record(nation, z.array(z.string()).min(1)),
+});
+
 export type ShipClass = z.infer<typeof shipClassSchema>;
 export type Polar = z.infer<typeof polarSchema>;
 export type NavigationConfig = z.infer<typeof navigationSchema>;
@@ -243,4 +268,5 @@ export type Calendar = z.infer<typeof calendarSchema>;
 export type Music = z.infer<typeof musicSchema>;
 export type Goods = z.infer<typeof goodsSchema>;
 export type Economy = z.infer<typeof economySchema>;
+export type Traffic = z.infer<typeof trafficSchema>;
 export type Tune = Music['tunes'][number];

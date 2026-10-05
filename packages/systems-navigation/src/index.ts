@@ -180,6 +180,11 @@ export function createNavigationSystem(
       const ships: Record<string, Ship> = {};
       const events: EmittedEvent[] = [];
       for (const id of Object.keys(state.ships).sort()) {
+        // AI ships follow sea lanes; the traffic system moves them.
+        if (state.ships[id]!.ai) {
+          ships[id] = state.ships[id]!;
+          continue;
+        }
         const result = sail(state.ships[id]!, state, dt);
         ships[id] = result.ship;
         events.push(...result.events);

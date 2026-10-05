@@ -1,6 +1,6 @@
 {
   "ship.brig.world": {
-    "$comment": "45 deg camera render, 96 px cell, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (96 / 3.7) = 11 px below the cell centre. Set sails are drawn per point of sail and tack (_p wind from port, _s from starboard): yards braced, canvas bellied downwind; in irons two frames flap.",
+    "$comment": "45 deg camera render, 96 px cell, 32 facings (art pipeline section 4; tools/art/render_brig.py). Pivot is the hull centre on the waterline: the render looked at z 0.6, which lands 0.6 * cos45 * (96 / 3.7) = 11 px below the cell centre. Set sails are drawn per point of sail and tack (_p wind from port, _s from starboard): yards braced, canvas bellied downwind; in irons two frames flap. mast: the foremast head the pennant streams from, in model units.",
     "cell": 96,
     "facings": 32,
     "pivot": {
@@ -31,7 +31,11 @@
       "sail_half_close_s",
       "sail_half_irons_s0",
       "sail_half_irons_s1"
-    ]
+    ],
+    "mast": {
+      "forward": 0.42,
+      "up": 1.62
+    }
   },
   "settlement": {
     "$comment": "World-map town sprites, one frame each, 45 deg camera like the ships (tools/art/render_towns.py). Nation variants of a size share a silhouette. Pivot is the ground under the town centre.",
@@ -56,5 +60,119 @@
       "netherlands.city",
       "pirate.haven"
     ]
+  },
+  "ship.fluyt.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py fluyt), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.7,
+      "up": 1.62
+    }
+  },
+  "ship.sloop.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py sloop), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.22,
+      "up": 1.86
+    }
+  },
+  "ship.frigate.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py frigate), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.75,
+      "up": 2.06
+    }
   }
 }

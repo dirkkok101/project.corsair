@@ -14,6 +14,7 @@
     "preact": "^11.0.0",
     "@corsair/systems-weather": "workspace:*",
     "@corsair/audio": "workspace:*",
-    "@corsair/systems-economy": "workspace:*"
+    "@corsair/systems-economy": "workspace:*",
+    "@corsair/systems-traffic": "workspace:*"
   }
 }

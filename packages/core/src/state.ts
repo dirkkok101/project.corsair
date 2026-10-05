@@ -17,6 +17,32 @@ export interface Wind {
   strength: WindStrength;
 }
 
+export type Nation = 'spain' | 'england' | 'france' | 'netherlands' | 'pirate';
+
+/**
+ * An AI captain's orders (PRD sections 6 and 4): merchants carry goods between ports, patrols sail
+ * between their nation's ports, pirates work out of the havens. They follow a sea lane (`route`,
+ * waypoints in tiles) rather than steering by hand; the traffic system moves them.
+ */
+export interface AiCaptain {
+  nation: Nation;
+  role: 'merchant' | 'patrol' | 'pirate';
+  name: string;
+  /** Settlement ids: where it last called, and where it is bound. */
+  from: string;
+  to: string;
+  route: [number, number][];
+  /** Tiles travelled along the route. */
+  along: number;
+  /** Tacking: tiles off the lane (positive to starboard of it), and which way it is heading now. */
+  offset: number;
+  tackSign: 1 | -1;
+  /** In port until this tick, then it sails. */
+  waitUntil?: number;
+  /** News ids it picked up in its last port, to pass on when hailed. */
+  news: string[];
+}
+
 export interface Ship {
   id: string;
   classId: string;
@@ -35,6 +61,8 @@ export interface Ship {
   cargo: Record<string, number>;
   /** Gold paid for the units of each good now in the hold, so the merchant can show the margin. */
   paid?: Record<string, number>;
+  /** Set on AI ships; the player's ship has none. */
+  ai?: AiCaptain;
   /** Settlement id while the ship is in port; it doesn't sail until it undocks. */
   docked?: string;
   /** True while the ship is pressed against land, so ShipBlocked fires once per contact. */
@@ -80,6 +108,16 @@ export interface Captain {
   knownPrices: Record<string, KnownPrices>;
   /** Ids of news items the captain has heard (in a tavern), oldest first. */
   heard?: string[];
+  /** Where each AI ship was last seen from the player's deck, for the chart's fading markers. */
+  sightings?: Record<string, Sighting>;
+}
+
+export interface Sighting {
+  x: number;
+  y: number;
+  tick: number;
+  classId: string;
+  nation: Nation;
 }
 
 /** A market shock (PRD section 6): a glut, blight, shortage or storm damage at one town, for some weeks. */
@@ -121,6 +159,8 @@ export interface WorldState {
   news?: NewsItem[];
   /** Counter for shock and news ids. */
   nextNewsId?: number;
+  /** Counter for AI ship ids. */
+  nextShipId?: number;
 }
 
 export type Command =
@@ -137,6 +177,10 @@ export type Command =
   | { type: 'Undock'; shipId: string }
   | { type: 'Buy'; shipId: string; good: string; quantity: number }
   | { type: 'Sell'; shipId: string; good: string; quantity: number }
+  /** Speak an AI ship within hailing range: learn who it is and hear its news. */
+  | { type: 'Hail'; shipId: string; targetId: string }
+  /** Debug: start an AI ship of a role at a port, bound for another. */
+  | { type: 'SpawnShip'; role: AiCaptain['role']; from: string; to: string }
   /** The captain listens in the tavern of the port the ship is docked at. */
   | { type: 'HearNews'; shipId: string }
   /** Debug: start a market shock now. */

@@ -780,3 +780,91 @@ body {
 .takes.shallow {
   color: #de9e41;
 }
+
+.chart-ships {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* A sighted ship: a small diamond in its nation's colour, fading with age. */
+.chart-ship {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: currentColor;
+  border: 1px solid #090a14;
+}
+
+.chart-ship.label-spain {
+  color: #e8c170;
+}
+
+.chart-ship.label-england {
+  color: #cf573c;
+}
+
+.chart-ship.label-france {
+  color: #73bed3;
+}
+
+.chart-ship.label-netherlands {
+  color: #de9e41;
+}
+
+.chart-ship.label-pirate {
+  color: #090a14;
+  border-color: #ebede9;
+}
+
+.hail {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 12px;
+  pointer-events: none;
+}
+
+.hail-panel {
+  width: min(560px, 94vw);
+  padding: 12px 18px;
+  color: #ebede9;
+  background: rgb(21 29 40 / 0.9);
+  border: 2px solid #c09473;
+  pointer-events: auto;
+}
+
+.hail-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.hail-news > div {
+  margin: 4px 0;
+}
+
+.hail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.hail-actions button {
+  padding: 2px 10px;
+  font: inherit;
+  color: #ebede9;
+  background: #253a5e;
+  border: 1px solid #4f8fba;
+  cursor: pointer;
+}
+
+.hail-actions button:disabled {
+  color: #577277;
+  background: transparent;
+  border-color: #394a50;
+  cursor: default;
+}

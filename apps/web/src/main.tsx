@@ -27,11 +27,14 @@ import { bindInput } from './input';
 import { createLabels } from './labels';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
+import { Hail, shipTitle } from './hail';
+import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
 
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
 // named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
 // that and sorting gives f00..fNN.
-const shipFrames = import.meta.glob<string>('../../../art/game/ships/*.png', {
+// Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id.
+const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -161,20 +164,32 @@ async function main() {
   const asked = Number(new URLSearchParams(location.search).get('seed') ?? NaN);
   const seed = resumed?.seed ?? (Number.isInteger(asked) ? asked >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!);
   const windAt = createWindField(content, def, map);
+  // Sea lanes for the AI ships, found per port pair on demand.
+  const lanes = createSeaLanes(map, settlements, content.traffic.laneCell);
   // The clock starts at the map's start hour; the date is unchanged (still day 0).
   const startTick = Math.round((def.startHour / 24) * content.calendar.ticksPerDay);
   // A restored state already carries its markets, weather and RNG streams; seeding them again would reset them.
+  // A save from before ships sailed gets its population topped up a ship a day.
   const world =
-    resumed?.state ?? withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed);
+    resumed?.state ??
+    withTraffic(
+      withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed),
+      content,
+      settlements,
+      lanes,
+      seed,
+    );
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
     createEconomySystem(content, settlements, map),
+    createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt),
   ]);
   const breezes = createBreezeField(content, def, map);
   // Sound needs a user gesture before the browser lets it play; V toggles mute, N the music.
   const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
-  const renderer = await createRenderer(content, map, { ...groupFrames(shipFrames), ...groupFrames(townFrames), ...groupFrames(wildlifeFrames) }, {
+  const renderer = await createRenderer(content, map, { ...groupFrames(townFrames), ...groupFrames(wildlifeFrames) }, {
+    atlases: Object.fromEntries(Object.entries(shipAtlases).map(([p, url]) => [p.split('/').pop()!.replace(/\.png$/, ''), url])),
     settlements,
     windAt,
     palettes: [palette('corsair.gpl'), palette('corsair-dusk.gpl'), palette('corsair-night.gpl')],
@@ -191,6 +206,9 @@ async function main() {
   const labels = createLabels(viewport, settlements, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
   const portRoot = stage.appendChild(document.createElement('div'));
+  const hailRoot = stage.appendChild(document.createElement('div'));
+  // The ship being spoken and the news she brought; the clock stops while the captains talk.
+  let hailing: { targetId: string; news: string[] } | undefined;
   let destination: PlacedSettlement | undefined;
   const charts = createCharts(stage, map, settlements, (port) => (destination = port), {
     goods: content.goods,
@@ -245,6 +263,21 @@ async function main() {
         if (port) sim.send({ type: 'Dock', shipId: ship.id, settlementId: port.id });
       }
     }
+    // H: hail the ship alongside, or part ways.
+    if (e.key.toLowerCase() === 'h' && !e.repeat && !e.ctrlKey && !e.metaKey) {
+      if (hailing) hailing = undefined;
+      else {
+        const other = shipInHail();
+        if (other) {
+          const since = sim.events().length;
+          sim.send({ type: 'Hail', shipId: player().id, targetId: other.id });
+          sim.applyCommands();
+          const reply = sim.events().slice(since).find((ev) => ev.type === 'Hailed');
+          if (reply) hailing = { targetId: other.id, news: (reply.payload.news as string[]) ?? [] };
+        }
+      }
+    }
+    if (e.key === 'Escape') hailing = undefined;
     // Ctrl+S (Cmd+S on a Mac) saves the career instead of the browser's "save page".
     if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -277,6 +310,19 @@ async function main() {
   };
   const player = () => sim.state.ships[def.start.shipId]!;
   bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
+
+  /** The nearest AI ship close enough to hail: in sight, at sea and within hailing range. */
+  const shipInHail = () => {
+    const me = player();
+    if (me.docked) return undefined;
+    let best: { s: (typeof sim.state.ships)[string]; d: number } | undefined;
+    for (const s of Object.values(sim.state.ships)) {
+      if (!s.ai || (s.ai.waitUntil !== undefined && s.ai.waitUntil > sim.state.tick)) continue;
+      const d = Math.hypot(s.x - me.x, s.y - me.y);
+      if (d <= content.traffic.hailTiles && (!best || d < best.d)) best = { s, d };
+    }
+    return best?.s;
+  };
 
   /** The nearest port close enough to dock at, if any. */
   const portInReach = () => {
@@ -332,8 +378,8 @@ async function main() {
   const frame = (now: number) => {
     acc = loop.paused ? 0 : Math.min(acc + ((now - last) / 1000) * speedNow, 0.25 * speedNow);
     last = now;
-    if (player().docked) {
-      // World time stops in port (PRD section 2); trades still apply at once.
+    if (player().docked || hailing) {
+      // World time stops in port (PRD section 2), and while hailing; commands still apply at once.
       sim.applyCommands();
       acc = 0;
     }
@@ -344,7 +390,11 @@ async function main() {
     }
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
-    charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view());
+    charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view(), {
+      sightings: sim.state.captain?.sightings ?? {},
+      tick: sim.state.tick,
+      ticksPerDay: content.calendar.ticksPerDay,
+    });
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     const hour = hourOf(sim.state.tick, content.calendar.ticksPerDay);
@@ -366,6 +416,21 @@ async function main() {
     }
     wasDocked = Boolean(ship.docked);
     const reach = ship.docked ? undefined : portInReach();
+    const near = reach || hailing ? undefined : shipInHail();
+    const spoken = hailing && sim.state.ships[hailing.targetId];
+    render(
+      spoken ? (
+        <Hail
+          state={sim.state}
+          content={content}
+          settlements={settlements}
+          ship={spoken}
+          news={hailing!.news}
+          close={() => (hailing = undefined)}
+        />
+      ) : null,
+      hailRoot,
+    );
     const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
     const harbour = town && harbourScene(town);
     void renderer.harbour.show(town && ((service && interior(town, service)) || harbour?.scene));
@@ -438,7 +503,7 @@ async function main() {
         time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
-        prompt={reach ? `Enter ${reach.name} · E` : undefined}
+        prompt={reach ? `Enter ${reach.name} · E` : near ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H` : undefined}
         timeScale={speedNow > 1 ? speedNow : wantedSpeed > 1 ? 'held' : undefined}
         saved={now - savedAt < 2000}
       />,

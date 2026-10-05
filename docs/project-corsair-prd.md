@@ -127,6 +127,7 @@ Deferred. The whole map is visible for now. The rules below still stand for when
 - Tiles within the ship's sight radius become explored. Sight radius comes from ship type, crew lookouts, time of day and weather.
 - Unknown settlements, wrecks and treasure landmarks stay hidden until seen or revealed by a map fragment or rumour.
 - Enemy ships show only inside sight radius. Outside it, the player sees a last-known marker that fades.
+- Built for ships: AI ships are drawn only within 18 tiles of the player (9 at night), flying a pennant in their nation's colour. The minimap and sea chart mark every ship seen, fading over three days.
 
 ### Day and night
 
@@ -187,6 +188,7 @@ Turning rate uses the same inputs, plus a rig-specific turn penalty for square r
 - Ships within sight radius can be hailed, shadowed, attacked or avoided.
 - Hailing shows nationality, class, and a hint of cargo or passengers (a governor's daughter, a villain lieutenant, a treasure galleon's pay chest).
 - The player can fly false colours if the flag skill or an item allows it. The AI checks disguise against its own vigilance stat.
+- Built: hailing. Within 3 tiles of a ship at sea, H speaks her: her name, nation and class, what she carries and where she is bound, and the news she picked up in her last port (added to what the captain has heard). The clock stops while hailing. Attack waits for the sea battle; shadowing, avoiding and false colours wait for AI that reacts to the player.
 
 ### Sound, music and sea life
 
@@ -326,6 +328,7 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 - AI merchants plan routes with a simple arbitrage rule: buy where p is lowest in reach, sell where it is highest, weighted by risk (known pirate activity).
 - Nations run scheduled fleets: the Spanish treasure fleet and the Silver Train (a land convoy) carry silver on fixed seasonal routes in `routes.json`.
 - Captured cargo removed from a merchant never arrives, so the destination's stock drops. The player can observe this in the data (section 16).
+- Built (`@corsair/systems-traffic`, `traffic.json`): about 30 AI ships sail at once. Merchants (fluyts, 60%) take the best margin from their port, buying at most 20 units and only while the far port pays 30% over cost, with at most two on any port pair, so they skim a trade rather than flood it; their cargo leaves the origin's stock when bought and reaches the destination's only when the ship does. Patrols (frigates, 20%) sail between their nation's ports. Pirates (sloops, 20%) slip out of the havens, lurk part way down a trade lane, then go home. Ships follow sea lanes found by A* on an 8-tile water grid (with a tile-level way out of lagoons and rivers; Puerto Príncipe and Villahermosa have none), at the speed their polar gives in the local wind, tacking in a corridor about the lane where it runs to windward. The population tops itself up a ship a day. A route probe after 30 days of traffic: the player's best routes keep most of their margin (Port Royal luxuries to Tortuga +684 against +723 without traffic). Treasure fleets wait.
 
 ### Plunder and crew shares
 

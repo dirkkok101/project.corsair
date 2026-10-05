@@ -228,7 +228,7 @@ art/
   palette/                     # corsair.gpl plus the dusk and night rows
   audio/                       # sfx, instrument samples, CREDITS.json (loaded by the game)
   game/                        # everything the game loads: palette-exact, named by sprite id
-    ships/                     # world-map brig frames (tools/art/render_brig.py)
+    ships/                     # one atlas per ship class, facings across, anims down (pack_ships.ts)
     settlements/               # world-map towns (render_towns.py)
     wildlife/                  # sea life frames + wildlife.json (render_wildlife.py)
     harbours/                  # layered Blender harbour scenes + harbours.json (render_harbours.py)
@@ -237,6 +237,7 @@ art/
     blender/                   # .blend masters
     grok/{group}/              # raw Grok output with its prompt record beside it (Git LFS); README.md is the brief
     references/                # layout references handed to image models (composite_harbours.ts)
+    renders/ships/             # the frames the ship atlases are packed from (render_brig.py, render_ships.py)
     spikes/                    # retired experiments kept for the record (top-down brig, tilt spike)
 content/base/sprites/
   atlas-*.json / .png          # later: packed, indexed output, referenced by id from game data

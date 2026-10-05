@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { decode } from 'fast-png';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, startOf, Tile, tileAt, tileOf } from '../src';
@@ -23,11 +24,11 @@ describe('ship sprites', () => {
       expect([...def.anims].sort()).toEqual([...expected].sort());
     });
 
-    it(`${ship.id} has a frame file for every anim and facing`, () => {
-      const missing = def.anims.flatMap((anim) =>
-        Array.from({ length: def.facings }, (_, f) => `${ship.sprites.world}.${anim}.f${String(f).padStart(2, '0')}.png`),
-      ).filter((file) => !existsSync(`${repoRoot}art/game/ships/${file}`));
-      expect(missing).toEqual([]);
+    it(`${ship.id} has an atlas with a cell for every anim and facing`, () => {
+      const file = `${repoRoot}art/game/ships/${ship.sprites.world}.png`;
+      expect(existsSync(file)).toBe(true);
+      const png = decode(readFileSync(file));
+      expect([png.width, png.height]).toEqual([def.facings * def.cell, def.anims.length * def.cell]);
     });
   }
 });

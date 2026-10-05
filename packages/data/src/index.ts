@@ -12,6 +12,7 @@ import navigationJson from '../content/navigation.json';
 import polarsJson from '../content/polars.json';
 import shipsJson from '../content/ships.json';
 import spritesJson from '../content/sprites.json';
+import trafficJson from '../content/traffic.json';
 import {
   calendarSchema,
   economySchema,
@@ -24,6 +25,7 @@ import {
   settlementSchema,
   shipClassSchema,
   spriteSchema,
+  trafficSchema,
   weatherSchema,
   windZonesSchema,
 } from './schemas';
@@ -39,6 +41,7 @@ import type {
   Settlement,
   ShipClass,
   SpriteDef,
+  Traffic,
   Weather,
   WindZones,
 } from './schemas';
@@ -59,6 +62,7 @@ export interface ContentPack {
   music: Music;
   goods: Goods['goods'];
   economy: Economy;
+  traffic: Traffic;
 }
 
 /**
@@ -86,7 +90,11 @@ export function loadContent(): ContentPack {
     music: musicSchema.parse(musicJson),
     goods: goodsSchema.parse(goodsJson).goods,
     economy: economySchema.parse(economyJson),
+    traffic: trafficSchema.parse(trafficJson),
   };
+  for (const r of Object.values(pack.traffic.roles)) {
+    if (!pack.ships[r.classId]) throw new Error(`traffic: unknown class ${r.classId}`);
+  }
   const goodIds = new Set(pack.goods.map((g) => g.id));
   for (const id of Object.keys(pack.economy.normalStock)) {
     if (!goodIds.has(id)) throw new Error(`economy: normal stock for unknown good ${id}`);

@@ -205,6 +205,9 @@ importers:
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../../packages/systems-navigation
+      '@corsair/systems-traffic':
+        specifier: workspace:*
+        version: link:../../packages/systems-traffic
       '@corsair/systems-weather':
         specifier: workspace:*
         version: link:../../packages/systems-weather
@@ -268,6 +271,25 @@ importers:
       '@corsair/data':
         specifier: workspace:*
         version: link:../data
+
+  packages/systems-traffic:
+    dependencies:
+      '@corsair/core':
+        specifier: workspace:*
+        version: link:../core
+      '@corsair/data':
+        specifier: workspace:*
+        version: link:../data
+      '@corsair/systems-economy':
+        specifier: workspace:*
+        version: link:../systems-economy
+      '@corsair/systems-navigation':
+        specifier: workspace:*
+        version: link:../systems-navigation
+    devDependencies:
+      '@corsair/systems-weather':
+        specifier: workspace:*
+        version: link:../systems-weather
 
   packages/systems-weather:
     dependencies:

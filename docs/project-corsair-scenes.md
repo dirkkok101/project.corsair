@@ -143,7 +143,7 @@ Twelve classes, four families. World cell is 96×96, pivot at the hull centre on
 
 Example id: `ship.brig.world.sail_full.f03`.
 
-M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. The other eight stay grey boxes until M3. Full set is 12 × 32 × 23 = 8,832 frames, matching the pipeline. Port-tack frames are mirrors of starboard-tack frames, which roughly halves the 96 px hand pass.
+M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. Built: brig, fluyt, sloop (a plain sloop, the pirates' ship) and frigate, all by Blender (`tools/art/render_brig.py`, `render_ships.py`), packed one atlas per class (`tools/art/pack_ships.ts`). Flags are not on the sprites: the game flies a pennant in the nation's colour from each class's masthead (`mast` in `sprites.json`). The other eight stay grey boxes until M3. Full set is 12 × 32 × 23 = 8,832 frames, matching the pipeline. Port-tack frames are mirrors of starboard-tack frames, which roughly halves the 96 px hand pass.
 
 Damage is not drawn on the world map. A worn hull uses the `sail_furled` pose plus a darker palette row if needed. Sinking in a storm is the storm sprite plus the ship fading, not a bespoke animation.
 

@@ -56,7 +56,8 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, done }: 
   // An unreadable save is kept, not thrown away: the player can still copy it to a file before
   // starting over, since a new career overwrites the slot on its first save.
   const save = 'save' in career ? career.save : undefined;
-  const ship = save && Object.values(save.state.ships)[0];
+  // The player's ship: the one without an AI captain (AI ship ids sort before it).
+  const ship = save && Object.values(save.state.ships).find((s) => !s.ai);
   const where = ship?.docked ? settlements.find((s) => s.id === ship.docked)?.name : undefined;
   const date = save ? formatDate(dateOf(startDate, Math.floor(save.state.tick / ticksPerDay))) : undefined;
   const fileName = `corsair-${date ? date.replace(/\s+/g, '-') : 'unreadable'}.json`;

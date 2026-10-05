@@ -14,7 +14,91 @@
     "hull": 85,
     "polar": "polar.square",
     "price": 6500,
-    "eras": ["1620", "1640", "1660", "1680"],
-    "sprites": { "world": "ship.brig.world" }
+    "eras": [
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.brig.world"
+    }
+  },
+  {
+    "id": "ship.fluyt",
+    "family": "merchant",
+    "nameKey": "ship.fluyt.name",
+    "rig": "mixed",
+    "guns": 8,
+    "maxCrew": 60,
+    "minCrew": 12,
+    "cargo": 160,
+    "speed": 6,
+    "turn": 4,
+    "draft": 3,
+    "hull": 70,
+    "polar": "polar.square",
+    "price": 5000,
+    "eras": [
+      "1600",
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.fluyt.world"
+    }
+  },
+  {
+    "id": "ship.sloop",
+    "family": "sloop",
+    "nameKey": "ship.sloop.name",
+    "rig": "fore_and_aft",
+    "guns": 8,
+    "maxCrew": 75,
+    "minCrew": 10,
+    "cargo": 40,
+    "speed": 9,
+    "turn": 8,
+    "draft": 1,
+    "hull": 45,
+    "polar": "polar.fore_aft",
+    "price": 3000,
+    "eras": [
+      "1560",
+      "1600",
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.sloop.world"
+    }
+  },
+  {
+    "id": "ship.frigate",
+    "family": "frigate",
+    "nameKey": "ship.frigate.name",
+    "rig": "square",
+    "guns": 32,
+    "maxCrew": 250,
+    "minCrew": 60,
+    "cargo": 120,
+    "speed": 8,
+    "turn": 5,
+    "draft": 3,
+    "hull": 130,
+    "polar": "polar.square",
+    "price": 14000,
+    "eras": [
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.frigate.world"
+    }
   }
 ]

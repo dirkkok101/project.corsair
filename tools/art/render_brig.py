@@ -9,7 +9,7 @@ from mathutils import Vector
 
 REPO = sys.argv[sys.argv.index('--') + 1]
 TMP = sys.argv[sys.argv.index('--') + 2]
-OUT = os.path.join(REPO, 'art/game/ships')
+OUT = os.path.join(REPO, 'art/sources/renders/ships')
 os.makedirs(OUT, exist_ok=True)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)

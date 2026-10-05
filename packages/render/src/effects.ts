@@ -190,18 +190,21 @@ export function createSpray(map: TileMap) {
 const MAST = { forward: 0.42, up: 1.62, pxPerUnit: 96 / 3.7, foreshorten: Math.SQRT1_2 };
 const PENNANT_PX: Record<WindStrength, number> = { calm: 3, light: 5, fresh: 7, strong: 9, gale: 11 };
 
-/** A long, thin pennant streaming downwind from the foremast head, so the ship itself shows the wind. */
+/** A long, thin pennant streaming downwind from the masthead, so the ship itself shows the wind; its colour is the ship's flag. */
 export function createPennants() {
   const g = new Graphics();
   return {
     view: g,
-    update(ships: { ship: Ship; wind: Wind; x: number; y: number }[], timeS: number) {
+    update(
+      ships: { ship: Ship; wind: Wind; x: number; y: number; mast?: { forward: number; up: number }; colour: number }[],
+      timeS: number,
+    ) {
       g.clear();
-      for (const { ship, wind, x, y } of ships) {
+      for (const { ship, wind, x, y, mast = MAST, colour } of ships) {
         const rad = (ship.headingDeg * Math.PI) / 180;
         const k = MAST.pxPerUnit;
-        const topX = x + Math.sin(rad) * MAST.forward * k;
-        const topY = y - Math.cos(rad) * MAST.forward * k * MAST.foreshorten - MAST.up * k * MAST.foreshorten;
+        const topX = x + Math.sin(rad) * mast.forward * k;
+        const topY = y - Math.cos(rad) * mast.forward * k * MAST.foreshorten - mast.up * k * MAST.foreshorten;
         const [vx, vy] = windVector(wind);
         const len = PENNANT_PX[wind.strength];
         for (let i = 1; i <= len; i++) {
@@ -209,8 +212,8 @@ export function createPennants() {
           const wave = Math.sin(timeS * 9 - i * 0.9) * (i / len) * 1.2;
           g.rect(Math.round(topX + vx * i - vy * wave), Math.round(topY + vy * i * MAST.foreshorten + vx * wave), 1, 1);
         }
+        g.fill(colour);
       }
-      g.fill(0xcf573c);
     },
   };
 }

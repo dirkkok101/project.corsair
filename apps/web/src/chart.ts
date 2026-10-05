@@ -1,4 +1,4 @@
-import type { KnownPrices, Ship } from '@corsair/core';
+import type { KnownPrices, Ship, Sighting } from '@corsair/core';
 import { Tile } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
 
@@ -15,6 +15,9 @@ const TILE_RGB: Record<Tile, [number, number, number]> = {
 const RELIEF_PER_BAND = 14; // brightness change per elevation band of slope, lit from the north-west
 
 const MINIMAP_TILES = { w: 240, h: 135 };
+/** How long a sighted ship's marker lingers on the chart, in game days. */
+const SIGHTING_DAYS = 3;
+
 const NATION_COLOURS: Record<PlacedSettlement['nation'], string> = {
   spain: '#e8c170',
   england: '#cf573c',
@@ -166,6 +169,9 @@ export function createCharts(
     prices.dataset.side = `${s.x > map.width / 2 ? 'left' : 'right'} ${s.y > map.height / 2 ? 'up' : 'down'}`;
     prices.hidden = false;
   };
+  // Ships the lookouts have seen, fading as the sighting ages (PRD section 3: last-known markers).
+  const sighted = sheet.appendChild(document.createElement('div'));
+  sighted.className = 'chart-ships';
   const marker = sheet.appendChild(document.createElement('div'));
   marker.className = 'chart-player';
   const hint = chart.appendChild(document.createElement('div'));
@@ -220,7 +226,12 @@ export function createCharts(
 
   return {
     /** `camera` is the top-left of the view in world pixels. */
-    update(player: Ship | undefined, camera: { x: number; y: number }, view: { width: number; height: number }) {
+    update(
+      player: Ship | undefined,
+      camera: { x: number; y: number },
+      view: { width: number; height: number },
+      seen?: { sightings: Record<string, Sighting>; tick: number; ticksPerDay: number },
+    ) {
       if (!player) return;
       // Minimap: a window on the overview centred on the ship, clamped to the map.
       const sx = Math.max(0, Math.min(map.width - MINIMAP_TILES.w, Math.round(player.x - MINIMAP_TILES.w / 2)));
@@ -243,9 +254,26 @@ export function createCharts(
       mctx.fillStyle = '#e8c170';
       mctx.fillRect(Math.round(player.x - sx) - 1, Math.round(player.y - sy) - 1, 3, 3);
 
+      // A sighting fades out over SIGHTING_DAYS; one seen this tick is solid.
+      const marks = Object.values(seen?.sightings ?? {})
+        .map((s) => ({ s, fade: 1 - (seen!.tick - s.tick) / (seen!.ticksPerDay * SIGHTING_DAYS) }))
+        .filter((m) => m.fade > 0);
+      for (const { s, fade } of marks) {
+        mctx.globalAlpha = fade;
+        mctx.fillStyle = NATION_COLOURS[s.nation];
+        mctx.fillRect(Math.round(s.x - sx) - 1, Math.round(s.y - sy) - 1, 2, 2);
+      }
+      mctx.globalAlpha = 1;
+
       if (!chart.hidden) {
         marker.style.left = `${(player.x / map.width) * 100}%`;
         marker.style.top = `${(player.y / map.height) * 100}%`;
+        sighted.innerHTML = marks
+          .map(
+            ({ s, fade }) =>
+              `<div class="chart-ship label-${s.nation}" style="left:${(s.x / map.width) * 100}%;top:${(s.y / map.height) * 100}%;opacity:${fade.toFixed(2)}"></div>`,
+          )
+          .join('');
       }
     },
   };

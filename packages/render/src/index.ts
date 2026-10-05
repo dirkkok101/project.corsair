@@ -1,6 +1,6 @@
-import type { Ship, Wind, WorldState } from '@corsair/core';
+import type { Nation, Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
-import { Application, Assets, Container, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
+import { Application, Assets, Container, Rectangle, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { createPennants, createSpray, createWake, createWhitecaps, createWindStreaks, windVector } from './effects';
 import { createDaylight } from './daylight';
@@ -22,6 +22,16 @@ export type { WildlifeDefs, WildlifeSound } from './wildlife';
 export type { FlagNation, HarbourScene } from './harbour';
 export { HARBOUR_HEIGHT, HARBOUR_WIDTH } from './harbour';
 export { parseGpl, rowsAt } from './daylight';
+
+// Pennants fly the ship's colours: the player's red, and each nation's for AI ships (palette colours).
+const PLAYER_PENNANT = 0xcf573c;
+const NATION_PENNANT: Record<Nation, number> = {
+  spain: 0xe8c170,
+  england: 0xa53030,
+  france: 0xebede9,
+  netherlands: 0xde9e41,
+  pirate: 0x090a14,
+};
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
 const SWELL_DRIFT_PX = 9;
@@ -68,6 +78,8 @@ export async function createRenderer(
     settlements?: PlacedSettlement[];
     /** Wind at a tile; defaults to the single global wind of the test maps. */
     windAt?: (state: WorldState, x: number, y: number) => Wind;
+    /** Ship sprite atlases by sprite id (tools/art/pack_ships.ts). */
+    atlases?: Record<string, string>;
     /** Day, dusk and night palette rows (same indices) for the day/night swap; omit for always-day. */
     palettes?: [number, number, number][][];
     /** Sea life sprites and the sound hook it calls; omit for no wildlife. */
@@ -162,6 +174,18 @@ export async function createRenderer(
   for (const [id, urls] of Object.entries(spriteUrls)) {
     frames[id] = await Promise.all(urls.map((u) => Assets.load<PixiTexture>(u)));
   }
+  // Ship atlases (tools/art/pack_ships.ts): facings across, anims down in sprites.json order.
+  for (const [spriteId, url] of Object.entries(options.atlases ?? {})) {
+    const def = content.sprites[spriteId];
+    if (!def) continue;
+    const sheet = await Assets.load<PixiTexture>(url);
+    def.anims.forEach((anim, row) => {
+      frames[`${spriteId}.${anim}`] = Array.from(
+        { length: def.facings },
+        (_, f) => new Texture({ source: sheet.source, frame: new Rectangle(f * def.cell, row * def.cell, def.cell, def.cell) }),
+      );
+    });
+  }
 
   // Towns sit between the water effects and the ships, which are added later and so draw on top.
   const town = content.sprites.settlement;
@@ -240,7 +264,14 @@ export async function createRenderer(
     render(state, nowMs) {
       const dt = lastMs === undefined ? 0 : Math.min((nowMs - lastMs) / 1000, 0.1);
       lastMs = nowMs;
+      // AI ships show only while the player's lookouts can see them (the traffic system's sightings).
+      const inSight = (ship: Ship) => !ship.ai || (state.captain?.sightings?.[ship.id]?.tick ?? -Infinity) >= state.tick - 1;
+      for (const [id, sprite] of shipSprites) {
+        const ship = state.ships[id];
+        sprite.visible = Boolean(ship && inSight(ship));
+      }
       for (const ship of Object.values(state.ships)) {
+        if (!inSight(ship)) continue;
         const spriteId = content.ships[ship.classId]!.sprites.world;
         const def = content.sprites[spriteId]!;
         let sprite = shipSprites.get(ship.id);
@@ -301,12 +332,16 @@ export async function createRenderer(
         world.addChild(pennants.view);
       }
       pennants.update(
-        Object.values(state.ships).map((ship) => ({
-          ship,
-          wind: windAt(state, ship.x, ship.y),
-          x: Math.round(ship.x * ts),
-          y: Math.round(ship.y * ts) + Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9),
-        })),
+        Object.values(state.ships)
+          .filter(inSight)
+          .map((ship) => ({
+            ship,
+            wind: windAt(state, ship.x, ship.y),
+            x: Math.round(ship.x * ts),
+            y: Math.round(ship.y * ts) + Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9),
+            mast: content.sprites[content.ships[ship.classId]!.sprites.world]?.mast,
+            colour: ship.ai ? NATION_PENNANT[ship.ai.nation] : PLAYER_PENNANT,
+          })),
         nowMs / 1000,
       );
       const tpd = content.calendar.ticksPerDay;
