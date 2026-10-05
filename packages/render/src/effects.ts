@@ -121,3 +121,96 @@ export function createWake(map: TileMap) {
     },
   };
 }
+
+interface SprayPoint {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+}
+
+const SPRAY_LIFE_S = 0.45;
+const SPRAY_FROM_SPEED = 0.55; // fraction of class top speed where the bow starts throwing spray
+const BOW_PX = 26; // the bow sits about this far ahead of the waterline pivot in the 96 px sprite
+
+/** White water thrown off the bow when the ship drives hard; more of it the faster she goes. */
+export function createSpray(map: TileMap) {
+  const g = new Graphics();
+  const points: SprayPoint[] = [];
+  const ts = map.tileSize;
+  let carry = 0;
+  let seed = 1;
+  const rand = () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 2246822519) + 0x9e3779b9;
+    return ((seed >>> 0) % 10000) / 10000;
+  };
+
+  return {
+    view: g,
+    /** `drive` is speed as a fraction of the ship's top speed. */
+    update(ship: Ship, drive: number, dt: number) {
+      for (const p of points) {
+        p.age += dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+      while (points.length && points[0]!.age > SPRAY_LIFE_S) points.shift();
+
+      const rad = (ship.headingDeg * Math.PI) / 180;
+      const hx = Math.sin(rad);
+      const hy = -Math.cos(rad);
+      carry += Math.max(0, drive - SPRAY_FROM_SPEED) * 90 * dt;
+      while (carry >= 1) {
+        carry -= 1;
+        const side = rand() < 0.5 ? -1 : 1;
+        const out = 18 + rand() * 26;
+        points.push({
+          x: ship.x * ts + hx * BOW_PX,
+          y: ship.y * ts + hy * BOW_PX * STERN_PX.vertical,
+          vx: -hy * side * out + hx * 10,
+          vy: hx * side * out * STERN_PX.vertical + hy * 10 - 14,
+          age: 0,
+        });
+      }
+
+      g.clear();
+      for (const p of points) {
+        const x = Math.round(p.x);
+        const y = Math.round(p.y);
+        if (!isLand(tileAt(map, x / ts, y / ts))) g.rect(x, y, 1, 1);
+      }
+      g.fill(0xebede9);
+    },
+  };
+}
+
+// The foremast head in the 96 px brig, relative to the waterline pivot: 0.42 units forward and
+// 1.62 up, at 96 / 3.7 px per unit, with the 45 deg camera foreshortening depth by cos 45.
+const MAST = { forward: 0.42, up: 1.62, pxPerUnit: 96 / 3.7, foreshorten: Math.SQRT1_2 };
+const PENNANT_PX: Record<WindStrength, number> = { calm: 3, light: 5, fresh: 7, strong: 9, gale: 11 };
+
+/** A long, thin pennant streaming downwind from the foremast head, so the ship itself shows the wind. */
+export function createPennants() {
+  const g = new Graphics();
+  return {
+    view: g,
+    update(ships: { ship: Ship; wind: Wind; x: number; y: number }[], timeS: number) {
+      g.clear();
+      for (const { ship, wind, x, y } of ships) {
+        const rad = (ship.headingDeg * Math.PI) / 180;
+        const k = MAST.pxPerUnit;
+        const topX = x + Math.sin(rad) * MAST.forward * k;
+        const topY = y - Math.cos(rad) * MAST.forward * k * MAST.foreshorten - MAST.up * k * MAST.foreshorten;
+        const [vx, vy] = windVector(wind);
+        const len = PENNANT_PX[wind.strength];
+        for (let i = 1; i <= len; i++) {
+          // A ripple that grows toward the tip, like cloth flicking in the wind.
+          const wave = Math.sin(timeS * 9 - i * 0.9) * (i / len) * 1.2;
+          g.rect(Math.round(topX + vx * i - vy * wave), Math.round(topY + vy * i * MAST.foreshorten + vx * wave), 1, 1);
+        }
+      }
+      g.fill(0xcf573c);
+    },
+  };
+}

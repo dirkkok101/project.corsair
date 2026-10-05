@@ -73,6 +73,8 @@ export const rasterMapSchema = z.object({
   layers: z.object({ terrain: z.string(), elevation: z.string(), zones: z.string() }),
   start: z.object({ ...shipStart, lon: z.number(), lat: z.number() }),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Hour of the start day the game opens at, so a new career begins in daylight. */
+  startHour: z.number().min(0).lt(24),
   wind: z.object({ fromDeg: degrees, strength: windStrength }),
 });
 

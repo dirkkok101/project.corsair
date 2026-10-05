@@ -2,7 +2,8 @@ import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { Application, Assets, Container, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
-import { createWake, createWindStreaks, windVector } from './effects';
+import { createPennants, createSpray, createWake, createWindStreaks, windVector } from './effects';
+import { createDaylight } from './daylight';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
 import { createSky } from './sky';
@@ -13,6 +14,7 @@ export { facingIndex } from './facing';
 import { MIN_VIEW_HEIGHT, MIN_VIEW_WIDTH } from './view';
 
 export * from './view';
+export { parseGpl, rowsAt } from './daylight';
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
 const SWELL_DRIFT_PX = 9;
@@ -45,6 +47,8 @@ export async function createRenderer(
   settlements: PlacedSettlement[] = [],
   /** Wind at a tile; defaults to the single global wind of the test maps. */
   windAt: (state: WorldState, x: number, y: number) => Wind = (state) => state.wind,
+  /** Day, dusk and night palette rows (same indices) for the day/night swap; omit for always-day. */
+  palettes?: [number, number, number][][],
 ): Promise<Renderer> {
   // Must be set before any texture loads, or sprites get smoothed.
   TextureSource.defaultOptions.scaleMode = 'nearest';
@@ -58,6 +62,8 @@ export async function createRenderer(
     resolution: 1,
     background: '#3c5e8b',
     autoStart: false,
+    // The day/night palette filter is a GLSL shader.
+    preference: 'webgl',
   });
 
   const world = new Container();
@@ -73,7 +79,11 @@ export async function createRenderer(
   const terrain = new Container();
   const streaks = createWindStreaks(map);
   const wake = createWake(map);
-  world.addChild(terrain, streaks.view, wake.view);
+  const spray = createSpray(map);
+  const pennants = createPennants();
+  world.addChild(terrain, streaks.view, wake.view, spray.view);
+  const daylight = palettes ? createDaylight(palettes) : undefined;
+  if (daylight) app.stage.filters = [daylight.filter];
   // Clouds and storms are sky: a layer above the world (and its ships) that scrolls with it.
   const sky = createSky(viewW, viewH, ts);
   // The storm gloom darkens the sea under the ships; the clouds go above everything.
@@ -182,7 +192,9 @@ export async function createRenderer(
         }
         sprite.texture = frames[`${spriteId}.${sailAnim(ship, state, nowMs)}`]![facingIndex(ship.headingDeg, def.facings)]!;
         // Whole pixels only, so the 1 px outline never shimmers.
-        sprite.position.set(Math.round(ship.x * ts), Math.round(ship.y * ts));
+        // A one-pixel bob on the swell, out of step between ships.
+        const bob = Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9);
+        sprite.position.set(Math.round(ship.x * ts), Math.round(ship.y * ts) + bob);
       }
 
       const player = state.ships.player;
@@ -191,6 +203,8 @@ export async function createRenderer(
         const cy = Math.round(player.y * ts - viewH / 2);
         world.position.set(-clamp(cx, 0, worldW - viewW), -clamp(cy, 0, worldH - viewH));
         wake.update(player, dt);
+        const cls = content.ships[player.classId]!;
+        spray.update(player, player.speed / (cls.speed * content.navigation.tilesPerSecondPerSpeedPoint), dt);
       }
 
       // Water and sky show the wind where the camera is looking: the player's ship, or the view centre.
@@ -208,6 +222,21 @@ export async function createRenderer(
       sky.layer.position.copyFrom(world.position);
       sky.gloom.position.set(view.x, view.y);
       sky.update(wind, state.weather?.storms ?? [], dt, view, player && { x: player.x * ts, y: player.y * ts });
+      // Pennants go above the ship sprites, which are added to the world after it.
+      if (pennants.view.parent !== world || world.getChildIndex(pennants.view) !== world.children.length - 1) {
+        world.addChild(pennants.view);
+      }
+      pennants.update(
+        Object.values(state.ships).map((ship) => ({
+          ship,
+          wind: windAt(state, ship.x, ship.y),
+          x: Math.round(ship.x * ts),
+          y: Math.round(ship.y * ts) + Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9),
+        })),
+        nowMs / 1000,
+      );
+      const tpd = content.calendar.ticksPerDay;
+      daylight?.setHour(((state.tick % tpd) / tpd) * 24);
       app.render();
     },
   };

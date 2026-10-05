@@ -1,7 +1,7 @@
 import { createAudio } from '@corsair/audio';
 import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
-import { createRenderer, fitView } from '@corsair/render';
+import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
   createBreezeField,
@@ -35,6 +35,10 @@ const townFrames = import.meta.glob<string>('../../../art/generated/settlements/
   query: '?url',
   import: 'default',
 });
+// Day, dusk and night rows for the palette swap (art pipeline section 6).
+const paletteFiles = import.meta.glob<string>('../../../art/palette/*.gpl', { eager: true, query: '?raw', import: 'default' });
+const palette = (name: string) => parseGpl(Object.entries(paletteFiles).find(([p]) => p.endsWith(`/${name}`))![1]);
+
 const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/caribbean/*.png', {
   eager: true,
   query: '?url',
@@ -67,7 +71,9 @@ async function main() {
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
   const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
   const windAt = createWindField(content, def, map);
-  const sim = createSim(withWeather(createWorld(def), content, def, seed), [
+  // The clock starts at the map's start hour; the date is unchanged (still day 0).
+  const startTick = Math.round((def.startHour / 24) * content.calendar.ticksPerDay);
+  const sim = createSim(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), [
     createWeatherSystem(content, def, map),
     createNavigationSystem(content, map, windAt),
   ]);
@@ -77,6 +83,7 @@ async function main() {
     { ...groupFrames(shipFrames), ...groupFrames(townFrames) },
     settlements,
     windAt,
+    [palette('corsair.gpl'), palette('corsair-dusk.gpl'), palette('corsair-night.gpl')],
   );
 
   const stage = document.getElementById('stage')!;

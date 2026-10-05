@@ -23,6 +23,7 @@
     "headingDeg": 180
   },
   "startDate": "1660-03-01",
+  "startHour": 8,
   "wind": {
     "fromDeg": 67.5,
     "strength": "fresh"
