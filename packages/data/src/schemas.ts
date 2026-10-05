@@ -195,6 +195,29 @@ export const economySchema = z.object({
   harvest: z.tuple([z.number().min(0), z.number().min(0)]),
   /** Stock is capped at this multiple of the usual stock. */
   maxStock: z.number().positive(),
+  shocks: z.object({
+    perWeek: z.number().min(0),
+    /** Share of the way to the shocked stock a market jumps when a shock starts. */
+    jolt: z.number().min(0).max(1),
+    kinds: z.record(
+      z.string(),
+      z.object({
+        on: z.enum(['exports', 'wants']),
+        /** Usual stock multiplier while the shock lasts. */
+        stock: z.number().positive(),
+        weeks: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+        /** Chance of being the weekly draw; 0 for kinds only other systems start (storm damage). */
+        weight: z.number().min(0),
+        /** News text; {town} and {good} are filled in. */
+        news: z.string(),
+      }),
+    ),
+  }),
+  news: z.object({
+    tilesPerDay: z.number().positive(),
+    delayDays: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+    keepWeeks: z.number().int().positive(),
+  }),
   profiles: z.record(z.string(), z.object({ produces: goodRates, consumes: goodRates })),
   settlementProfiles: z.record(z.string(), z.array(z.string()).min(1)),
 });

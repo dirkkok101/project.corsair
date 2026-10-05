@@ -77,6 +77,31 @@ export interface Captain {
   gold: number;
   /** Prices the captain last saw in each port, so routes can be planned from memory. */
   knownPrices: Record<string, KnownPrices>;
+  /** Ids of news items the captain has heard (in a tavern), oldest first. */
+  heard?: string[];
+}
+
+/** A market shock (PRD section 6): a glut, blight, shortage or storm damage at one town, for some weeks. */
+export interface Shock {
+  id: string;
+  kind: string;
+  settlementId: string;
+  good: string;
+  startTick: number;
+  endTick: number;
+}
+
+/**
+ * A world fact turned news (PRD section 13). It is known at its town at once and reaches others
+ * by distance at the news speed, plus `delayDays`; arrival is computed, never stored per town.
+ */
+export interface NewsItem {
+  id: string;
+  tick: number;
+  settlementId: string;
+  kind: string;
+  good: string;
+  delayDays: number;
 }
 
 export interface WorldState {
@@ -90,6 +115,11 @@ export interface WorldState {
   /** Stock of each good in each settlement's market (PRD section 6). */
   markets?: Record<string, Record<string, number>>;
   captain?: Captain;
+  /** Market shocks in force; saves from before shocks existed have none. */
+  shocks?: Shock[];
+  news?: NewsItem[];
+  /** Counter for shock and news ids. */
+  nextNewsId?: number;
 }
 
 export type Command =
@@ -105,7 +135,11 @@ export type Command =
   | { type: 'Dock'; shipId: string; settlementId: string }
   | { type: 'Undock'; shipId: string }
   | { type: 'Buy'; shipId: string; good: string; quantity: number }
-  | { type: 'Sell'; shipId: string; good: string; quantity: number };
+  | { type: 'Sell'; shipId: string; good: string; quantity: number }
+  /** The captain listens in the tavern of the port the ship is docked at. */
+  | { type: 'HearNews'; shipId: string }
+  /** Debug: start a market shock now. */
+  | { type: 'SpawnShock'; settlementId: string; good: string; kind: string };
 
 export interface GameEvent {
   tick: number;

@@ -36,6 +36,62 @@
     1.2
   ],
   "maxStock": 3,
+  "shocks": {
+    "$comment": "Market shocks (PRD section 6): each moves one good at one town. 'on' picks a good the town exports or wants (a notable lean). 'stock' multiplies its usual stock while the shock lasts, and the market jumps 'jolt' of the way there at once so it shows on the next visit. About 'perWeek' shocks start each week across the map; storms add 'storm' shocks to every export of a town their eye passes over. Shocks last at least 4 weeks so news of one can still be acted on after crossing the map.",
+    "perWeek": 0.6,
+    "jolt": 0.8,
+    "kinds": {
+      "bumper": {
+        "on": "exports",
+        "stock": 1.8,
+        "weeks": [
+          4,
+          7
+        ],
+        "weight": 3,
+        "news": "A bumper {good} harvest at {town}: {good} is going cheap there."
+      },
+      "blight": {
+        "on": "exports",
+        "stock": 0.15,
+        "weeks": [
+          4,
+          8
+        ],
+        "weight": 2,
+        "news": "Blight has struck the {good} at {town}. It is scarce and dear."
+      },
+      "shortage": {
+        "on": "wants",
+        "stock": 0.5,
+        "weeks": [
+          4,
+          7
+        ],
+        "weight": 3,
+        "news": "{town} has run short of {good}; merchants there pay handsomely."
+      },
+      "storm": {
+        "on": "exports",
+        "stock": 0.2,
+        "weeks": [
+          4,
+          8
+        ],
+        "weight": 0,
+        "news": "A storm has wrecked the {good} at {town}. It will be dear there for weeks."
+      }
+    }
+  },
+  "news": {
+    "$comment": "News spreads from its town at 'tilesPerDay' (a little slower than a brig), plus a seeded delay. Items are kept 'keepWeeks' from when they happened; 10 weeks x 7 days x 80 tiles is well beyond the map's 1,950-tile diagonal, so every town hears before an item is dropped.",
+    "tilesPerDay": 80,
+    "delayDays": [
+      0,
+      3
+    ],
+    "keepWeeks": 10
+  },
   "profiles": {
     "sugar_isle": {
       "produces": {

@@ -1,5 +1,5 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, EmittedEvent, KnownPrices, Ship, System, WorldState } from '@corsair/core';
+import type { Captain, EmittedEvent, KnownPrices, NewsItem, Ship, System, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
@@ -89,6 +89,76 @@ export function withEconomy(world: WorldState, content: ContentPack, settlements
   return { ...world, markets, captain, rng: { ...world.rng, economy: rng.state() } };
 }
 
+const activeShock = (state: WorldState, settlementId: string, good: string) =>
+  (state.shocks ?? []).find((x) => x.settlementId === settlementId && x.good === good);
+
+/** How a shock in force moves a good's usual stock at a town: 1 when there is none. */
+export function shockFactor(content: ContentPack, state: WorldState, settlementId: string, good: string): number {
+  const shock = activeShock(state, settlementId, good);
+  return shock ? content.economy.shocks.kinds[shock.kind]!.stock : 1;
+}
+
+/**
+ * Starts a shock: the market jumps part of the way to its shocked stock at once, and the news of it
+ * starts out from the town. The weekly draw, storm damage and the debug command all come through here.
+ */
+function startShock(
+  content: ContentPack,
+  state: WorldState,
+  s: Settlement,
+  good: string,
+  kind: string,
+  tick: number,
+  rng: ReturnType<typeof rngStream>,
+): { state: WorldState; events: EmittedEvent[] } {
+  const e = content.economy;
+  const k = e.shocks.kinds[kind]!;
+  const ticksPerWeek = e.daysPerWeek * content.calendar.ticksPerDay;
+  const weeks = Math.floor(rng.range(k.weeks[0], k.weeks[1] + 1));
+  const delayDays = Math.floor(rng.range(e.news.delayDays[0], e.news.delayDays[1] + 1));
+  const n = state.nextNewsId ?? 0;
+  const shock = { id: `shock.${n}`, kind, settlementId: s.id, good, startTick: tick, endTick: tick + weeks * ticksPerWeek };
+  const news = { id: `news.${n}`, tick, settlementId: s.id, kind, good, delayDays };
+  const usual = normalStock(content, s, good);
+  const stock = state.markets?.[s.id]?.[good] ?? 0;
+  const jolted = Math.round(Math.max(0, Math.min(usual * e.maxStock, stock + (usual * k.stock - stock) * e.shocks.jolt)));
+  return {
+    state: {
+      ...state,
+      shocks: [...(state.shocks ?? []), shock],
+      news: [...(state.news ?? []), news],
+      nextNewsId: n + 1,
+      markets: { ...state.markets, [s.id]: { ...state.markets?.[s.id], [good]: jolted } },
+    },
+    events: [{ type: 'MarketShock', entityIds: [s.id], payload: { kind, good, weeks, stock: jolted } }],
+  };
+}
+
+/** The tick news of an item reaches a town: at once where it happened, later the further away. */
+export function newsArrives(content: ContentPack, item: NewsItem, origin: Pick<Settlement, 'x' | 'y'>, town: Pick<Settlement, 'x' | 'y'>): number {
+  const days = Math.hypot(origin.x - town.x, origin.y - town.y) / content.economy.news.tilesPerDay;
+  return item.tick + Math.ceil((days > 0 ? days + item.delayDays : 0) * content.calendar.ticksPerDay);
+}
+
+/** News a town has heard by now, newest first. */
+export function newsAt(content: ContentPack, state: WorldState, settlements: Settlement[], townId: string): NewsItem[] {
+  const town = settlements.find((s) => s.id === townId);
+  if (!town) return [];
+  return (state.news ?? [])
+    .filter((n) => {
+      const origin = settlements.find((s) => s.id === n.settlementId);
+      return origin && newsArrives(content, n, origin, town) <= state.tick;
+    })
+    .reverse();
+}
+
+/** The rumour as told, from the shock kind's template. */
+export function newsText(content: ContentPack, item: NewsItem, townName: string): string {
+  const good = (content.goods.find((g) => g.id === item.good)?.name ?? item.good).toLowerCase();
+  const text = content.economy.shocks.kinds[item.kind]?.news ?? '{town}: {good}';
+  return text.replaceAll('{town}', townName).replaceAll('{good}', good);
+}
+
 export function createEconomySystem(content: ContentPack, settlements: Settlement[]): System {
   const e = content.economy;
   const byId = new Map(settlements.map((s) => [s.id, s]));
@@ -138,6 +208,24 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           state: { ...state, ships: { ...state.ships, [ship.id]: rest } },
           events: [{ type: 'Undocked', entityIds: [ship.id, docked], payload: {} }],
         };
+      }
+      if (command.type === 'HearNews') {
+        const ship = state.ships[command.shipId];
+        if (!ship?.docked) return ship ? refuse(state, ship, 'not-docked') : undefined;
+        const heard = state.captain.heard ?? [];
+        const fresh = newsAt(content, state, settlements, ship.docked).filter((n) => !heard.includes(n.id));
+        if (!fresh.length) return { state, events: [] };
+        return {
+          state: { ...state, captain: { ...state.captain, heard: [...heard, ...fresh.map((n) => n.id).reverse()] } },
+          events: [{ type: 'NewsHeard', entityIds: [ship.docked], payload: { ids: fresh.map((n) => n.id) } }],
+        };
+      }
+      if (command.type === 'SpawnShock') {
+        const s = byId.get(command.settlementId);
+        if (!s || !content.economy.shocks.kinds[command.kind] || !content.goods.some((g) => g.id === command.good)) return undefined;
+        const rng = rngStream(state.rng?.economy ?? seedRng(0, 'economy'));
+        const r = startShock(content, state, s, command.good, command.kind, state.tick, rng);
+        return { state: { ...r.state, rng: { ...r.state.rng, economy: rng.state() } }, events: r.events };
       }
       if (command.type === 'Buy' || command.type === 'Sell') {
         const ship = state.ships[command.shipId];
@@ -207,25 +295,64 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     tick(state) {
       if (!state.markets) return { state, events: [] };
       const tick = state.tick + 1;
-      if (tick % ticksPerWeek !== 0) return { state, events: [] };
-      // Weekly market turn: each market closes part of the gap to its usual stock (production refills
-      // what was bought, consumption eats what was dumped), shaken by a harvest.
+      const storms = state.weather?.storms ?? [];
+      const weekly = tick % ticksPerWeek === 0;
+      if (!weekly && storms.length === 0) return { state, events: [] };
       const rng = rngStream(state.rng?.economy ?? seedRng(0, 'economy'));
-      const markets: Record<string, Record<string, number>> = {};
-      for (const s of settlements) {
-        const market = { ...state.markets[s.id] };
-        for (const g of content.goods) {
-          const usual = normalStock(content, s, g.id) * rng.range(e.harvest[0], e.harvest[1]);
-          const stock = market[g.id] ?? 0;
-          const next = stock + (usual - stock) * e.weeklyRecovery;
-          market[g.id] = Math.round(Math.max(0, Math.min(normalStock(content, s, g.id) * e.maxStock, next)));
-        }
-        markets[s.id] = market;
-      }
-      return {
-        state: { ...state, markets, rng: { ...state.rng, economy: rng.state() } },
-        events: [{ type: 'MarketsTurned', entityIds: [], payload: { week: tick / ticksPerWeek } }],
+      let next = state;
+      const events: EmittedEvent[] = [];
+      const shock = (s: Settlement, good: string, kind: string) => {
+        const r = startShock(content, next, s, good, kind, tick, rng);
+        next = r.state;
+        events.push(...r.events);
       };
+
+      // A storm's eye over a town wrecks what it makes. Checked every tick while storms are out, as a
+      // daily look could miss a fast storm crossing a town; an active shock stops it repeating.
+      for (const storm of storms) {
+        for (const s of settlements) {
+          if (Math.hypot(storm.x - s.x, storm.y - s.y) > storm.radius) continue;
+          for (const g of content.goods) {
+            if (tradeLean(content, s, g.id) === 'exports' && !activeShock(next, s.id, g.id)) shock(s, g.id, 'storm');
+          }
+        }
+      }
+
+      if (weekly) {
+        // Shocks that have run their course end, and news too old to matter is forgotten.
+        const keepFrom = tick - e.news.keepWeeks * ticksPerWeek;
+        next = {
+          ...next,
+          shocks: (next.shocks ?? []).filter((x) => x.endTick > tick),
+          news: (next.news ?? []).filter((n) => n.tick >= keepFrom),
+        };
+        // New shocks somewhere in the Caribbean: two draws a week at half the weekly rate each.
+        const kinds = Object.fromEntries(Object.entries(e.shocks.kinds).map(([id, k]) => [id, k.weight]));
+        for (let i = 0; i < 2; i++) {
+          if (rng.float() >= e.shocks.perWeek / 2) continue;
+          const kind = rng.weighted(kinds);
+          const s = settlements[Math.floor(rng.float() * settlements.length)]!;
+          const goods = content.goods.filter((g) => tradeLean(content, s, g.id) === e.shocks.kinds[kind]!.on && !activeShock(next, s.id, g.id));
+          if (goods.length) shock(s, goods[Math.floor(rng.float() * goods.length)]!.id, kind);
+        }
+        // Weekly market turn: each market closes part of the gap to its usual stock (production refills
+        // what was bought, consumption eats what was dumped), shaken by a harvest. A shock moves the
+        // usual stock, not the cap, so a glut can't ratchet stock upward week after week.
+        const markets: Record<string, Record<string, number>> = {};
+        for (const s of settlements) {
+          const market = { ...next.markets![s.id] };
+          for (const g of content.goods) {
+            const usual = normalStock(content, s, g.id) * shockFactor(content, next, s.id, g.id) * rng.range(e.harvest[0], e.harvest[1]);
+            const stock = market[g.id] ?? 0;
+            const moved = stock + (usual - stock) * e.weeklyRecovery;
+            market[g.id] = Math.round(Math.max(0, Math.min(normalStock(content, s, g.id) * e.maxStock, moved)));
+          }
+          markets[s.id] = market;
+        }
+        next = { ...next, markets };
+        events.push({ type: 'MarketsTurned', entityIds: [], payload: { week: tick / ticksPerWeek } });
+      }
+      return { state: { ...next, rng: { ...next.rng, economy: rng.state() } }, events };
     },
   };
 }

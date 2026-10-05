@@ -6,7 +6,21 @@ import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from 
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
-import { cargoUsed, createEconomySystem, DOCK_RANGE, midPrice, normalStock, portTrade, quote, tradeLean, withEconomy } from '../src';
+import {
+  cargoUsed,
+  createEconomySystem,
+  DOCK_RANGE,
+  midPrice,
+  newsArrives,
+  newsAt,
+  newsText,
+  normalStock,
+  portTrade,
+  quote,
+  shockFactor,
+  tradeLean,
+  withEconomy,
+} from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -220,5 +234,86 @@ describe('saves', () => {
     expect(() => fromSave({ format: 99, seed: 1, state: {} }, 'x')).toThrow(/format/);
     const sim = moored();
     expect(fromSave(toSave(sim.state, 1, 'old', 0), 'new').contentMismatch).toBe(true);
+  });
+});
+
+describe('market shocks and news', () => {
+  const sugarAt = (state: WorldState, s = bridgetown) => quote(content, s, 'sugar', state.markets![s.id]!.sugar!);
+
+  it('a blight makes a good dear at once, holds for its weeks, then the market recovers', () => {
+    const sim = moored(bridgetown, 4);
+    const before = sugarAt(sim.state).buy;
+    sim.send({ type: 'SpawnShock', settlementId: bridgetown.id, good: 'sugar', kind: 'blight' });
+    sim.applyCommands();
+    const shock = sim.state.shocks![0]!;
+    expect(sim.events().at(-1)!.type).toBe('MarketShock');
+    const jolted = sugarAt(sim.state).buy;
+    expect(jolted).toBeGreaterThan(before * 1.3);
+    // Weekly turns while it lasts keep pulling toward the blighted stock, so it gets dearer still.
+    sim.step(shock.endTick - sim.state.tick - 1);
+    expect(sugarAt(sim.state).buy).toBeGreaterThan(jolted);
+    expect(shockFactor(content, sim.state, bridgetown.id, 'sugar')).toBeLessThan(1);
+    // Once it ends, a few weeks bring the price back toward normal.
+    sim.step(7 * day * 8);
+    expect(sim.state.shocks!.some((x) => x.id === shock.id)).toBe(false);
+    expect(sugarAt(sim.state).buy).toBeLessThan(before * 1.15);
+  });
+
+  it("a storm's eye over a town wrecks its exports, once per storm", () => {
+    const world = withEconomy(createWorld(def), content, settlements, 2);
+    const storm = { id: 'storm.t', x: bridgetown.x, y: bridgetown.y, radius: 6, headingDeg: 0, speed: 0, endDay: 99 };
+    const weather = { zones: {}, storms: [storm], nextStormId: 1 } as unknown as WorldState['weather'];
+    const sim = createSim({ ...world, weather }, [createEconomySystem(content, settlements)]);
+    sim.step(60);
+    const shocks = sim.events().filter((x) => x.type === 'MarketShock');
+    expect(shocks).toHaveLength(1);
+    expect(shocks[0]!.payload).toMatchObject({ kind: 'storm', good: 'sugar' });
+  });
+
+  it('news is known at once where it happened, reaches far ports later, and is heard in the tavern', () => {
+    const sim = moored(portRoyal, 4);
+    sim.send({ type: 'SpawnShock', settlementId: bridgetown.id, good: 'sugar', kind: 'blight' });
+    sim.applyCommands();
+    const item = sim.state.news![0]!;
+    expect(newsAt(content, sim.state, settlements, bridgetown.id)).toHaveLength(1);
+    expect(newsAt(content, sim.state, settlements, portRoyal.id)).toHaveLength(0);
+    const arrives = newsArrives(content, item, bridgetown, portRoyal);
+    // About 740 tiles at 80 a day, plus the item's own delay.
+    expect((arrives - item.tick) / day).toBeGreaterThan(9);
+    sim.step(arrives - sim.state.tick - 1);
+    expect(newsAt(content, sim.state, settlements, portRoyal.id)).toHaveLength(0);
+    sim.step(1);
+    expect(newsAt(content, sim.state, settlements, portRoyal.id)).toHaveLength(1);
+    expect(newsText(content, item, 'Bridgetown')).toBe('Blight has struck the sugar at Bridgetown. It is scarce and dear.');
+
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.send({ type: 'HearNews', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.heard).toEqual([item.id]);
+    // Hearing again adds nothing.
+    sim.send({ type: 'HearNews', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.heard).toEqual([item.id]);
+  });
+
+  it('a year of shocks comes and goes within bounds, and replays exactly', () => {
+    const run = () => {
+      const sim = moored(portRoyal, 11);
+      sim.step(day * 7 * 52);
+      return sim;
+    };
+    const a = run();
+    const started = a.events().filter((x) => x.type === 'MarketShock');
+    // About 0.6 a week.
+    expect(started.length).toBeGreaterThan(15);
+    expect(started.length).toBeLessThan(50);
+    for (const s of settlements) {
+      for (const g of content.goods) {
+        expect(a.state.markets![s.id]![g.id]!).toBeLessThanOrEqual(normalStock(content, s, g.id) * content.economy.maxStock);
+      }
+    }
+    // Old news is forgotten after ten weeks.
+    for (const n of a.state.news!) expect(a.state.tick - n.tick).toBeLessThanOrEqual(content.economy.news.keepWeeks * 7 * day);
+    expect(run().hash()).toBe(a.hash());
   });
 });
