@@ -1,0 +1,15 @@
+id: interior.governor
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-05
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, an interior scene in the Caribbean in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up.
+
+  The panel covers the middle of the picture, so keep the centre calm and fairly dark and put the detail at the left and right edges.
+
+  A colonial governor's office: tall shuttered windows onto palms, a large carved desk with maps and a quill, a painted portrait on the wall (face not visible), a nation-neutral coat of arms without any letters, a chandelier, heavy curtains, polished wooden floor.
+seed: ""
+kept: [v1]
+hand_changes: ""

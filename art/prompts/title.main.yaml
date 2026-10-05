@@ -1,0 +1,11 @@
+id: title.main
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-05
+reference: ""
+prompt: |
+  Pixel art game title background, 16:9: a two-masted brig under full sail on a deep blue Caribbean sea at golden late afternoon, a green island with palms and a distant port on the right, gulls, big white clouds. Keep the top third mostly open sky for the game's title. No text, no letters, no logo. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Painterly detail, readable at small size. No watermark, no UI, no frame or border.
+seed: ""
+kept: [v1]
+hand_changes: ""
