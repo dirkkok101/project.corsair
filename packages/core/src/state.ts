@@ -46,7 +46,7 @@ export interface ZoneWeather {
   fromDeg: number;
   strength: WindStrength;
   /** A zone event (a norther, a calm) overrides the seasonal wind until endDay. */
-  event?: { id: string; endDay: number };
+  event?: { id: string; endDay: number; variable?: boolean };
 }
 
 export interface WeatherState {

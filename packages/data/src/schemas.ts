@@ -104,6 +104,10 @@ export const windZonesSchema = z.object({
             months: z.array(month).min(1),
             chancePerDay: z.number().min(0).max(1),
             fromDeg: degrees,
+            /** The event's direction is drawn within fromDeg ± spreadDeg when it starts. */
+            spreadDeg: z.number().min(0).max(180).optional(),
+            /** Variable winds: the direction is redrawn at every weather check while the event lasts. */
+            variable: z.boolean().optional(),
             strength: windStrength,
             durationDays: range,
           }),
@@ -118,6 +122,14 @@ export const weatherSchema = z.object({
   shiftChance: z.number().min(0).max(1),
   maxShiftDeg: z.number().min(0),
   strengthChangeChance: z.number().min(0).max(1),
+  /** Coastal sea and land breezes (PRD section 3 weather): onshore by day, offshore by night. */
+  breeze: z.object({
+    reachKm: z.number().positive(),
+    /** Peak breeze, in the navigation windStrength multiplier units. */
+    strength: z.number().min(0),
+    /** Hour of peak sea breeze; the land breeze peaks twelve hours later. */
+    seaBreezePeakHour: z.number().min(0).lt(24),
+  }),
   storms: z.object({
     months: z.array(month),
     spawnChancePerDay: z.record(z.string(), z.number().min(0).max(1)),

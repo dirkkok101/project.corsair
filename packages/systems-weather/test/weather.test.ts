@@ -5,7 +5,15 @@ import type { Storm, WorldState } from '@corsair/core';
 import { decodeRasterMap, loadContent, tileOf } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { describe, expect, it } from 'vitest';
-import { createWeatherSystem, createWindField, seasonOf, stormWindAt, withWeather, zoneAt } from '../src';
+import {
+  createBreezeField,
+  createWeatherSystem,
+  createWindField,
+  seasonOf,
+  stormWindAt,
+  withWeather,
+  zoneAt,
+} from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -18,7 +26,7 @@ const map = decodeRasterMap(def, {
 const day = content.calendar.ticksPerDay;
 
 function newSim(seed: number, start: WorldState = createWorld(def)) {
-  const windAt = createWindField(content, map);
+  const windAt = createWindField(content, def, map);
   return createSim(withWeather(start, content, def, seed), [
     createWeatherSystem(content, def, map),
     createNavigationSystem(content, map, windAt),
@@ -70,22 +78,69 @@ describe('zones and seasons', () => {
     expect(at(-61, 14)).toBe('zone.lesser_antilles');
   });
 
-  it('gives a ship the wind of its zone, and a storm overrides it', () => {
+  it('gives open water the wind of its zone, and a storm overrides it', () => {
     const sim = newSim(3);
-    const windAt = createWindField(content, map);
-    const ship = sim.state.ships.player!;
-    const zone = zoneAt(content, map, ship.x, ship.y).id;
-    expect(windAt(sim.state, ship.x, ship.y)).toEqual({
+    const windAt = createWindField(content, def, map);
+    // Open Caribbean, far beyond any coastal breeze.
+    const { x, y } = tileOf(def, -75, 15);
+    const zone = zoneAt(content, map, x, y).id;
+    expect(windAt(sim.state, x, y)).toEqual({
       fromDeg: sim.state.weather!.zones[zone]!.fromDeg,
       strength: sim.state.weather!.zones[zone]!.strength,
     });
-    sim.send({ type: 'SpawnStorm', x: ship.x + 5, y: ship.y });
+    sim.send({ type: 'SpawnStorm', x: x + 5, y });
     sim.step();
-    expect(['gale', 'strong']).toContain(windAt(sim.state, ship.x, ship.y).strength);
+    expect(['gale', 'strong']).toContain(windAt(sim.state, x, y).strength);
+  });
+
+  describe('coastal breezes', () => {
+    const breezes = createBreezeField(content, def, map);
+    // Just off Jamaica's south coast, where land lies to the north.
+    const off = tileOf(def, -77.0, 17.78);
+    const at = (hour: number) => breezes.at(Math.round((hour / 24) * day), off.x, off.y);
+
+    it('blows onshore in the afternoon and offshore before dawn', () => {
+      const sea = at(15)!;
+      const land = at(3)!;
+      expect(sea.kind).toBe('sea');
+      expect(sea.north).toBeGreaterThan(0); // toward the land to the north
+      expect(land.kind).toBe('land');
+      expect(land.north).toBeLessThan(0); // out to sea, southward
+    });
+
+    it('fades out at sea and dies away at the turn of the day', () => {
+      const { x, y } = tileOf(def, -75, 15);
+      expect(breezes.at(Math.round((15 / 24) * day), x, y)).toBeUndefined();
+      expect(at(9)).toBeUndefined();
+    });
+
+    it('bends the zone wind near the coast', () => {
+      const sim = newSim(3);
+      const windAt = createWindField(content, def, map);
+      const zone = sim.state.weather!.zones[zoneAt(content, map, off.x, off.y).id]!;
+      const night = { ...sim.state, tick: Math.round((3 / 24) * day) };
+      expect(windAt(night, off.x, off.y).fromDeg).not.toBeCloseTo(zone.fromDeg, 0);
+    });
   });
 });
 
 describe('weather over time', () => {
+  it('starts events within their spread, and variable spells keep changing direction', () => {
+    const start = newSim(13).state;
+    const zone = content.windZones.zones.find((z) => z.id === 'zone.caribbean_sea')!;
+    // Every zone in a variable spell for the next ten days.
+    const zones = Object.fromEntries(
+      Object.entries(start.weather!.zones).map(([id, w]) => [id, { ...w, event: { id: 'variable', endDay: 10, variable: true } }]),
+    );
+    const sim = createSim({ ...start, weather: { ...start.weather!, zones } }, [createWeatherSystem(content, def, map)]);
+    const seen = new Set<number>();
+    for (let i = 0; i < 8; i++) {
+      sim.step(Math.round((day * content.weather.checkEveryHours) / 24));
+      seen.add(Math.round(sim.state.weather!.zones[zone.id]!.fromDeg));
+    }
+    expect(seen.size).toBeGreaterThan(4);
+  });
+
   it('drifts zone winds within their season', () => {
     const sim = newSim(11);
     const before = JSON.stringify(sim.state.weather!.zones);
@@ -141,7 +196,7 @@ describe('weather over time', () => {
     const run = () => {
       const sim = createSim(withWeather(createWorld(sept), stormy, sept, 77), [
         createWeatherSystem(stormy, sept, map),
-        createNavigationSystem(stormy, map, createWindField(stormy, map)),
+        createNavigationSystem(stormy, map, createWindField(stormy, def, map)),
       ]);
       const hashes: string[] = [];
       for (let t = 0; t < 3 * day + 5; t++) {

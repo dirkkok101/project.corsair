@@ -1,7 +1,7 @@
 import { dateOf, rngStream, seedRng } from '@corsair/core';
 import type { EmittedEvent, Storm, System, WeatherState, Wind, WindStrength, WorldState } from '@corsair/core';
-import { tileOf } from '@corsair/data';
-import type { ContentPack, RasterMapDef, TileMap, WindZones } from '@corsair/data';
+import { isLand, tileOf } from '@corsair/data';
+import type { ContentPack, RasterMapDef, Tile, TileMap, WindZones } from '@corsair/data';
 
 type Zone = WindZones['zones'][number];
 export type WindAt = (state: WorldState, x: number, y: number) => Wind;
@@ -44,8 +44,81 @@ export function stormWindAt(storm: Storm, x: number, y: number): Wind | undefine
   return { fromDeg: normalizeDeg(toBearing + 180), strength: r2 < gale * gale ? 'gale' : 'strong' };
 }
 
-/** Wind at a tile: a storm wins, then the zone's weather, then the fallback global wind. */
-export function createWindField(content: ContentPack, map: TileMap): WindAt {
+/** Hour of the game day, 0 to 24, from the tick (a new game starts at midnight). */
+export function hourOf(tick: number, ticksPerDay: number): number {
+  return ((tick % ticksPerDay) / ticksPerDay) * 24;
+}
+
+export interface Breeze {
+  kind: 'sea' | 'land';
+  /** Toward-vector in east/north terms, in windStrength multiplier units. */
+  east: number;
+  north: number;
+}
+
+/**
+ * Coastal sea and land breezes. Distance to land comes from a breadth-first pass over the coastal
+ * band; the onshore direction is the downhill direction of that distance field.
+ */
+export function createBreezeField(content: ContentPack, def: RasterMapDef, map: TileMap) {
+  const { reachKm, strength, seaBreezePeakHour } = content.weather.breeze;
+  const { lonMin, lonMax, latMin, latMax } = def.bounds;
+  const midLat = ((latMin + latMax) / 2) * (Math.PI / 180);
+  const kmPerTile =
+    (((lonMax - lonMin) / map.width) * 111.32 * Math.cos(midLat) + ((latMax - latMin) / map.height) * 110.57) / 2;
+  const reach = Math.max(1, Math.round(reachKm / kmPerTile));
+  const far = reach + 1;
+  const { width: w, height: h } = map;
+  const dist = new Uint8Array(w * h).fill(far);
+  const queue = new Int32Array(w * h);
+  let head = 0;
+  let tail = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (isLand(map.tiles[i]! as Tile)) {
+      dist[i] = 0;
+      queue[tail++] = i;
+    }
+  }
+  while (head < tail) {
+    const i = queue[head++]!;
+    const d = dist[i]! + 1;
+    if (d > reach) continue;
+    const x = i % w;
+    const neighbours = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w];
+    for (const j of neighbours) {
+      if (j < 0 || j >= w * h || dist[j]! <= d) continue;
+      dist[j] = d;
+      queue[tail++] = j;
+    }
+  }
+  const d = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? far : dist[y * w + x]!);
+
+  return {
+    /** The breeze at a water tile, or undefined beyond its reach, on land, or at the turn of the day. */
+    at(tick: number, x: number, y: number): Breeze | undefined {
+      const tx = Math.floor(x);
+      const ty = Math.floor(y);
+      const here = d(tx, ty);
+      if (here === 0 || here > reach) return undefined;
+      // Toward land is down the distance field; map y grows southward, so north is -dy.
+      const gx = d(tx + 1, ty) - d(tx - 1, ty);
+      const gy = d(tx, ty + 1) - d(tx, ty - 1);
+      const len = Math.hypot(gx, gy);
+      if (len === 0) return undefined;
+      // +1 at the sea-breeze peak hour, -1 twelve hours later (offshore land breeze).
+      const cycle = Math.cos(((hourOf(tick, content.calendar.ticksPerDay) - seaBreezePeakHour) / 24) * 2 * Math.PI);
+      const amount = strength * cycle * (1 - (here - 1) / reach);
+      if (Math.abs(amount) < 0.05) return undefined;
+      return { kind: amount > 0 ? 'sea' : 'land', east: (-gx / len) * amount, north: (gy / len) * amount };
+    },
+  };
+}
+
+/** Wind at a tile: a storm wins, then the zone's weather plus any coastal breeze, then the fallback global wind. */
+export function createWindField(content: ContentPack, def: RasterMapDef, map: TileMap): WindAt {
+  const breezes = createBreezeField(content, def, map);
+  const multipliers = content.navigation.windStrength;
+  const levels = (Object.entries(multipliers) as [WindStrength, number][]).sort((a, b) => a[1] - b[1]);
   return (state, x, y) => {
     const weather = state.weather;
     if (!weather) return state.wind;
@@ -54,7 +127,18 @@ export function createWindField(content: ContentPack, map: TileMap): WindAt {
       if (wind) return wind;
     }
     const zone = weather.zones[zoneAt(content, map, x, y).id];
-    return zone ? { fromDeg: zone.fromDeg, strength: zone.strength } : state.wind;
+    if (!zone) return state.wind;
+    const breeze = breezes.at(state.tick, x, y);
+    if (!breeze) return { fromDeg: zone.fromDeg, strength: zone.strength };
+    // Add the breeze to the zone wind as vectors, then read back a direction and the nearest strength.
+    const to = ((zone.fromDeg + 180) * Math.PI) / 180;
+    const m = multipliers[zone.strength]!;
+    const east = Math.sin(to) * m + breeze.east;
+    const north = Math.cos(to) * m + breeze.north;
+    const speed = Math.hypot(east, north);
+    const strength = levels.reduce((best, l) => (Math.abs(l[1] - speed) < Math.abs(best[1] - speed) ? l : best))[0];
+    const fromDeg = normalizeDeg((Math.atan2(east, north) * 180) / Math.PI + 180);
+    return { fromDeg, strength };
   };
 }
 
@@ -196,7 +280,11 @@ export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map
           const current = zones[zone.id]!;
           const prevailing = zone.seasons[season];
           const hoursFraction = w.checkEveryHours / 24;
-          if (current.event && day < current.event.endDay) continue;
+          if (current.event && day < current.event.endDay) {
+            // Variable winds: a fresh direction at every check while the spell lasts.
+            if (current.event.variable) zones[zone.id] = { ...current, fromDeg: rng.range(0, 360) };
+            continue;
+          }
           if (current.event) {
             // Event over: back to the season's wind.
             zones[zone.id] = { fromDeg: prevailing.fromDeg, strength: rng.weighted<WindStrength>(prevailing.strength) };
@@ -206,7 +294,12 @@ export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map
           const event = zone.events?.find((e) => e.months.includes(month) && rng.float() < e.chancePerDay * hoursFraction);
           if (event) {
             const endDay = day + Math.max(1, Math.round(rng.range(...event.durationDays)));
-            zones[zone.id] = { fromDeg: event.fromDeg, strength: event.strength, event: { id: event.id, endDay } };
+            const spread = event.spreadDeg ?? 0;
+            zones[zone.id] = {
+              fromDeg: normalizeDeg(event.fromDeg + rng.range(-spread, spread)),
+              strength: event.strength,
+              event: { id: event.id, endDay, ...(event.variable ? { variable: true } : {}) },
+            };
             events.push({ type: 'WindEventStarted', entityIds: [zone.id], payload: { id: event.id, endDay } });
             continue;
           }

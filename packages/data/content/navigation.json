@@ -23,7 +23,7 @@
   "pointsOfSail": [
     {
       "id": "irons",
-      "maxDeg": 48,
+      "maxDeg": 40,
       "name": "In irons"
     },
     {

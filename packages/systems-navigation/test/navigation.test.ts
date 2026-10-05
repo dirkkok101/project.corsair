@@ -141,7 +141,15 @@ describe('polarAt', () => {
   it('hits the table at both ends and interpolates between points', () => {
     expect(polarAt(square, 0)).toBe(0);
     expect(polarAt(square, 180)).toBeCloseTo(0.7, 10);
-    expect(polarAt(square, 54)).toBeCloseTo(0.2, 10);
+    // Halfway between the 48 and 60 degree points.
+    expect(polarAt(square, 54)).toBeCloseTo((square.values[4]! + square.values[5]!) / 2, 10);
+  });
+
+  it('lets a square rig beat upwind at a playable rate', () => {
+    // Best velocity made good toward the wind, as a fraction of top speed.
+    const best = Math.max(...Array.from({ length: 91 }, (_, a) => polarAt(square, a) * Math.cos((a * Math.PI) / 180)));
+    expect(best).toBeGreaterThan(0.35);
+    expect(best).toBeLessThan(polarAt(square, 180));
   });
 });
 

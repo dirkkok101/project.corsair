@@ -55,7 +55,7 @@ async function main() {
   const settlements = placeSettlements(def, map, content.settlements);
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
   const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-  const windAt = createWindField(content, map);
+  const windAt = createWindField(content, def, map);
   const sim = createSim(withWeather(createWorld(def), content, def, seed), [
     createWeatherSystem(content, def, map),
     createNavigationSystem(content, map, windAt),

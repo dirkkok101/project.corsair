@@ -4,6 +4,12 @@
   "shiftChance": 0.35,
   "maxShiftDeg": 22.5,
   "strengthChangeChance": 0.25,
+  "breeze": {
+    "$comment": "Land heats by day and cools by night: an onshore sea breeze peaks mid-afternoon and an offshore land breeze before dawn, fading out ~30 km from the coast. Historically the night land breeze is how ships worked east along a coast against the trades.",
+    "reachKm": 30,
+    "strength": 0.6,
+    "seaBreezePeakHour": 15
+  },
   "storms": {
     "$comment": "The real main development region lies far east of the map; storms enter here already formed. Late-season (Oct-Nov) western-Caribbean genesis is not modelled. Forward speed 250-550 km/day is ~10-23 km/h; most Caribbean storms recurve near 25-30N.",
     "months": [

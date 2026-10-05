@@ -1,7 +1,24 @@
 {
   "polar.square": {
-    "$comment": "Speed fraction by angle off the wind: index i is i * stepDeg, 0 = head to wind, 180 = running. Square rig stalls inside ~50 deg and peaks on a broad reach.",
+    "$comment": "Speed fraction by angle off the wind: index i is i * stepDeg, 0 = head to wind, 180 = running. Square rig peaks on a broad reach. Tuned for play over strict realism (PRD: fun wins): no drive inside ~33 deg, and the best upwind course (about 55 deg off) makes good ~0.37 of top speed, so beating east against the trades is slow but a real option.",
     "stepDeg": 12,
-    "values": [0, 0, 0, 0, 0.05, 0.35, 0.6, 0.8, 0.92, 1, 1, 0.97, 0.9, 0.82, 0.75, 0.7]
+    "values": [
+      0,
+      0,
+      0,
+      0.15,
+      0.55,
+      0.75,
+      0.86,
+      0.93,
+      0.97,
+      1,
+      1,
+      0.97,
+      0.9,
+      0.82,
+      0.75,
+      0.7
+    ]
   }
 }
