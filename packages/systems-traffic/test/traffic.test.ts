@@ -100,3 +100,74 @@ describe('ships at sea', () => {
     expect(tooFar.events().at(-1)!.payload.reason).toBe('too-far');
   });
 });
+
+describe('fights at sea', () => {
+  const spawnAlongside = (sim: ReturnType<typeof world>, role: 'merchant' | 'pirate', from: string, to: string) => {
+    sim.send({ type: 'SpawnShip', role, from, to });
+    sim.applyCommands();
+    const id = Object.keys(sim.state.ships).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    const other = sim.state.ships[id]!;
+    const player = sim.state.ships.player!;
+    const near: WorldState = { ...sim.state, ships: { ...sim.state.ships, player: { ...player, x: other.x + 1, y: other.y } } };
+    return { id, near };
+  };
+  const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
+  const result = (outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'lost') => ({
+    outcome,
+    player: { hull: 60, sailCondition: 80, crew: 50 },
+    enemy: { hull: 10, sailCondition: 40, crew: 9 },
+  });
+
+  it('a pirate that sights the player gives chase and closes to battle', () => {
+    const sim = world(5);
+    const haven = settlements.find((s) => s.id === 'town.tortuga')!;
+    const { id } = spawnAlongside(sim, 'pirate', haven.id, 'town.port_royal');
+    const pirate = sim.state.ships[id]!;
+    // Put the player within sight, six tiles ahead on her own lane (open water), and let her come on.
+    const [[x0, y0], [x1, y1]] = pirate.ai!.route as [[number, number], [number, number]];
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const ahead = Math.min(6, len);
+    const at = { x: x0 + ((x1 - x0) / len) * ahead, y: y0 + ((y1 - y0) / len) * ahead };
+    const start = { ...sim.state, ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, ...at } } };
+    const chase = createSim(start, [traffic()]);
+    chase.step(30 * 20);
+    expect(chase.events().some((e) => e.type === 'BattleJoined' && e.entityIds[1] === id)).toBe(true);
+  });
+
+  it("taking a merchant costs standing with her nation, and brings her gold and cargo aboard", () => {
+    const sim = world(6);
+    const { id, near } = spawnAlongside(sim, 'merchant', 'town.port_royal', 'town.cartagena');
+    const prize = { ...near.ships[id]!, cargo: { sugar: 12 }, ai: { ...near.ships[id]!.ai!, purse: 300 } };
+    const fight = createSim({ ...near, ships: { ...near.ships, [id]: prize } }, [traffic()]);
+    const gold = fight.state.captain!.gold;
+    fight.send({ type: 'Attack', shipId: 'player', targetId: id });
+    fight.applyCommands();
+    expect(fight.events().at(-1)!.type).toBe('BattleJoined');
+    expect(fight.state.captain!.standing!.england).toBe(content.combat.standing.attack);
+    fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('struck') });
+    fight.applyCommands();
+    expect(fight.state.ships[id]).toBeUndefined();
+    expect(fight.state.captain!.gold).toBe(gold + 300);
+    expect(fight.state.ships.player!.cargo.sugar).toBe(12);
+    expect(fight.state.ships.player!.crew).toBe(50);
+    expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'taken', ship: prize.ai.name, nation: 'england' });
+  });
+
+  it('sinking a pirate raises standing everywhere; losing to one costs the cargo and half the gold', () => {
+    const sim = world(8);
+    const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const win = createSim(near, [traffic()]);
+    win.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('sunk') });
+    win.applyCommands();
+    expect(win.state.captain!.standing).toMatchObject({ spain: 3, england: 3, france: 3, netherlands: 3 });
+
+    const laden = { ...near, ships: { ...near.ships, player: { ...near.ships.player!, cargo: { luxuries: 20 } } } };
+    const lose = createSim(laden, [traffic()]);
+    const gold = lose.state.captain!.gold;
+    lose.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('lost') });
+    lose.applyCommands();
+    expect(lose.state.ships.player!.cargo).toEqual({});
+    expect(lose.state.captain!.gold).toBe(Math.floor(gold / 2));
+    expect(lose.state.ships[id]).toBeDefined();
+  });
+});

@@ -15,6 +15,8 @@ export interface SeaLanes {
   route(from: string, to: string): Point[] | undefined;
   /** The water tile a ship lies at off a port. */
   mooring(id: string): Point | undefined;
+  /** True when a straight line between two points stays on water. */
+  clear(a: Point, b: Point): boolean;
 }
 
 const MOORING_SEARCH = 4;
@@ -246,6 +248,7 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
   const cache = new Map<string, Point[] | undefined>();
   return {
     mooring: (id) => moorings.get(id)?.at,
+    clear,
     route(from, to) {
       const key = `${from}>${to}`;
       if (cache.has(key)) return cache.get(key);

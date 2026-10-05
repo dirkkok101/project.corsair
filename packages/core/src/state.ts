@@ -41,6 +41,12 @@ export interface AiCaptain {
   waitUntil?: number;
   /** News ids it picked up in its last port, to pass on when hailed. */
   news: string[];
+  /** Gold aboard, which a ship that strikes her colours gives up. */
+  purse?: number;
+  /** Chasing the player: a pirate (or a hostile nation's patrol) that sighted them. */
+  chasing?: boolean;
+  /** No chase before this tick: a ship that just fought or lost the player leaves them be a while. */
+  calmUntil?: number;
 }
 
 export interface Ship {
@@ -61,6 +67,13 @@ export interface Ship {
   cargo: Record<string, number>;
   /** Gold paid for the units of each good now in the hold, so the merchant can show the margin. */
   paid?: Record<string, number>;
+  /**
+   * Condition (PRD section 7, per-ship state): hull points, sails 0 to 100, and men aboard. Absent on
+   * saves from before battles, which read as a sound ship (class hull, full sails) with its usual crew.
+   */
+  hull?: number;
+  sailCondition?: number;
+  crew?: number;
   /** Set on AI ships; the player's ship has none. */
   ai?: AiCaptain;
   /** Settlement id while the ship is in port; it doesn't sail until it undocks. */
@@ -110,6 +123,20 @@ export interface Captain {
   heard?: string[];
   /** Where each AI ship was last seen from the player's deck, for the chart's fading markers. */
   sightings?: Record<string, Sighting>;
+  /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
+  standing?: Partial<Record<Nation, number>>;
+}
+
+/** How a sea battle ended, and what each side came out of it with (PRD section 9.1). */
+export interface BattleResult {
+  /**
+   * sunk: the enemy went down with her cargo. struck: she hauled down her colours. boarded: the player
+   * carried her by boarding. escaped: she got away (off the map, or the fight ran out of time).
+   * lost: the player was beaten, boarded or sinking, and struck to her.
+   */
+  outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'lost';
+  player: { hull: number; sailCondition: number; crew: number };
+  enemy: { hull: number; sailCondition: number; crew: number };
 }
 
 export interface Sighting {
@@ -141,6 +168,9 @@ export interface NewsItem {
   kind: string;
   good: string;
   delayDays: number;
+  /** News of a fight: the ship it was about, and her flag. */
+  ship?: string;
+  nation?: Nation;
 }
 
 export interface WorldState {
@@ -177,6 +207,13 @@ export type Command =
   | { type: 'Undock'; shipId: string }
   | { type: 'Buy'; shipId: string; good: string; quantity: number }
   | { type: 'Sell'; shipId: string; good: string; quantity: number }
+  /** Open fire on an AI ship within hailing range: starts a sea battle. */
+  | { type: 'Attack'; shipId: string; targetId: string }
+  /** A sea battle is over: its result (from the battle minigame) applied to the world. */
+  | { type: 'BattleEnded'; shipId: string; targetId: string; result: BattleResult }
+  /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
+  | { type: 'Recruit'; shipId: string; count: number }
+  | { type: 'Repair'; shipId: string }
   /** Speak an AI ship within hailing range: learn who it is and hear its news. */
   | { type: 'Hail'; shipId: string; targetId: string }
   /** Debug: start an AI ship of a role at a port, bound for another. */

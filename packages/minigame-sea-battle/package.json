@@ -1,0 +1,13 @@
+{
+  "name": "@corsair/minigame-sea-battle",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@corsair/core": "workspace:*",
+    "@corsair/data": "workspace:*",
+    "@corsair/systems-navigation": "workspace:*"
+  }
+}

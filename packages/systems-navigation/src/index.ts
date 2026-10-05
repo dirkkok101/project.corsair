@@ -29,6 +29,14 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
  * Speed the ship settles at on its current heading, in tiles per second (PRD section 4):
  * v = v_base * P(theta) * W_s * sail setting. Hull, crew, load and current are not modelled yet.
  */
+/** How a ship's condition slows her (PRD section 7): shot-through sails draw less, and a hull below 30% drags. */
+export function conditionFactor(content: ContentPack, ship: Ship): number {
+  const cls = content.ships[ship.classId]!;
+  const sails = 0.3 + 0.7 * ((ship.sailCondition ?? 100) / 100);
+  const hull = ship.hull !== undefined && ship.hull < cls.hull * 0.3 ? 0.8 : 1;
+  return sails * hull;
+}
+
 export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): number {
   const nav = content.navigation;
   const cls = content.ships[ship.classId]!;
@@ -37,7 +45,8 @@ export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): numbe
     nav.tilesPerSecondPerSpeedPoint *
     polarAt(content.polars[cls.polar]!, angleOffWind(ship.headingDeg, wind.fromDeg)) *
     nav.windStrength[wind.strength]! *
-    nav.sailSettings[ship.sails]!
+    nav.sailSettings[ship.sails]! *
+    conditionFactor(content, ship)
   );
 }
 

@@ -1,0 +1,110 @@
+{
+  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing.",
+  "battle": {
+    "tilesPerSecondPerSpeedPoint": 0.25,
+    "widthTiles": 30,
+    "heightTiles": 17,
+    "tileSize": 48,
+    "startApart": 8,
+    "boardTiles": 1.6,
+    "maxSeconds": 240
+  },
+  "guns": {
+    "arcDeg": 40,
+    "rangeTiles": 6,
+    "grapeTiles": 2.5,
+    "reloadSeconds": 6,
+    "crewPerGun": 4,
+    "shotTilesPerSecond": 12,
+    "hitNear": 0.85,
+    "hitFar": 0.25,
+    "rakeBonus": 0.4
+  },
+  "ammo": {
+    "round": {
+      "hull": 1.2,
+      "sails": 0.3,
+      "crew": 0.2
+    },
+    "chain": {
+      "hull": 0.2,
+      "sails": 2.5,
+      "crew": 0.1
+    },
+    "grape": {
+      "hull": 0.1,
+      "sails": 0.2,
+      "crew": 1.5,
+      "short": true
+    }
+  },
+  "gunLoss": 0.03,
+  "strike": {
+    "hull": 0.25,
+    "crew": 0.3,
+    "chance": 0.15
+  },
+  "boarding": {
+    "player": 1.2,
+    "merchant": 0.6,
+    "patrol": 1.1,
+    "pirate": 1.3,
+    "losses": 0.35
+  },
+  "personality": {
+    "merchant": "runner",
+    "patrol": "cautious",
+    "pirate": "aggressive"
+  },
+  "crew": {
+    "merchant": [
+      0.4,
+      0.7
+    ],
+    "patrol": [
+      0.75,
+      0.95
+    ],
+    "pirate": [
+      0.7,
+      0.95
+    ]
+  },
+  "purse": {
+    "merchant": [
+      100,
+      400
+    ],
+    "patrol": [
+      150,
+      350
+    ],
+    "pirate": [
+      200,
+      800
+    ]
+  },
+  "chase": {
+    "chaseTiles": 14,
+    "giveUpTiles": 24,
+    "contactTiles": 2.5,
+    "calmDays": 2
+  },
+  "standing": {
+    "attack": -20,
+    "pirate": 3,
+    "hostile": -30,
+    "refused": -50
+  },
+  "port": {
+    "recruitGold": 10,
+    "hullGold": 6,
+    "sailGold": 2
+  },
+  "startCrew": 0.5,
+  "news": {
+    "sunk": "The {nation} {ship} was sunk in a sea fight off {town}.",
+    "taken": "The {nation} {ship} was taken off {town}, and her cargo with her.",
+    "pirateSunk": "A pirate, the {ship}, was sent to the bottom off {town}."
+  }
+}

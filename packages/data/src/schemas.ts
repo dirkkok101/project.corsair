@@ -14,8 +14,13 @@ export const shipClassSchema = z.object({
   hull: z.number(),
   /** Hold capacity in units of cargo. */
   cargo: z.number().int().positive(),
+  /** Guns, split evenly between the two broadsides. */
+  guns: z.number().int().min(0),
+  /** Fewest men to sail her, and the most she berths. */
+  minCrew: z.number().int().positive(),
+  maxCrew: z.number().int().positive(),
   polar: z.string(),
-  sprites: z.object({ world: z.string() }),
+  sprites: z.object({ world: z.string(), combat: z.string().optional() }),
 });
 
 export const polarSchema = z
@@ -233,6 +238,65 @@ export const economySchema = z.object({
 
 const nation = z.enum(['spain', 'england', 'france', 'netherlands', 'pirate']);
 
+const share = z.number().min(0).max(1);
+
+export const combatSchema = z.object({
+  battle: z.object({
+    /** Battle speed: navigation's tiles per second per speed point, scaled down so a fight is readable. */
+    tilesPerSecondPerSpeedPoint: z.number().positive(),
+    /** The battle map, in world tiles around the meeting, drawn at tileSize px a tile. */
+    widthTiles: z.number().int().positive(),
+    heightTiles: z.number().int().positive(),
+    tileSize: z.number().int().positive(),
+    /** How far apart the ships start, in battle tiles. */
+    startApart: z.number().positive(),
+    /** Hulls this close (tiles) touch: boarding. */
+    boardTiles: z.number().positive(),
+    /** A fight longer than this (seconds) ends with the enemy slipping away. */
+    maxSeconds: z.number().positive(),
+  }),
+  guns: z.object({
+    /** A broadside bears within this many degrees of the beam. */
+    arcDeg: z.number().positive(),
+    rangeTiles: z.number().positive(),
+    grapeTiles: z.number().positive(),
+    /** Seconds to reload a broadside with a full gun crew; switching ammo costs a reload too. */
+    reloadSeconds: z.number().positive(),
+    /** Men a gun needs for full-speed reloading; fewer and every broadside reloads slower. */
+    crewPerGun: z.number().positive(),
+    shotTilesPerSecond: z.number().positive(),
+    /** Chance a shot hits at point blank and at full range; raking fire (along the target's length) is surer. */
+    hitNear: share,
+    hitFar: share,
+    rakeBonus: z.number().min(0),
+  }),
+  ammo: z.record(
+    z.enum(['round', 'chain', 'grape']),
+    z.object({ hull: z.number().min(0), sails: z.number().min(0), crew: z.number().min(0), short: z.boolean().optional() }),
+  ),
+  /** Chance a round-shot hit dismounts a gun. */
+  gunLoss: share,
+  /** A ship strikes when her hull or crew falls below these shares, rolled each second at strikeChance. */
+  strike: z.object({ hull: share, crew: share, chance: share }),
+  /** Boarding: each side's strength is crew x this factor; the player's uses `player`. */
+  boarding: z.object({ player: z.number().positive(), merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
+  /** Steering style per AI role. */
+  personality: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.enum(['runner', 'cautious', 'aggressive'])),
+  /** Crew and purse an AI ship sails with, as shares of her class's berths, and gold. */
+  crew: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.tuple([share, share])),
+  purse: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.tuple([z.number().min(0), z.number().min(0)])),
+  /** Pirates (and a hostile nation's patrols) chase a player they sight within chaseTiles, give up past giveUpTiles. */
+  chase: z.object({ chaseTiles: z.number().positive(), giveUpTiles: z.number().positive(), contactTiles: z.number().positive(), calmDays: z.number().min(0) }),
+  /** Standing: attacking a nation's ship costs `attack`; sinking or taking a pirate earns `pirate` with every nation. */
+  standing: z.object({ attack: z.number(), pirate: z.number(), hostile: z.number(), refused: z.number() }),
+  /** Tavern and shipwright prices. */
+  port: z.object({ recruitGold: z.number().min(0), hullGold: z.number().min(0), sailGold: z.number().min(0) }),
+  /** The player's crew at the start of a career, as a share of the class's berths. */
+  startCrew: share,
+  /** News of a fight: {ship}, {nation} and {town} are filled in. */
+  news: z.record(z.string(), z.string()),
+});
+
 export const trafficSchema = z.object({
   population: z.number().int().min(0),
   roles: z.object({
@@ -269,4 +333,5 @@ export type Music = z.infer<typeof musicSchema>;
 export type Goods = z.infer<typeof goodsSchema>;
 export type Economy = z.infer<typeof economySchema>;
 export type Traffic = z.infer<typeof trafficSchema>;
+export type Combat = z.infer<typeof combatSchema>;
 export type Tune = Music['tunes'][number];

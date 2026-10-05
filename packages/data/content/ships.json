@@ -21,7 +21,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.brig.world"
+      "world": "ship.brig.world",
+      "combat": "ship.brig.combat"
     }
   },
   {
@@ -47,7 +48,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.fluyt.world"
+      "world": "ship.fluyt.world",
+      "combat": "ship.fluyt.combat"
     }
   },
   {
@@ -74,7 +76,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.sloop.world"
+      "world": "ship.sloop.world",
+      "combat": "ship.sloop.combat"
     }
   },
   {
@@ -98,7 +101,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.frigate.world"
+      "world": "ship.frigate.world",
+      "combat": "ship.frigate.combat"
     }
   }
 ]

@@ -232,6 +232,18 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  packages/minigame-sea-battle:
+    dependencies:
+      '@corsair/core':
+        specifier: workspace:*
+        version: link:../core
+      '@corsair/data':
+        specifier: workspace:*
+        version: link:../data
+      '@corsair/systems-navigation':
+        specifier: workspace:*
+        version: link:../systems-navigation
+
   packages/render:
     dependencies:
       '@corsair/core':

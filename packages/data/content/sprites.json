@@ -174,5 +174,77 @@
       "forward": 0.75,
       "up": 2.06
     }
+  },
+  "ship.brig.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.42,
+      "up": 1.62
+    }
+  },
+  "ship.fluyt.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.7,
+      "up": 1.62
+    }
+  },
+  "ship.sloop.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.22,
+      "up": 1.86
+    }
+  },
+  "ship.frigate.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.75,
+      "up": 2.06
+    }
   }
 }

@@ -10,7 +10,7 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 /** How close (in tiles) a ship must be to a settlement to dock there: about 7.5 km. */
 export const DOCK_RANGE = 3;
 
-type Settlement = Pick<PlacedSettlement, 'id' | 'type' | 'size' | 'x' | 'y'>;
+type Settlement = Pick<PlacedSettlement, 'id' | 'type' | 'size' | 'x' | 'y' | 'nation'>;
 
 /** The demand level the price is measured against: the same for every settlement of a size. */
 export function referenceStock(content: ContentPack, s: Settlement, good: string): number {
@@ -85,6 +85,18 @@ export function sellDepth(content: ContentPack, s: Settlement, good: string, sto
   let n = 0;
   while (n < DEPTH_CAP && quote(content, s, good, stock + n + 1).sell >= floor) n++;
   return n;
+}
+
+/** Men aboard: a ship from before crews were counted sails with the career's starting crew. */
+export function crewOf(content: ContentPack, ship: Ship): number {
+  return ship.crew ?? Math.round(content.ships[ship.classId]!.maxCrew * content.combat.startCrew);
+}
+
+/** Repair bill: hull points and sail condition short of sound, at the shipwright's rates. */
+export function repairCost(content: ContentPack, ship: Ship): number {
+  const cls = content.ships[ship.classId]!;
+  const p = content.combat.port;
+  return Math.ceil(cls.hull - (ship.hull ?? cls.hull)) * p.hullGold + Math.ceil(100 - (ship.sailCondition ?? 100)) * p.sailGold;
 }
 
 export function cargoUsed(ship: Ship): number {
@@ -168,10 +180,17 @@ export function newsAt(content: ContentPack, state: WorldState, settlements: Set
 }
 
 /** The rumour as told, from the shock kind's template. */
+const NATION_ADJECTIVE: Record<string, string> = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch', pirate: 'pirate' };
+
+/** The rumour as told: from a market shock's template, or a sea fight's (combat.json news). */
 export function newsText(content: ContentPack, item: NewsItem, townName: string): string {
   const good = (content.goods.find((g) => g.id === item.good)?.name ?? item.good).toLowerCase();
-  const text = content.economy.shocks.kinds[item.kind]?.news ?? '{town}: {good}';
-  return text.replaceAll('{town}', townName).replaceAll('{good}', good);
+  const text = content.economy.shocks.kinds[item.kind]?.news ?? content.combat.news[item.kind] ?? '{town}: {good}';
+  return text
+    .replaceAll('{town}', townName)
+    .replaceAll('{good}', good)
+    .replaceAll('{ship}', item.ship ?? 'a ship')
+    .replaceAll('{nation}', NATION_ADJECTIVE[item.nation ?? ''] ?? '');
 }
 
 const SEAWARD_LOOK_TILES = 12;
@@ -236,6 +255,10 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!ship || !s) return undefined;
         if (ship.docked) return refuse(state, ship, 'already-docked');
         if (Math.hypot(ship.x - s.x, ship.y - s.y) > DOCK_RANGE) return refuse(state, ship, 'too-far', { settlementId: s.id });
+        // A nation the player has made an enemy of shuts its ports to them (pirate havens never do).
+        if (s.nation !== 'pirate' && (state.captain.standing?.[s.nation] ?? 0) <= content.combat.standing.refused) {
+          return refuse(state, ship, 'hostile', { settlementId: s.id, nation: s.nation });
+        }
         // Drop anchor: stopped, helm and assist cleared.
         const { assist: _assist, ...rest } = ship;
         const docked: Ship = { ...rest, docked: s.id, speed: 0, helm: 0 };
@@ -258,6 +281,47 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         return {
           state: { ...state, ships: { ...state.ships, [ship.id]: { ...rest, headingDeg } } },
           events: [{ type: 'Undocked', entityIds: [ship.id, docked], payload: {} }],
+        };
+      }
+      if (command.type === 'Recruit') {
+        // The tavern: men sign on for a bounty each, up to the berths the ship has.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const cls = content.ships[ship.classId]!;
+        const crew = crewOf(content, ship);
+        const price = content.combat.port.recruitGold;
+        const count = Math.min(Math.floor(command.count), cls.maxCrew - crew, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
+        if (!(count > 0)) return refuse(state, ship, crew >= cls.maxCrew ? 'berths-full' : 'not-enough-gold');
+        return {
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: { ...ship, crew: crew + count } },
+            captain: { ...state.captain, gold: state.captain.gold - count * price },
+          },
+          events: [{ type: 'Recruited', entityIds: [ship.id, ship.docked], payload: { count, gold: count * price } }],
+        };
+      }
+      if (command.type === 'Repair') {
+        // The shipwright: hull first, then sails, as far as the purse reaches.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const cls = content.ships[ship.classId]!;
+        const p = content.combat.port;
+        let gold = state.captain.gold;
+        let hull = ship.hull ?? cls.hull;
+        let sails = ship.sailCondition ?? 100;
+        const hullFix = Math.min(Math.ceil(cls.hull - hull), p.hullGold > 0 ? Math.floor(gold / p.hullGold) : Infinity);
+        hull = Math.min(cls.hull, hull + hullFix);
+        gold -= hullFix * p.hullGold;
+        const sailFix = Math.min(Math.ceil(100 - sails), p.sailGold > 0 ? Math.floor(gold / p.sailGold) : Infinity);
+        sails = Math.min(100, sails + sailFix);
+        gold -= sailFix * p.sailGold;
+        if (hullFix <= 0 && sailFix <= 0) return refuse(state, ship, hull >= cls.hull && sails >= 100 ? 'sound' : 'not-enough-gold');
+        return {
+          state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, hull, sailCondition: sails } }, captain: { ...state.captain, gold } },
+          events: [{ type: 'Repaired', entityIds: [ship.id, ship.docked], payload: { gold: state.captain.gold - gold } }],
         };
       }
       if (command.type === 'HearNews') {

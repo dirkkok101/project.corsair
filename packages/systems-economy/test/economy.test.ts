@@ -385,3 +385,32 @@ describe('leaving port', () => {
     expect(player(sim.state).headingDeg).not.toBe(0);
   });
 });
+
+describe('the shipwright, the tavern and a hostile port', () => {
+  it('recruits men up to the berths, repairs as far as the purse reaches, and an enemy nation shuts its port', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const cls = content.ships['ship.brig']!;
+    sim.send({ type: 'Recruit', shipId: 'player', count: 1000 });
+    sim.applyCommands();
+    expect(player(sim.state).crew).toBe(cls.maxCrew);
+    const afterRecruit = sim.state.captain!.gold;
+
+    const hurt = { ...sim.state, ships: { player: { ...player(sim.state), hull: cls.hull - 20, sailCondition: 50 } } };
+    const yard = createSim(hurt, [createEconomySystem(content, settlements)]);
+    yard.send({ type: 'Repair', shipId: 'player' });
+    yard.applyCommands();
+    expect(player(yard.state).hull).toBe(cls.hull);
+    expect(player(yard.state).sailCondition).toBe(100);
+    expect(afterRecruit - yard.state.captain!.gold).toBe(20 * content.combat.port.hullGold + 50 * content.combat.port.sailGold);
+
+    const w = createWorld(def);
+    const enemyOfEngland = withEconomy({ ...w, ships: { player: { ...w.ships.player!, x: portRoyal.x + 1, y: portRoyal.y + 1 } } }, content, settlements, 1);
+    const shut = createSim({ ...enemyOfEngland, captain: { ...enemyOfEngland.captain!, standing: { england: -60 } } }, [createEconomySystem(content, settlements)]);
+    shut.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    shut.applyCommands();
+    expect(player(shut.state).docked).toBeUndefined();
+    expect(shut.events().at(-1)!.payload.reason).toBe('hostile');
+  });
+});

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import calendarJson from '../content/calendar.json';
+import combatJson from '../content/combat.json';
 import economyJson from '../content/economy.json';
 import goodsJson from '../content/goods.json';
 import musicJson from '../content/music.json';
@@ -15,6 +16,7 @@ import spritesJson from '../content/sprites.json';
 import trafficJson from '../content/traffic.json';
 import {
   calendarSchema,
+  combatSchema,
   economySchema,
   goodsSchema,
   musicSchema,
@@ -31,6 +33,7 @@ import {
 } from './schemas';
 import type {
   Calendar,
+  Combat,
   Economy,
   Goods,
   Music,
@@ -63,6 +66,7 @@ export interface ContentPack {
   goods: Goods['goods'];
   economy: Economy;
   traffic: Traffic;
+  combat: Combat;
 }
 
 /**
@@ -91,6 +95,7 @@ export function loadContent(): ContentPack {
     goods: goodsSchema.parse(goodsJson).goods,
     economy: economySchema.parse(economyJson),
     traffic: trafficSchema.parse(trafficJson),
+    combat: combatSchema.parse(combatJson),
   };
   for (const r of Object.values(pack.traffic.roles)) {
     if (!pack.ships[r.classId]) throw new Error(`traffic: unknown class ${r.classId}`);
@@ -112,6 +117,7 @@ export function loadContent(): ContentPack {
   for (const ship of ships) {
     if (!pack.polars[ship.polar]) throw new Error(`${ship.id}: unknown polar ${ship.polar}`);
     if (!pack.sprites[ship.sprites.world]) throw new Error(`${ship.id}: unknown sprite ${ship.sprites.world}`);
+    if (ship.sprites.combat && !pack.sprites[ship.sprites.combat]) throw new Error(`${ship.id}: unknown sprite ${ship.sprites.combat}`);
   }
   for (const map of Object.values(pack.maps)) {
     if (!pack.ships[map.start.classId]) throw new Error(`${map.id}: unknown start class`);
