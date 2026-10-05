@@ -33,6 +33,7 @@ function lean(content: ContentPack, s: Pick<Settlement, 'id'>, good: string): { 
  * strong lean counts: a town that uses a little sugar isn't a sugar market.
  */
 export function tradeLean(content: ContentPack, s: Pick<Settlement, 'id'>, good: string): 'exports' | 'wants' | undefined {
+  if (content.goods.find((g) => g.id === good)?.staple) return undefined;
   const l = lean(content, s, good);
   return l && l.rate >= content.economy.notableLean ? l.side : undefined;
 }
@@ -71,6 +72,19 @@ export function quote(content: ContentPack, s: Settlement, good: string, stock: 
   const sell = Math.max(1, Math.round(mid * (1 - spread)));
   // Whole gold rounds cheap goods' spread away; the merchant always keeps at least one.
   return { buy: Math.max(sell + 1, Math.round(mid * (1 + spread))), sell };
+}
+
+const DEPTH_CAP = 999;
+
+/**
+ * Market depth: how many units a market takes before its sell price falls by a quarter. A small
+ * market crashes after a handful, so "sells well" there pays only for a small cargo.
+ */
+export function sellDepth(content: ContentPack, s: Settlement, good: string, stock: number): number {
+  const floor = quote(content, s, good, stock).sell * 0.75;
+  let n = 0;
+  while (n < DEPTH_CAP && quote(content, s, good, stock + n + 1).sell >= floor) n++;
+  return n;
 }
 
 export function cargoUsed(ship: Ship): number {
@@ -198,7 +212,12 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     ...state.captain!.knownPrices,
     [s.id]: {
       day: Math.floor(state.tick / content.calendar.ticksPerDay),
-      prices: Object.fromEntries(content.goods.map((g) => [g.id, quote(content, s, g.id, market[g.id] ?? 0)])),
+      prices: Object.fromEntries(
+        content.goods.map((g) => {
+          const stock = market[g.id] ?? 0;
+          return [g.id, { ...quote(content, s, g.id, stock), depth: sellDepth(content, s, g.id, stock) }];
+        }),
+      ),
     },
   });
 

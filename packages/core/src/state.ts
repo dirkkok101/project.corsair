@@ -70,7 +70,8 @@ export interface WeatherState {
 export interface KnownPrices {
   /** Game day the prices were seen. */
   day: number;
-  prices: Record<string, { buy: number; sell: number }>;
+  /** `depth`: units the market took before its sell price fell a quarter (absent in older saves). */
+  prices: Record<string, { buy: number; sell: number; depth?: number }>;
 }
 
 export interface Captain {

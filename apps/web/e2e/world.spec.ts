@@ -184,6 +184,9 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await expect(page.locator('.port-lean')).toContainText('exports Sugar');
   const sugar = page.locator('tr', { hasText: 'Sugar' });
   await expect(sugar).toContainText('buy here');
+  // Food is a staple: never worth carrying, so it gets no trade tag. Every good shows how much its market takes.
+  await expect(page.locator('tr', { hasText: 'Food' }).locator('.trend')).toHaveCount(0);
+  await expect(sugar.locator('.takes')).toHaveText(/^~\d+$/);
   await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
   await expect(sugar.locator('.paid')).toContainText('@');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
@@ -204,6 +207,7 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   // Selling above what the hold cost shows as a gain; Bridgetown is now a remembered price.
   await expect(sugarHere.locator('td.num.gain')).toHaveCount(1);
   await expect(sugarHere.locator('.best')).toContainText('Bridgetown');
+  await expect(sugarHere.locator('.best .takes')).toHaveText(/^~\d+$/);
   await page.screenshot({ path: 'test-results/port-trade.png' });
   await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'All' }).click();
   expect(await gold()).toBeGreaterThan(startGold);

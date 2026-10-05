@@ -168,7 +168,14 @@ export const musicSchema = z.object({
 
 export const goodsSchema = z.object({
   goods: z.array(
-    z.object({ id: z.string(), name: z.string(), basePrice: z.number().positive(), elasticity: z.number().min(0).max(2) }),
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      basePrice: z.number().positive(),
+      elasticity: z.number().min(0).max(2),
+      /** Too cheap to trade for profit: no trade tags or shocks (bought for the crew). */
+      staple: z.boolean().optional(),
+    }),
   ),
 });
 

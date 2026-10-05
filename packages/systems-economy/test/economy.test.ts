@@ -18,6 +18,7 @@ import {
   portTrade,
   quote,
   seawardHeading,
+  sellDepth,
   shockFactor,
   tradeLean,
   withEconomy,
@@ -125,8 +126,10 @@ describe('docking and trading', () => {
 
   it('knows what every port exports and wants, from its profiles', () => {
     expect(portTrade(content, bridgetown).exports).toEqual(['sugar']);
-    // Bridgetown uses a little cotton (rate 0.3): too little to be known as a cotton market.
-    expect(portTrade(content, bridgetown).wants).toEqual(['food', 'luxuries']);
+    // Bridgetown uses a little cotton (rate 0.3): too little to be known as a cotton market. Food is a
+    // staple: needed, but never worth carrying for profit, so it is not tagged at all.
+    expect(portTrade(content, bridgetown).wants).toEqual(['luxuries']);
+    expect(tradeLean(content, portRoyal, 'food')).toBeUndefined();
     expect(tradeLean(content, portRoyal, 'sugar')).toBe('wants');
     expect(tradeLean(content, bridgetown, 'silver')).toBeUndefined();
   });
@@ -139,6 +142,25 @@ describe('docking and trading', () => {
     expect(tradeLean(content, coro, 'sugar')).toBeUndefined();
     expect(light).toBeGreaterThan(base);
     expect(light - base).toBeLessThan(strong - base);
+  });
+
+  it('measures market depth: a small market takes fewer units before its price falls a quarter', () => {
+    const haven = town('town.ile_a_vache');
+    const deep = sellDepth(content, portRoyal, 'tobacco', normalStock(content, portRoyal, 'tobacco'));
+    const shallow = sellDepth(content, haven, 'tobacco', normalStock(content, haven, 'tobacco'));
+    expect(shallow).toBeLessThan(deep);
+    expect(shallow).toBeGreaterThan(0);
+    // Selling exactly that many leaves the price at or above three quarters of where it started.
+    const stock = normalStock(content, haven, 'tobacco');
+    expect(quote(content, haven, 'tobacco', stock + shallow).sell).toBeGreaterThanOrEqual(quote(content, haven, 'tobacco', stock).sell * 0.75);
+  });
+
+  it('remembers the depth of each market with its prices', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const seen = sim.state.captain!.knownPrices[portRoyal.id]!.prices.tobacco!;
+    expect(seen.depth).toBe(sellDepth(content, portRoyal, 'tobacco', sim.state.markets![portRoyal.id]!.tobacco!));
   });
 
   it('never overfills the hold or overspends', () => {

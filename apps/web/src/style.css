@@ -771,3 +771,12 @@ body {
   color: #de9e41;
   white-space: normal;
 }
+
+.takes {
+  color: #819796;
+}
+
+/* A small market: a full hold sold there crashes the price. */
+.takes.shallow {
+  color: #de9e41;
+}

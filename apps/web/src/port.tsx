@@ -1,6 +1,6 @@
 import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { cargoUsed, newsAt, newsText, portTrade, quote, referenceStock, tradeLean } from '@corsair/systems-economy';
+import { cargoUsed, newsAt, newsText, portTrade, quote, referenceStock, sellDepth, tradeLean } from '@corsair/systems-economy';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -31,6 +31,18 @@ const NATION: Record<PlacedSettlement['nation'], string> = {
   netherlands: 'Dutch',
   pirate: 'Pirate',
 };
+/** A market that takes fewer units than this before its price falls a quarter is flagged as small. */
+const SHALLOW = 15;
+
+/** "takes ~N": how much a market absorbs; small ones are flagged, as selling a full hold there crashes the price. */
+function Takes({ depth }: { depth: number }) {
+  return (
+    <span class={depth < SHALLOW ? 'takes shallow' : 'takes'} title="Units it takes before its sell price falls by a quarter">
+      {depth >= 999 ? '999+' : `~${depth}`}
+    </span>
+  );
+}
+
 /** Services that work so far; the rest are drawn but marked "soon". */
 const READY: Service[] = ['merchant', 'tavern'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
@@ -57,7 +69,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const lean = portTrade(content, town);
   /** The best price the captain has seen another port pay for a good, and when. */
   const bestSale = (good: string) => {
-    let best: { name: string; sell: number; age: number } | undefined;
+    let best: { name: string; sell: number; age: number; depth?: number } | undefined;
     for (const [id, seen] of Object.entries(known)) {
       const sell = seen.prices[good]?.sell;
       if (id === town.id || sell === undefined || (best && sell <= best.sell)) continue;
@@ -65,6 +77,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         name: settlements.find((x) => x.id === id)?.name ?? id,
         sell,
         age: today - seen.day,
+        depth: seen.prices[good]?.depth,
       };
     }
     return best;
@@ -179,6 +192,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
                 <th>Goods</th>
                 <th>Buy</th>
                 <th>Sell</th>
+                <th title="Units this market takes before its sell price falls by a quarter">Takes</th>
                 <th>Hold</th>
                 <th title="The best price you have seen another port pay">Best sale you know</th>
                 <th />
@@ -204,6 +218,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
                     </td>
                     <td class="num">{q.buy}</td>
                     <td class={`num${cost === undefined ? '' : q.sell > cost ? ' gain' : ' loss'}`}>{q.sell}</td>
+                    <td class="num">
+                      <Takes depth={sellDepth(content, town, g.id, stock)} />
+                    </td>
                     <td class="num hold">
                       {held || ''}
                       {cost !== undefined ? (
@@ -218,6 +235,12 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
                         <>
                           {best.name} {best.sell}
                           <span class="age"> · {best.age === 0 ? 'today' : `${best.age}d`}</span>
+                          {best.depth !== undefined ? (
+                            <>
+                              {' · '}
+                              <Takes depth={best.depth} />
+                            </>
+                          ) : null}
                           {/* Only a run that pays is flagged: buy here, sell there. */}
                           {margin! > 0 ? (
                             <span class="gain" title="Profit per unit, buying here and selling there">

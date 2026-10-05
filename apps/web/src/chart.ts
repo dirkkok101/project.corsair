@@ -80,7 +80,7 @@ function paintOverview(map: TileMap): HTMLCanvasElement {
 
 /** What the captain knows of each port's market. */
 export interface ChartMarket {
-  goods: { id: string; name: string }[];
+  goods: { id: string; name: string; staple?: boolean }[];
   known: (settlementId: string) => KnownPrices | undefined;
   /** Whether a port makes or needs a good: common knowledge, known before any visit. */
   lean: (settlementId: string, good: string) => 'exports' | 'wants' | undefined;
@@ -149,8 +149,12 @@ export function createCharts(
     const when = age === undefined ? '' : age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`;
     const head = `<div class="chart-prices-name">${s.name}</div>`;
     prices.innerHTML = known
-      ? `${head}<div class="chart-prices-age">Prices seen ${when}</div><table><tr><th></th><th>Buy</th><th>Sell</th></tr>${market.goods
-          .map((g) => `<tr><td>${g.name}</td><td>${known.prices[g.id]?.buy ?? ''}</td><td>${known.prices[g.id]?.sell ?? ''}</td></tr>`)
+      ? `${head}<div class="chart-prices-age">Prices seen ${when}</div><table><tr><th></th><th>Buy</th><th>Sell</th><th title="Units it took before its sell price fell a quarter">Takes</th></tr>${market.goods
+          .map((g) => {
+            const p = known.prices[g.id];
+            const depth = p?.depth === undefined ? '' : `<span class="takes${p.depth < 15 ? ' shallow' : ''}">${p.depth >= 999 ? '999+' : `~${p.depth}`}</span>`;
+            return `<tr><td>${g.name}</td><td>${p?.buy ?? ''}</td><td>${p?.sell ?? ''}</td><td>${depth}</td></tr>`;
+          })
           .join('')}</table>`
       : `${head}<div class="chart-prices-age">Prices unknown: call here to learn them</div>`;
     // Rumours heard about this port, so news can be acted on from the chart.
@@ -174,7 +178,8 @@ export function createCharts(
   let good: string | undefined;
   const filter = chart.insertBefore(document.createElement('div'), sheet);
   filter.className = 'chart-goods';
-  const goodButtons = market.goods.map((g) => {
+  // Staples (food) are never worth carrying, so they have no filter.
+  const goodButtons = market.goods.filter((g) => !g.staple).map((g) => {
     const b = filter.appendChild(document.createElement('button'));
     b.textContent = g.name;
     b.addEventListener('click', () => {
