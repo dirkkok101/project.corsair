@@ -23,6 +23,8 @@ export interface AudioInputs {
   hour: number;
   /** Sail setting id (furled, half, full), to hear sail being set or taken in. */
   sails: string;
+  /** Open, deep water far from land. */
+  openSea: boolean;
 }
 
 export interface AmbienceTargets {

@@ -7,6 +7,8 @@ import { createDaylight } from './daylight';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
 import { createSky } from './sky';
+import { createWildlife } from './wildlife';
+import type { WildlifeDefs, WildlifeSound } from './wildlife';
 import { paintDeepWater, paintTerrainChunk } from './water';
 
 export { facingIndex } from './facing';
@@ -14,6 +16,7 @@ export { facingIndex } from './facing';
 import { MIN_VIEW_HEIGHT, MIN_VIEW_WIDTH } from './view';
 
 export * from './view';
+export type { WildlifeDefs, WildlifeSound } from './wildlife';
 export { parseGpl, rowsAt } from './daylight';
 
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
@@ -46,12 +49,19 @@ export async function createRenderer(
   content: ContentPack,
   map: TileMap,
   spriteUrls: Record<string, string[]>,
-  settlements: PlacedSettlement[] = [],
-  /** Wind at a tile; defaults to the single global wind of the test maps. */
-  windAt: (state: WorldState, x: number, y: number) => Wind = (state) => state.wind,
-  /** Day, dusk and night palette rows (same indices) for the day/night swap; omit for always-day. */
-  palettes?: [number, number, number][][],
+  options: {
+    settlements?: PlacedSettlement[];
+    /** Wind at a tile; defaults to the single global wind of the test maps. */
+    windAt?: (state: WorldState, x: number, y: number) => Wind;
+    /** Day, dusk and night palette rows (same indices) for the day/night swap; omit for always-day. */
+    palettes?: [number, number, number][][];
+    /** Sea life sprites and the sound hook it calls; omit for no wildlife. */
+    wildlife?: { defs: WildlifeDefs; sound: WildlifeSound; coastNearness: (x: number, y: number) => number };
+  } = {},
 ): Promise<Renderer> {
+  const settlements = options.settlements ?? [];
+  const windAt = options.windAt ?? ((state: WorldState) => state.wind);
+  const palettes = options.palettes;
   // Must be set before any texture loads, or sprites get smoothed.
   TextureSource.defaultOptions.scaleMode = 'nearest';
 
@@ -150,6 +160,12 @@ export async function createRenderer(
   }
 
   const shipSprites = new Map<string, Sprite>();
+  // Sea life: swimmers under the ships, birds above everything but the storm weather.
+  const wildlife = options.wildlife ? createWildlife(map, frames, options.wildlife.defs, options.wildlife.sound) : undefined;
+  if (wildlife) {
+    world.addChild(wildlife.water);
+    app.stage.addChildAt(wildlife.air, app.stage.getChildIndex(sky.weather));
+  }
 
   const sailAnim = (ship: Ship, state: WorldState, nowMs: number): string => {
     if (ship.sails === 'furled') return 'sail_furled';
@@ -208,7 +224,20 @@ export async function createRenderer(
         world.position.set(-clamp(cx, 0, worldW - viewW), -clamp(cy, 0, worldH - viewH));
         wake.update(player, dt);
         const cls = content.ships[player.classId]!;
-        spray.update(player, player.speed / (cls.speed * content.navigation.tilesPerSecondPerSpeedPoint), dt);
+        const drive = player.speed / (cls.speed * content.navigation.tilesPerSecondPerSpeedPoint);
+        spray.update(player, drive, dt);
+        if (wildlife && options.wildlife) {
+          const tpd = content.calendar.ticksPerDay;
+          wildlife.update({
+            ship: player,
+            drive,
+            hour: ((state.tick % tpd) / tpd) * 24,
+            dt,
+            coast: options.wildlife.coastNearness(player.x, player.y),
+            view: { x: -world.position.x, y: -world.position.y, w: viewW, h: viewH },
+          });
+          wildlife.air.position.copyFrom(world.position);
+        }
       }
 
       // Water and sky show the wind where the camera is looking: the player's ship, or the view centre.

@@ -2,6 +2,7 @@ import { createAudio } from '@corsair/audio';
 import { createSim, dateOf, formatDate, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
+import type { WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
   createBreezeField,
@@ -60,6 +61,10 @@ function sampleManifest() {
   };
 }
 
+// Sea life sprites (tools/art/render_wildlife.py); the game runs without them until they exist.
+const wildlifeFrames = import.meta.glob<string>('../../../art/generated/wildlife/*.png', { eager: true, query: '?url', import: 'default' });
+const wildlifeDefs = import.meta.glob('../../../art/generated/wildlife/wildlife.json', { eager: true, import: 'default' });
+
 // Day, dusk and night rows for the palette swap (art pipeline section 6).
 const paletteFiles = import.meta.glob<string>('../../../art/palette/*.gpl', { eager: true, query: '?raw', import: 'default' });
 const palette = (name: string) => parseGpl(Object.entries(paletteFiles).find(([p]) => p.endsWith(`/${name}`))![1]);
@@ -102,14 +107,19 @@ async function main() {
     createWeatherSystem(content, def, map),
     createNavigationSystem(content, map, windAt),
   ]);
-  const renderer = await createRenderer(
-    content,
-    map,
-    { ...groupFrames(shipFrames), ...groupFrames(townFrames) },
+  const breezes = createBreezeField(content, def, map);
+  // Sound needs a user gesture before the browser lets it play; V toggles mute, N the music.
+  const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
+  const renderer = await createRenderer(content, map, { ...groupFrames(shipFrames), ...groupFrames(townFrames), ...groupFrames(wildlifeFrames) }, {
     settlements,
     windAt,
-    [palette('corsair.gpl'), palette('corsair-dusk.gpl'), palette('corsair-night.gpl')],
-  );
+    palettes: [palette('corsair.gpl'), palette('corsair-dusk.gpl'), palette('corsair-night.gpl')],
+    wildlife: {
+      defs: (Object.values(wildlifeDefs)[0] ?? {}) as WildlifeDefs,
+      sound: (id, opts) => audio.playSfx(id, opts),
+      coastNearness: (x, y) => breezes.coastNearness(x, y),
+    },
+  });
 
   const stage = document.getElementById('stage')!;
   const viewport = stage.appendChild(document.createElement('div'));
@@ -119,7 +129,6 @@ async function main() {
   const hudRoot = stage.appendChild(document.createElement('div'));
   let destination: PlacedSettlement | undefined;
   const charts = createCharts(stage, map, settlements, (port) => (destination = port));
-  const breezes = createBreezeField(content, def, map);
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {
     let best = 0;
@@ -144,8 +153,6 @@ async function main() {
   fit();
   window.addEventListener('resize', fit);
 
-  // Sound needs a user gesture before the browser lets it play; V toggles mute.
-  const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
   const unlock = () => audio.unlock();
   window.addEventListener('keydown', unlock);
   window.addEventListener('pointerdown', unlock);
@@ -198,6 +205,7 @@ async function main() {
           harbour: harbourNearness(ship.x, ship.y),
           hour,
           sails: ship.sails,
+          openSea: breezes.coastNearness(ship.x, ship.y) === 0,
         },
         now / 1000,
       );
@@ -221,7 +229,15 @@ async function main() {
         date={formatDate(dateOf(def.startDate, day))}
         seaArea={zoneAt(content, map, ship.x, ship.y).name}
         inStorm={inStorm}
-        sound={audio.muted ? 'Sound off · V' : audio.unlocked ? undefined : 'Press any key for sound'}
+        sound={
+          audio.muted
+            ? 'Sound off · V'
+            : !audio.unlocked
+              ? 'Press any key for sound'
+              : !audio.music
+                ? 'Music off · N'
+                : audio.nowPlaying && `♪ ${audio.nowPlaying}`
+        }
         time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}

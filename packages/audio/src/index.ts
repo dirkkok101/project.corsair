@@ -233,6 +233,8 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
         hour: inputs.hour,
         sails: inputs.sails,
         filled,
+        openSea: inputs.openSea,
+        calm: inputs.wind <= 0.5,
       });
 
     },
@@ -244,6 +246,14 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     },
     get music() {
       return music;
+    },
+    /** Title of the tune the band is playing, if any. */
+    get nowPlaying() {
+      return band?.nowPlaying;
+    },
+    /** One-shot clip for game events such as sea life; no-op until sound is unlocked and loaded. */
+    playSfx(id: string, opts: { gain: number; pan: number; lowpass?: number; rate?: number }) {
+      if (ctx?.state === 'running') sfx?.play(id, opts);
     },
     toggleMusic() {
       music = !music;

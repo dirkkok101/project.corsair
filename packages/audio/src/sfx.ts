@@ -15,6 +15,9 @@ export interface SfxInputs {
   sails: string;
   /** Sails just filled after being in irons. */
   filled: boolean;
+  /** Open, deep water far from land (whale country). */
+  openSea: boolean;
+  calm: boolean;
 }
 
 const pick = <T>(list: T[] | undefined) => (list?.length ? list[Math.floor(Math.random() * list.length)] : undefined);
@@ -23,12 +26,17 @@ const between = (a: number, b: number) => a + Math.random() * (b - a);
 export function createSfx(ctx: AudioContext, out: AudioNode) {
   let library: SampleLibrary | undefined;
   let lastSails: string | undefined;
-  const next = { gull: 0, creak: 0, bell: 0, crowd: 0 };
+  const next = { gull: 0, creak: 0, bell: 0, crowd: 0, song: 0 };
   const clip = (id: string) => pick(library?.sfx.get(id));
 
   return {
     setLibrary(lib: SampleLibrary) {
       library = lib;
+    },
+    /** Play a named clip once (used by the renderer's wildlife). Silently skips unknown ids. */
+    play(id: string, opts: { gain: number; pan: number; lowpass?: number; rate?: number }) {
+      const b = clip(id);
+      if (b) playClip(ctx, out, b, opts);
     },
     /** A recorded thunder clip; false if none is loaded (the synthesised roll covers it). */
     thunder(delayS: number): boolean {
@@ -69,6 +77,14 @@ export function createSfx(ctx: AudioContext, out: AudioNode) {
       if (i.filled) {
         const canvas = clip('canvas');
         if (canvas) playClip(ctx, out, canvas, { gain: 0.45, rate: 0.85 });
+      }
+
+      // Humpback song carries for miles on a calm night at sea: rare, quiet and far away.
+      const night = i.hour >= 20 || i.hour < 5;
+      if (night && i.openSea && i.calm && now >= next.song) {
+        const b = clip('whale_song');
+        if (b && next.song > 0) playClip(ctx, out, b, { gain: 0.22, pan: between(-0.7, 0.7), lowpass: 2500 });
+        next.song = now + between(40, 80);
       }
 
       // Towns: harbour voices by day, a church bell now and then.

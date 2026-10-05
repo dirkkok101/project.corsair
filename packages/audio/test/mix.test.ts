@@ -13,6 +13,7 @@ const calmSea: AudioInputs = {
   harbour: 0,
   hour: 12,
   sails: 'full',
+  openSea: true,
 };
 
 describe('ambienceTargets', () => {

@@ -25,7 +25,8 @@ export function createBand(ctx: AudioContext, out: AudioNode, tunes: TuneData[])
   const arranged = new Map<string, { events: NoteEvent[]; beats: number }>();
   let library: SampleLibrary | undefined;
   let playing: { tune: TuneData; events: NoteEvent[]; beats: number; start: number; next: number } | undefined;
-  let lastTune: string | undefined;
+  // The last few tunes played, so the band doesn't repeat itself.
+  const recent: string[] = [];
   // A short first gap so a new game opens with the sea before the band.
   let gapUntil = ctx.currentTime + 6;
 
@@ -76,12 +77,15 @@ export function createBand(ctx: AudioContext, out: AudioNode, tunes: TuneData[])
 
       if (!playing && library && plan.mood !== 'none' && now >= gapUntil) {
         const options = tunes.filter((t) => t.mood === plan.mood);
-        const pick = options.find((t) => t.id !== lastTune) ?? options[0];
+        const fresh = options.filter((t) => !recent.includes(t.id));
+        const pool = fresh.length ? fresh : options;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
         if (pick) {
           if (!arranged.has(pick.id)) arranged.set(pick.id, arrange(pick));
           const { events, beats } = arranged.get(pick.id)!;
           playing = { tune: pick, events, beats, start: now + 0.1, next: 0 };
-          lastTune = pick.id;
+          recent.push(pick.id);
+          if (recent.length > 3) recent.shift();
         }
       }
       if (!playing) return;
