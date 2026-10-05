@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
-import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from '@corsair/data';
+import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -17,6 +17,7 @@ import {
   normalStock,
   portTrade,
   quote,
+  seawardHeading,
   shockFactor,
   tradeLean,
   withEconomy,
@@ -315,5 +316,50 @@ describe('market shocks and news', () => {
     // Old news is forgotten after ten weeks.
     for (const n of a.state.news!) expect(a.state.tick - n.tick).toBeLessThanOrEqual(content.economy.news.keepWeeks * 7 * day);
     expect(run().hash()).toBe(a.hash());
+  });
+});
+
+describe('leaving port', () => {
+  it('casts off along the clearest way out of every port', () => {
+    const ahead = (x: number, y: number, deg: number, n: number) => {
+      const rad = (deg * Math.PI) / 180;
+      for (let i = 1; i <= n; i++) if (isLand(tileAt(map, x + Math.sin(rad) * i, y - Math.cos(rad) * i))) return i - 1;
+      return n;
+    };
+    const stuck: string[] = [];
+    for (const s of settlements) {
+      // The nearest water tile within docking range is where a ship would lie.
+      let spot: { x: number; y: number } | undefined;
+      for (let r = 1; r <= DOCK_RANGE && !spot; r++) {
+        for (let dy = -r; dy <= r && !spot; dy++) {
+          for (let dx = -r; dx <= r && !spot; dx++) {
+            if (!isLand(tileAt(map, s.x + dx, s.y + dy))) spot = { x: s.x + dx, y: s.y + dy };
+          }
+        }
+      }
+      if (!spot) continue;
+      // Pointing at the town (into the quay) is the worst case to cast off from.
+      const intoTown = (Math.atan2(s.x - spot.x, -(s.y - spot.y)) * 180) / Math.PI;
+      const deg = seawardHeading(map, spot, s, intoTown);
+      // Some ports sit in tight inlets (Puerto Príncipe, Villahermosa): there, the clearest way out will do.
+      const most = Math.max(...Array.from({ length: 32 }, (_, i) => ahead(spot!.x, spot!.y, i * 11.25, 12)));
+      const clear = ahead(spot.x, spot.y, deg, 12);
+      if (clear < Math.min(5, most)) stuck.push(`${s.name} ${deg}°: ${clear} clear, best ${most}`);
+    }
+    expect(stuck).toEqual([]);
+  });
+
+  it('turns the ship seaward on Undock', () => {
+    const w = createWorld(def);
+    const at = { x: portRoyal.x + 1, y: portRoyal.y + 2 };
+    const sim = createSim(withEconomy({ ...w, ships: { player: { ...w.ships.player!, ...at, headingDeg: 0 } } }, content, settlements, 1), [
+      createEconomySystem(content, settlements, map),
+    ]);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.send({ type: 'Undock', shipId: 'player' });
+    sim.applyCommands();
+    expect(player(sim.state).docked).toBeUndefined();
+    expect(player(sim.state).headingDeg).toBe(seawardHeading(map, at, portRoyal, 0));
+    expect(player(sim.state).headingDeg).not.toBe(0);
   });
 });

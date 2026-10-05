@@ -342,3 +342,26 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await expect(page.locator('.chart-rumour')).toContainText('run short of sugar');
   expect(errors).toEqual([]);
 });
+
+test('leaving port: E sets sail back to the sea view, pointing out of the harbour', async ({ page }) => {
+  // The game runs here (no pause), as a player has it.
+  await page.goto('/?seed=3');
+  await page.waitForFunction(() => Boolean(window.__corsair));
+  await page.keyboard.press('e');
+  await expect(page.locator('.port-name')).toHaveText('Port Royal');
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('harbour');
+
+  await page.keyboard.press('e');
+  await expect(page.locator('.port')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
+  // Under way and opening the distance from the town.
+  const away = () =>
+    page.evaluate(() => {
+      const p = window.__corsair.ports().find((x) => x.name === 'Port Royal')!;
+      const s = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      return Math.hypot(s.x - p.x, s.y - p.y);
+    });
+  const start = await away();
+  await expect.poll(away, { timeout: 5000 }).toBeGreaterThan(start + 1);
+  await page.screenshot({ path: 'test-results/left-port.png' });
+});

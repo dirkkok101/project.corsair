@@ -47,7 +47,12 @@ export interface Renderer {
   /** Called at each lightning flash, so the app can roll thunder. */
   onLightning(cb: () => void): void;
   /** The harbour scene shown in port; `show(undefined)` returns to the sea. */
-  harbour: { show(scene: HarbourScene | undefined): Promise<void>; transform(): { x: number; y: number; scale: number } };
+  harbour: {
+    show(scene: HarbourScene | undefined): Promise<void>;
+    transform(): { x: number; y: number; scale: number };
+    /** True while the harbour scene covers the sea view. */
+    readonly visible: boolean;
+  };
   /** Debug: start a sea-life event now, and count the animals on screen. */
   wildlife: { spawn(kind: 'dolphins' | 'flyingFish' | 'whale' | 'pelicans' | 'frigatebird'): void; readonly count: number };
 }
@@ -206,6 +211,9 @@ export async function createRenderer(
     harbour: {
       show: (scene) => harbour.show(scene),
       transform: () => harbour.transform(),
+      get visible() {
+        return harbour.visible;
+      },
     },
     camera: () => ({ x: -world.position.x, y: -world.position.y }),
     view: () => ({ width: viewW, height: viewH }),

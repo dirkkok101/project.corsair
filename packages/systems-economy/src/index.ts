@@ -1,6 +1,7 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { Captain, EmittedEvent, KnownPrices, NewsItem, Ship, System, WorldState } from '@corsair/core';
-import type { ContentPack, PlacedSettlement } from '@corsair/data';
+import { isLand, tileAt } from '@corsair/data';
+import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
 // price = base * (T / max(S, 1)) ^ elasticity, and every unit traded moves S, so a glut in one port
@@ -159,7 +160,35 @@ export function newsText(content: ContentPack, item: NewsItem, townName: string)
   return text.replaceAll('{town}', townName).replaceAll('{good}', good);
 }
 
-export function createEconomySystem(content: ContentPack, settlements: Settlement[]): System {
+const SEAWARD_LOOK_TILES = 12;
+
+/**
+ * The heading that leads out of a harbour: of 32 headings, the one with the longest run of open
+ * water ahead (up to 12 tiles, about 30 km), leaning away from the town, then toward the current one.
+ */
+export function seawardHeading(
+  map: TileMap,
+  ship: Pick<Ship, 'x' | 'y'>,
+  town: Pick<Settlement, 'x' | 'y'>,
+  currentDeg: number,
+): number {
+  // Headings are compass degrees: 0 north (up, -y), 90 east (+x).
+  const away = Math.atan2(ship.x - town.x, -(ship.y - town.y));
+  let best = { deg: currentDeg, score: -Infinity };
+  for (let i = 0; i < 32; i++) {
+    const deg = i * 11.25;
+    const rad = (deg * Math.PI) / 180;
+    let clear = 0;
+    while (clear < SEAWARD_LOOK_TILES && !isLand(tileAt(map, ship.x + Math.sin(rad) * (clear + 1), ship.y - Math.cos(rad) * (clear + 1)))) clear++;
+    const offCurrent = Math.abs((((deg - currentDeg) % 360) + 540) % 360 - 180);
+    const score = clear + Math.cos(rad - away) * 2 - offCurrent / 1000;
+    if (score > best.score) best = { deg, score };
+  }
+  return best.deg;
+}
+
+/** `map` lets a ship cast off pointing out to sea; without one (some tests) it keeps its heading. */
+export function createEconomySystem(content: ContentPack, settlements: Settlement[], map?: TileMap): System {
   const e = content.economy;
   const byId = new Map(settlements.map((s) => [s.id, s]));
   const ticksPerWeek = e.daysPerWeek * content.calendar.ticksPerDay;
@@ -204,8 +233,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const ship = state.ships[command.shipId];
         if (!ship?.docked) return undefined;
         const { docked, ...rest } = ship;
+        // Cast off pointing out to sea, so the ship sails clear of the harbour rather than into the quay.
+        const town = byId.get(docked);
+        const headingDeg = map && town ? seawardHeading(map, ship, town, ship.headingDeg) : ship.headingDeg;
         return {
-          state: { ...state, ships: { ...state.ships, [ship.id]: rest } },
+          state: { ...state, ships: { ...state.ships, [ship.id]: { ...rest, headingDeg } } },
           events: [{ type: 'Undocked', entityIds: [ship.id, docked], payload: {} }],
         };
       }

@@ -147,7 +147,7 @@ async function main() {
     resumed?.state ?? withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed);
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
-    createEconomySystem(content, settlements),
+    createEconomySystem(content, settlements, map),
     createNavigationSystem(content, map, windAt),
   ]);
   const breezes = createBreezeField(content, def, map);
@@ -252,6 +252,7 @@ async function main() {
     wildlife: renderer.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
     snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },
+    view: () => (renderer.harbour.visible ? 'harbour' : 'sea'),
   };
   const player = () => sim.state.ships[def.start.shipId]!;
   bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));

@@ -57,6 +57,8 @@ declare global {
       wildlife: import('@corsair/render').Renderer['wildlife'];
       ports: () => { id: string; name: string; x: number; y: number }[];
       snapshot: { save: () => import('@corsair/core').Save };
+      /** What the canvas is drawing: the harbour scene in port, the sea otherwise. */
+      view: () => 'harbour' | 'sea';
     };
   }
 }

@@ -87,12 +87,14 @@ export function createHarbour(shipFrame: () => Texture | undefined) {
     },
     /** Show a scene (loading its layers on first use), or hide it with undefined. */
     async show(next: HarbourScene | undefined) {
-      if (next === shown || next === loading) return;
       if (!next) {
+        // Leaving port: hide at once, and drop a scene still loading so it can't pop up at sea.
         shown = undefined;
+        loading = undefined;
         view.visible = false;
         return;
       }
+      if (next === shown || next === loading) return;
       loading = next;
       const textures = await Promise.all(next.layers.map((urls) => Promise.all(urls.map((u) => Assets.load<Texture>(u)))));
       // A newer request (or leaving port) while loading wins.
