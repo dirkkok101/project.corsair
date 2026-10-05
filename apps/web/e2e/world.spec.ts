@@ -105,14 +105,34 @@ test('sound starts on the first key, plays, and V mutes it', async ({ page }) =>
   await expect(page.locator('.hud-sound')).toContainText('Sound off');
 });
 
-test('the band strikes up a tune after the opening quiet, and N silences the music', async ({ page }) => {
+test('the band plays audibly while the game keeps running, and N silences the music', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.__corsair));
   await page.keyboard.press('Shift');
-  await page.waitForFunction(() => window.__corsair.audio.levels().samplesReady, undefined, { timeout: 15_000 });
-  await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 15_000 });
+  await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 20_000 });
   const title = await page.evaluate(() => window.__corsair.audio.levels().nowPlaying);
   expect(['Drunken Sailor', 'Scarborough Fair', 'Greensleeves']).toContain(title);
+
+  // The real frame loop, not stepped by hand: the clock must keep moving while notes play.
+  const tick0 = await page.evaluate(() => window.__corsair.state.get('tick') as number);
+  const loudness = async () => {
+    let sum = 0;
+    for (let i = 0; i < 15; i++) {
+      sum += await page.evaluate(() => window.__corsair.audio.levels().rms);
+      await page.waitForTimeout(100);
+    }
+    return sum / 15;
+  };
+  const withMusic = await loudness();
+  expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThan(tick0 + 20);
+
   await page.keyboard.press('n');
   expect(await page.evaluate(() => window.__corsair.audio.levels().music)).toBe(false);
+  await page.waitForTimeout(1200);
+  const without = await loudness();
+  expect(withMusic).toBeGreaterThan(without * 1.15);
+  expect(errors).toEqual([]);
 });

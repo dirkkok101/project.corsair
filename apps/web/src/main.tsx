@@ -155,6 +155,7 @@ async function main() {
   });
 
   renderer.onLightning(() => audio.thunder());
+  let audioFailed = false;
 
   const loop: LoopControl = { paused: false };
   window.__corsair = { ...createDebugApi(sim, loop), seed, audio: { levels: () => audio.levels() } };
@@ -183,21 +184,27 @@ async function main() {
     const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
     const inStorm = (sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y));
     const cls = content.ships[ship.classId]!;
-    audio.update(
-      {
-        wind: content.navigation.windStrength[wind.strength]!,
-        offWindDeg: offWind,
-        speed: speedPoints(content, ship) / cls.speed,
-        sailsSet: ship.sails !== 'furled',
-        luffing: pointOfSail(content, offWind).id === 'irons',
-        inStorm,
-        coast: breezes.coastNearness(ship.x, ship.y),
-        harbour: harbourNearness(ship.x, ship.y),
-        hour,
-        sails: ship.sails,
-      },
-      now / 1000,
-    );
+    // Sound must never stop the game: report a failure once and keep sailing.
+    try {
+      audio.update(
+        {
+          wind: content.navigation.windStrength[wind.strength]!,
+          offWindDeg: offWind,
+          speed: speedPoints(content, ship) / cls.speed,
+          sailsSet: ship.sails !== 'furled',
+          luffing: pointOfSail(content, offWind).id === 'irons',
+          inStorm,
+          coast: breezes.coastNearness(ship.x, ship.y),
+          harbour: harbourNearness(ship.x, ship.y),
+          hour,
+          sails: ship.sails,
+        },
+        now / 1000,
+      );
+    } catch (err) {
+      if (!audioFailed) console.error('audio update failed', err);
+      audioFailed = true;
+    }
     let course: { name: string; distanceKm: number; bearingDeg: number; closing: number } | undefined;
     if (destination) {
       const dx = destination.x - ship.x;

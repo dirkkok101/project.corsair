@@ -43,6 +43,9 @@ export function createBand(ctx: AudioContext, out: AudioNode, tunes: TuneData[])
     const t = when + (Math.random() - 0.5) * 0.02;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(e.velocity, t + 0.008);
+    src.connect(g).connect(parts[e.part]);
+    // start() must come before stop(): a source stopped before it starts throws.
+    src.start(t);
     if (PLUCKED.has(e.instrument)) {
       // Plucked and struck notes ring out naturally.
       g.gain.setTargetAtTime(0.0001, t + Math.max(length, 0.25), 0.25);
@@ -53,8 +56,6 @@ export function createBand(ctx: AudioContext, out: AudioNode, tunes: TuneData[])
       g.gain.exponentialRampToValueAtTime(0.0001, t + length + 0.08);
       src.stop(t + length + 0.12);
     }
-    src.connect(g).connect(parts[e.part]);
-    src.start(t);
   };
 
   return {
