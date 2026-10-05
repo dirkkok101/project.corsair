@@ -73,6 +73,9 @@ const wildlifeDefs = import.meta.glob('../../../art/generated/wildlife/wildlife.
 // Harbour scenes behind the port screen (tools/art/render_harbours.py): one composition per nation and tier.
 const harbourFiles = import.meta.glob<string>('../../../art/generated/harbours/*.png', { eager: true, query: '?url', import: 'default' });
 const harbourDefs = import.meta.glob('../../../art/generated/harbours/harbours.json', { eager: true, import: 'default' });
+// Painted scenes (tools/art/import_paintings.ts) replace a composition's layers when present. They keep
+// its layout, so its hotspots, flag point and anchorage still apply.
+const paintedFiles = import.meta.glob<string>('../../../art/generated/painted/harbour.*.png', { eager: true, query: '?url', import: 'default' });
 interface HarbourDef {
   layers: { id: string; file?: string; frames?: string[] }[];
   hotspots: Partial<Record<Service, [number, number, number, number]>>;
@@ -84,11 +87,18 @@ interface HarbourDef {
 function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots'] } | undefined {
   const defs = (Object.values(harbourDefs)[0] ?? {}) as Record<string, HarbourDef>;
   const tier = { hamlet: 'small', town: 'medium', city: 'large' }[s.size];
-  const def = defs[s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${tier}`];
+  const id = s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${tier}`;
+  const def = defs[id];
   if (!def) return undefined;
   const url = (file: string) => Object.entries(harbourFiles).find(([p]) => p.endsWith(`/${file.split('/').pop()}`))![1];
+  const painted = Object.entries(paintedFiles).find(([p]) => p.endsWith(`/${id}.png`))?.[1];
   return {
-    scene: { layers: def.layers.map((l) => (l.frames ?? [l.file!]).map(url)), flag: def.flag, anchor: def.anchor, nation: s.nation },
+    scene: {
+      layers: painted ? [[painted]] : def.layers.map((l) => (l.frames ?? [l.file!]).map(url)),
+      flag: def.flag,
+      anchor: def.anchor,
+      nation: s.nation,
+    },
     hotspots: def.hotspots,
   };
 }

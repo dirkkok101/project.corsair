@@ -206,6 +206,7 @@ Checked 2026-09-28. Summary only; this is not legal advice. Re-check terms befor
 | AutoBlob | Skip for M0 | $5.99 itch | Prefer Autotiler |
 | AutoSprite | Not planned for ships; optional character volume later | Free tier / $12–$29/mo | ToS puts IP risk on inputs; you own outputs to extent permitted |
 | GPT Image, Gemini image | Concept, harbour scenes, portrait-part drafts | Per image/token | Outputs assigned to or not claimed from the user, "to the extent permitted by law". Gemini free tier may use data for training, so use the paid tier. |
+| Grok Imagine (xAI) | Harbour scenes, service interiors, title art (`art/prompts/grok-imagine.md`) | API per image (from about $0.04) | **Not yet checked.** Read xAI's current terms for output ownership and commercial use before anything from it ships. |
 | Midjourney | Avoid for production | $10 to $120/mo | Companies earning over $1M a year need Pro or Mega to own outputs, and images are public unless in Stealth mode (Pro/Mega). |
 | Flux | Only Schnell (Apache 2.0) or a paid BFL licence | — | Flux Dev weights are non-commercial. |
 
