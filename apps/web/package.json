@@ -13,6 +13,7 @@
     "@corsair/systems-navigation": "workspace:*",
     "preact": "^11.0.0",
     "@corsair/systems-weather": "workspace:*",
-    "@corsair/audio": "workspace:*"
+    "@corsair/audio": "workspace:*",
+    "@corsair/systems-economy": "workspace:*"
   }
 }

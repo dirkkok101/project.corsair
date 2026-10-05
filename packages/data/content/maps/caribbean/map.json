@@ -18,8 +18,8 @@
   "start": {
     "shipId": "player",
     "classId": "ship.brig",
-    "lon": -76.8,
-    "lat": 17.82,
+    "lon": -76.83,
+    "lat": 17.92,
     "headingDeg": 180
   },
   "startDate": "1660-03-01",

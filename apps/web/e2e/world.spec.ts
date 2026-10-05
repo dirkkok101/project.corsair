@@ -151,3 +151,42 @@ test('sea life: dolphins, flying fish, a whale and birds appear on demand', asyn
   await page.screenshot({ path: 'test-results/wildlife.png' });
   expect(errors).toEqual([]);
 });
+
+test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port Royal', async ({ page }) => {
+  const errors = await boot(page);
+  // A new career opens within reach of Port Royal.
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await expect(page.locator('.hud-prompt')).toContainText('Enter Port Royal');
+
+  const goTo = async (name: string) => {
+    await page.evaluate((n) => {
+      const port = window.__corsair.ports().find((p) => p.name === n)!;
+      // Try the water tiles around the port until one takes the ship.
+      for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [0, 2], [-2, 0], [0, -2]]) {
+        window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: port.x + dx!, y: port.y + dy! });
+        window.__corsair.sim.step(1);
+        const s = window.__corsair.state.get('ships.player') as { x: number; y: number };
+        if (Math.hypot(s.x - port.x, s.y - port.y) < 3) return;
+      }
+    }, name);
+    // The test holds the clock, so step once to let the dock command land.
+    await page.keyboard.press('e');
+    await page.evaluate(() => window.__corsair.sim.step(1));
+    await expect(page.locator('.port-name')).toHaveText(name);
+  };
+  const gold = () => page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
+
+  await goTo('Bridgetown');
+  const startGold = await gold();
+  await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
+  const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
+  expect(bought).toBeGreaterThan(10);
+  await page.screenshot({ path: 'test-results/port.png' });
+  await page.keyboard.press('e');
+  await expect(page.locator('.port')).toHaveCount(0);
+
+  await goTo('Port Royal');
+  await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'All' }).click();
+  expect(await gold()).toBeGreaterThan(startGold);
+  expect(errors).toEqual([]);
+});

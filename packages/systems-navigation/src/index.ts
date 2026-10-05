@@ -162,6 +162,12 @@ export function createNavigationSystem(
           events: [{ type: 'AssistSet', entityIds: [ship.id], payload: { assist: command.assist, tack } }],
         };
       }
+      if (command.type === 'Teleport') {
+        const ship = state.ships[command.shipId];
+        if (!ship || ship.docked || isLand(tileAt(map, command.x, command.y))) return undefined;
+        const moved = { ...ship, x: command.x, y: command.y, speed: 0, blocked: false };
+        return { state: { ...state, ships: { ...state.ships, [ship.id]: moved } }, events: [{ type: 'Teleported', entityIds: [ship.id], payload: {} }] };
+      }
       if (command.type === 'SetSails') {
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;

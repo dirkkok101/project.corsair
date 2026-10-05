@@ -237,3 +237,142 @@ body {
   background: rgb(9 10 20 / 0.75);
   border: 1px solid #394a50;
 }
+
+.hud-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-size: 15px;
+  color: #ebede9;
+  background: rgb(9 10 20 / 0.8);
+  border: 1px solid #e8c170;
+}
+
+.port {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(9 10 20 / 0.55);
+}
+
+.port-panel {
+  width: min(760px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 16px 20px;
+  background: rgb(21 29 40 / 0.96);
+  border: 2px solid #c09473;
+  color: #ebede9;
+}
+
+.port-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  border-bottom: 1px solid #394a50;
+  padding-bottom: 8px;
+}
+
+.port-name {
+  font-size: 22px;
+  color: #e8c170;
+}
+
+.port-sub {
+  color: #a8b5b2;
+}
+
+.port-purse {
+  text-align: right;
+}
+
+.port-tabs {
+  display: flex;
+  gap: 14px;
+  margin: 10px 0;
+}
+
+.port-tabs .active {
+  color: #e8c170;
+  border-bottom: 2px solid #e8c170;
+}
+
+.port-tabs .soon {
+  color: #577277;
+}
+
+.market {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.market th {
+  text-align: left;
+  color: #a8b5b2;
+  font-weight: normal;
+  border-bottom: 1px solid #394a50;
+}
+
+.market td {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid #202e37;
+}
+
+.market .num {
+  text-align: right;
+  padding-right: 14px;
+}
+
+.market .actions {
+  white-space: nowrap;
+}
+
+.market button,
+.port .leave {
+  margin-left: 4px;
+  padding: 2px 8px;
+  font: inherit;
+  color: #ebede9;
+  background: #253a5e;
+  border: 1px solid #4f8fba;
+  cursor: pointer;
+}
+
+.market button:disabled {
+  color: #577277;
+  background: transparent;
+  border-color: #394a50;
+  cursor: default;
+}
+
+.trend {
+  margin-left: 6px;
+  font-size: 11px;
+  padding: 0 4px;
+}
+
+.trend.cheap {
+  color: #090a14;
+  background: #75a743;
+}
+
+.trend.dear {
+  color: #090a14;
+  background: #de9e41;
+}
+
+.trend.scarce {
+  color: #ebede9;
+  background: #a53030;
+}
+
+.port-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  color: #819796;
+}

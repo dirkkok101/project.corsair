@@ -98,6 +98,8 @@ export type Command =
   | { type: 'SetWind'; fromDeg: number; strength: WindStrength }
   /** Debug: start a storm centred on a tile. */
   | { type: 'SpawnStorm'; x: number; y: number }
+  /** Debug: move a ship to a tile (stopped), for tests and trying things out. */
+  | { type: 'Teleport'; shipId: string; x: number; y: number }
   | { type: 'Dock'; shipId: string; settlementId: string }
   | { type: 'Undock'; shipId: string }
   | { type: 'Buy'; shipId: string; good: string; quantity: number }

@@ -199,6 +199,9 @@ importers:
       '@corsair/render':
         specifier: workspace:*
         version: link:../../packages/render
+      '@corsair/systems-economy':
+        specifier: workspace:*
+        version: link:../../packages/systems-economy
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../../packages/systems-navigation

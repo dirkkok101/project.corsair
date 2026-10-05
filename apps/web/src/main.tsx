@@ -19,6 +19,8 @@ import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
 import { Hud } from './hud';
+import { Port } from './port';
+import { createEconomySystem, DOCK_RANGE, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -103,8 +105,10 @@ async function main() {
   const windAt = createWindField(content, def, map);
   // The clock starts at the map's start hour; the date is unchanged (still day 0).
   const startTick = Math.round((def.startHour / 24) * content.calendar.ticksPerDay);
-  const sim = createSim(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), [
+  const world = withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed);
+  const sim = createSim(world, [
     createWeatherSystem(content, def, map),
+    createEconomySystem(content, settlements),
     createNavigationSystem(content, map, windAt),
   ]);
   const breezes = createBreezeField(content, def, map);
@@ -127,6 +131,7 @@ async function main() {
   viewport.appendChild(renderer.canvas);
   const labels = createLabels(viewport, settlements, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
+  const portRoot = stage.appendChild(document.createElement('div'));
   let destination: PlacedSettlement | undefined;
   const charts = createCharts(stage, map, settlements, (port) => (destination = port));
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
@@ -159,26 +164,69 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
     if (e.key.toLowerCase() === 'n' && !e.repeat) audio.toggleMusic();
+    // E: enter the port in reach, or set sail again.
+    if (e.key.toLowerCase() === 'e' && !e.repeat) {
+      const ship = player();
+      if (ship.docked) sim.send({ type: 'Undock', shipId: ship.id });
+      else {
+        const port = portInReach();
+        if (port) sim.send({ type: 'Dock', shipId: ship.id, settlementId: port.id });
+      }
+    }
+    // Time acceleration in open water: = faster, - slower.
+    if (e.key === '=' || e.key === '+') wantedSpeed = Math.min(4, wantedSpeed * 2);
+    if (e.key === '-') wantedSpeed = Math.max(1, wantedSpeed / 2);
   });
 
   renderer.onLightning(() => audio.thunder());
   let audioFailed = false;
 
   const loop: LoopControl = { paused: false };
-  window.__corsair = { ...createDebugApi(sim, loop), seed, audio: { levels: () => audio.levels() }, wildlife: renderer.wildlife };
+  window.__corsair = {
+    ...createDebugApi(sim, loop),
+    seed,
+    audio: { levels: () => audio.levels() },
+    wildlife: renderer.wildlife,
+    ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
+  };
   const player = () => sim.state.ships[def.start.shipId]!;
   bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
+
+  /** The nearest port close enough to dock at, if any. */
+  const portInReach = () => {
+    const ship = player();
+    let best: { s: PlacedSettlement; d: number } | undefined;
+    for (const s of settlements) {
+      const d = Math.hypot(s.x - ship.x, s.y - ship.y);
+      if (d <= DOCK_RANGE && (!best || d < best.d)) best = { s, d };
+    }
+    return best?.s;
+  };
+  // Time acceleration the player asked for; it drops to 1x whenever something needs attention.
+  let wantedSpeed = 1;
+  const timeScale = (inStorm: boolean) => {
+    const ship = player();
+    const nearLand = breezes.coastNearness(ship.x, ship.y) > 0.4 || harbourNearness(ship.x, ship.y) > 0.3;
+    return inStorm || nearLand || ship.docked ? 1 : wantedSpeed;
+  };
 
   // Fixed 30 Hz sim under a variable frame rate; the cap stops a background tab from fast-forwarding.
   const dt = 1 / TICKS_PER_SECOND;
   let acc = 0;
   let last = performance.now();
+  let speedNow = 1;
   const frame = (now: number) => {
-    acc = loop.paused ? 0 : Math.min(acc + (now - last) / 1000, 0.25);
+    acc = loop.paused ? 0 : Math.min(acc + ((now - last) / 1000) * speedNow, 0.25 * speedNow);
     last = now;
+    if (player().docked) {
+      // World time stops in port (PRD section 2); trades still apply at once.
+      sim.applyCommands();
+      acc = 0;
+    }
     while (acc >= dt) {
       sim.step();
       acc -= dt;
+      if (player().docked) break;
     }
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
@@ -191,6 +239,24 @@ async function main() {
     const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
     const inStorm = (sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y));
     const cls = content.ships[ship.classId]!;
+    speedNow = timeScale(inStorm);
+    const reach = ship.docked ? undefined : portInReach();
+    const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
+    render(
+      town ? (
+        <Port
+          state={sim.state}
+          content={content}
+          town={town}
+          shipId={ship.id}
+          send={(command) => {
+            sim.send(command);
+            sim.applyCommands();
+          }}
+        />
+      ) : null,
+      portRoot,
+    );
     // Sound must never stop the game: report a failure once and keep sailing.
     try {
       audio.update(
@@ -241,6 +307,8 @@ async function main() {
         time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
+        prompt={reach ? `Enter ${reach.name} · E` : undefined}
+        timeScale={speedNow > 1 ? speedNow : wantedSpeed > 1 ? 'held' : undefined}
       />,
       hudRoot,
     );

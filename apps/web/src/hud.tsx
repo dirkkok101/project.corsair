@@ -80,9 +80,26 @@ export interface HudProps {
   destination?: { name: string; distanceKm: number; bearingDeg: number; closing: number };
   /** Sound status hint, shown until sound is running (or while muted). */
   sound?: string;
+  /** "Enter Port Royal · E" when a port is in reach. */
+  prompt?: string;
+  /** Time acceleration in force (2 or 4), or 'held' when it is wanted but paused near land or a storm. */
+  timeScale?: number | 'held';
 }
 
-export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze, destination, sound }: HudProps) {
+export function Hud({
+  state,
+  content,
+  wind,
+  date,
+  seaArea,
+  inStorm,
+  time,
+  breeze,
+  destination,
+  sound,
+  prompt,
+  timeScale,
+}: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
   const cls = content.ships[ship.classId]!;
@@ -97,6 +114,7 @@ export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze
       <div class="hud">
         <div class="hud-date">
           {date} · {time}
+          {timeScale === 'held' ? ' · 1× near land' : timeScale ? ` · ${timeScale}×` : ''}
         </div>
         <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>
         {/* The arrow shows where the wind blows to; fromDeg is where it comes from. */}
@@ -142,7 +160,8 @@ export function Hud({ state, content, wind, date, seaArea, inStorm, time, breeze
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
       {sound ? <div class="hud-sound">{sound}</div> : null}
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
+      {prompt ? <div class="hud-prompt">{prompt}</div> : null}
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · E port · =/- time · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

@@ -55,6 +55,7 @@ declare global {
       seed: number;
       audio: { levels: () => import('@corsair/audio').AudioLevels };
       wildlife: import('@corsair/render').Renderer['wildlife'];
+      ports: () => { id: string; name: string; x: number; y: number }[];
     };
   }
 }
