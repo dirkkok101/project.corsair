@@ -253,7 +253,7 @@ About 45 settlements, each a record in `settlements.json` with owner, size, weal
 ### Town services
 
 - **Governor's mansion.** Missions, letters of marque, titles and land grants, rewards for enemy ships and pirates sunk, romance (section 11). Needs acceptable reputation.
-- **Tavern.** Recruit crew (count scales with fame and town size), buy rumours, meet informants and old sailors selling map pieces, hear news.
+- **Tavern.** Recruit crew (count scales with fame and town size), buy rumours, meet informants and old sailors selling map pieces, hear news. Built: news only. The tavern lists what the town has heard, newest first, marks what is new to the captain, and the tab shows a count of new items; heard rumours also show on the sea chart's port card.
 - **Merchant.** Buy and sell goods, cannon, food. Prices from the local market (section 6). Built: goods (cannon to come with the shipwright). E docks within 3 tiles (about 7.5 km) of a town; world time stops in port. The captain remembers each market's prices from the last call, and hovering a port on the sea chart shows them with their age. What each port exports and wants is common knowledge, shown on its market and on the chart. Market rows tag goods "buy here" or "sells well", show the average cost of cargo in the hold against today's price, and name the best sale price seen in another port, flagging the per-unit profit when buying here and selling there pays. The chart's goods filter colours every port by whether it makes or needs a good and adds the last-seen price where the captain has called.
 - **Shipwright.** Repair hull and sails, buy upgrades (copper sheathing, cotton sails, fine-grain powder, chain shot, bronze cannon), sell ships.
 - **Bank / money-lender.** Store gold safely. Pirate havens have no bank.
@@ -319,6 +319,7 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 
 - Weekly tick: S += production - consumption, clamped. Production scales with population and a random harvest factor. Built as recovery: each week S closes 25% of the gap to its usual stock, times a harvest of 0.8 to 1.2, capped at 3x usual.
 - Hurricanes, raids and disease cut production for a number of weeks.
+- Built as market shocks (`economy.json` shocks): a bumper harvest (an export goes cheap), blight (an export goes scarce), shortage (a want pays well) and storm damage (every export of a town a storm's eye passes over). About 0.6 start a week across the map; each lasts 4 to 8 weeks, jumps the market most of the way at once and keeps pulling it while it lasts. A shock moves the usual stock, never the cap. Raids, disease and war wait for those systems.
 
 ### Merchant traffic
 
@@ -618,6 +619,7 @@ The news system turns simulation events into things the player learns about, wit
 - When the player visits a town, the tavern and governor present items that town knows and the player has not seen.
 - Distortion: the further news travels, the higher the chance that numbers are rounded up or details change ("a fleet of 12 sails" becomes "20"). Truth is kept in the log for debugging.
 - A news ticker on the world map shows items brought by passing friendly ships.
+- Built: market shocks are the first world facts with news. An item is known at once in its own town and reaches others at 80 tiles a day (a little slower than a brig) plus a seeded 0 to 3 day delay; arrival is computed from distance, not stored per town, and items are forgotten after 10 weeks. No distortion yet, and no ticker until AI ships sail. Text comes from templates in `economy.json` until `text/<lang>.json` exists.
 
 ### Narrative event definition
 
