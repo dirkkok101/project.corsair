@@ -80,7 +80,8 @@ body {
 
 .chart-sheet {
   position: relative;
-  width: min(96vw, calc(92vh * 1600 / 1100));
+  /* Leaves room above for the hint and below for the goods filter. */
+  width: min(96vw, calc(86vh * 1600 / 1100));
   border: 2px solid #c09473;
 }
 
@@ -260,7 +261,7 @@ body {
 }
 
 .port-panel {
-  width: min(760px, 94vw);
+  width: min(900px, 96vw);
   max-height: 90vh;
   overflow: auto;
   padding: 16px 20px;
@@ -355,14 +356,45 @@ body {
   padding: 0 4px;
 }
 
-.trend.cheap {
+.trend.export {
   color: #090a14;
   background: #75a743;
 }
 
-.trend.dear {
+.trend.want {
   color: #090a14;
   background: #de9e41;
+}
+
+.port-lean {
+  display: flex;
+  gap: 14px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #c7cfcc;
+}
+
+.port-lean .trend {
+  margin-left: 0;
+}
+
+.market .gain {
+  color: #a8ca58;
+}
+
+.market .loss {
+  color: #cf573c;
+}
+
+.market .paid,
+.market .age {
+  color: #819796;
+  font-size: 12px;
+}
+
+.market .best {
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .trend.scarce {
@@ -584,4 +616,50 @@ body {
 .in-port .labels,
 #stage.in-port .minimap {
   display: none;
+}
+
+.chart-goods {
+  position: absolute;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-goods button {
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #ebede9;
+  background: #151d28;
+  border: 1px solid #577277;
+  cursor: pointer;
+}
+
+.chart-goods button.active {
+  color: #090a14;
+  background: #e8c170;
+  border-color: #e8c170;
+}
+
+.chart-legend {
+  margin-left: 10px;
+  font-size: 12px;
+  color: #a8b5b2;
+}
+
+.chart-legend[hidden] {
+  display: none;
+}
+
+.lean-exports {
+  color: #a8ca58;
+}
+
+.lean-wants {
+  color: #de9e41;
+}
+
+.chart-port.faded {
+  opacity: 0.45;
 }

@@ -180,7 +180,12 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
 
   await goTo('Bridgetown');
   const startGold = await gold();
+  // What the port makes and needs is common knowledge, and the rows say which way to trade.
+  await expect(page.locator('.port-lean')).toContainText('exports Sugar');
+  const sugar = page.locator('tr', { hasText: 'Sugar' });
+  await expect(sugar).toContainText('buy here');
   await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
+  await expect(sugar.locator('.paid')).toContainText('@');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);
   await page.screenshot({ path: 'test-results/port.png' });
@@ -194,6 +199,12 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await expect(page.locator('.port')).toHaveCount(0);
 
   await goTo('Port Royal');
+  const sugarHere = page.locator('tr', { hasText: 'Sugar' });
+  await expect(sugarHere).toContainText('sells well');
+  // Selling above what the hold cost shows as a gain; Bridgetown is now a remembered price.
+  await expect(sugarHere.locator('td.num.gain')).toHaveCount(1);
+  await expect(sugarHere.locator('.best')).toContainText('Bridgetown');
+  await page.screenshot({ path: 'test-results/port-trade.png' });
   await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'All' }).click();
   expect(await gold()).toBeGreaterThan(startGold);
   expect(errors).toEqual([]);
@@ -248,6 +259,12 @@ test('sea chart: hovering a port shows the prices last seen there, or that none 
   await page.screenshot({ path: 'test-results/chart-prices.png' });
   await page.locator('.chart-port', { hasText: 'Havana' }).hover();
   await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
+
+  // The goods filter marks makers and buyers everywhere, with prices only where the captain has been.
+  await page.locator('.chart-goods').getByRole('button', { name: 'Sugar' }).click();
+  await expect(page.locator('.chart-port.lean-exports', { hasText: 'Bridgetown' })).toHaveText('Bridgetown');
+  await expect(page.locator('.chart-port.lean-wants', { hasText: 'Port Royal' })).toHaveText(/^Port Royal \d+$/);
+  await page.screenshot({ path: 'test-results/chart-sugar.png' });
 });
 
 test('harbour scenes: a pirate haven has its own scene, and night falls on it too', async ({ page }) => {

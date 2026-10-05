@@ -21,7 +21,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { createEconomySystem, DOCK_RANGE, withEconomy } from '@corsair/systems-economy';
+import { createEconomySystem, DOCK_RANGE, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -174,6 +174,7 @@ async function main() {
   const charts = createCharts(stage, map, settlements, (port) => (destination = port), {
     goods: content.goods,
     known: (id) => sim.state.captain?.knownPrices[id],
+    lean: (id, good) => tradeLean(content, { id }, good),
     today: () => Math.floor(sim.state.tick / content.calendar.ticksPerDay),
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
@@ -329,6 +330,7 @@ async function main() {
           state={sim.state}
           content={content}
           town={town}
+          settlements={settlements}
           shipId={ship.id}
           hotspots={harbour ? hotspotsOnScreen(harbour.hotspots) : {}}
           send={(command) => {

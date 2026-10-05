@@ -82,6 +82,8 @@ function paintOverview(map: TileMap): HTMLCanvasElement {
 export interface ChartMarket {
   goods: { id: string; name: string }[];
   known: (settlementId: string) => KnownPrices | undefined;
+  /** Whether a port makes or needs a good: common knowledge, known before any visit. */
+  lean: (settlementId: string, good: string) => 'exports' | 'wants' | undefined;
   today: () => number;
 }
 
@@ -161,12 +163,47 @@ export function createCharts(
   hint.className = 'chart-hint';
   hint.textContent = 'Sea chart · click a port to set your destination · M to close';
 
+  // Goods filter: pick a good and every port shows whether it makes or needs it (common knowledge)
+  // and, where the captain has called, the price that matters there: what you'd pay where it's
+  // made, what you'd get everywhere else.
+  let good: string | undefined;
+  const filter = chart.insertBefore(document.createElement('div'), sheet);
+  filter.className = 'chart-goods';
+  const goodButtons = market.goods.map((g) => {
+    const b = filter.appendChild(document.createElement('button'));
+    b.textContent = g.name;
+    b.addEventListener('click', () => {
+      good = good === g.id ? undefined : g.id;
+      showGood();
+    });
+    return { id: g.id, b };
+  });
+  const legend = filter.appendChild(document.createElement('span'));
+  legend.className = 'chart-legend';
+  legend.innerHTML =
+    '<span class="lean-exports">green</span>: made there, price to buy · <span class="lean-wants">amber</span>: needed there, price to sell';
+  const showGood = () => {
+    for (const { id, b } of goodButtons) b.classList.toggle('active', id === good);
+    legend.hidden = !good;
+    for (const { s, label } of pins) {
+      const lean = good ? market.lean(s.id, good) : undefined;
+      const seen = good ? market.known(s.id)?.prices[good] : undefined;
+      const price = seen && (lean === 'exports' ? seen.buy : seen.sell);
+      label.textContent = price !== undefined ? `${s.name} ${price}` : s.name;
+      label.classList.toggle('lean-exports', lean === 'exports');
+      label.classList.toggle('lean-wants', lean === 'wants');
+      label.classList.toggle('faded', Boolean(good) && !lean);
+    }
+    layoutLabels(pins);
+  };
+
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') {
       chart.hidden = !chart.hidden;
       // A card left from the last look would show stale prices until the pointer moved.
       prices.hidden = true;
-      if (!chart.hidden) layoutLabels(pins);
+      // Prices may have been learned since the chart was last open.
+      if (!chart.hidden) showGood();
     }
     if (e.key === 'Escape') chart.hidden = true;
   });

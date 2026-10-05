@@ -33,6 +33,8 @@ export interface Ship {
   assist?: { mode: 'beat'; tack: Tack };
   /** Units of each good in the hold. */
   cargo: Record<string, number>;
+  /** Gold paid for the units of each good now in the hold, so the merchant can show the margin. */
+  paid?: Record<string, number>;
   /** Settlement id while the ship is in port; it doesn't sail until it undocks. */
   docked?: string;
   /** True while the ship is pressed against land, so ShipBlocked fires once per contact. */

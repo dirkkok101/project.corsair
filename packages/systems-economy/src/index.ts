@@ -16,14 +16,29 @@ export function referenceStock(content: ContentPack, s: Settlement, good: string
   return (content.economy.normalStock[good] ?? 0) * (content.economy.sizeStock[s.size] ?? 1);
 }
 
+/** Whether a settlement makes a good (and sells it cheap) or needs it (and pays well). Making wins. */
+export function tradeLean(content: ContentPack, s: Pick<Settlement, 'id'>, good: string): 'exports' | 'wants' | undefined {
+  const e = content.economy;
+  const profiles = (e.settlementProfiles[s.id] ?? []).map((p) => e.profiles[p]!);
+  if (profiles.some((p) => (p.produces[good] ?? 0) > 0)) return 'exports';
+  if (profiles.some((p) => (p.consumes[good] ?? 0) > 0)) return 'wants';
+  return undefined;
+}
+
+/** What a port is known for: common knowledge, shown before the player has ever called there. */
+export function portTrade(content: ContentPack, s: Pick<Settlement, 'id'>): { exports: string[]; wants: string[] } {
+  const ids = content.goods.map((g) => g.id);
+  return {
+    exports: ids.filter((g) => tradeLean(content, s, g) === 'exports'),
+    wants: ids.filter((g) => tradeLean(content, s, g) === 'wants'),
+  };
+}
+
 /** The stock a market drifts back to: above the reference where the good is made, below where it is needed. */
 export function normalStock(content: ContentPack, s: Settlement, good: string): number {
   const e = content.economy;
-  const profiles = (e.settlementProfiles[s.id] ?? []).map((p) => e.profiles[p]!);
-  const makes = profiles.some((p) => (p.produces[good] ?? 0) > 0);
-  const needs = profiles.some((p) => (p.consumes[good] ?? 0) > 0);
-  const lean = makes ? e.producerStock : needs ? e.consumerStock : 1;
-  return referenceStock(content, s, good) * lean;
+  const lean = tradeLean(content, s, good);
+  return referenceStock(content, s, good) * (lean === 'exports' ? e.producerStock : lean === 'wants' ? e.consumerStock : 1);
 }
 
 /** Local mid price for one unit at a stock level, before the buy/sell spread. */
@@ -151,7 +166,17 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const market = { ...state.markets[s.id]!, [command.good]: stock };
         const cargo = { ...ship.cargo, [command.good]: held };
         if (held === 0) delete cargo[command.good];
-        const next = { ...state, markets: { ...state.markets, [s.id]: market }, ships: { ...state.ships, [ship.id]: { ...ship, cargo } } };
+        // What the hold cost: buying adds the gold spent; selling takes out the average cost of the units sold.
+        const before = ship.paid?.[command.good] ?? 0;
+        const heldBefore = ship.cargo[command.good] ?? 0;
+        const cost = command.type === 'Buy' ? before + total : heldBefore > 0 ? before * (held / heldBefore) : 0;
+        const paid = { ...ship.paid, [command.good]: Math.round(cost) };
+        if (held === 0) delete paid[command.good];
+        const next = {
+          ...state,
+          markets: { ...state.markets, [s.id]: market },
+          ships: { ...state.ships, [ship.id]: { ...ship, cargo, paid } },
+        };
         return {
           state: { ...next, captain: { gold, knownPrices: seen(next, s, market) } },
           events: [

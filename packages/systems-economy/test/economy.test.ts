@@ -6,7 +6,7 @@ import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from 
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
-import { cargoUsed, createEconomySystem, DOCK_RANGE, midPrice, normalStock, quote, withEconomy } from '../src';
+import { cargoUsed, createEconomySystem, DOCK_RANGE, midPrice, normalStock, portTrade, quote, tradeLean, withEconomy } from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -91,6 +91,28 @@ describe('docking and trading', () => {
     expect(sim.events().at(-1)!.payload.quantity).toBe(40);
     // A round trip in one port always loses the spread.
     expect(sim.state.captain!.gold).toBeLessThan(gold0);
+  });
+
+  it('keeps what the hold cost: buys add to it, sales take out the average cost', () => {
+    const sim = moored(bridgetown, 3);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: bridgetown.id });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 10 });
+    sim.applyCommands();
+    const spent = 1000 - sim.state.captain!.gold;
+    expect(player(sim.state).paid!.sugar).toBe(spent);
+    sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 4 });
+    sim.applyCommands();
+    expect(player(sim.state).paid!.sugar).toBe(Math.round(spent * 0.6));
+    sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 6 });
+    sim.applyCommands();
+    expect(player(sim.state).paid?.sugar).toBeUndefined();
+  });
+
+  it('knows what every port exports and wants, from its profiles', () => {
+    expect(portTrade(content, bridgetown).exports).toEqual(['sugar']);
+    expect(portTrade(content, bridgetown).wants).toEqual(expect.arrayContaining(['food', 'luxuries', 'cotton']));
+    expect(tradeLean(content, portRoyal, 'sugar')).toBe('wants');
+    expect(tradeLean(content, bridgetown, 'silver')).toBeUndefined();
   });
 
   it('never overfills the hold or overspends', () => {
