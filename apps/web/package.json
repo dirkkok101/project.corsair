@@ -15,6 +15,7 @@
     "@corsair/systems-weather": "workspace:*",
     "@corsair/audio": "workspace:*",
     "@corsair/systems-economy": "workspace:*",
-    "@corsair/systems-traffic": "workspace:*"
+    "@corsair/systems-traffic": "workspace:*",
+    "@corsair/minigame-sea-battle": "workspace:*"
   }
 }

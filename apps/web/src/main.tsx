@@ -28,6 +28,10 @@ import { createLabels } from './labels';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
 import { Hail, shipTitle } from './hail';
+import { BattleHud } from './battle';
+import { battleMap, createBattle } from '@corsair/minigame-sea-battle';
+import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
+import type { TileMap } from '@corsair/data';
 import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
 
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
@@ -209,6 +213,36 @@ async function main() {
   const hailRoot = stage.appendChild(document.createElement('div'));
   // The ship being spoken and the news she brought; the clock stops while the captains talk.
   let hailing: { targetId: string; news: string[] } | undefined;
+  const battleRoot = stage.appendChild(document.createElement('div'));
+  // A sea battle in progress (PRD section 9.1): world time stands still until its result is applied.
+  let fight: { battle: Battle; map: TileMap; targetId: string; acc: number } | undefined;
+  let eventsSeen = 0;
+  /** Cut the battle map from the world where the ships met, and seat them as they lay. */
+  const startBattle = (targetId: string) => {
+    const me = player();
+    const them = sim.state.ships[targetId];
+    if (!them || fight) return;
+    const { map: local } = battleMap(content, map, me.x, me.y);
+    const bearingDeg = ((Math.atan2(them.x - me.x, -(them.y - me.y)) * 180) / Math.PI + 360) % 360;
+    const battle = createBattle(content, {
+      map: local,
+      wind: windAt(sim.state, me.x, me.y),
+      player: me,
+      enemy: them,
+      seed: (seed ^ Math.imul(sim.state.tick, 2654435761)) >>> 0,
+      bearingDeg,
+    });
+    hailing = undefined;
+    fight = { battle, map: local, targetId, acc: 0 };
+  };
+  /** The result goes into the world as a command, so replays and saves see the fight's outcome. */
+  const endBattle = () => {
+    const result = fight?.battle.result();
+    if (!fight || !result) return;
+    sim.send({ type: 'BattleEnded', shipId: player().id, targetId: fight.targetId, result });
+    sim.applyCommands();
+    fight = undefined;
+  };
   let destination: PlacedSettlement | undefined;
   const charts = createCharts(stage, map, settlements, (port) => (destination = port), {
     goods: content.goods,
@@ -254,6 +288,17 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
     if (e.key.toLowerCase() === 'n' && !e.repeat) audio.toggleMusic();
+    // In battle: Q and E fire the port and starboard broadsides, 1 to 3 load round, chain or grape;
+    // when it is over, Enter (or Space) carries on. Steering keys go to the battle through bindInput.
+    if (fight) {
+      const k = e.key.toLowerCase();
+      if (fight.battle.result()) {
+        if ((k === 'enter' || k === ' ') && !e.repeat) endBattle();
+      } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
+      else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
+      if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
+      return;
+    }
     // E: enter the port in reach, or set sail again.
     if (e.key.toLowerCase() === 'e' && !e.repeat) {
       const ship = player();
@@ -306,10 +351,27 @@ async function main() {
     wildlife: renderer.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
     snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },
-    view: () => (renderer.harbour.visible ? 'harbour' : 'sea'),
+    view: () => (fight ? 'battle' : renderer.harbour.visible ? 'harbour' : 'sea'),
+    battle: {
+      active: () => Boolean(fight),
+      state: () => (fight ? structuredClone(fight.battle.state) : undefined),
+      /** Step the battle (it also runs in real time); `autopilot` lets the player's side fight itself. */
+      step: (ticks = 1, autopilot?: 'runner' | 'cautious' | 'aggressive') => fight?.battle.step(ticks, autopilot),
+      result: () => fight?.battle.result(),
+    },
   };
   const player = () => sim.state.ships[def.start.shipId]!;
-  bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
+  // The keys steer the battle while one is on, the world otherwise; the debug wind keys only at sea.
+  bindInput(
+    () => {
+      const b = fight && !fight.battle.result() ? fight.battle : undefined;
+      // The battle takes steering and sails; wind is fixed for the fight.
+      return b ? { state: b.state, send: (c) => c.type !== 'SetWind' && b.send(c) } : sim;
+    },
+    def.start.shipId,
+    () => windAt(sim.state, player().x, player().y),
+    () => !fight,
+  );
 
   /** The nearest AI ship close enough to hail: in sight, at sea and within hailing range. */
   const shipInHail = () => {
@@ -317,7 +379,8 @@ async function main() {
     if (me.docked) return undefined;
     let best: { s: (typeof sim.state.ships)[string]; d: number } | undefined;
     for (const s of Object.values(sim.state.ships)) {
-      if (!s.ai || (s.ai.waitUntil !== undefined && s.ai.waitUntil > sim.state.tick)) continue;
+      // Not one lying in port (no route), and not a hunter closing in: she isn't stopping to talk.
+      if (!s.ai || s.ai.chasing || (s.ai.waitUntil !== undefined && !s.ai.route.length)) continue;
       const d = Math.hypot(s.x - me.x, s.y - me.y);
       if (d <= content.traffic.hailTiles && (!best || d < best.d)) best = { s, d };
     }
@@ -378,6 +441,39 @@ async function main() {
   const frame = (now: number) => {
     acc = loop.paused ? 0 : Math.min(acc + ((now - last) / 1000) * speedNow, 0.25 * speedNow);
     last = now;
+    if (fight) {
+      // The battle runs in real time (no acceleration) while the world waits.
+      if (!loop.paused && !fight.battle.result()) {
+        fight.acc = Math.min(fight.acc + (now - last) / 1000, 0.25);
+        while (fight.acc >= dt) {
+          fight.battle.step();
+          fight.acc -= dt;
+        }
+      }
+      last = now;
+      const bs = fight.battle.state;
+      renderer.renderBattle(bs, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now);
+      const them = sim.state.ships[fight.targetId];
+      const me = player();
+      const needed = (content.ships[me.classId]!.guns * content.combat.guns.crewPerGun) / 2;
+      render(
+        <BattleHud
+          state={bs}
+          content={content}
+          playerTitle={me.classId.replace(/^ship\./, '')}
+          enemyName={them?.ai?.name ?? 'Enemy'}
+          enemyTitle={them ? shipTitle(them) : ''}
+          reloadSeconds={content.combat.guns.reloadSeconds * Math.max(1, needed / Math.max(1, bs.ships.player.crew))}
+          onContinue={endBattle}
+        />,
+        battleRoot,
+      );
+      stage.classList.add('in-battle');
+      requestAnimationFrame(frame);
+      return;
+    }
+    stage.classList.remove('in-battle');
+    render(null, battleRoot);
     if (player().docked || hailing) {
       // World time stops in port (PRD section 2), and while hailing; commands still apply at once.
       sim.applyCommands();
@@ -388,6 +484,11 @@ async function main() {
       acc -= dt;
       if (player().docked) break;
     }
+    // A fight joined this frame (the player's Attack, or a hunter closing) starts the battle.
+    const evs = sim.events();
+    if (evs.length < eventsSeen) eventsSeen = 0;
+    for (let i = eventsSeen; i < evs.length; i++) if (evs[i]!.type === 'BattleJoined') startBattle(evs[i]!.entityIds[1]!);
+    eventsSeen = evs.length;
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
     charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view(), {
@@ -417,6 +518,8 @@ async function main() {
     wasDocked = Boolean(ship.docked);
     const reach = ship.docked ? undefined : portInReach();
     const near = reach || hailing ? undefined : shipInHail();
+    // A hunter closing on the player: a warning beats any other prompt.
+    const hunter = Object.values(sim.state.ships).find((s) => s.ai?.chasing);
     const spoken = hailing && sim.state.ships[hailing.targetId];
     render(
       spoken ? (
@@ -427,6 +530,11 @@ async function main() {
           ship={spoken}
           news={hailing!.news}
           close={() => (hailing = undefined)}
+          attack={() => {
+            sim.send({ type: 'Attack', shipId: player().id, targetId: hailing!.targetId });
+            sim.applyCommands();
+            hailing = undefined;
+          }}
         />
       ) : null,
       hailRoot,
@@ -503,7 +611,15 @@ async function main() {
         time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
-        prompt={reach ? `Enter ${reach.name} · E` : near ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H` : undefined}
+        prompt={
+          hunter
+            ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
+            : reach
+              ? `Enter ${reach.name} · E`
+              : near
+                ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
+                : undefined
+        }
         timeScale={speedNow > 1 ? speedNow : wantedSpeed > 1 ? 'held' : undefined}
         saved={now - savedAt < 2000}
       />,

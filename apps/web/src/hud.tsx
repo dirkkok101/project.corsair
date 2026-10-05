@@ -2,6 +2,7 @@ import type { Wind, WorldState } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
+import { crewOf } from '@corsair/systems-economy';
 
 const ROSE = { size: 120, inner: 8, outer: 46 };
 
@@ -159,6 +160,11 @@ export function Hud({
         <div>
           {speedPoints(content, ship).toFixed(1)} → {toSpeedPoints(content, targetSpeed(content, ship, wind)).toFixed(1)}
           {ship.blocked ? ' · aground' : ''}
+        </div>
+        <div>Ship</div>
+        <div>
+          crew {crewOf(content, ship)} · hull {Math.round(ship.hull ?? cls.hull)}/{cls.hull}
+          {(ship.sailCondition ?? 100) < 100 ? ` · sails ${Math.round(ship.sailCondition ?? 100)}%` : ''}
         </div>
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />

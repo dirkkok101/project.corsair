@@ -6,6 +6,8 @@ import { createPennants, createSpray, createWake, createWhitecaps, createWindStr
 import { createDaylight } from './daylight';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
+import { createBattleView } from './battle';
+import type { BattleViewState } from './battle';
 import { createHarbour } from './harbour';
 import type { HarbourScene } from './harbour';
 import { createSky } from './sky';
@@ -20,6 +22,7 @@ import { MIN_VIEW_HEIGHT, MIN_VIEW_WIDTH } from './view';
 export * from './view';
 export type { WildlifeDefs, WildlifeSound } from './wildlife';
 export type { FlagNation, HarbourScene } from './harbour';
+export type { BattleViewShip, BattleViewState } from './battle';
 export { HARBOUR_HEIGHT, HARBOUR_WIDTH } from './harbour';
 export { parseGpl, rowsAt } from './daylight';
 
@@ -56,6 +59,8 @@ export interface Renderer {
   resize(width: number, height: number): void;
   /** Called at each lightning flash, so the app can roll thunder. */
   onLightning(cb: () => void): void;
+  /** Draw a sea battle instead of the world (`renderBattle` each frame while it lasts; `render` returns to the sea). */
+  renderBattle(state: BattleViewState, map: TileMap, hour: number, nowMs: number): void;
   /** The harbour scene shown in port; `show(undefined)` returns to the sea. */
   harbour: {
     show(scene: HarbourScene | undefined): Promise<void>;
@@ -231,9 +236,17 @@ export async function createRenderer(
   });
   app.stage.addChild(harbour.view);
   let lastState: WorldState | undefined;
+  const battle = createBattleView(content, frames);
+  app.stage.addChild(battle.view);
 
   return {
     canvas: app.canvas,
+    renderBattle(state, battleMap, hour, nowMs) {
+      battle.update(state, battleMap, viewW, viewH, nowMs);
+      for (const child of app.stage.children) if (child !== battle.view) child.visible = false;
+      daylight?.setHour(hour);
+      app.render();
+    },
     harbour: {
       show: (scene) => harbour.show(scene),
       transform: () => harbour.transform(),
@@ -343,7 +356,8 @@ export async function createRenderer(
       lastState = state;
       harbour.update(nowMs);
       // The opaque scene covers the sea view, so nothing under it needs drawing.
-      for (const child of app.stage.children) if (child !== harbour.view) child.visible = !harbour.visible;
+      battle.hide();
+      for (const child of app.stage.children) if (child !== harbour.view && child !== battle.view) child.visible = !harbour.visible;
       app.render();
     },
   };

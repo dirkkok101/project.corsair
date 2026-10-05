@@ -178,6 +178,7 @@ Turning rate uses the same inputs, plus a rig-specific turn penalty for square r
 - Morale (0 to 100) is driven by: days since last pay-off, gold per head, food, recent victories, losses and captain fame. Thresholds trigger events: grumbling, desertion, mutiny.
 - Mutiny is a scripted event: the player fights a duel with the ringleader or pays off. Losing means marooning and a restart from a small boat.
 - Pay-off (dividing the plunder) resets morale and ends the voyage. Crew may leave if their share was poor.
+- Built so far: a crew count. Grape and boarding kill men; the tavern signs men on for 10 gold each up to the berths, and the shipwright makes good hull (6 gold a point) and sails (2 a percent). Food, wages and morale wait for the crew slice.
 
 ### Landfall and exploration
 
@@ -252,6 +253,7 @@ About 45 settlements, each a record in `settlements.json` with owner, size, weal
 - **Economy profile**: produces and consumes goods (sugar, tobacco, hides, cotton, silver). Drives prices (section 6).
 - **Defences**: fort level, garrison soldiers, guns, walls (section 8).
 - **Attitude to player**: derived from nation reputation plus a local modifier (past raids, favours).
+- Built so far: standing per nation, -100 to 100. Firing on a nation's ship costs 20; sinking or taking a pirate earns 3 with every nation. At -30 or below the nation's patrols hunt the player as pirates do; at -50 or below its ports refuse them. Pirates always hunt: one that sights the player within 14 tiles gives chase and starts a fight at contact, giving up past 24 tiles or once the player docks. The governor, letters of marque and local attitude come later.
 - **Governor**: a named character with personality traits, a daughter (maybe), and an agenda.
 
 ### Town services
@@ -457,6 +459,7 @@ Four combat modes share one rules core: a fixed-step simulation (30 ticks per se
 - **Damage model.** Hits roll against a hit table by range, angle and sea state. Hull hits reduce HP and may knock out guns; sail hits reduce speed; grape kills crew. Critical hits: magazine explosion, fire, rudder loss (all data-driven).
 - **Endings.** Enemy sinks (cargo lost), strikes colours (surrender, when morale breaks), escapes off the map edge, or ships touch for boarding.
 - **Boarding.** On contact, crew ratio and morale decide who fights. It moves into the fencing duel.
+- **Built** (`@corsair/minigame-sea-battle`, `combat.json`): a 30 x 17 tile battle map cut from the world where the ships met, in the world's wind, drawn at 48 px a tile with the 192 px combat sprites. Ships sail with the world's sailing model at a quarter pace (`tilesPerSecondPerSpeedPoint`), so a crossing takes about 20 s. Q and E fire the port and starboard broadsides when the target is within 40 degrees of the beam and in range; 1 to 3 load round, chain or grape (grape only at short range; a switch costs a reload); a short-handed crew reloads slower. Hits roll on range, with a bonus for raking fire; a round-shot hit can dismount a gun. The enemy is steered by role: merchants run, patrols keep their range, pirates close and board. Endings: sunk, struck (hull or crew broken), boarded (on contact; crew x a role factor decides it, both sides bleed), escaped (off the map, or after 4 minutes), or lost. The headless runner plays AI-vs-AI fights: a brig takes merchants nine times in ten, beats a pirate sloop about three times in five, and loses to a frigate seven times in ten. The fencing duel replaces the boarding roll later; criticals beyond a dismounted gun wait.
 
 ### 9.2 Boarding and fencing duel
 
@@ -465,6 +468,7 @@ Four combat modes share one rules core: a fixed-step simulation (30 ticks per se
 - Crew strength shifts the duel: a large crew advantage pushes the enemy back and speeds morale collapse; getting pushed to the rail or off the ship ends the fight.
 - Weapons: rapier (fast, low damage), cutlass (balanced), longsword (slow, strong). Each is a stat block.
 - Win: the ship is captured with cargo, crew may join, notable passengers are found. Lose: the player is captured, wounded or thrown in the sea (loses ship, keeps the rest of the fleet if any).
+- Built for now: a won fight (sunk excepted) brings the prize's purse and as much of her cargo as the hold takes; her cargo never reaches its market. A lost fight costs half the player's gold, and to a pirate the whole cargo; the player is let go with at least a tenth of the hull. Prizes can't be kept until fleets exist.
 
 ### 9.3 Ship-to-fort (sea assault)
 

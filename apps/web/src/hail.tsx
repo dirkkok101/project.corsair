@@ -24,10 +24,12 @@ export interface HailProps {
   /** News ids the hail brought that the captain hadn't heard. */
   news: string[];
   close: () => void;
+  /** Open fire: starts a sea battle. */
+  attack: () => void;
 }
 
 /** Speaking a ship at sea (PRD section 4): who she is, a hint of what she carries, and her news. */
-export function Hail({ state, content, settlements, ship, news, close }: HailProps) {
+export function Hail({ state, content, settlements, ship, news, close, attack }: HailProps) {
   const ai = ship.ai!;
   const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const goods = Object.keys(ship.cargo).map((g) => content.goods.find((x) => x.id === g)?.name.toLowerCase() ?? g);
@@ -58,8 +60,8 @@ export function Hail({ state, content, settlements, ship, news, close }: HailPro
           )}
         </div>
         <div class="hail-actions">
-          <button disabled title="Coming with the sea battle">
-            Attack
+          <button class="attack" onClick={attack} title={ai.nation === 'pirate' ? 'A pirate: fair game' : `Costs standing with the ${NATION_ADJECTIVE[ai.nation]}`}>
+            Attack{ai.nation === 'pirate' ? '' : ` · angers the ${NATION_ADJECTIVE[ai.nation]}`}
           </button>
           <button class="leave" onClick={close}>
             Part ways · H

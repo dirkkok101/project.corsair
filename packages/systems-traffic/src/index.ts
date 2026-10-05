@@ -279,7 +279,7 @@ export function createTrafficSystem(
           events: [{ type: 'HailRefused', entityIds: [player.id, other.id], payload: { reason } }] as EmittedEvent[],
         });
         if (player.docked) return fail('in-port');
-        if (other.ai.waitUntil !== undefined && other.ai.waitUntil > state.tick) return fail('in-port');
+        if (other.ai.waitUntil !== undefined && !other.ai.route.length) return fail('in-port');
         if (Math.hypot(other.x - player.x, other.y - player.y) > t.hailTiles) return fail('too-far');
         const heard = state.captain?.heard ?? [];
         const fresh = other.ai.news.filter((id) => !heard.includes(id));

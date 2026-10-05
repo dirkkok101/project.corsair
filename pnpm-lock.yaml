@@ -196,6 +196,9 @@ importers:
       '@corsair/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@corsair/minigame-sea-battle':
+        specifier: workspace:*
+        version: link:../../packages/minigame-sea-battle
       '@corsair/render':
         specifier: workspace:*
         version: link:../../packages/render

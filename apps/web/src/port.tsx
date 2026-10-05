@@ -1,6 +1,17 @@
 import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { cargoUsed, newsAt, newsText, portTrade, quote, referenceStock, sellDepth, tradeLean } from '@corsair/systems-economy';
+import {
+  cargoUsed,
+  crewOf,
+  newsAt,
+  newsText,
+  portTrade,
+  quote,
+  referenceStock,
+  repairCost,
+  sellDepth,
+  tradeLean,
+} from '@corsair/systems-economy';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -44,7 +55,7 @@ function Takes({ depth }: { depth: number }) {
 }
 
 /** Services that work so far; the rest are drawn but marked "soon". */
-const READY: Service[] = ['merchant', 'tavern'];
+const READY: Service[] = ['merchant', 'tavern', 'shipwright'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
@@ -157,6 +168,10 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             <div>
               Hold {used} / {capacity}
             </div>
+            <div class="port-sub">
+              Crew {crewOf(content, ship)} · Hull {Math.round(ship.hull ?? content.ships[ship.classId]!.hull)}
+              {town.nation !== 'pirate' ? ` · ${NATION[town.nation]} standing ${state.captain?.standing?.[town.nation] ?? 0}` : ''}
+            </div>
           </div>
         </header>
 
@@ -177,13 +192,17 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           </button>
         </nav>
 
-        {open === 'tavern' ? (
+        {open === 'shipwright' ? (
+          <Shipwright content={content} state={state} shipId={shipId} send={send} />
+        ) : open === 'tavern' ? (
           <Tavern
             content={content}
             state={state}
             settlements={settlements}
             rumours={rumours}
             hear={() => send({ type: 'HearNews', shipId })}
+            shipId={shipId}
+            send={send}
           />
         ) : (
           <table class="market">
@@ -294,28 +313,94 @@ interface TavernProps {
   settlements: PlacedSettlement[];
   rumours: import('@corsair/core').NewsItem[];
   hear: () => void;
+  shipId: string;
+  send: PortProps['send'];
+}
+
+/** Hands for the ship: men sign on at the tavern for a bounty each, up to her berths. */
+function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'>) {
+  const ship = state.ships[shipId]!;
+  const cls = content.ships[ship.classId]!;
+  const crew = crewOf(content, ship);
+  const price = content.combat.port.recruitGold;
+  const room = cls.maxCrew - crew;
+  return (
+    <div class="recruit">
+      <span>
+        Crew {crew} / {cls.maxCrew}
+        {crew < cls.minCrew ? <span class="trend scarce">short-handed</span> : null}
+      </span>
+      <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: 10 })}>
+        Sign on 10 · {10 * price} gold
+      </button>
+      <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
+        Fill the berths · {room * price} gold
+      </button>
+    </div>
+  );
+}
+
+/** The shipwright: hull and sails made good, as far as the purse reaches. */
+function Shipwright({
+  content,
+  state,
+  shipId,
+  send,
+}: {
+  content: ContentPack;
+  state: WorldState;
+  shipId: string;
+  send: PortProps['send'];
+}) {
+  const ship = state.ships[shipId]!;
+  const cls = content.ships[ship.classId]!;
+  const cost = repairCost(content, ship);
+  return (
+    <div class="shipwright">
+      <p>
+        Hull {Math.round(ship.hull ?? cls.hull)} / {cls.hull} · Sails {Math.round(ship.sailCondition ?? 100)}% · {cls.guns} guns
+      </p>
+      {cost > 0 ? (
+        <button class="leave" onClick={() => send({ type: 'Repair', shipId })}>
+          Repair · {cost} gold
+        </button>
+      ) : (
+        <p class="port-sub">She is sound. Nothing needs doing.</p>
+      )}
+    </div>
+  );
 }
 
 /** The tavern: talk of the docks, newest first. Listening marks it heard. */
-function Tavern({ content, state, settlements, rumours, hear }: TavernProps) {
+function Tavern({ content, state, settlements, rumours, hear, shipId, send }: TavernProps) {
   // What was new when the captain walked in stays marked for this visit.
   const [fresh] = useState(() => new Set(rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).map((n) => n.id)));
   // Once per visit: the port screen renders every frame, so this must not run from render.
   useEffect(hear, []);
   const today = Math.floor(state.tick / content.calendar.ticksPerDay);
-  if (!rumours.length) return <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>;
+  const recruit = <Recruit content={content} state={state} shipId={shipId} send={send} />;
+  if (!rumours.length)
+    return (
+      <>
+        {recruit}
+        <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>
+      </>
+    );
   return (
-    <ul class="tavern">
-      {rumours.map((n) => {
-        const town = settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId;
-        const age = today - Math.floor(n.tick / content.calendar.ticksPerDay);
-        return (
-          <li key={n.id}>
-            {fresh.has(n.id) ? <span class="trend want">new</span> : null} {newsText(content, n, town)}
-            <span class="age"> {age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`}</span>
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      {recruit}
+      <ul class="tavern">
+        {rumours.map((n) => {
+          const town = settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId;
+          const age = today - Math.floor(n.tick / content.calendar.ticksPerDay);
+          return (
+            <li key={n.id}>
+              {fresh.has(n.id) ? <span class="trend want">new</span> : null} {newsText(content, n, town)}
+              <span class="age"> {age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

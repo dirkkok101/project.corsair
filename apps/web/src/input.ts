@@ -1,4 +1,4 @@
-import type { Helm, SailSetting, Sim, Wind, WindStrength } from '@corsair/core';
+import type { Command, Helm, SailSetting, Ship, Wind, WindStrength } from '@corsair/core';
 
 const PORT_KEYS = new Set(['a', 'arrowleft']);
 const STARBOARD_KEYS = new Set(['d', 'arrowright']);
@@ -7,8 +7,28 @@ const WIND_STEP_DEG = 22.5; // the PRD's 16 wind points
 const SAILS: SailSetting[] = ['furled', 'half', 'full'];
 
 /** Keyboard → commands. Helm is sent only when it changes, which keeps the input log small. */
-/** `windHere` is the wind at the player's ship; the wind keys adjust it (debug). */
-export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void {
+/** What the keys steer: the world sim, or a sea battle while one is on (same ship id, same commands). */
+export interface InputTarget {
+  readonly state: { tick: number; ships: Record<string, Pick<Ship, 'helm' | 'sails' | 'assist'>> };
+  send(command: Extract<Command, { type: 'SetHelm' | 'SetSails' | 'SetAssist' | 'SetWind' }>): void;
+}
+
+/**
+ * `target` is what the keys steer right now. `windHere` is the wind at the player's ship; the wind
+ * keys adjust it (debug), only while `windKeys()` allows (not in a battle).
+ */
+export function bindInput(
+  target: () => InputTarget,
+  shipId: string,
+  windHere: () => Wind,
+  windKeys: () => boolean = () => true,
+): void {
+  const sim = {
+    get state() {
+      return target().state;
+    },
+    send: (c: Parameters<InputTarget['send']>[0]) => target().send(c),
+  };
   const held = new Set<string>();
   // Commands apply on the next tick, so two keys in one tick must build on what was sent, not on
   // state; otherwise the second wind key undoes the first. Once a tick passes, state is the truth
@@ -19,11 +39,9 @@ export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void 
   let sentSails: SailSetting = 'full';
   let sentHelm: Helm = 0;
   let sentWind: Wind = windHere();
-  const currentHelm = () =>
-    sim.state.tick === helmSentAt ? sentHelm : (sim.state.ships[shipId]?.helm ?? 0);
+  const currentHelm = () => (sim.state.tick === helmSentAt ? sentHelm : (sim.state.ships[shipId]?.helm ?? 0));
   const currentWind = () => (sim.state.tick === windSentAt ? sentWind : windHere());
-  const currentSails = () =>
-    sim.state.tick === sailsSentAt ? sentSails : (sim.state.ships[shipId]?.sails ?? 'full');
+  const currentSails = () => (sim.state.tick === sailsSentAt ? sentSails : (sim.state.ships[shipId]?.sails ?? 'full'));
 
   const sendWind = (wind: Wind) => {
     sentWind = wind;
@@ -46,7 +64,7 @@ export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void 
     if (e.ctrlKey || e.metaKey) return;
     const key = e.key.toLowerCase();
     const wind = currentWind();
-    if (key === '[' || key === ']') {
+    if ((key === '[' || key === ']') && windKeys()) {
       sendWind({ fromDeg: (wind.fromDeg + (key === ']' ? WIND_STEP_DEG : -WIND_STEP_DEG) + 360) % 360, strength: wind.strength });
       return;
     }
@@ -68,7 +86,7 @@ export function bindInput(sim: Sim, shipId: string, windHere: () => Wind): void 
       return;
     }
     const strength = STRENGTHS[Number(key) - 1];
-    if (strength) {
+    if (strength && windKeys()) {
       sendWind({ fromDeg: wind.fromDeg, strength });
       return;
     }

@@ -395,7 +395,8 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
   await expect(page.locator('.hud-prompt')).toContainText('Hail the English fluyt');
   await page.keyboard.press('h');
   await expect(page.locator('.hail')).toContainText('bound for Cartagena');
-  await expect(page.locator('.hail').getByRole('button', { name: 'Attack' })).toBeDisabled();
+  // Firing on a nation's ship is allowed, with a warning of what it costs.
+  await expect(page.locator('.hail').getByRole('button', { name: /Attack/ })).toContainText('angers the English');
   await page.screenshot({ path: 'test-results/hail.png' });
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'Hailed' }).length)).toBe(1);
   await page.keyboard.press('h');
@@ -404,5 +405,44 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
   await page.keyboard.press('m');
   await expect(page.locator('.chart-ship').first()).toBeVisible();
   expect(id).toMatch(/^ai\./);
+  expect(errors).toEqual([]);
+});
+
+test('sea battle: attack a ship from the hail panel, fight it out, and the outcome reaches the world', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.sim.step(90);
+    const s = (window.__corsair.state.get('ships') as typeof ships)[id]!;
+    for (const [dx, dy] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx!, y: s.y + dy! });
+      window.__corsair.sim.step(1);
+      const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
+    }
+  });
+  await page.keyboard.press('h');
+  await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
+  await expect(page.locator('.battle-card').first()).toContainText('Hull');
+  await page.evaluate(() => window.__corsair.battle.step(30 * 4, 'cautious'));
+  await page.screenshot({ path: 'test-results/battle.png' });
+
+  // Fight it out under autopilot.
+  const outcome = await page.evaluate(() => {
+    for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
+    return window.__corsair.battle.result()?.outcome;
+  });
+  expect(outcome).toBeDefined();
+  await expect(page.locator('.battle-report')).toBeVisible();
+  await page.screenshot({ path: 'test-results/battle-report.png' });
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
+  expect(await page.evaluate(() => window.__corsair.log.query({ type: 'BattleOver' }).length)).toBe(1);
+  // Firing on an English ship cost standing with England.
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing.england)).toBe(-20);
   expect(errors).toEqual([]);
 });

@@ -58,7 +58,14 @@ declare global {
       ports: () => { id: string; name: string; x: number; y: number }[];
       snapshot: { save: () => import('@corsair/core').Save };
       /** What the canvas is drawing: the harbour scene in port, the sea otherwise. */
-      view: () => 'harbour' | 'sea';
+      view: () => 'harbour' | 'sea' | 'battle';
+      /** The sea battle in progress, if any. */
+      battle: {
+        active: () => boolean;
+        state: () => import('@corsair/minigame-sea-battle').BattleState | undefined;
+        step: (ticks?: number, autopilot?: 'runner' | 'cautious' | 'aggressive') => void;
+        result: () => import('@corsair/core').BattleResult | undefined;
+      };
     };
   }
 }
