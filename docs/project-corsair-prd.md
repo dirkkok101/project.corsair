@@ -217,12 +217,12 @@ Sailing is where players spend most of their time, so it should sound and look a
   - distant whales spouting and showing their flukes
   - pelicans and frigatebirds near coasts
   - the odd fish jumping
-- **Controls:** V mutes all sound, N toggles the music. Sound starts on the first key press, as browsers require.
+- **Controls:** V mutes all sound, N toggles the music. Sound starts on the first key press, as browsers require. Elsewhere: E enters a port in reach or sets sail, Esc puts the market away to show the harbour, = and - set time acceleration, Ctrl+S (Cmd+S) saves.
 - **Day and night** is a palette swap through dusk and night rows (art pipeline section 6). A new game starts at 08:00.
 
 ### Quality of life
 
-- Time acceleration (1x, 2x, 4x) in open water, auto-paused when anything enters sight.
+- Time acceleration (1x, 2x, 4x) in open water, auto-paused when anything enters sight. Built: = and - pick the speed; it holds at 1x near land, in a storm and in port. Dropping to 1x when a sail comes into sight waits for encounters.
 - Click-to-sail autopilot that routes around shallows for the current fleet draft.
 - Tacking aid (built): B holds the best upwind course on the current tack and follows the wind as it shifts; T comes about onto the other tack; steering by hand takes back control. Clicking a port on the sea chart sets it as the destination, and the HUD shows its distance, bearing and how fast the ship is closing on it.
 - Logbook with every event, visit and rumour, searchable.
@@ -254,7 +254,7 @@ About 45 settlements, each a record in `settlements.json` with owner, size, weal
 
 - **Governor's mansion.** Missions, letters of marque, titles and land grants, rewards for enemy ships and pirates sunk, romance (section 11). Needs acceptable reputation.
 - **Tavern.** Recruit crew (count scales with fame and town size), buy rumours, meet informants and old sailors selling map pieces, hear news.
-- **Merchant.** Buy and sell goods, cannon, food. Prices from the local market (section 6).
+- **Merchant.** Buy and sell goods, cannon, food. Prices from the local market (section 6). Built: goods (cannon to come with the shipwright). E docks within 3 tiles (about 7.5 km) of a town; world time stops in port. The captain remembers each market's prices from the last call, and hovering a port on the sea chart shows them with their age.
 - **Shipwright.** Repair hull and sails, buy upgrades (copper sheathing, cotton sails, fine-grain powder, chain shot, bronze cannon), sell ships.
 - **Bank / money-lender.** Store gold safely. Pirate havens have no bank.
 - **Barber-surgeon.** Heal wounds, at a cost in gold and time.
@@ -279,6 +279,8 @@ Weekly simulation tick per settlement:
 
 Each town has a harbour screen made of layered sprites (sky, sea, buildings by owner style, fort, ships at anchor). Building sprites switch with size tier and owner nation, so a captured town visibly changes.
 
+Built: 13 compositions (four nations x small, medium and large, plus the pirate haven) from `tools/art/render_harbours.py`, with `harbours.json` giving layers, building hotspots, the flag point and the anchorage. Hamlets use small, towns medium, cities large. The game flies the owner's flag, moors the player's ship, and draws the scene under the day/night palette. Buildings are clickable; only the merchant is open so far.
+
 ## 6. Economy
 
 The economy is a simulated market per settlement, linked by AI merchant ships that physically carry goods. Prices come from stock against target stock, so raiding a convoy really does raise prices at its destination. Gold flows through four sinks: crew shares, repairs, upgrades and bribes.
@@ -300,7 +302,7 @@ All values are placeholders in `goods.json` for balancing.
 
 ### Price model
 
-Each settlement holds stock S and target stock T per good, set by size and profile. The local price is:
+Each settlement holds stock S and target stock T per good. T is the demand level, the same for every settlement of a size; profiles decide the usual stock S drifts back to, above T where a good is made (2x) and below it where it is needed (0.6x). That gap is what makes a route pay. The local price is:
 
 ```
 p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{rep}
@@ -311,10 +313,11 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 - m_rep = player reputation modifier on the buy/sell spread only.
 - Buy price = p x (1 + spread); sell price = p x (1 - spread). Spread from difficulty and town type.
 - Each trade moves S immediately, so dumping 200 sugar in one port crashes the price. This makes trade routes self-limiting.
+- Built: m_war and m_rep are still 1. Whole-gold rounding never lets the buy price fall to the sell price. Starting stocks vary by +-30% per seed, so a good route usually pays (a full purse of Bridgetown sugar sold in Port Royal clears a median of about 230 gold) but checking prices first matters: about 1 start in 20 makes it a loss.
 
 ### Production and consumption
 
-- Weekly tick: S += production - consumption, clamped. Production scales with population and a random harvest factor.
+- Weekly tick: S += production - consumption, clamped. Production scales with population and a random harvest factor. Built as recovery: each week S closes 25% of the gap to its usual stock, times a harvest of 0.8 to 1.2, capped at 3x usual.
 - Hurricanes, raids and disease cut production for a number of weeks.
 
 ### Merchant traffic
@@ -660,7 +663,7 @@ The renderer never mutates state. Every change enters through the command bus an
 | Data validation | JSON Schema + Ajv (or Zod generating schema) | Validate content at build and at boot |
 | Tests | Vitest (core), Playwright (browser end-to-end through `window.__corsair`) | Core tests run in milliseconds in Node |
 | Audio | Web Audio API directly (`@corsair/audio`) | Ambience is synthesised and follows the game continuously, and music is sequenced live from note data, both of which need the raw API rather than Howler.js's sprite-sheet playback |
-| Saves | IndexedDB + JSON file export | Save is a serialised state snapshot plus version |
+| Saves | IndexedDB + JSON file export | Save is a serialised state snapshot plus version. Built: one career slot, autosaved on docking and on Ctrl+S; it holds the format version, a content fingerprint (a mismatch warns but still loads), the seed and the state. A start screen offers Continue, New career and file save/load when a career is stored; `?seed=N` starts a known world |
 | Packaging (later) | Tauri wrapper for desktop stores | Same web build, ships to Steam or itch.io |
 
 Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The design keeps the core engine-free either way.
