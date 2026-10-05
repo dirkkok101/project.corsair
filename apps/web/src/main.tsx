@@ -165,7 +165,7 @@ async function main() {
   let audioFailed = false;
 
   const loop: LoopControl = { paused: false };
-  window.__corsair = { ...createDebugApi(sim, loop), seed, audio: { levels: () => audio.levels() } };
+  window.__corsair = { ...createDebugApi(sim, loop), seed, audio: { levels: () => audio.levels() }, wildlife: renderer.wildlife };
   const player = () => sim.state.ships[def.start.shipId]!;
   bindInput(sim, def.start.shipId, () => windAt(sim.state, player().x, player().y));
 

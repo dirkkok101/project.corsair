@@ -136,3 +136,15 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   expect(withMusic).toBeGreaterThan(without * 1.15);
   expect(errors).toEqual([]);
 });
+
+test('sea life: dolphins, flying fish, a whale and birds appear on demand', async ({ page }) => {
+  const errors = await boot(page);
+  // The renderer keeps drawing while the sim is paused, so spawned animals animate.
+  for (const kind of ['dolphins', 'flyingFish', 'whale', 'pelicans', 'frigatebird'] as const) {
+    await page.evaluate((k) => window.__corsair.wildlife.spawn(k), kind);
+  }
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__corsair.wildlife.count)).toBeGreaterThan(5);
+  await page.screenshot({ path: 'test-results/wildlife.png' });
+  expect(errors).toEqual([]);
+});

@@ -54,6 +54,7 @@ declare global {
     __corsair: ReturnType<typeof createDebugApi> & {
       seed: number;
       audio: { levels: () => import('@corsair/audio').AudioLevels };
+      wildlife: import('@corsair/render').Renderer['wildlife'];
     };
   }
 }

@@ -42,6 +42,8 @@ export interface Renderer {
   resize(width: number, height: number): void;
   /** Called at each lightning flash, so the app can roll thunder. */
   onLightning(cb: () => void): void;
+  /** Debug: start a sea-life event now, and count the animals on screen. */
+  wildlife: { spawn(kind: 'dolphins' | 'flyingFish' | 'whale' | 'pelicans' | 'frigatebird'): void; readonly count: number };
 }
 
 /** `spriteUrls` maps `{sprite}.{anim}` (e.g. `ship.brig.world.sail_full`) to frame URLs ordered f00..fNN. */
@@ -188,6 +190,12 @@ export async function createRenderer(
     camera: () => ({ x: -world.position.x, y: -world.position.y }),
     view: () => ({ width: viewW, height: viewH }),
     onLightning: (cb) => sky.onLightning(cb),
+    wildlife: {
+      spawn: (kind) => wildlife?.spawn(kind),
+      get count() {
+        return wildlife?.count ?? 0;
+      },
+    },
     resize(width, height) {
       if (width === viewW && height === viewH) return;
       viewW = width;

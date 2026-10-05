@@ -290,12 +290,30 @@ export function createWildlife(map: TileMap, frames: Record<string, Texture[]>, 
     });
   };
 
+  let lastShip: Ship | undefined;
+  const spawners = {
+    dolphins: () => lastShip && dolphins(lastShip),
+    flyingFish: () => lastShip && flyingFish(lastShip),
+    whale: () => lastShip && whale(lastShip),
+    pelicans: () => pelicans(),
+    frigatebird: () => frigate(),
+  };
+
   return {
     water,
     air,
+    /** Debug: start an event now, ignoring where the ship is. */
+    spawn(kind: keyof typeof spawners) {
+      spawners[kind]();
+    },
+    /** Debug: how many animals are on screen. */
+    get count() {
+      return actors.length;
+    },
     update(c: WildlifeContext) {
       view = c.view;
       const { ship } = c;
+      lastShip = ship;
       const px = ship.x * ts;
       const py = ship.y * ts;
       const day = c.hour >= 6 && c.hour < 19;
