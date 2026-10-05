@@ -314,3 +314,31 @@ test('saves: an unreadable save is never silently replaced; it can still be save
   expect(saved.note).toBe('keep me');
   await page.screenshot({ path: 'test-results/start-unreadable.png' });
 });
+
+test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // News is known at once where it happens, so a shock in the port we're at needs no waiting.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShock', settlementId: 'town.port_royal', good: 'sugar', kind: 'shortage' });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  const tab = page.locator('.port-tabs').getByRole('button', { name: 'Tavern (1)' });
+  await expect(tab).toBeVisible();
+  await tab.click();
+  await expect(page.locator('.tavern li')).toHaveCount(1);
+  await expect(page.locator('.tavern')).toContainText('Port Royal has run short of sugar');
+  await expect(page.locator('.tavern .trend')).toHaveText('new');
+  await page.screenshot({ path: 'test-results/tavern.png' });
+  // Heard now: the badge goes, and the rumour is in the captain's memory.
+  await expect(page.locator('.port-tabs').getByRole('button', { name: 'Tavern', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { heard: string[] }).heard)).toHaveLength(1);
+
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('m');
+  await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
+  await expect(page.locator('.chart-rumour')).toContainText('run short of sugar');
+  expect(errors).toEqual([]);
+});

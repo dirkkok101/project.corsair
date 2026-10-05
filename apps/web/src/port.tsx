@@ -1,6 +1,6 @@
 import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { cargoUsed, portTrade, quote, referenceStock, tradeLean } from '@corsair/systems-economy';
+import { cargoUsed, newsAt, newsText, portTrade, quote, referenceStock, tradeLean } from '@corsair/systems-economy';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -29,6 +29,8 @@ const NATION: Record<PlacedSettlement['nation'], string> = {
   netherlands: 'Dutch',
   pirate: 'Pirate',
 };
+/** Services that work so far; the rest are drawn but marked "soon". */
+const READY: Service[] = ['merchant', 'tavern'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
@@ -56,23 +58,37 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     for (const [id, seen] of Object.entries(known)) {
       const sell = seen.prices[good]?.sell;
       if (id === town.id || sell === undefined || (best && sell <= best.sell)) continue;
-      best = { name: settlements.find((x) => x.id === id)?.name ?? id, sell, age: today - seen.day };
+      best = {
+        name: settlements.find((x) => x.id === id)?.name ?? id,
+        sell,
+        age: today - seen.day,
+      };
     }
     return best;
   };
 
+  // Rumours this port has heard that the captain hasn't, for the tavern's badge.
+  const rumours = newsAt(content, state, settlements, town.id);
+  const unheard = rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).length;
+  const label = (s: { id: Service; name: string }) => (s.id === 'tavern' && unheard ? `${s.name} (${unheard})` : s.name);
+
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
     const r = hotspots[s.id]!;
-    const ready = s.id === 'merchant';
+    const ready = READY.includes(s.id);
     return (
       <button
         key={s.id}
         class={`port-spot${ready ? '' : ' soon'}`}
-        style={{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }}
+        style={{
+          left: `${r.left}px`,
+          top: `${r.top}px`,
+          width: `${r.width}px`,
+          height: `${r.height}px`,
+        }}
         title={ready ? s.name : `${s.name}: coming soon`}
         onClick={() => ready && setOpen(s.id)}
       >
-        <span>{ready ? s.name : `${s.name} · soon`}</span>
+        <span>{ready ? label(s) : `${s.name} · soon`}</span>
       </button>
     );
   });
@@ -86,6 +102,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           <span>{gold.toLocaleString()} gold</span>
           <button class="leave" onClick={() => setOpen('merchant')}>
             Merchant
+          </button>
+          <button class="leave" onClick={() => setOpen('tavern')}>
+            {label({ id: 'tavern', name: 'Tavern' })}
           </button>
           <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
             Set sail · E
@@ -126,98 +145,151 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         </header>
 
         <nav class="port-tabs">
-          {SERVICES.map((s) => (
-            <span key={s.id} class={s.id === 'merchant' ? 'active' : 'soon'} title={s.id === 'merchant' ? '' : 'Coming soon'}>
-              {s.name}
-            </span>
-          ))}
+          {SERVICES.map((s) =>
+            READY.includes(s.id) ? (
+              <button key={s.id} class={`port-tab${s.id === open ? ' active' : ''}`} onClick={() => setOpen(s.id)}>
+                {label(s)}
+              </button>
+            ) : (
+              <span key={s.id} class="soon" title="Coming soon">
+                {s.name}
+              </span>
+            ),
+          )}
           <button class="port-close" onClick={() => setOpen(undefined)} title="See the harbour (Esc)">
             Harbour · Esc
           </button>
         </nav>
 
-        <table class="market">
-          <thead>
-            <tr>
-              <th>Goods</th>
-              <th>Buy</th>
-              <th>Sell</th>
-              <th>Hold</th>
-              <th title="The best price you have seen another port pay">Best sale you know</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {content.goods.map((g) => {
-              const stock = market[g.id] ?? 0;
-              const q = quote(content, town, g.id, stock);
-              const held = ship.cargo[g.id] ?? 0;
-              // Trade tags say which way to deal: buy where the port makes the good, sell where it needs it.
-              const side = tradeLean(content, town, g.id);
-              const tag = side === 'exports' ? 'buy here' : side === 'wants' ? 'sells well' : '';
-              const scarce = stock < referenceStock(content, town, g.id) * 0.25;
-              const cost = held > 0 && ship.paid?.[g.id] !== undefined ? Math.round(ship.paid[g.id]! / held) : undefined;
-              const best = bestSale(g.id);
-              const margin = best && best.sell - q.buy;
-              return (
-                <tr key={g.id}>
-                  <td>
-                    {g.name} {tag ? <span class={`trend ${side === 'exports' ? 'export' : 'want'}`}>{tag}</span> : null}
-                    {scarce ? <span class="trend scarce">scarce</span> : null}
-                  </td>
-                  <td class="num">{q.buy}</td>
-                  <td class={`num${cost === undefined ? '' : q.sell > cost ? ' gain' : ' loss'}`}>{q.sell}</td>
-                  <td class="num hold">
-                    {held || ''}
-                    {cost !== undefined ? <span class="paid" title="What you paid per unit"> @{cost}</span> : null}
-                  </td>
-                  <td class="best">
-                    {best ? (
-                      <>
-                        {best.name} {best.sell}
-                        <span class="age"> · {best.age === 0 ? 'today' : `${best.age}d`}</span>
-                        {/* Only a run that pays is flagged: buy here, sell there. */}
-                        {margin! > 0 ? (
-                          <span class="gain" title="Profit per unit, buying here and selling there">
-                            {' '}
-                            ▲+{margin}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span class="age">—</span>
-                    )}
-                  </td>
-                  <td class="actions">
-                    <button onClick={() => trade('Buy', g.id, 1)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
-                      Buy 1
-                    </button>
-                    <button onClick={() => trade('Buy', g.id, 10)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
-                      10
-                    </button>
-                    <button onClick={() => trade('Buy', g.id, ALL)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
-                      Max
-                    </button>
-                    <button onClick={() => trade('Sell', g.id, 1)} disabled={held < 1}>
-                      Sell 1
-                    </button>
-                    <button onClick={() => trade('Sell', g.id, ALL)} disabled={held < 1}>
-                      All
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {open === 'tavern' ? (
+          <Tavern
+            content={content}
+            state={state}
+            settlements={settlements}
+            rumours={rumours}
+            hear={() => send({ type: 'HearNews', shipId })}
+          />
+        ) : (
+          <table class="market">
+            <thead>
+              <tr>
+                <th>Goods</th>
+                <th>Buy</th>
+                <th>Sell</th>
+                <th>Hold</th>
+                <th title="The best price you have seen another port pay">Best sale you know</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {content.goods.map((g) => {
+                const stock = market[g.id] ?? 0;
+                const q = quote(content, town, g.id, stock);
+                const held = ship.cargo[g.id] ?? 0;
+                // Trade tags say which way to deal: buy where the port makes the good, sell where it needs it.
+                const side = tradeLean(content, town, g.id);
+                const tag = side === 'exports' ? 'buy here' : side === 'wants' ? 'sells well' : '';
+                const scarce = stock < referenceStock(content, town, g.id) * 0.25;
+                const cost = held > 0 && ship.paid?.[g.id] !== undefined ? Math.round(ship.paid[g.id]! / held) : undefined;
+                const best = bestSale(g.id);
+                const margin = best && best.sell - q.buy;
+                return (
+                  <tr key={g.id}>
+                    <td>
+                      {g.name} {tag ? <span class={`trend ${side === 'exports' ? 'export' : 'want'}`}>{tag}</span> : null}
+                      {scarce ? <span class="trend scarce">scarce</span> : null}
+                    </td>
+                    <td class="num">{q.buy}</td>
+                    <td class={`num${cost === undefined ? '' : q.sell > cost ? ' gain' : ' loss'}`}>{q.sell}</td>
+                    <td class="num hold">
+                      {held || ''}
+                      {cost !== undefined ? (
+                        <span class="paid" title="What you paid per unit">
+                          {' '}
+                          @{cost}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td class="best">
+                      {best ? (
+                        <>
+                          {best.name} {best.sell}
+                          <span class="age"> · {best.age === 0 ? 'today' : `${best.age}d`}</span>
+                          {/* Only a run that pays is flagged: buy here, sell there. */}
+                          {margin! > 0 ? (
+                            <span class="gain" title="Profit per unit, buying here and selling there">
+                              {' '}
+                              ▲+{margin}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span class="age">—</span>
+                      )}
+                    </td>
+                    <td class="actions">
+                      <button onClick={() => trade('Buy', g.id, 1)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
+                        Buy 1
+                      </button>
+                      <button onClick={() => trade('Buy', g.id, 10)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
+                        10
+                      </button>
+                      <button onClick={() => trade('Buy', g.id, ALL)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
+                        Max
+                      </button>
+                      <button onClick={() => trade('Sell', g.id, 1)} disabled={held < 1}>
+                        Sell 1
+                      </button>
+                      <button onClick={() => trade('Sell', g.id, ALL)} disabled={held < 1}>
+                        All
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
 
         <footer class="port-foot">
-          <span>Prices are per unit; each unit you trade moves the price.</span>
+          <span>{open === 'merchant' ? 'Prices are per unit; each unit you trade moves the price.' : ''}</span>
           <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
             Set sail · E
           </button>
         </footer>
       </div>
     </div>
+  );
+}
+
+interface TavernProps {
+  content: ContentPack;
+  state: WorldState;
+  settlements: PlacedSettlement[];
+  rumours: import('@corsair/core').NewsItem[];
+  hear: () => void;
+}
+
+/** The tavern: talk of the docks, newest first. Listening marks it heard. */
+function Tavern({ content, state, settlements, rumours, hear }: TavernProps) {
+  // What was new when the captain walked in stays marked for this visit.
+  const [fresh] = useState(() => new Set(rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).map((n) => n.id)));
+  // Once per visit: the port screen renders every frame, so this must not run from render.
+  useEffect(hear, []);
+  const today = Math.floor(state.tick / content.calendar.ticksPerDay);
+  if (!rumours.length) return <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>;
+  return (
+    <ul class="tavern">
+      {rumours.map((n) => {
+        const town = settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId;
+        const age = today - Math.floor(n.tick / content.calendar.ticksPerDay);
+        return (
+          <li key={n.id}>
+            {fresh.has(n.id) ? <span class="trend want">new</span> : null} {newsText(content, n, town)}
+            <span class="age"> {age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

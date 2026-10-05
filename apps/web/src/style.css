@@ -306,6 +306,41 @@ body {
   color: #577277;
 }
 
+.port-tab {
+  padding: 0;
+  font: inherit;
+  color: #ebede9;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.tavern {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-height: 160px;
+}
+
+.tavern li {
+  padding: 8px 0;
+  border-bottom: 1px solid #202e37;
+}
+
+.tavern .trend {
+  margin-left: 0;
+}
+
+.tavern .age,
+.tavern-quiet {
+  color: #819796;
+}
+
+.tavern-quiet {
+  min-height: 160px;
+}
+
 .market {
   width: 100%;
   border-collapse: collapse;
@@ -662,4 +697,13 @@ body {
 
 .chart-port.faded {
   opacity: 0.45;
+}
+
+.chart-rumour {
+  max-width: 240px;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #394a50;
+  color: #de9e41;
+  white-space: normal;
 }

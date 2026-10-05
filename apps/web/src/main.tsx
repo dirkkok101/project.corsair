@@ -21,7 +21,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { createEconomySystem, DOCK_RANGE, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { createEconomySystem, DOCK_RANGE, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -175,6 +175,14 @@ async function main() {
     goods: content.goods,
     known: (id) => sim.state.captain?.knownPrices[id],
     lean: (id, good) => tradeLean(content, { id }, good),
+    rumours: (id) => {
+      const heard = new Set(sim.state.captain?.heard ?? []);
+      const today = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
+      const name = settlements.find((s) => s.id === id)?.name ?? id;
+      return (sim.state.news ?? [])
+        .filter((n) => n.settlementId === id && heard.has(n.id))
+        .map((n) => `${newsText(content, n, name)} (${today - Math.floor(n.tick / content.calendar.ticksPerDay)} days ago)`);
+    },
     today: () => Math.floor(sim.state.tick / content.calendar.ticksPerDay),
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.

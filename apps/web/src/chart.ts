@@ -84,6 +84,8 @@ export interface ChartMarket {
   known: (settlementId: string) => KnownPrices | undefined;
   /** Whether a port makes or needs a good: common knowledge, known before any visit. */
   lean: (settlementId: string, good: string) => 'exports' | 'wants' | undefined;
+  /** Rumours the captain has heard about a port, as text with their age. */
+  rumours: (settlementId: string) => string[];
   today: () => number;
 }
 
@@ -151,6 +153,9 @@ export function createCharts(
           .map((g) => `<tr><td>${g.name}</td><td>${known.prices[g.id]?.buy ?? ''}</td><td>${known.prices[g.id]?.sell ?? ''}</td></tr>`)
           .join('')}</table>`
       : `${head}<div class="chart-prices-age">Prices unknown: call here to learn them</div>`;
+    // Rumours heard about this port, so news can be acted on from the chart.
+    const rumours = market.rumours(s.id);
+    if (rumours.length) prices.innerHTML += rumours.map((r) => `<div class="chart-rumour">${r}</div>`).join('');
     prices.style.left = `${(s.x / map.width) * 100}%`;
     prices.style.top = `${(s.y / map.height) * 100}%`;
     // Open towards the middle of the chart so the card never runs off an edge.
