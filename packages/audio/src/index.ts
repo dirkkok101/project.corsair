@@ -103,6 +103,26 @@ export function createAudio() {
     osc.stop(t + 0.45);
   };
 
+  /** A thunder roll: low-passed noise with a sharp onset and a long, uneven decay. */
+  const thunder = (delayS: number) => {
+    const t = ctx!.currentTime + delayS;
+    const src = ctx!.createBufferSource();
+    src.buffer = noise!;
+    const lp = ctx!.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(900, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t + 1.2);
+    const g = ctx!.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.9, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.35, t + 0.6);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 1.0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    src.connect(lp).connect(g).connect(master!);
+    src.start(t, Math.random() * 2);
+    src.stop(t + 3.3);
+  };
+
   /** Short, irregular bursts of noise: canvas flogging in the wind. */
   const scheduleFlaps = (level: number) => {
     const g = layers!.luff.gain.gain;
@@ -169,6 +189,10 @@ export function createAudio() {
       if (wasLuffing && t.luff === 0 && inputs.sailsSet) thump();
       wasLuffing = t.luff > 0;
 
+    },
+    /** Thunder after a lightning flash; the delay stands for the storm's distance. */
+    thunder(delayS = 0.4 + Math.random() * 1.2) {
+      if (ctx?.state === 'running') thunder(delayS);
     },
     /** For the debug API and tests: what the mixer is aiming at, and whether sound can play. */
     levels(): AudioLevels {

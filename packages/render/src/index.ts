@@ -2,7 +2,7 @@ import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { Application, Assets, Container, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
-import { createPennants, createSpray, createWake, createWindStreaks, windVector } from './effects';
+import { createPennants, createSpray, createWake, createWhitecaps, createWindStreaks, windVector } from './effects';
 import { createDaylight } from './daylight';
 import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
@@ -37,6 +37,8 @@ export interface Renderer {
   view(): { width: number; height: number };
   /** Resize the logical view (see fitView); the canvas is CSS-scaled by the caller. */
   resize(width: number, height: number): void;
+  /** Called at each lightning flash, so the app can roll thunder. */
+  onLightning(cb: () => void): void;
 }
 
 /** `spriteUrls` maps `{sprite}.{anim}` (e.g. `ship.brig.world.sail_full`) to frame URLs ordered f00..fNN. */
@@ -81,14 +83,15 @@ export async function createRenderer(
   const wake = createWake(map);
   const spray = createSpray(map);
   const pennants = createPennants();
-  world.addChild(terrain, streaks.view, wake.view, spray.view);
+  const whitecaps = createWhitecaps(map);
+  world.addChild(terrain, whitecaps.view, streaks.view, wake.view, spray.view);
   const daylight = palettes ? createDaylight(palettes) : undefined;
   if (daylight) app.stage.filters = [daylight.filter];
   // Clouds and storms are sky: a layer above the world (and its ships) that scrolls with it.
   const sky = createSky(viewW, viewH, ts);
   // The storm gloom darkens the sea under the ships; the clouds go above everything.
   world.addChildAt(sky.gloom, 1);
-  app.stage.addChild(sky.layer);
+  app.stage.addChild(sky.layer, sky.weather);
 
   const chunkPx = CHUNK_TILES * ts;
   // Insertion order doubles as LRU order: a chunk is re-inserted whenever it's on screen.
@@ -168,6 +171,7 @@ export async function createRenderer(
     canvas: app.canvas,
     camera: () => ({ x: -world.position.x, y: -world.position.y }),
     view: () => ({ width: viewW, height: viewH }),
+    onLightning: (cb) => sky.onLightning(cb),
     resize(width, height) {
       if (width === viewW && height === viewH) return;
       viewW = width;
@@ -222,6 +226,7 @@ export async function createRenderer(
       sky.layer.position.copyFrom(world.position);
       sky.gloom.position.set(view.x, view.y);
       sky.update(wind, state.weather?.storms ?? [], dt, view, player && { x: player.x * ts, y: player.y * ts });
+      whitecaps.update(wind, dt, { ...view, w: viewW, h: viewH });
       // Pennants go above the ship sprites, which are added to the world after it.
       if (pennants.view.parent !== world || world.getChildIndex(pennants.view) !== world.children.length - 1) {
         world.addChild(pennants.view);

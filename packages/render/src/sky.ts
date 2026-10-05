@@ -1,5 +1,5 @@
 import type { Storm, Wind, WindStrength } from '@corsair/core';
-import { Container, Sprite, Texture, TilingSprite } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { windVector } from './effects';
 
@@ -39,6 +39,9 @@ const ARM_SPACING_PX = 26; // distance between puffs along a band
 const OVERCAST_PER_VIEW = 26; // scattered puffs filling the storm, per screenful of area
 const STORM_SPIN = 0.08; // radians per second
 const SHIP_CLEARANCE_PX = 70; // storm puffs never cover the player's ship
+const RAIN_DROPS = 260;
+const RAIN_FALL_PX = 420; // per second, before the wind slants it
+const LIGHTNING_GAP_S: [number, number] = [3, 10];
 
 function paintPuff(circles: readonly (readonly [number, number, number])[], ramp: string[]): PixiTexture {
   const w = Math.max(...circles.map(([x, , r]) => x + r)) + 1;
@@ -70,10 +73,18 @@ function ditherTexture(colour: string): PixiTexture {
   return Texture.from(canvas);
 }
 
-/** Hash for stable per-puff jitter. */
+/**
+ * Stable pseudo-random 0-1 per (index, salt), for puff and raindrop placement. A full avalanche
+ * mix (murmur3's finaliser): a single multiply leaves x and y correlated, and drops line up.
+ */
 const jitter = (i: number, salt: number) => {
-  const h = Math.imul(i * 374761393 + salt * 668265263, 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  let h = (Math.imul(i, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b)) >>> 0;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 };
 
 export function createSky(width: number, height: number, tileSize: number) {
@@ -84,6 +95,18 @@ export function createSky(width: number, height: number, tileSize: number) {
   const layer = new Container();
   const gloom = new TilingSprite({ texture: ditherTexture('#151d28'), width: viewW, height: viewH });
   gloom.visible = false;
+  // Screen-space storm weather above everything: slanting rain and the lightning flash, which is a
+  // dither of the palette's brightest colour so it stays palette-exact through the day/night swap.
+  const weather = new Container();
+  const rain = new Graphics();
+  const flash = new TilingSprite({ texture: ditherTexture('#ebede9'), width: viewW, height: viewH });
+  flash.visible = false;
+  weather.addChild(rain, flash);
+  const drops = Array.from({ length: RAIN_DROPS }, (_, i) => ({ x: jitter(i, 7) * width, y: jitter(i, 8) * height }));
+  let nextLightning = 0;
+  let flashLeft = 0;
+  let clock = 0;
+  const lightning: (() => void)[] = [];
 
   const clouds = Array.from({ length: CLOUD_COUNT }, (_, i) => {
     const sprite = new Sprite(fair[i % fair.length]!);
@@ -100,11 +123,19 @@ export function createSky(width: number, height: number, tileSize: number) {
     layer,
     /** View-sized overlay for the world (under ships) that darkens the sea inside a storm. */
     gloom,
+    /** Screen-space layer (rain and lightning) to add above the world and the sky. */
+    weather,
+    /** Called at each lightning flash, for the thunder that follows it. */
+    onLightning(cb: () => void) {
+      lightning.push(cb);
+    },
     resize(w: number, h: number) {
       viewW = w;
       viewH = h;
       gloom.width = w;
       gloom.height = h;
+      flash.width = w;
+      flash.height = h;
     },
     update(
       wind: Wind,
@@ -191,6 +222,36 @@ export function createSky(width: number, height: number, tileSize: number) {
         }
       }
       gloom.visible = inStorm;
+
+      // Rain slants downwind; it only falls while the ship (or view) is inside a storm.
+      clock += dt;
+      rain.clear();
+      if (inStorm) {
+        const [wx, wy] = windVector(wind);
+        const fx = wx * RAIN_FALL_PX * 0.6;
+        const fy = RAIN_FALL_PX + wy * RAIN_FALL_PX * 0.3;
+        const len = Math.hypot(fx, fy);
+        for (const d of drops) {
+          d.x = (((d.x + fx * dt) % viewW) + viewW) % viewW;
+          d.y = (((d.y + fy * dt) % viewH) + viewH) % viewH;
+          for (let k = 0; k < 5; k++) {
+            rain.rect(Math.round(d.x - (fx / len) * k), Math.round(d.y - (fy / len) * k), 1, 1);
+          }
+        }
+        rain.fill(0x819796);
+        // Lightning: a two-step flash at random intervals, then thunder (via onLightning).
+        if (nextLightning === 0) nextLightning = clock + LIGHTNING_GAP_S[0];
+        if (clock >= nextLightning) {
+          flashLeft = 0.14;
+          nextLightning = clock + LIGHTNING_GAP_S[0] + Math.random() * (LIGHTNING_GAP_S[1] - LIGHTNING_GAP_S[0]);
+          for (const cb of lightning) cb();
+        }
+      } else {
+        nextLightning = 0;
+      }
+      flashLeft = Math.max(0, flashLeft - dt);
+      // Bright for the first frames, then a flicker, then gone.
+      flash.visible = flashLeft > 0.08 || (flashLeft > 0.03 && flashLeft < 0.05);
       for (const c of clouds) c.sprite.visible = !inStorm;
     },
   };

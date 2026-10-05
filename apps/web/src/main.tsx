@@ -122,6 +122,8 @@ async function main() {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
   });
 
+  renderer.onLightning(() => audio.thunder());
+
   const loop: LoopControl = { paused: false };
   window.__corsair = { ...createDebugApi(sim, loop), seed, audio: { levels: () => audio.levels() } };
   const player = () => sim.state.ships[def.start.shipId]!;

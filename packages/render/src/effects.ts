@@ -1,5 +1,5 @@
 import type { Ship, Wind, WindStrength } from '@corsair/core';
-import { isLand, tileAt } from '@corsair/data';
+import { isLand, Tile, tileAt } from '@corsair/data';
 import type { TileMap } from '@corsair/data';
 import { Graphics } from 'pixi.js';
 
@@ -211,6 +211,47 @@ export function createPennants() {
         }
       }
       g.fill(0xcf573c);
+    },
+  };
+}
+
+const WHITECAPS_PER_S: Record<WindStrength, number> = { calm: 0, light: 0, fresh: 6, strong: 28, gale: 60 };
+const WHITECAP_LIFE_S = 0.7;
+
+/** Short white crests that break and vanish across open water as the wind rises. */
+export function createWhitecaps(map: TileMap) {
+  const g = new Graphics();
+  const caps: { x: number; y: number; len: number; age: number }[] = [];
+  const ts = map.tileSize;
+  let carry = 0;
+  let seed = 7;
+  const rand = () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 2246822519) + 0x9e3779b9;
+    return ((seed >>> 0) % 10000) / 10000;
+  };
+  return {
+    view: g,
+    update(wind: Wind, dt: number, view: { x: number; y: number; w: number; h: number }) {
+      for (const c of caps) c.age += dt;
+      while (caps.length && caps[0]!.age > WHITECAP_LIFE_S) caps.shift();
+      carry += WHITECAPS_PER_S[wind.strength] * dt * ((view.w * view.h) / (960 * 540));
+      while (carry >= 1) {
+        carry -= 1;
+        const x = view.x + rand() * view.w;
+        const y = view.y + rand() * view.h;
+        if (tileAt(map, x / ts, y / ts) === Tile.Deep) caps.push({ x, y, len: 2 + Math.floor(rand() * 4), age: 0 });
+      }
+      g.clear();
+      for (const c of caps) {
+        // Grow, then break up into a shorter, broken crest before vanishing.
+        const t = c.age / WHITECAP_LIFE_S;
+        const len = t < 0.3 ? c.len : t < 0.7 ? c.len - 1 : 1;
+        for (let i = 0; i < len; i++) {
+          if (t > 0.5 && i % 2 === 1) continue;
+          g.rect(Math.round(c.x) + i, Math.round(c.y), 1, 1);
+        }
+      }
+      g.fill(0xebede9);
     },
   };
 }
