@@ -215,7 +215,7 @@ async function main() {
   let hailing: { targetId: string; news: string[] } | undefined;
   const battleRoot = stage.appendChild(document.createElement('div'));
   // A sea battle in progress (PRD section 9.1): world time stands still until its result is applied.
-  let fight: { battle: Battle; map: TileMap; targetId: string; acc: number } | undefined;
+  let fight: { battle: Battle; map: TileMap; targetId: string; acc: number; heardAt: number } | undefined;
   let eventsSeen = 0;
   /** Cut the battle map from the world where the ships met, and seat them as they lay. */
   const startBattle = (targetId: string) => {
@@ -233,7 +233,7 @@ async function main() {
       bearingDeg,
     });
     hailing = undefined;
-    fight = { battle, map: local, targetId, acc: 0 };
+    fight = { battle, map: local, targetId, acc: 0, heardAt: -1 };
   };
   /** The result goes into the world as a command, so replays and saves see the fight's outcome. */
   const endBattle = () => {
@@ -452,6 +452,25 @@ async function main() {
       }
       last = now;
       const bs = fight.battle.state;
+      // Sound for what just happened: placed left or right of the player's ship, fainter further off.
+      try {
+        const me = bs.ships.player;
+        for (const e of bs.effects) {
+          if (e.at <= fight.heardAt) continue;
+          const pan = (e.x - me.x) / 12;
+          const gain = 1 / (1 + Math.hypot(e.x - me.x, e.y - me.y) / 8);
+          if (e.kind === 'smoke') {
+            // The ship nearest the smoke fired: her broadside is half her guns.
+            const shooter = Math.hypot(e.x - me.x, e.y - me.y) < Math.hypot(e.x - bs.ships.enemy.x, e.y - bs.ships.enemy.y) ? me : bs.ships.enemy;
+            audio.battle.broadside(Math.floor(shooter.guns / 2), pan, gain);
+          } else if (e.kind === 'splash') audio.battle.splash(pan, gain);
+          else audio.battle.hit(e.kind === 'sail' ? 'sail' : 'hull', pan, gain);
+        }
+        fight.heardAt = Math.max(fight.heardAt, ...bs.effects.map((e) => e.at));
+      } catch (err) {
+        if (!audioFailed) console.error('battle audio failed', err);
+        audioFailed = true;
+      }
       renderer.renderBattle(bs, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now);
       const them = sim.state.ships[fight.targetId];
       const me = player();

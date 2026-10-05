@@ -152,6 +152,65 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     src.stop(t + 3.3);
   };
 
+  /** A stereo-placed, faded output for a one-shot: the battle sounds sit where the shot was. */
+  const placed = (t: number, pan: number, gain: number) => {
+    const g = ctx!.createGain();
+    g.gain.value = gain;
+    const p = ctx!.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    g.connect(p).connect(master!);
+    return g;
+  };
+
+  /**
+   * One gun: a deep thump (a falling sine) under a crack of noise that dulls into a short rumble,
+   * like a muzzle blast heard across water.
+   */
+  const gun = (t: number, out: GainNode) => {
+    const osc = ctx!.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(70 + Math.random() * 20, t);
+    osc.frequency.exponentialRampToValueAtTime(32, t + 0.35);
+    const og = ctx!.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(0.9, t + 0.008);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    osc.connect(og).connect(out);
+    osc.start(t);
+    osc.stop(t + 0.55);
+    const src = ctx!.createBufferSource();
+    src.buffer = noise!;
+    const lp = ctx!.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(2400, t);
+    lp.frequency.exponentialRampToValueAtTime(180, t + 0.6);
+    const ng = ctx!.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.7, t + 0.005);
+    ng.gain.exponentialRampToValueAtTime(0.12, t + 0.15);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    src.connect(lp).connect(ng).connect(out);
+    src.start(t, Math.random() * 2);
+    src.stop(t + 0.95);
+  };
+
+  /** A ball striking home: splintering timber (a cracked band of noise) or canvas tearing (a thin hiss). */
+  const strike = (t: number, out: GainNode, kind: 'hull' | 'sail') => {
+    const src = ctx!.createBufferSource();
+    src.buffer = noise!;
+    const bp = ctx!.createBiquadFilter();
+    bp.type = kind === 'hull' ? 'bandpass' : 'highpass';
+    bp.frequency.value = kind === 'hull' ? 700 + Math.random() * 500 : 2500;
+    bp.Q.value = kind === 'hull' ? 1.2 : 0.7;
+    const g = ctx!.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(kind === 'hull' ? 0.9 : 0.4, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'hull' ? 0.22 : 0.3));
+    src.connect(bp).connect(g).connect(out);
+    src.start(t, Math.random() * 2);
+    src.stop(t + 0.35);
+  };
+
   /** Short, irregular bursts of noise: canvas flogging in the wind. */
   const scheduleFlaps = (level: number) => {
     const g = layers!.luff.gain.gain;
@@ -250,6 +309,30 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     /** Title of the tune the band is playing, if any. */
     get nowPlaying() {
       return band?.nowPlaying;
+    },
+    /**
+     * Sea battle sounds (PRD section 9.1). `pan` is -1 (left) to 1 (right) and `gain` falls off with
+     * distance, both worked out by the caller from where it happened. Misses use the splash clips.
+     */
+    battle: {
+      /** A broadside: its guns go off in a ripple, not all at once. */
+      broadside(guns: number, pan: number, gain: number) {
+        if (ctx?.state !== 'running' || !noise) return;
+        const out = placed(ctx.currentTime, pan, gain * 0.5);
+        let t = ctx.currentTime + 0.01;
+        for (let i = 0; i < Math.max(1, Math.min(16, guns)); i++) {
+          gun(t, out);
+          t += 0.03 + Math.random() * 0.04;
+        }
+      },
+      hit(kind: 'hull' | 'sail', pan: number, gain: number) {
+        if (ctx?.state !== 'running' || !noise) return;
+        strike(ctx.currentTime, placed(ctx.currentTime, pan, gain), kind);
+      },
+      splash(pan: number, gain: number) {
+        if (ctx?.state !== 'running') return;
+        sfx?.play(Math.random() < 0.3 ? 'splash_big' : 'splash_small', { gain: gain * 0.6, pan, rate: 0.9 + Math.random() * 0.3 });
+      },
     },
     /** One-shot clip for game events such as sea life; no-op until sound is unlocked and loaded. */
     playSfx(id: string, opts: { gain: number; pan: number; lowpass?: number; rate?: number }) {
