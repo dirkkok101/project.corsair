@@ -16,11 +16,10 @@ const settlements = placeSettlements(def, map, content.settlements);
 const lanes = createSeaLanes(map, settlements, content.traffic.laneCell);
 
 describe('sea lanes', () => {
-  it('give almost every port a mooring and a lane to Port Royal', () => {
+  it('give every port a mooring and a lane to Port Royal', () => {
+    // Ports sit on open-sea beaches (placeSettlements), and lanes find their way out of narrow bays.
     const unreached = settlements.filter((s) => s.id !== 'town.port_royal' && !lanes.route(s.id, 'town.port_royal')).map((s) => s.name);
-    console.log('LANES unreached', unreached.join(', ') || 'none');
-    // A port up a river or inside a lagoon may have no lane at this grid; the rest of the map must join up.
-    expect(unreached.length).toBeLessThanOrEqual(3);
+    expect(unreached).toEqual([]);
   });
 
   it('run on water the whole way, from mooring to mooring', () => {

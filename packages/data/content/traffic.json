@@ -21,7 +21,7 @@
   "sightTiles": 18,
   "nightSight": 0.5,
   "hailTiles": 3,
-  "laneCell": 6,
+  "laneCell": 8,
   "tackTiles": 1.5,
   "portDays": [
     1,

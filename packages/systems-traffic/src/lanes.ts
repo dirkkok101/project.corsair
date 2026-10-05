@@ -1,4 +1,4 @@
-import { isLand, tileAt } from '@corsair/data';
+import { isLand, openSea, tileAt } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
 
 // Sea lanes between ports. The map is cut into cell x cell tile cells; a cell is open water when
@@ -24,6 +24,12 @@ const OPEN_SHARE = 0.75;
 
 export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: number): SeaLanes {
   const water = (x: number, y: number) => !isLand(tileAt(map, x, y));
+  // Moorings are on the open sea: a port's nearest water can be a lagoon behind its beach.
+  const seaTiles = openSea(map);
+  const seaAt = (x: number, y: number) => {
+    const [tx, ty] = [Math.floor(x), Math.floor(y)];
+    return tx >= 0 && ty >= 0 && tx < map.width && ty < map.height && seaTiles[ty * map.width + tx] === 1;
+  };
   const cw = Math.ceil(map.width / cell);
   const ch = Math.ceil(map.height / cell);
   const open = new Uint8Array(cw * ch);
@@ -36,11 +42,39 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
   }
   const centre = (i: number): Point => [((i % cw) + 0.5) * cell, (Math.floor(i / cw) + 0.5) * cell];
 
-  /** True when the straight line between two points stays on water (sampled every half tile). */
+  /**
+   * True when the straight line between two points stays on water. Walks every tile the line passes
+   * through (a grid traversal), so it can't step over the corner of a land tile the way sampling can.
+   */
   const clear = ([x0, y0]: Point, [x1, y1]: Point) => {
-    const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2);
-    for (let k = 0; k <= steps; k++) if (!water(x0 + ((x1 - x0) * k) / steps, y0 + ((y1 - y0) * k) / steps)) return false;
-    return true;
+    let tx = Math.floor(x0);
+    let ty = Math.floor(y0);
+    const ex = Math.floor(x1);
+    const ey = Math.floor(y1);
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const sx = Math.sign(dx);
+    const sy = Math.sign(dy);
+    // Distance along the line (as a fraction) to the next vertical and horizontal grid line.
+    const stepX = dx !== 0 ? Math.abs(1 / dx) : Infinity;
+    const stepY = dy !== 0 ? Math.abs(1 / dy) : Infinity;
+    let nextX = dx !== 0 ? (sx > 0 ? tx + 1 - x0 : x0 - tx) * stepX : Infinity;
+    let nextY = dy !== 0 ? (sy > 0 ? ty + 1 - y0 : y0 - ty) * stepY : Infinity;
+    for (;;) {
+      if (!water(tx + 0.5, ty + 0.5)) return false;
+      if (tx === ex && ty === ey) return true;
+      if (nextX < nextY) {
+        tx += sx;
+        nextX += stepX;
+      } else {
+        ty += sy;
+        nextY += stepY;
+      }
+      if (Math.min(nextX, nextY) > 1 + 1e-9 && (tx !== ex || ty !== ey)) {
+        // Past the end without landing on its tile (a line ending exactly on a grid line): check it and stop.
+        return water(ex + 0.5, ey + 0.5);
+      }
+    }
   };
 
   // Each port's mooring: the nearest water tile, then the nearest open cell it can reach in a straight line.
@@ -119,7 +153,7 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
         for (let dx = -r; dx <= r; dx++) {
           const p: Point = [Math.floor(s.x) + dx + 0.5, Math.floor(s.y) + dy + 0.5];
           const d = Math.hypot(p[0] - s.x, p[1] - s.y);
-          if (water(p[0], p[1]) && (!best || d < best.d)) best = { p, d };
+          if (seaAt(p[0], p[1]) && (!best || d < best.d)) best = { p, d };
         }
       }
       at = best?.p;

@@ -113,26 +113,75 @@ export interface PlacedSettlement extends Settlement {
 /** How far a settlement may be from the coast before its coordinates count as wrong (~7.5 km). */
 const COAST_SNAP_TILES = 3;
 
+/** How far a port may move to reach a beach on the open sea, when its own coast is a lake or lagoon (~37 km). */
+const OPEN_SEA_SNAP_TILES = 15;
+
 /**
- * Snaps each settlement to the nearest beach tile (land touching water). Throws listing every
- * settlement with no coast within COAST_SNAP_TILES, which catches bad coordinates in the data.
+ * Every water tile joined to the open sea: the largest connected body of water. A bay whose mouth is
+ * narrower than a tile, or a coastal lagoon, is water on the map but cut off from it.
+ */
+export function openSea(map: TileMap): Uint8Array {
+  const { width, height } = map;
+  const seen = new Int32Array(width * height).fill(-1);
+  let best = { id: -1, size: 0 };
+  for (let start = 0, id = 0; start < width * height; start++) {
+    if (seen[start]! >= 0 || isLand(map.tiles[start] as Tile)) continue;
+    const stack = [start];
+    seen[start] = id;
+    let size = 0;
+    while (stack.length) {
+      const i = stack.pop()!;
+      size++;
+      const x = i % width;
+      for (const n of [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, i - width, i + width]) {
+        if (n < 0 || n >= width * height || seen[n]! >= 0 || isLand(map.tiles[n] as Tile)) continue;
+        seen[n] = id;
+        stack.push(n);
+      }
+    }
+    if (size > best.size) best = { id, size };
+    id++;
+  }
+  return Uint8Array.from(seen, (c) => (c === best.id ? 1 : 0));
+}
+
+/**
+ * Snaps each settlement to the nearest beach tile on the open sea, so every port can be sailed to.
+ * Throws listing every settlement with no coast within COAST_SNAP_TILES, which catches bad
+ * coordinates in the data; a port whose nearby coast is only a lake or lagoon moves out to the
+ * nearest open-sea beach within OPEN_SEA_SNAP_TILES.
  */
 export function placeSettlements(def: RasterMapDef, map: TileMap, settlements: Settlement[]): PlacedSettlement[] {
   const failures: string[] = [];
-  const placed = settlements.flatMap((s) => {
-    const at = tileOf(def, s.lon, s.lat);
-    const cx = Math.floor(at.x);
-    const cy = Math.floor(at.y);
+  const sea = openSea(map);
+  const onSea = (x: number, y: number) =>
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+      const nx = x + dx!;
+      const ny = y + dy!;
+      return nx >= 0 && ny >= 0 && nx < map.width && ny < map.height && sea[ny * map.width + nx] === 1;
+    });
+  const nearestBeach = (cx: number, cy: number, radius: number, open: boolean) => {
     let best: { x: number; y: number; d: number } | undefined;
-    for (let dy = -COAST_SNAP_TILES; dy <= COAST_SNAP_TILES; dy++) {
-      for (let dx = -COAST_SNAP_TILES; dx <= COAST_SNAP_TILES; dx++) {
-        if (tileAt(map, cx + dx, cy + dy) !== Tile.Beach) continue;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (tileAt(map, cx + dx, cy + dy) !== Tile.Beach || (open && !onSea(cx + dx, cy + dy))) continue;
         const d = dx * dx + dy * dy;
         if (!best || d < best.d) best = { x: cx + dx + 0.5, y: cy + dy + 0.5, d };
       }
     }
-    if (!best) {
+    return best;
+  };
+  const placed = settlements.flatMap((s) => {
+    const at = tileOf(def, s.lon, s.lat);
+    const cx = Math.floor(at.x);
+    const cy = Math.floor(at.y);
+    if (!nearestBeach(cx, cy, COAST_SNAP_TILES, false)) {
       failures.push(`${s.id} (${s.lon}, ${s.lat})`);
+      return [];
+    }
+    const best = nearestBeach(cx, cy, COAST_SNAP_TILES, true) ?? nearestBeach(cx, cy, OPEN_SEA_SNAP_TILES, true);
+    if (!best) {
+      failures.push(`${s.id} (${s.lon}, ${s.lat}): no open-sea beach within ${OPEN_SEA_SNAP_TILES} tiles`);
       return [];
     }
     return [{ ...s, x: best.x, y: best.y }];

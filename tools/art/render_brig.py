@@ -171,7 +171,7 @@ SQUARES = {  # name: (mast y, yc, zt, zb, wt, wb, billow)
     'main_top': (-0.28, -0.25, 1.66, 1.14, 0.68, 0.90, 0.08),
 }
 beam('bowsprit', (0, 1.12, 0.28), (0, 1.72, 0.46), 0.025, mast)
-obj('flag', [(0, -0.28, 1.86), (0, -0.28, 1.70), (0, -0.62, 1.74), (0, -0.62, 1.86)], [(0, 1, 2, 3)], [mat('flag', 'a53030')])
+# No flag on the sprite: the game flies the ship's colours as a pennant from the masthead (sprites.json `mast`).
 
 
 def jib(name, lee, m):

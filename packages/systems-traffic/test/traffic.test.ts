@@ -52,7 +52,7 @@ describe('ships at sea', () => {
       const sim = world(7);
       for (let d = 0; d < 90; d++) {
         sim.step(day);
-        for (const s of ai(sim.state)) expect(isLand(tileAt(map, s.x, s.y)), `${s.id} ${s.ai!.role} on land at day ${d}`).toBe(false);
+        for (const s of ai(sim.state)) expect(isLand(tileAt(map, s.x, s.y)), `${s.id} ${s.ai!.role} on land at day ${d}: ${JSON.stringify({ x: s.x, y: s.y, from: s.ai!.from, to: s.ai!.to, along: s.ai!.along, offset: s.ai!.offset, wait: s.ai!.waitUntil, route: s.ai!.route })}`).toBe(false);
       }
       return sim;
     };

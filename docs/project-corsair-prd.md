@@ -98,6 +98,8 @@ The layers live in `packages/data/content/maps/caribbean/` and are built by `nod
 | Wind zones | Prevailing wind by region and season; one zone per tile | `zones.png` + `wind_zones.json` |
 | Fog of war | Per-tile explored flag, stored in the save. Deferred: the whole map is visible for now. | runtime |
 
+Settlements are placed from real longitude and latitude, snapped to the nearest beach on the open sea (`placeSettlements`). A port whose nearest coast is a lake or lagoon on the map, such as Nuevitas Bay, whose mouth is narrower than a 2.5 km tile, moves out to the nearest open-sea beach within about 37 km, so every port can be sailed to.
+
 ### Terrain rules
 
 - **Deep water**: all ships.
@@ -328,7 +330,7 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 - AI merchants plan routes with a simple arbitrage rule: buy where p is lowest in reach, sell where it is highest, weighted by risk (known pirate activity).
 - Nations run scheduled fleets: the Spanish treasure fleet and the Silver Train (a land convoy) carry silver on fixed seasonal routes in `routes.json`.
 - Captured cargo removed from a merchant never arrives, so the destination's stock drops. The player can observe this in the data (section 16).
-- Built (`@corsair/systems-traffic`, `traffic.json`): about 30 AI ships sail at once. Merchants (fluyts, 60%) take the best margin from their port, buying at most 20 units and only while the far port pays 30% over cost, with at most two on any port pair, so they skim a trade rather than flood it; their cargo leaves the origin's stock when bought and reaches the destination's only when the ship does. Patrols (frigates, 20%) sail between their nation's ports. Pirates (sloops, 20%) slip out of the havens, lurk part way down a trade lane, then go home. Ships follow sea lanes found by A* on an 8-tile water grid (with a tile-level way out of lagoons and rivers; Puerto Príncipe and Villahermosa have none), at the speed their polar gives in the local wind, tacking in a corridor about the lane where it runs to windward. The population tops itself up a ship a day. A route probe after 30 days of traffic: the player's best routes keep most of their margin (Port Royal luxuries to Tortuga +684 against +723 without traffic). Treasure fleets wait.
+- Built (`@corsair/systems-traffic`, `traffic.json`): about 30 AI ships sail at once. Merchants (fluyts, 60%) take the best margin from their port, buying at most 20 units and only while the far port pays 30% over cost, with at most two on any port pair, so they skim a trade rather than flood it; their cargo leaves the origin's stock when bought and reaches the destination's only when the ship does. Patrols (frigates, 20%) sail between their nation's ports. Pirates (sloops, 20%) slip out of the havens, lurk part way down a trade lane, then go home. Ships follow sea lanes found by A* on an 8-tile water grid (with a tile-level way out of narrow bays, and moorings always on the open sea; every port is reachable), at the speed their polar gives in the local wind, tacking in a corridor about the lane where it runs to windward. The population tops itself up a ship a day. A route probe after 30 days of traffic: the player's best routes keep most of their margin (Port Royal luxuries to Tortuga +684 against +723 without traffic). Treasure fleets wait.
 
 ### Plunder and crew shares
 
