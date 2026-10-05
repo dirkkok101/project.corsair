@@ -12,6 +12,8 @@ export const shipClassSchema = z.object({
   turn: z.number().min(1).max(10),
   draft: z.number(),
   hull: z.number(),
+  /** Hold capacity in units of cargo. */
+  cargo: z.number().int().positive(),
   polar: z.string(),
   sprites: z.object({ world: z.string() }),
 });
@@ -164,6 +166,37 @@ export const musicSchema = z.object({
   ),
 });
 
+export const goodsSchema = z.object({
+  goods: z.array(
+    z.object({ id: z.string(), name: z.string(), basePrice: z.number().positive(), elasticity: z.number().min(0).max(2) }),
+  ),
+});
+
+const goodRates = z.record(z.string(), z.number().min(0));
+
+export const economySchema = z.object({
+  startingGold: z.number().int().min(0),
+  daysPerWeek: z.number().int().positive(),
+  /** Price stays within base x [min, max]. */
+  priceClamp: z.tuple([z.number().positive(), z.number().positive()]),
+  /** Buy/sell spread around the local price, by settlement type. */
+  spread: z.record(z.string(), z.number().min(0).max(0.9)),
+  /** Normal stock multiplier by settlement size. */
+  sizeStock: z.record(z.string(), z.number().positive()),
+  /** Reference (demand) stock per good for a town-sized settlement. */
+  normalStock: z.record(z.string(), z.number().positive()),
+  /** Usual stock, as a multiple of the reference, for goods a town produces or consumes. */
+  producerStock: z.number().positive(),
+  consumerStock: z.number().positive(),
+  /** Share of the gap to its usual stock a market closes each week. */
+  weeklyRecovery: z.number().min(0).max(1),
+  harvest: z.tuple([z.number().min(0), z.number().min(0)]),
+  /** Stock is capped at this multiple of the usual stock. */
+  maxStock: z.number().positive(),
+  profiles: z.record(z.string(), z.object({ produces: goodRates, consumes: goodRates })),
+  settlementProfiles: z.record(z.string(), z.array(z.string()).min(1)),
+});
+
 export type ShipClass = z.infer<typeof shipClassSchema>;
 export type Polar = z.infer<typeof polarSchema>;
 export type NavigationConfig = z.infer<typeof navigationSchema>;
@@ -176,4 +209,6 @@ export type WindZones = z.infer<typeof windZonesSchema>;
 export type Weather = z.infer<typeof weatherSchema>;
 export type Calendar = z.infer<typeof calendarSchema>;
 export type Music = z.infer<typeof musicSchema>;
+export type Goods = z.infer<typeof goodsSchema>;
+export type Economy = z.infer<typeof economySchema>;
 export type Tune = Music['tunes'][number];

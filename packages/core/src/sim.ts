@@ -20,12 +20,16 @@ export interface System {
 export interface InputRecord {
   tick: number;
   command: Command;
+  /** Applied with the clock stopped (in port) at `tick`, rather than at the start of tick `tick`. */
+  immediate?: true;
 }
 
 export interface Sim {
   readonly state: WorldState;
   send(command: Command): void;
   step(ticks?: number): void;
+  /** Apply queued commands without advancing the clock (world time stops in port, PRD section 2). */
+  applyCommands(): void;
   hash(): string;
   /** Recent events, oldest first (ring buffer). */
   events(): readonly GameEvent[];
@@ -47,6 +51,17 @@ export function createSim(initial: WorldState, systems: System[]): Sim {
     if (log.length > EVENT_LOG_SIZE) log.splice(0, log.length - EVENT_LOG_SIZE);
   };
 
+  const dispatch = (tick: number, command: Command) => {
+    for (const system of systems) {
+      const result = system.command?.(state, command);
+      if (!result) continue;
+      state = result.state;
+      record(tick, system.name, result.events);
+      return;
+    }
+    record(tick, 'core', [{ type: 'CommandRejected', entityIds: [], payload: { command } }]);
+  };
+
   return {
     get state() {
       return state;
@@ -54,22 +69,19 @@ export function createSim(initial: WorldState, systems: System[]): Sim {
     send(command) {
       queue.push(command);
     },
+    applyCommands() {
+      for (const command of queue.splice(0)) {
+        inputs.push({ tick: state.tick, command, immediate: true });
+        dispatch(state.tick, command);
+      }
+    },
     step(ticks = 1) {
       for (let i = 0; i < ticks; i++) {
         const tick = state.tick + 1;
         // Commands apply at the start of the tick, before any system runs, so replays line up.
         for (const command of queue.splice(0)) {
           inputs.push({ tick, command });
-          let handled = false;
-          for (const system of systems) {
-            const result = system.command?.(state, command);
-            if (!result) continue;
-            state = result.state;
-            record(tick, system.name, result.events);
-            handled = true;
-            break;
-          }
-          if (!handled) record(tick, 'core', [{ type: 'CommandRejected', entityIds: [], payload: { command } }]);
+          dispatch(tick, command);
         }
         for (const system of systems) {
           const result = system.tick(state, dt);

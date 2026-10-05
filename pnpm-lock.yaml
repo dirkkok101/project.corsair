@@ -241,6 +241,19 @@ importers:
         specifier: ^8.22.0
         version: 8.22.0
 
+  packages/systems-economy:
+    dependencies:
+      '@corsair/core':
+        specifier: workspace:*
+        version: link:../core
+      '@corsair/data':
+        specifier: workspace:*
+        version: link:../data
+    devDependencies:
+      '@corsair/systems-navigation':
+        specifier: workspace:*
+        version: link:../systems-navigation
+
   packages/systems-navigation:
     dependencies:
       '@corsair/core':

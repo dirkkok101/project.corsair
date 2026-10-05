@@ -1,0 +1,144 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { createSim } from '@corsair/core';
+import type { WorldState } from '@corsair/core';
+import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
+import { createWorld } from '@corsair/systems-navigation';
+import { describe, expect, it } from 'vitest';
+import { cargoUsed, createEconomySystem, DOCK_RANGE, midPrice, normalStock, quote, withEconomy } from '../src';
+
+const content = loadContent();
+const def = content.maps.caribbean;
+const dir = fileURLToPath(new URL('../../data/content/maps/caribbean/', import.meta.url));
+const map = decodeRasterMap(def, {
+  terrain: readFileSync(dir + def.layers.terrain),
+  elevation: readFileSync(dir + def.layers.elevation),
+  zones: readFileSync(dir + def.layers.zones),
+});
+const settlements = placeSettlements(def, map, content.settlements);
+const town = (id: string) => settlements.find((s) => s.id === id)!;
+const portRoyal = town('town.port_royal');
+const bridgetown = town('town.bridgetown');
+const day = content.calendar.ticksPerDay;
+
+/** A world with the player's ship moored off a port. */
+function moored(at = portRoyal, seed = 1) {
+  const world = createWorld(def);
+  const ship = { ...world.ships.player!, x: at.x + 1, y: at.y + 1 };
+  return createSim(withEconomy({ ...world, ships: { player: ship } }, content, settlements, seed), [createEconomySystem(content, settlements)]);
+}
+const player = (state: WorldState) => state.ships.player!;
+
+describe('prices', () => {
+  it('rise when stock is short and fall when it is plentiful', () => {
+    expect(midPrice(content, portRoyal, 'sugar', 5)).toBeGreaterThan(midPrice(content, portRoyal, 'sugar', 200));
+  });
+
+  it('are cheapest where a good is made and dearest where it is needed', () => {
+    // At their usual stock, a sugar island sells sugar below base and a port that needs it pays above.
+    const base = content.goods.find((g) => g.id === 'sugar')!.basePrice;
+    expect(midPrice(content, bridgetown, 'sugar', normalStock(content, bridgetown, 'sugar'))).toBeLessThan(base);
+    expect(midPrice(content, portRoyal, 'sugar', normalStock(content, portRoyal, 'sugar'))).toBeGreaterThan(base);
+  });
+
+  it('always buy dearer than they sell', () => {
+    for (const g of content.goods) {
+      const q = quote(content, portRoyal, g.id, normalStock(content, portRoyal, g.id));
+      expect(q.buy).toBeGreaterThan(q.sell);
+    }
+  });
+});
+
+describe('docking and trading', () => {
+  it('docks only within range, and refuses to trade at sea', () => {
+    const far = moored();
+    far.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 });
+    far.step();
+    expect(far.events().at(-1)!.payload.reason).toBe('not-docked');
+
+    const away = createWorld(def);
+    const sim = createSim(
+      withEconomy({ ...away, ships: { player: { ...away.ships.player!, x: portRoyal.x + DOCK_RANGE + 5, y: portRoyal.y } } }, content, settlements, 1),
+      [createEconomySystem(content, settlements)],
+    );
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    expect(player(sim.state).docked).toBeUndefined();
+    expect(sim.events().at(-1)!.payload.reason).toBe('too-far');
+  });
+
+  it('buys and sells unit by unit: gold, hold and the market all move, and the captain remembers prices', () => {
+    const sim = moored();
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    expect(player(sim.state).docked).toBe(portRoyal.id);
+    const gold0 = sim.state.captain!.gold;
+    const stock0 = sim.state.markets![portRoyal.id]!.food!;
+    const first = quote(content, portRoyal, 'food', stock0).buy;
+
+    sim.send({ type: 'Buy', shipId: 'player', good: 'food', quantity: 40 });
+    sim.applyCommands();
+    expect(player(sim.state).cargo.food).toBe(40);
+    expect(sim.state.markets![portRoyal.id]!.food).toBe(stock0 - 40);
+    expect(gold0 - sim.state.captain!.gold).toBeGreaterThanOrEqual(first * 40);
+    expect(sim.state.captain!.knownPrices[portRoyal.id]).toBeDefined();
+
+    sim.send({ type: 'Sell', shipId: 'player', good: 'food', quantity: 100 });
+    sim.applyCommands();
+    // Only what was in the hold is sold.
+    expect(player(sim.state).cargo.food).toBeUndefined();
+    expect(sim.events().at(-1)!.payload.quantity).toBe(40);
+    // A round trip in one port always loses the spread.
+    expect(sim.state.captain!.gold).toBeLessThan(gold0);
+  });
+
+  it('never overfills the hold or overspends', () => {
+    const sim = moored();
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'food', quantity: 10_000 });
+    sim.applyCommands();
+    const cap = content.ships['ship.brig']!.cargo;
+    expect(cargoUsed(player(sim.state))).toBeLessThanOrEqual(cap);
+    sim.send({ type: 'Buy', shipId: 'player', good: 'silver', quantity: 10_000 });
+    sim.applyCommands();
+    expect(sim.state.captain!.gold).toBeGreaterThanOrEqual(0);
+    expect(cargoUsed(player(sim.state))).toBeLessThanOrEqual(cap);
+  });
+
+  it('makes money on a real route: sugar from Bridgetown sells dearer in Port Royal', () => {
+    const sim = moored(bridgetown, 3);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: bridgetown.id });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 20 });
+    sim.applyCommands();
+    const spent = 1000 - sim.state.captain!.gold;
+    // Sail across (teleport for the test) and sell.
+    const ship = player(sim.state);
+    const there = { ...sim.state, ships: { player: { ...ship, docked: undefined, x: portRoyal.x + 1, y: portRoyal.y + 1 } } };
+    const sim2 = createSim(there, [createEconomySystem(content, settlements)]);
+    sim2.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim2.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 20 });
+    sim2.applyCommands();
+    const earned = sim2.events().at(-1)!.payload.gold as number;
+    expect(earned).toBeGreaterThan(spent);
+  });
+});
+
+describe('weekly markets', () => {
+  it('turns once a week: producers gain stock, everything stays within bounds, and it replays', () => {
+    const run = () => {
+      const sim = moored(portRoyal, 9);
+      sim.step(7 * day * 4);
+      return sim;
+    };
+    const a = run();
+    expect(a.events().filter((e) => e.type === 'MarketsTurned')).toHaveLength(4);
+    for (const s of settlements) {
+      for (const g of content.goods) {
+        const stock = a.state.markets![s.id]![g.id]!;
+        expect(stock).toBeGreaterThanOrEqual(0);
+        expect(stock).toBeLessThanOrEqual(normalStock(content, s, g.id) * content.economy.maxStock);
+      }
+    }
+    expect(run().hash()).toBe(a.hash());
+  });
+});

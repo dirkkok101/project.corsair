@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import calendarJson from '../content/calendar.json';
+import economyJson from '../content/economy.json';
+import goodsJson from '../content/goods.json';
 import musicJson from '../content/music.json';
 import caribbeanMap from '../content/maps/caribbean/map.json';
 import settlementsJson from '../content/maps/caribbean/settlements.json';
@@ -12,6 +14,8 @@ import shipsJson from '../content/ships.json';
 import spritesJson from '../content/sprites.json';
 import {
   calendarSchema,
+  economySchema,
+  goodsSchema,
   musicSchema,
   navigationSchema,
   polarSchema,
@@ -25,6 +29,8 @@ import {
 } from './schemas';
 import type {
   Calendar,
+  Economy,
+  Goods,
   Music,
   NavigationConfig,
   Polar,
@@ -51,6 +57,8 @@ export interface ContentPack {
   weather: Weather;
   calendar: Calendar;
   music: Music;
+  goods: Goods['goods'];
+  economy: Economy;
 }
 
 /** Validates the base content at boot; a bad pack throws with the Zod path of the first error. */
@@ -67,7 +75,23 @@ export function loadContent(): ContentPack {
     weather: weatherSchema.parse(weatherJson),
     calendar: calendarSchema.parse(calendarJson),
     music: musicSchema.parse(musicJson),
+    goods: goodsSchema.parse(goodsJson).goods,
+    economy: economySchema.parse(economyJson),
   };
+  const goodIds = new Set(pack.goods.map((g) => g.id));
+  for (const id of Object.keys(pack.economy.normalStock)) {
+    if (!goodIds.has(id)) throw new Error(`economy: normal stock for unknown good ${id}`);
+  }
+  for (const [name, p] of Object.entries(pack.economy.profiles)) {
+    for (const id of [...Object.keys(p.produces), ...Object.keys(p.consumes)]) {
+      if (!goodIds.has(id)) throw new Error(`economy profile ${name}: unknown good ${id}`);
+    }
+  }
+  for (const s of pack.settlements) {
+    const profiles = pack.economy.settlementProfiles[s.id];
+    if (!profiles) throw new Error(`economy: no profile for ${s.id}`);
+    for (const p of profiles) if (!pack.economy.profiles[p]) throw new Error(`economy: ${s.id} has unknown profile ${p}`);
+  }
   for (const ship of ships) {
     if (!pack.polars[ship.polar]) throw new Error(`${ship.id}: unknown polar ${ship.polar}`);
     if (!pack.sprites[ship.sprites.world]) throw new Error(`${ship.id}: unknown sprite ${ship.sprites.world}`);

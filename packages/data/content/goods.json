@@ -1,0 +1,47 @@
+{
+  "$comment": "PRD section 6. Base prices in gold per unit (one unit fills one cargo ton). Elasticity is how hard the price reacts to stock against the town's normal stock. All values are placeholders for balancing.",
+  "goods": [
+    {
+      "id": "food",
+      "name": "Food",
+      "basePrice": 2,
+      "elasticity": 0.3
+    },
+    {
+      "id": "sugar",
+      "name": "Sugar",
+      "basePrice": 30,
+      "elasticity": 0.5
+    },
+    {
+      "id": "tobacco",
+      "name": "Tobacco",
+      "basePrice": 40,
+      "elasticity": 0.5
+    },
+    {
+      "id": "hides",
+      "name": "Hides",
+      "basePrice": 25,
+      "elasticity": 0.5
+    },
+    {
+      "id": "cotton",
+      "name": "Cotton",
+      "basePrice": 20,
+      "elasticity": 0.5
+    },
+    {
+      "id": "luxuries",
+      "name": "Luxuries",
+      "basePrice": 80,
+      "elasticity": 0.8
+    },
+    {
+      "id": "silver",
+      "name": "Silver",
+      "basePrice": 150,
+      "elasticity": 0.3
+    }
+  ]
+}

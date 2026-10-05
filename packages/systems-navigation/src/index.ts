@@ -87,6 +87,8 @@ export function createNavigationSystem(
   };
 
   const sail = (ship: Ship, state: WorldState, dt: number): { ship: Ship; events: EmittedEvent[] } => {
+    // A ship in port stays put until it undocks.
+    if (ship.docked) return { ship, events: [] };
     const cls = content.ships[ship.classId]!;
     const wind = windAt(state, ship.x, ship.y);
     const target = targetSpeed(content, ship, wind);
@@ -195,6 +197,7 @@ export function createWorld(def: MapDef): WorldState {
     helm: 0,
     sails: 'full',
     blocked: false,
+    cargo: {},
   };
   return { tick: 0, wind: { ...wind }, ships: { [ship.id]: ship } };
 }
