@@ -1,4 +1,4 @@
-import type { Ship } from '@corsair/core';
+import type { KnownPrices, Ship } from '@corsair/core';
 import { Tile } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
 
@@ -78,12 +78,20 @@ function paintOverview(map: TileMap): HTMLCanvasElement {
   return canvas;
 }
 
+/** What the captain knows of each port's market. */
+export interface ChartMarket {
+  goods: { id: string; name: string }[];
+  known: (settlementId: string) => KnownPrices | undefined;
+  today: () => number;
+}
+
 /** `onSelect` gets the port clicked on the chart, or undefined when the chosen port is clicked again. */
 export function createCharts(
   parent: HTMLElement,
   map: TileMap,
   settlements: PlacedSettlement[],
   onSelect: (port: PlacedSettlement | undefined) => void,
+  market: ChartMarket,
 ) {
   let selected: PlacedSettlement | undefined;
   const overview = paintOverview(map);
@@ -121,8 +129,32 @@ export function createCharts(
     };
     dot.addEventListener('click', choose);
     label.addEventListener('click', choose);
+    for (const el of [dot, label]) {
+      el.addEventListener('pointerenter', () => showPrices(s));
+      el.addEventListener('pointerleave', () => (prices.hidden = true));
+    }
     return { s, dot, label };
   });
+  // Hovering a port shows what its merchant charged when the captain last called (PRD section 6).
+  const prices = sheet.appendChild(document.createElement('div'));
+  prices.className = 'chart-prices';
+  prices.hidden = true;
+  const showPrices = (s: PlacedSettlement) => {
+    const known = market.known(s.id);
+    const age = known && market.today() - known.day;
+    const when = age === undefined ? '' : age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`;
+    const head = `<div class="chart-prices-name">${s.name}</div>`;
+    prices.innerHTML = known
+      ? `${head}<div class="chart-prices-age">Prices seen ${when}</div><table><tr><th></th><th>Buy</th><th>Sell</th></tr>${market.goods
+          .map((g) => `<tr><td>${g.name}</td><td>${known.prices[g.id]?.buy ?? ''}</td><td>${known.prices[g.id]?.sell ?? ''}</td></tr>`)
+          .join('')}</table>`
+      : `${head}<div class="chart-prices-age">Prices unknown: call here to learn them</div>`;
+    prices.style.left = `${(s.x / map.width) * 100}%`;
+    prices.style.top = `${(s.y / map.height) * 100}%`;
+    // Open towards the middle of the chart so the card never runs off an edge.
+    prices.dataset.side = `${s.x > map.width / 2 ? 'left' : 'right'} ${s.y > map.height / 2 ? 'up' : 'down'}`;
+    prices.hidden = false;
+  };
   const marker = sheet.appendChild(document.createElement('div'));
   marker.className = 'chart-player';
   const hint = chart.appendChild(document.createElement('div'));
@@ -132,6 +164,8 @@ export function createCharts(
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') {
       chart.hidden = !chart.hidden;
+      // A card left from the last look would show stale prices until the pointer moved.
+      prices.hidden = true;
       if (!chart.hidden) layoutLabels(pins);
     }
     if (e.key === 'Escape') chart.hidden = true;

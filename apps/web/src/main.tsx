@@ -143,7 +143,11 @@ async function main() {
   const hudRoot = stage.appendChild(document.createElement('div'));
   const portRoot = stage.appendChild(document.createElement('div'));
   let destination: PlacedSettlement | undefined;
-  const charts = createCharts(stage, map, settlements, (port) => (destination = port));
+  const charts = createCharts(stage, map, settlements, (port) => (destination = port), {
+    goods: content.goods,
+    known: (id) => sim.state.captain?.knownPrices[id],
+    today: () => Math.floor(sim.state.tick / content.calendar.ticksPerDay),
+  });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {
     let best = 0;

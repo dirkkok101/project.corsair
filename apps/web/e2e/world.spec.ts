@@ -219,3 +219,25 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(1000);
   expect(errors).toEqual([]);
 });
+
+test('sea chart: hovering a port shows the prices last seen there, or that none are known', async ({ page }) => {
+  await boot(page);
+  await page.keyboard.press('m');
+  await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
+  await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
+
+  await page.keyboard.press('m');
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(540 * 2));
+  await page.mouse.move(0, 0);
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-prices')).toBeHidden();
+  await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
+  await expect(page.locator('.chart-prices')).toContainText('Prices seen 2 days ago');
+  await expect(page.locator('.chart-prices')).toContainText('Sugar');
+  await page.screenshot({ path: 'test-results/chart-prices.png' });
+  await page.locator('.chart-port', { hasText: 'Havana' }).hover();
+  await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
+});
