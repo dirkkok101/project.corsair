@@ -45,19 +45,29 @@ function fight(enemy: Ship, seed: number, autopilot: 'runner' | 'cautious' | 'ag
     bearingDeg: 45 + seed * 37,
   });
   // Feel metrics: when the player's first broadside goes off, and how many she fires in all.
+  // Tension: broadsides before the hulls first meet, and grapples thrown and cut free.
   let volleys = 0;
   let firstVolley: number | undefined;
+  let beforeGrapple: number | undefined;
+  let grapples = 0;
+  let broken = 0;
   let guard = 0;
   while (!battle.result() && guard++ < 30 * 60 * 10) {
     const before = battle.state.ships.player.reload;
+    const held = battle.state.grappling;
     battle.step(1, autopilot);
     const after = battle.state.ships.player.reload;
     if (after.port > before.port || after.starboard > before.starboard) {
       volleys++;
       firstVolley ??= battle.state.tick / 30;
     }
+    if (held === 0 && battle.state.grappling > 0) {
+      grapples++;
+      beforeGrapple ??= volleys;
+    }
+    if (held > 0 && battle.state.grappling === 0 && !battle.result()) broken++;
   }
-  return Object.assign(battle, { volleys, firstVolley });
+  return Object.assign(battle, { volleys, firstVolley, beforeGrapple: beforeGrapple ?? volleys, grapples, broken });
 }
 
 describe('sea battle', () => {
@@ -158,17 +168,51 @@ describe('sea battle', () => {
     expect(at(content.combat.guns.rangeTiles - 0.5).aim('starboard')).toBe('out-of-range');
   });
 
+  it('hulls together throw grapples: held, the boarders go over; sailing clear cuts them', () => {
+    const b = content.combat.battle;
+    // Seated alongside, inside grappling distance.
+    const alongside = (enemy: Ship) =>
+      createBattle({ ...content, combat: { ...content.combat, battle: { ...b, startApart: b.boardTiles * 0.6 } } }, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 90 },
+        enemy: { ...enemy, headingDeg: 90 },
+        seed: 6,
+        bearingDeg: 0,
+      });
+    // A pirate holds on: the grapples stay out until the boarders go over, no sooner.
+    const held = alongside(ship('ship.sloop', 'pirate', 0.95));
+    let guard = 0;
+    while (!held.result() && guard++ < 30 * 30) held.step(1);
+    expect(['boarded', 'lost']).toContain(held.result()!.outcome);
+    expect(held.state.tick / 30).toBeGreaterThanOrEqual(b.grappleSeconds);
+    // The brig runs downwind while the grapples are still young: past breakTiles they part.
+    const cut = alongside(ship('ship.fluyt', 'merchant'));
+    cut.step(1);
+    expect(cut.state.grappling).toBeGreaterThan(0);
+    guard = 0;
+    while (cut.state.grappling > 0 && !cut.result() && guard++ < 30 * 30) cut.step(1, 'runner');
+    expect(cut.result()).toBeUndefined();
+    expect(cut.state.grappling).toBe(0);
+  });
+
   it('plays matchups with the outcomes the design intends (headless runner)', () => {
     const tally = (enemy: () => Ship, n = 40) => {
       const outcomes: Record<string, number> = {};
       let seconds = 0;
       let volleys = 0;
+      let beforeGrapple = 0;
+      let grapples = 0;
+      let broken = 0;
       const firsts: number[] = [];
       for (let seed = 1; seed <= n; seed++) {
         const b = fight(enemy(), seed);
         outcomes[b.result()!.outcome] = (outcomes[b.result()!.outcome] ?? 0) + 1;
         seconds += b.state.tick / 30;
         volleys += b.volleys;
+        beforeGrapple += b.beforeGrapple;
+        grapples += b.grapples;
+        broken += b.broken;
         if (b.firstVolley !== undefined) firsts.push(b.firstVolley);
       }
       firsts.sort((a, b) => a - b);
@@ -178,6 +222,10 @@ describe('sea battle', () => {
         // Feel: seconds to the first broadside (median), and broadsides a minute across the fights.
         firstVolley: Math.round(firsts[Math.floor(firsts.length / 2)] ?? -1),
         volleysPerMinute: Math.round((volleys / (seconds / 60)) * 10) / 10,
+        // Tension: broadsides before the first grapple (mean), and grapples thrown and cut free in all.
+        volleysBeforeGrapple: Math.round((beforeGrapple / n) * 10) / 10,
+        grapples,
+        broken,
       };
     };
     const merchant = tally(() => ship('ship.fluyt', 'merchant', 0.55));

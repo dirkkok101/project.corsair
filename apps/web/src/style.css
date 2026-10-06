@@ -1153,3 +1153,9 @@ body {
 .battle-aim.ready {
   color: #e8c170;
 }
+
+/* Grappled: below the drawing-apart warning's place, in the same style. */
+.battle-grapple {
+  top: 52px;
+  border-color: #e8c170;
+}

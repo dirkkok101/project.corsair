@@ -256,8 +256,13 @@ export const combatSchema = z.object({
     sprites: z.enum(['world', 'combat']),
     /** How far apart the ships start, in battle tiles. */
     startApart: z.number().positive(),
-    /** Hulls this close (tiles) touch: boarding. */
+    /** Hulls this close (tiles) touch and the grapples go out; held for grappleSeconds, the boarders go
+     * over. Sailing clear past breakTiles cuts the grapples. */
     boardTiles: z.number().positive(),
+    grappleSeconds: z.number().positive(),
+    breakTiles: z.number().positive(),
+    /** While grappled, each ship keeps only this share of her way. */
+    grappleDrag: z.number().min(0).max(1),
     /** Past warnTiles apart the HUD warns the ships are drawing apart; past escapeTiles, a gap that
      * keeps widening for escapeSeconds ends the fight with one of them away. */
     warnTiles: z.number().positive(),
@@ -265,6 +270,14 @@ export const combatSchema = z.object({
     escapeSeconds: z.number().positive(),
     /** A fight longer than this (seconds) ends with the enemy slipping away. */
     maxSeconds: z.number().positive(),
+  }),
+  /** How an aggressive captain fights: she shoots her way in and closes to grapple only once the other
+   * ship is hurt (her crew outnumbered by boardCrewRatio, or her sails below boardBelowSails percent);
+   * until then she comes in on the other's bow or stern, approachTiles off, out of her broadsides. */
+  tactics: z.object({
+    boardCrewRatio: z.number().positive(),
+    boardBelowSails: z.number().min(0).max(100),
+    approachTiles: z.number().positive(),
   }),
   guns: z.object({
     /** A broadside bears within this many degrees of the beam. */

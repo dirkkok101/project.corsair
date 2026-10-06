@@ -469,7 +469,7 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
       const s = window.__corsair.battle.state()!.ships;
       return Math.hypot(s.enemy.x - s.player.x, s.enemy.y - s.player.y);
     };
-    for (let i = 0; i < 30 * 60 && apart() < 17 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'runner');
+    for (let i = 0; i < 30 * 60 && apart() < 31 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'runner');
   });
   expect(await page.evaluate(() => window.__corsair.battle.result())).toBeUndefined();
   await expect(page.locator('.battle-marker')).toBeVisible();

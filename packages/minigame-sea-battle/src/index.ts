@@ -55,6 +55,8 @@ export interface BattleState {
   tick: number;
   /** Seconds the ships have been drawing apart beyond escape range; at battle.escapeSeconds one gets away. */
   parting: number;
+  /** Seconds the hulls have lain together with grapples out; at battle.grappleSeconds the boarders go over. */
+  grappling: number;
   wind: Wind;
   ships: Record<Side, BattleShip>;
   shots: Shot[];
@@ -147,6 +149,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   let state: BattleState = {
     tick: 0,
     parting: 0,
+    grappling: 0,
     wind: setup.wind,
     ships: {
       player: { ...arm(setup.player, 'player'), x: mid.x, y: mid.y },
@@ -229,8 +232,18 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const ready: Broadside = me.reload.starboard <= me.reload.port ? 'starboard' : 'port';
     let want: number;
     if (personality === 'runner') want = toThem + 180;
-    else if (personality === 'aggressive' && me.crew > them.crew * 1.2) want = toThem; // close to board
-    else if (d > c.guns.rangeTiles * 0.8) want = toThem;
+    else if (
+      personality === 'aggressive' &&
+      (state.grappling > 0 || me.crew > them.crew * c.tactics.boardCrewRatio || them.sailCondition < c.tactics.boardBelowSails)
+    )
+      want = toThem; // grapples out, or she is hurt: close and hold on
+    else if (personality === 'aggressive' && d > c.guns.rangeTiles * 0.8) {
+      // Come in on her bow or stern, whichever is nearer, where her broadsides can't bear.
+      const r = (them.headingDeg * Math.PI) / 180;
+      const ends = [1, -1].map((k) => ({ x: them.x + Math.sin(r) * k * c.tactics.approachTiles, y: them.y - Math.cos(r) * k * c.tactics.approachTiles }));
+      const near = ends.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0]!;
+      want = normalizeDeg((Math.atan2(near.x - me.x, -(near.y - me.y)) * 180) / Math.PI);
+    } else if (d > c.guns.rangeTiles * 0.8) want = toThem;
     else if (personality === 'cautious' && d < c.guns.rangeTiles * 0.5) want = toThem + 180;
     // Put the loaded broadside to bear: the target abeam on that side.
     else want = ready === 'starboard' ? toThem - 90 : toThem + 90;
@@ -329,6 +342,18 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         const apart = distance();
         if (apart <= c.battle.escapeTiles) state = { ...state, parting: 0 };
         else if (apart > apartBefore) state = { ...state, parting: state.parting + DT };
+        // Hulls together: the grapples go out at boardTiles and hold until the ships part past breakTiles.
+        // Lashed together, both are dragged down to grappleDrag of their way, so cutting free takes a
+        // deliberate run before the boarders go over.
+        if (apart > c.battle.breakTiles) state = { ...state, grappling: 0 };
+        else if (apart <= c.battle.boardTiles || state.grappling > 0) {
+          const drag = (s: BattleShip) => ({ ...s, speed: Math.min(s.speed, content.ships[s.classId]!.speed * c.battle.tilesPerSecondPerSpeedPoint * c.battle.grappleDrag) });
+          state = {
+            ...state,
+            grappling: state.grappling + DT,
+            ships: { player: drag(state.ships.player), enemy: drag(state.ships.enemy) },
+          };
+        }
 
         // Balls land: a hit does its ammo's damage, a miss throws up a splash.
         const flying: Shot[] = [];
@@ -368,7 +393,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         const e = state.ships.enemy;
         if (e.hull <= 0) end('sunk');
         else if (p.hull <= 0) end('lost');
-        else if (distance() <= c.battle.boardTiles) {
+        else if (state.grappling >= c.battle.grappleSeconds) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
           const ps = p.crew * c.boarding.player;
           const es = e.crew * c.boarding[e.role ?? 'merchant'];

@@ -122,6 +122,14 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
           </span>
         </div>
       ) : null}
+      {!state.result && state.grappling > 0 ? (
+        <div class="battle-parting battle-grapple">
+          <span>Grappled! Sail clear to cut free, or stand by to repel boarders</span>
+          <span class="battle-bar-track">
+            <span class="battle-bar-fill low" style={{ width: `${Math.round(Math.min(1, state.grappling / b.grappleSeconds) * 100)}%` }} />
+          </span>
+        </div>
+      ) : null}
       <div class="battle-bottom">
         <div class="battle-ammo">
           {AMMO.map((a) => (

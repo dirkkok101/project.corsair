@@ -1,17 +1,25 @@
 {
   "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing. autoResolve: a fight between AI ships is settled by crew x (1 + guns/10) x the role's factor; the winner loses `losses` of her crew.",
   "battle": {
-    "tilesPerSecondPerSpeedPoint": 0.45,
+    "tilesPerSecondPerSpeedPoint": 0.3,
     "accelPerSecond": 1,
     "decelPerSecond": 0.35,
     "tileSize": 24,
     "sprites": "world",
-    "startApart": 8,
+    "startApart": 24,
     "boardTiles": 1.6,
-    "warnTiles": 16,
-    "escapeTiles": 22,
+    "grappleSeconds": 3,
+    "breakTiles": 2.5,
+    "grappleDrag": 0.4,
+    "warnTiles": 30,
+    "escapeTiles": 36,
     "escapeSeconds": 8,
     "maxSeconds": 600
+  },
+  "tactics": {
+    "boardCrewRatio": 1.2,
+    "boardBelowSails": 70,
+    "approachTiles": 4
   },
   "guns": {
     "arcDeg": 50,
