@@ -127,6 +127,11 @@ export function createBreezeField(content: ContentPack, def: RasterMapDef, map: 
       const here = d(Math.floor(x), Math.floor(y));
       return here === 0 || here > reach ? 0 : 1 - (here - 1) / reach;
     },
+    /** Tiles of water between here and the nearest coast (Infinity beyond the breezes' reach). */
+    coastTiles(x: number, y: number): number {
+      const here = d(Math.floor(x), Math.floor(y));
+      return here > reach ? Infinity : here;
+    },
     /** The breeze at a water tile, or undefined beyond its reach, on land, or at the turn of the day. */
     at(tick: number, x: number, y: number): Breeze | undefined {
       const tx = Math.floor(x);
@@ -165,15 +170,24 @@ export function createWindField(content: ContentPack, def: RasterMapDef, map: Ti
     const day = state.tick / content.calendar.ticksPerDay;
     const near = (weather.systems ?? []).map((s) => systemWindAt(content, s, x, y, day)).filter((v) => v !== undefined);
     if (!breeze && !near.length) return { fromDeg: zone.fromDeg, strength: zone.strength };
-    // Add the breeze to the zone wind as vectors, blend in each weather system by its weight, then read
-    // back a direction and the nearest strength.
+    // Add the breeze to the zone wind as vectors, then blend in each weather system by its weight: the
+    // direction turns toward the system's, and the strength is the weighted mean of the two. (Adding the
+    // winds as vectors instead would let a system cancel the trades into a calm where they oppose.)
     const to = ((zone.fromDeg + 180) * Math.PI) / 180;
     const m = multipliers[zone.strength]!;
     let east = Math.sin(to) * m + (breeze?.east ?? 0);
     let north = Math.cos(to) * m + (breeze?.north ?? 0);
     for (const v of near) {
-      east = east * (1 - v.weight) + v.east * v.weight;
-      north = north * (1 - v.weight) + v.north * v.weight;
+      const here = Math.hypot(east, north) || 1e-9;
+      const theirs = Math.hypot(v.east, v.north) || 1e-9;
+      let de = (east / here) * (1 - v.weight) + (v.east / theirs) * v.weight;
+      let dn = (north / here) * (1 - v.weight) + (v.north / theirs) * v.weight;
+      // Dead against each other at an even blend: the stronger hand sets the direction.
+      if (Math.hypot(de, dn) < 1e-6) [de, dn] = v.weight >= 0.5 ? [v.east / theirs, v.north / theirs] : [east / here, north / here];
+      const mag = here * (1 - v.weight) + theirs * v.weight;
+      const len = Math.hypot(de, dn);
+      east = (de / len) * mag;
+      north = (dn / len) * mag;
     }
     const speed = Math.hypot(east, north);
     const strength = levels.reduce((best, l) => (Math.abs(l[1] - speed) < Math.abs(best[1] - speed) ? l : best))[0];

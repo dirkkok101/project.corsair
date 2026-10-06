@@ -1,4 +1,4 @@
 {
-  "$comment": "Game time, PRD section 2. A day lasts about as long as a brig's real day's run (~90 tiles at ~2.5 tiles/s): 1080 ticks at 30 per second is 36 s at 1x, 18 s at the default 2x cruise. Halving the sailing pace doubled the day, so voyages, seasons and every rate measured in days are unchanged.",
-  "ticksPerDay": 1080
+  "$comment": "Game time, PRD section 2. A day lasts about as long as a brig's real day's run (~115 tiles at ~4.5 tiles/s): 771 ticks at 30 per second is about 26 s at 1x, 13 s at the default 2x cruise. The sailing pace is 0.7 of the original, so the day is 1/0.7 as long and voyages, seasons and every rate measured in days are unchanged.",
+  "ticksPerDay": 771
 }

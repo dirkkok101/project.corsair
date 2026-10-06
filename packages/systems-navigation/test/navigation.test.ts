@@ -293,12 +293,27 @@ describe('intercept', () => {
   });
 
   it('beats toward a ship lying dead to windward instead of heading into irons', () => {
-    const sim = withTarget(0, { x: 200, y: 160 }, 0, 0);
-    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'intercept', targetId: 'ai.1' });
-    sim.step(5 * TICKS_PER_SECOND);
-    const me = sim.state.ships.player!;
+    // Far enough upwind that the 20 s below are all beating, not circling her on arrival.
+    const sim = withTarget(0, { x: 200, y: 120 }, 0, 0);
     const off = bestUpwindDeg(content.polars['polar.square']!);
-    expect(Math.min(offBy(me.headingDeg, off), offBy(me.headingDeg, 360 - off))).toBeLessThan(1);
-    expect(offBy(me.headingDeg, bearing(me, sim.state.ships['ai.1']!))).toBeGreaterThan(20);
+    const apart = () => Math.hypot(sim.state.ships['ai.1']!.x - sim.state.ships.player!.x, sim.state.ships['ai.1']!.y - sim.state.ships.player!.y);
+    const start = apart();
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'intercept', targetId: 'ai.1' });
+    // Out of irons first (she starts head to wind). After that she beats close-hauled, passing through
+    // the wind only as she tacks, and makes ground toward her.
+    sim.step(3 * TICKS_PER_SECOND);
+    let inIrons = 0;
+    let closeHauled = 0;
+    const ticks = 20 * TICKS_PER_SECOND;
+    for (let t = 0; t < ticks; t++) {
+      sim.step();
+      const offWind = angleOffWind(sim.state.ships.player!.headingDeg, 0);
+      if (offWind < off - 15) inIrons++;
+      if (Math.abs(offWind - off) < 3) closeHauled++;
+    }
+    console.log('INTERCEPT upwind: in irons', (inIrons / ticks).toFixed(2), 'close-hauled', (closeHauled / ticks).toFixed(2), 'gained', (start - apart()).toFixed(1));
+    expect(inIrons / ticks).toBeLessThan(0.15);
+    expect(closeHauled / ticks).toBeGreaterThan(0.6);
+    expect(apart()).toBeLessThan(start - 10);
   });
 });

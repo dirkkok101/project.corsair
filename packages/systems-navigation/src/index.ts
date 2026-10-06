@@ -135,10 +135,11 @@ export function createNavigationSystem(
           const want = normalizeDeg((Math.atan2(ax - ship.x, -(ay - ship.y)) * 180) / Math.PI);
           if (angleOffWind(want, wind.fromDeg) >= off) goal = want;
           else {
-            // Upwind of us: beat, holding the tack until the other is clearly nearer her bearing.
+            // Upwind of us: beat, holding the tack until she lies well over on the other side of the wind (about
+            // 20 degrees past dead upwind), so a near target doesn't set her tacking back and forth.
             const apart = (a: number) => Math.abs(((a - want + 540) % 360) - 180);
             const other: Tack = assist.tack === 'port' ? 'starboard' : 'port';
-            const tack = apart(closeHauled(other)) + 15 < apart(closeHauled(assist.tack)) ? other : assist.tack;
+            const tack = apart(closeHauled(other)) + 40 < apart(closeHauled(assist.tack)) ? other : assist.tack;
             assist = { ...assist, tack };
             goal = closeHauled(tack);
           }

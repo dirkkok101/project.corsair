@@ -47,6 +47,7 @@ export function sailingMeasures(seed: number, days = 365, pack = content) {
   let samples = 0;
   let east = 0;
   let west = 0;
+  let strength = 0;
   const tpd = content.calendar.ticksPerDay;
   for (let d = 0; d < days; d++) {
     sim.step(tpd);
@@ -54,21 +55,24 @@ export function sailingMeasures(seed: number, days = 365, pack = content) {
       const wind = windAt(sim.state, x, y);
       if (Math.abs(((wind.fromDeg - 90 + 540) % 360) - 180) <= 60) easterly++;
       samples++;
+      strength += pack.navigation.windStrength[wind.strength]!;
       east += madeGood(wind, 90);
       west += madeGood(wind, 270);
     }
   }
   // Time to make a fixed distance goes as 1 / mean speed made good.
-  return { easterlyShare: easterly / samples, eastOverWest: west / east };
+  return { easterlyShare: easterly / samples, eastOverWest: west / east, meanStrength: strength / samples };
 }
 
 describe('sailing measures', () => {
   it('the trades are flavour, not a wall: ground east is a real option', () => {
     const m = sailingMeasures(7);
-    console.log('SAILING easterly share', m.easterlyShare.toFixed(2), 'east/west passage time', m.eastOverWest.toFixed(2));
+    console.log('SAILING easterly share', m.easterlyShare.toFixed(2), 'east/west passage time', m.eastOverWest.toFixed(2), 'mean strength', m.meanStrength.toFixed(2));
     // Easterly about half the time (the trades still lead), and making ground east costs little more than west.
     expect(m.easterlyShare).toBeGreaterThan(0.45);
     expect(m.easterlyShare).toBeLessThan(0.65);
     expect(m.eastOverWest).toBeLessThan(1.25);
+    // Systems turn the wind rather than kill it: as strong on average as the trades alone (0.79).
+    expect(m.meanStrength).toBeGreaterThan(0.76);
   }, 300_000);
 });

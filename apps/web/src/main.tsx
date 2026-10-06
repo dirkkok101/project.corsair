@@ -144,6 +144,9 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
   return groups;
 }
 
+/** Cruising holds at 1x within this many tiles of a coast, or of a port. */
+const HOLD_COAST_TILES = 3;
+const HOLD_PORT_TILES = 5;
 /** A ship this near (tiles) is called out ("Sail ho!") and holds time at 1x. */
 const SAIL_HO_TILES = 15;
 const SAIL_HO_MS = 3500;
@@ -471,7 +474,9 @@ async function main() {
   };
   const timeScale = (inStorm: boolean): { scale: number; held?: string } => {
     const ship = player();
-    const nearLand = breezes.coastNearness(ship.x, ship.y) > 0.4 || harbourNearness(ship.x, ship.y) > 0.3;
+    // Only close in: cruising carries on along a coast, and holds for the last few tiles before land or a port.
+    const nearLand =
+      breezes.coastTiles(ship.x, ship.y) <= HOLD_COAST_TILES || settlements.some((s) => Math.hypot(s.x - ship.x, s.y - ship.y) <= HOLD_PORT_TILES);
     if (ship.docked || wantedSpeed <= 1) return { scale: 1 };
     if (inStorm) return { scale: 1, held: 'storm' };
     if (nearLand) return { scale: 1, held: 'near land' };

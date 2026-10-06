@@ -21,8 +21,8 @@
     "fadeDays": 1,
     "maxBlend": 0.95,
     "strength": {
-      "low": { "fresh": 0.6, "strong": 0.4 },
-      "high": { "light": 0.6, "fresh": 0.4 }
+      "low": { "fresh": 0.5, "strong": 0.5 },
+      "high": { "light": 0.3, "fresh": 0.7 }
     }
   },
   "storms": {
