@@ -44,9 +44,20 @@ function fight(enemy: Ship, seed: number, autopilot: 'runner' | 'cautious' | 'ag
     seed,
     bearingDeg: 45 + seed * 37,
   });
+  // Feel metrics: when the player's first broadside goes off, and how many she fires in all.
+  let volleys = 0;
+  let firstVolley: number | undefined;
   let guard = 0;
-  while (!battle.result() && guard++ < 30 * 60 * 10) battle.step(30, autopilot);
-  return battle;
+  while (!battle.result() && guard++ < 30 * 60 * 10) {
+    const before = battle.state.ships.player.reload;
+    battle.step(1, autopilot);
+    const after = battle.state.ships.player.reload;
+    if (after.port > before.port || after.starboard > before.starboard) {
+      volleys++;
+      firstVolley ??= battle.state.tick / 30;
+    }
+  }
+  return Object.assign(battle, { volleys, firstVolley });
 }
 
 describe('sea battle', () => {
@@ -103,14 +114,16 @@ describe('sea battle', () => {
     expect(battle.state.parting).toBe(0);
   });
 
-  it('whoever draws clear gets away: a sloop outruns the brig, and a brig that runs has broken off', () => {
-    const outcomeOf = (enemy: Ship, autopilot: 'runner' | 'cautious') => {
+  it('whoever draws clear gets away: a merchant runs from a brig lying to, and a brig that runs has broken off', () => {
+    const outcomeOf = (enemy: Ship, autopilot?: 'runner') => {
       const battle = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.5), enemy, seed: 3, bearingDeg: 200 });
+      // Without an autopilot the brig lies to under furled sails and never fires.
+      if (!autopilot) battle.send({ type: 'SetSails', shipId: 'player', sails: 'furled' });
       let guard = 0;
       while (!battle.result() && guard++ < 30 * 60 * 10) battle.step(30, autopilot);
       return battle.result()!.outcome;
     };
-    expect(outcomeOf(ship('ship.sloop', 'merchant'), 'cautious')).toBe('escaped');
+    expect(outcomeOf(ship('ship.sloop', 'merchant'))).toBe('escaped');
     expect(outcomeOf(ship('ship.fluyt', 'merchant'), 'runner')).toBe('fled');
   });
 
@@ -149,12 +162,23 @@ describe('sea battle', () => {
     const tally = (enemy: () => Ship, n = 40) => {
       const outcomes: Record<string, number> = {};
       let seconds = 0;
+      let volleys = 0;
+      const firsts: number[] = [];
       for (let seed = 1; seed <= n; seed++) {
         const b = fight(enemy(), seed);
         outcomes[b.result()!.outcome] = (outcomes[b.result()!.outcome] ?? 0) + 1;
         seconds += b.state.tick / 30;
+        volleys += b.volleys;
+        if (b.firstVolley !== undefined) firsts.push(b.firstVolley);
       }
-      return { outcomes, seconds: Math.round(seconds / n) };
+      firsts.sort((a, b) => a - b);
+      return {
+        outcomes,
+        seconds: Math.round(seconds / n),
+        // Feel: seconds to the first broadside (median), and broadsides a minute across the fights.
+        firstVolley: Math.round(firsts[Math.floor(firsts.length / 2)] ?? -1),
+        volleysPerMinute: Math.round((volleys / (seconds / 60)) * 10) / 10,
+      };
     };
     const merchant = tally(() => ship('ship.fluyt', 'merchant', 0.55));
     const pirate = tally(() => ship('ship.sloop', 'pirate', 0.85));

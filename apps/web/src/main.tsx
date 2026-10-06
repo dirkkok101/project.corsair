@@ -481,7 +481,16 @@ async function main() {
         if (!audioFailed) console.error('battle audio failed', err);
         audioFailed = true;
       }
-      renderer.renderBattle(bs, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, sim.state.ships[fight.targetId]?.ai?.nation);
+      const guns = content.combat.guns;
+      const arcs = bs.result
+        ? undefined
+        : {
+            arcDeg: guns.arcDeg,
+            rangeTiles: content.combat.ammo[bs.ships.player.ammo]!.short ? guns.grapeTiles : guns.rangeTiles,
+            port: fight.battle.aim('port'),
+            starboard: fight.battle.aim('starboard'),
+          };
+      renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, sim.state.ships[fight.targetId]?.ai?.nation);
       const them = sim.state.ships[fight.targetId];
       const me = player();
       const needed = (content.ships[me.classId]!.guns * content.combat.guns.crewPerGun) / 2;

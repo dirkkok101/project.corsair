@@ -25,6 +25,9 @@ export interface BattleViewState {
   ships: { player: BattleViewShip; enemy: BattleViewShip };
   shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number }[];
   effects: { kind: 'smoke' | 'splash' | 'hit' | 'sail'; x: number; y: number; at: number }[];
+  /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
+   * whether each broadside can fire now (as the battle's aim reports it). */
+  arcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
 }
 
 const EFFECT_SECONDS = 0.6;
@@ -39,6 +42,8 @@ const SPLASH = 0xebede9;
 const SPLINTER = 0xde9e41;
 const CANVAS = 0xe7d5b3;
 const BALL = 0x090a14;
+const GOLD = 0xe8c170;
+const PALE = 0xebede9;
 
 export function createBattleView(
   content: ContentPack,
@@ -52,12 +57,13 @@ export function createBattleView(
   const terrain = new Container();
   const sprites = { player: new Sprite(), enemy: new Sprite() };
   const fx = new Graphics();
+  const arcs = new Graphics();
   // The world's ship sprites at the world's zoom, or the 192 px combat set close up (combat.json battle.sprites).
   const combatSet = content.combat.battle.sprites === 'combat';
   // Colours at the masthead: the cell size over the same 3.7-unit framing.
   const pennants = combatSet ? createPennants(192 / 3.7, [12, 8]) : createPennants();
   view.addChild(water, world);
-  world.addChild(terrain, sprites.enemy, sprites.player, pennants.view, fx);
+  world.addChild(terrain, arcs, sprites.enemy, sprites.player, pennants.view, fx);
   // Chunks stay cached between fights over the same world; insertion order doubles as LRU order.
   let painted: Uint8Array | undefined;
   const chunks = new Map<string, Sprite | null>();
@@ -146,6 +152,24 @@ export function createBattleView(
         }),
         nowMs / 1000,
       );
+
+      // Firing arcs on the water, so the player steers to put her inside one: gold when that broadside
+      // can fire, a gold edge when she bears but is out of reach, faint otherwise.
+      arcs.clear();
+      if (state.arcs) {
+        const r = state.arcs.rangeTiles * ts;
+        for (const side of ['port', 'starboard'] as const) {
+          const aim = state.arcs[side];
+          const beam = p.headingDeg + (side === 'starboard' ? 90 : -90);
+          // Compass degrees (clockwise from north) to the canvas's radians (clockwise from east).
+          const from = ((beam - state.arcs.arcDeg - 90) * Math.PI) / 180;
+          const to = ((beam + state.arcs.arcDeg - 90) * Math.PI) / 180;
+          arcs.moveTo(p.x * ts, p.y * ts).arc(p.x * ts, p.y * ts, r, from, to).closePath();
+          if (aim === 'ready') arcs.fill({ color: GOLD, alpha: 0.22 }).stroke({ width: 1, color: GOLD, alpha: 0.8 });
+          else if (aim === 'out-of-range') arcs.fill({ color: PALE, alpha: 0.06 }).stroke({ width: 1, color: GOLD, alpha: 0.6 });
+          else arcs.fill({ color: PALE, alpha: aim === 'loading' ? 0.03 : 0.07 }).stroke({ width: 1, color: PALE, alpha: 0.15 });
+        }
+      }
 
       fx.clear();
       const now = state.tick / 30;

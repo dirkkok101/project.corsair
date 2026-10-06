@@ -9,7 +9,7 @@
     "minCrew": 30,
     "cargo": 100,
     "speed": 8,
-    "turn": 6,
+    "turn": 7,
     "draft": 2,
     "hull": 85,
     "polar": "polar.square",

@@ -93,10 +93,16 @@ export function battleMap(content: ContentPack, world: TileMap): TileMap {
 
 export function createBattle(content: ContentPack, setup: BattleSetup) {
   const c = content.combat;
-  // Battle pace: the same sailing model, slower, so a crossing takes long enough to fight in.
+  // Battle pace and handling: the same sailing model, slower, so a crossing takes long enough to fight
+  // in, and a ship that keeps her way through a tack.
   const battleContent: ContentPack = {
     ...content,
-    navigation: { ...content.navigation, tilesPerSecondPerSpeedPoint: c.battle.tilesPerSecondPerSpeedPoint },
+    navigation: {
+      ...content.navigation,
+      tilesPerSecondPerSpeedPoint: c.battle.tilesPerSecondPerSpeedPoint,
+      accelPerSecond: c.battle.accelPerSecond,
+      decelPerSecond: c.battle.decelPerSecond,
+    },
   };
   const nav = createNavigationSystem(battleContent, setup.map, () => setup.wind);
   const water = (x: number, y: number) => !isLand(tileAt(setup.map, x, y));

@@ -34,6 +34,8 @@ export const navigationSchema = z.object({
   tilesPerSecondPerSpeedPoint: z.number().positive(),
   turnDegPerSecondPerPoint: z.number().positive(),
   accelPerSecond: z.number().positive(),
+  /** How fast a ship loses way toward a lower speed (as through a tack); accelPerSecond when unset. */
+  decelPerSecond: z.number().positive().optional(),
   sailSettings: z.record(z.enum(['furled', 'half', 'full']), z.number().min(0).max(1)),
   rigTurnFactor: z.record(rig, z.number().positive()),
   windStrength: z.record(windStrength, z.number().min(0)),
@@ -244,6 +246,10 @@ export const combatSchema = z.object({
   battle: z.object({
     /** Battle speed: navigation's tiles per second per speed point, scaled down so a fight is readable. */
     tilesPerSecondPerSpeedPoint: z.number().positive(),
+    /** Battle handling: how fast a ship gathers way, and the slower rate she loses it, so she carries
+     * her way through a tack instead of stopping dead. */
+    accelPerSecond: z.number().positive(),
+    decelPerSecond: z.number().positive(),
     /** The battle is fought on the world map itself, drawn at tileSize px a tile with the ships' world
      * sprites (the ocean map's own zoom), or close up with their 192 px combat set. */
     tileSize: z.number().int().positive(),

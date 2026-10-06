@@ -101,7 +101,9 @@ export function createNavigationSystem(
     const cls = content.ships[ship.classId]!;
     const wind = windAt(state, ship.x, ship.y);
     const target = targetSpeed(content, ship, wind);
-    const speed = ship.speed + (target - ship.speed) * Math.min(1, nav.accelPerSecond * dt);
+    // Way is gathered at accelPerSecond and, where set, lost more slowly: a ship carries her way.
+    const rate = target < ship.speed ? (nav.decelPerSecond ?? nav.accelPerSecond) : nav.accelPerSecond;
+    const speed = ship.speed + (target - ship.speed) * Math.min(1, rate * dt);
     const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]!;
     let headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);
     if (ship.assist) {
