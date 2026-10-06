@@ -1,0 +1,15 @@
+id: duel.bg.merchant
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, a side view across the deck of a 1660s sailing ship at sea. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up.
+  
+  Side view, the camera level with the deck, looking across it to the far rail and the open sea. The deck planks run the full width along the bottom third; keep the middle band of the picture (from the planks up to about two-thirds of the height) clear of anything taller than a barrel, because two fighters and their crews will stand there. The near rail runs along the very bottom edge. A mast rises at the left or right edge, not in the middle. Sky and sea above the far rail. Midday light.
+  
+  A broad-beamed merchant fluyt: a wide deck with cargo hatches, barrels and crates lashed down, a ship's boat on the skids, the high rounded stern rising at one edge.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass. Kept frame is an Imagine edit of the first generation: the ship's boat was moved from the water onto skids beside the stern, and barrels, crates and a hatch were placed at the left edge."

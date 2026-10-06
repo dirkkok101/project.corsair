@@ -1,0 +1,13 @@
+id: duel.bg.courtyard
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, a side view inside a colonial Caribbean fort in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up.
+  
+  A fort courtyard in side view: worn flagstones along the bottom third, the stone rampart across the back with cannon embrasures, a heavy timber gate at one side, a watchtower at the other, palm tops and blue sky over the wall. Keep the middle band clear for fighters. The flagpole is bare (the game flies the owner's flag).
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass. Kept frame is an Imagine edit of the first generation: a dotted seam was removed from the sky, and the bare flagpole was set behind the rampart so the courtyard floor stays empty."

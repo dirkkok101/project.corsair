@@ -1,0 +1,13 @@
+id: dance.bg.ballroom
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, the ballroom of a colonial governor's mansion in the 1660s, evening. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up.
+  
+  A candlelit ballroom: a polished wooden or tiled floor across the lower half, a great chandelier, tall windows onto a dark garden and palms, a small band of musicians on a dais at the back, guests in period dress standing along the walls in small groups. Keep the centre of the floor empty and well lit: the player and partner dance there. Warm candle colours against cool night blues.
+seed: ""
+kept: [v1]
+hand_changes: ""

@@ -1,0 +1,13 @@
+id: fate.merchant
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art vignette, 4:3, a simple scene in a 1660s Caribbean port. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up. No people in the scene.
+  
+  A warehouse door on a busy quay: a stout timber door with iron hinges, sacks and barrels stacked beside it, a hanging lantern, a ledger on a crate.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass. Kept frame is an Imagine edit of the first generation: the open ledger was closed to a blank cover."

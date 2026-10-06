@@ -1,0 +1,13 @@
+id: fate.governor
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art vignette, 4:3, a simple scene in a 1660s Caribbean port. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up. No people in the scene.
+  
+  The door of a fine colonial mansion: carved stone doorway, a coat of arms above it without any letters, potted palms, marble steps, warm light from within.
+seed: ""
+kept: [v1]
+hand_changes: ""
