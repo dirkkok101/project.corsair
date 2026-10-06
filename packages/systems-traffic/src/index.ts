@@ -19,8 +19,12 @@ type Settlement = PlacedSettlement;
 type Rng = ReturnType<typeof rngStream>;
 type Role = AiCaptain['role'];
 const ROLES: Role[] = ['merchant', 'patrol', 'pirate'];
-/** Pirates lurk this far along the lane toward their mark, then turn for home. */
-const LURK_AT = 0.6;
+/** A chaser changes tack only when the other tack points this much nearer the player. */
+const TACK_MARGIN_DEG = 25;
+/** Pirates' interest in a port halves this far (in tiles) from their haven. */
+const PIRATE_RANGE_TILES = 180;
+/** Pirates lurk somewhere in this stretch of the lane toward their mark (as shares of it), then turn for home. */
+const LURK_AT: [number, number] = [0.3, 0.8];
 /** The news a ship picks up in port: the freshest few. */
 const NEWS_CARRIED = 3;
 
@@ -65,8 +69,12 @@ export function createTrafficSystem(
     const here = byId.get(ai.from)!;
     const reachable = (s: Settlement) => s.id !== here.id && Boolean(lanes.route(here.id, s.id));
     if (ai.role === 'pirate') {
+      // Pirates stalk the lanes near home: bigger ports draw them, distance puts them off.
+      const size = { hamlet: 1, town: 2, city: 4 } as const;
       const marks = settlements.filter((s) => !isHaven(s) && reachable(s));
-      return { to: marks[Math.floor(rng.float() * marks.length)], good: undefined };
+      const weights = Object.fromEntries(marks.map((s) => [s.id, size[s.size] / (1 + Math.hypot(s.x - here.x, s.y - here.y) / PIRATE_RANGE_TILES)]));
+      const pick = marks.length ? rng.weighted(weights) : undefined;
+      return { to: marks.find((s) => s.id === pick), good: undefined };
     }
     if (ai.role === 'patrol') {
       const own = settlements.filter((s) => s.nation === ai.nation && !isHaven(s) && reachable(s));
@@ -100,7 +108,7 @@ export function createTrafficSystem(
     let route = lanes.route(ai.from, to.id)!;
     if (ai.role === 'pirate') {
       // Out toward the mark only part way, to lurk on the lane.
-      const stop = routeLength(route) * LURK_AT;
+      const stop = routeLength(route) * rng.range(LURK_AT[0], LURK_AT[1]);
       const end = pointAlong(route, stop);
       const keep: [number, number][] = [route[0]!];
       let run = 0;
@@ -149,11 +157,12 @@ export function createTrafficSystem(
     const ai = ship.ai!;
     const wait = tick + Math.round(rng.range(t.portDays[0], t.portDays[1]) * tpd);
     if (ai.role === 'pirate' && !isHaven(byId.get(ai.to)!)) {
-      // Lurked long enough on the lane: head back the way it came, to the haven it left.
+      // On her lurking spot: lie in wait on the lane, then head back the way she came, to her haven.
+      const lurk = tick + Math.round(rng.range(t.lurkDays[0], t.lurkDays[1]) * tpd);
       const back = [...ai.route].reverse();
       return {
         state,
-        ship: { ...ship, speed: 0, ai: { ...ai, to: ai.from, route: back, along: 0, offset: 0, waitUntil: wait } },
+        ship: { ...ship, speed: 0, ai: { ...ai, to: ai.from, route: back, along: 0, offset: 0, waitUntil: lurk } },
         events: [],
       };
     }
@@ -182,6 +191,28 @@ export function createTrafficSystem(
   };
 
   /** One tick down the lane: on the lane when the wind allows, tacking about it when the lane runs to windward. */
+  /** Degrees a ship of this class turns in a second: the same rate the player's ship turns at. */
+  const turnRate = (ship: Ship) => {
+    const cls = content.ships[ship.classId]!;
+    return cls.turn * content.navigation.turnDegPerSecondPerPoint * content.navigation.rigTurnFactor[cls.rig]!;
+  };
+  /** Swing from one heading toward another, no faster than `maxStep` degrees. */
+  const steerToward = (from: number, to: number, maxStep: number) => {
+    const diff = ((to - from + 540) % 360) - 180;
+    return normalizeDeg(from + Math.max(-maxStep, Math.min(maxStep, diff)));
+  };
+  /** Land within `tiles` ahead on a heading. */
+  const landAhead = (x: number, y: number, deg: number, tiles: number) => {
+    const r = (deg * Math.PI) / 180;
+    for (let k = 1; k <= tiles; k++) if (!water(x + Math.sin(r) * k, y - Math.cos(r) * k)) return true;
+    return false;
+  };
+
+  /**
+   * One tick down the lane: on the lane when the wind allows, tacking about it when the lane runs to
+   * windward. Long boards (up to tackTiles off the lane, shorter where land is near), and the ship
+   * turns at her class's rate, losing way as she comes through the wind, rather than snapping round.
+   */
   const sail = (state: WorldState, ship: Ship, dt: number): Ship => {
     const ai = ship.ai!;
     const total = routeLength(ai.route);
@@ -190,28 +221,32 @@ export function createTrafficSystem(
     const best = bestUpwind.get(content.ships[ship.classId]!.polar) ?? 45;
     const off = angleOffWind(lane.deg, wind.fromDeg);
     let { offset, tackSign } = ai;
-    let heading = lane.deg;
+    const closeHauled = (sign: 1 | -1) => normalizeDeg(wind.fromDeg + sign * best);
+    let desired = lane.deg;
     if (off < best) {
-      // Close-hauled on the current tack: the course `best` off the wind on that side of the lane.
-      heading = normalizeDeg(wind.fromDeg + tackSign * best);
-    } else if (offset !== 0) {
+      // Come about at the edge of the corridor, or when the board would run her ashore.
+      const atEdge = Math.abs(offset) >= t.tackTiles && Math.sign(offset) === Math.sign(Math.sin(((closeHauled(tackSign) - lane.deg) * Math.PI) / 180));
+      if (atEdge || landAhead(ship.x, ship.y, closeHauled(tackSign), 2)) tackSign = tackSign === 1 ? -1 : 1;
+      desired = closeHauled(tackSign);
+    } else if (Math.abs(offset) > 0.05) {
       // Back onto the lane at a gentle angle once it frees.
-      heading = normalizeDeg(lane.deg - Math.sign(offset) * 15);
+      desired = normalizeDeg(lane.deg - Math.sign(offset) * 20);
     }
+    const heading = steerToward(ship.headingDeg, desired, turnRate(ship) * dt);
     const speed = targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind);
     const rel = ((heading - lane.deg) * Math.PI) / 180;
     const along = Math.min(total, ai.along + Math.max(0, Math.cos(rel)) * speed * dt);
     offset += Math.sin(rel) * speed * dt;
-    if (off >= best && Math.abs(offset) < speed * dt) offset = 0;
+    if (off >= best && Math.abs(offset) <= 0.05) offset = 0;
     const at = pointAlong(ai.route, along);
     // Right of the lane in compass terms: the lane's direction turned 90 degrees clockwise.
     const nr = (at.deg * Math.PI) / 180;
     let x = at.x + Math.cos(nr) * offset;
     let y = at.y + Math.sin(nr) * offset;
-    if (Math.abs(offset) >= t.tackTiles || !water(x, y)) {
-      // Come about: at the edge of the corridor, or about to touch land.
+    if (!water(x, y)) {
+      // Touching land after all: pull in toward the lane (which is water) and stand off the other way.
+      offset *= 0.5;
       tackSign = tackSign === 1 ? -1 : 1;
-      offset = Math.max(-t.tackTiles, Math.min(t.tackTiles, offset)) * (water(x, y) ? 1 : 0.5);
       x = at.x + Math.cos(nr) * offset;
       y = at.y + Math.sin(nr) * offset;
       if (!water(x, y)) [x, y, offset] = [at.x, at.y, 0];
@@ -225,26 +260,39 @@ export function createTrafficSystem(
   const hunts = (state: WorldState, ship: Ship) =>
     ship.ai!.role === 'pirate' || (ship.ai!.role === 'patrol' && standingWith(state, ship.ai!.nation) <= cb.standing.hostile);
 
-  /** Close on the player: straight at them where the wind allows, tacking toward them where it doesn't; never onto land. */
+  /**
+   * Close on the player: straight at them where the wind allows, close-hauled toward them where it
+   * doesn't. She holds her tack until the other is clearly better (no flip-flopping), turns at her
+   * class's rate, and never sails onto land.
+   */
   const pursue = (state: WorldState, ship: Ship, player: Ship, dt: number): Ship => {
+    const ai = ship.ai!;
     const wind = windAt(state, ship.x, ship.y);
     const best = bestUpwind.get(content.ships[ship.classId]!.polar) ?? 45;
-    let heading = normalizeDeg((Math.atan2(player.x - ship.x, -(player.y - ship.y)) * 180) / Math.PI);
-    if (angleOffWind(heading, wind.fromDeg) < best) {
-      const a = normalizeDeg(wind.fromDeg + best);
-      const b = normalizeDeg(wind.fromDeg - best);
-      const off = (h: number) => Math.abs(((h - heading + 540) % 360) - 180);
-      heading = off(a) <= off(b) ? a : b;
+    const toPlayer = normalizeDeg((Math.atan2(player.x - ship.x, -(player.y - ship.y)) * 180) / Math.PI);
+    const apart = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    let tackSign = ai.tackSign;
+    let desired = toPlayer;
+    if (angleOffWind(toPlayer, wind.fromDeg) < best) {
+      const course = (sign: 1 | -1) => normalizeDeg(wind.fromDeg + sign * best);
+      const other: 1 | -1 = tackSign === 1 ? -1 : 1;
+      if (apart(course(other), toPlayer) + TACK_MARGIN_DEG < apart(course(tackSign), toPlayer)) tackSign = other;
+      desired = course(tackSign);
     }
+    // Land ahead: bear away until the way is clear.
     for (const swing of [0, 30, -30, 60, -60, 90, -90]) {
-      const h = normalizeDeg(heading + swing);
-      const speed = targetSpeed(content, { ...ship, headingDeg: h, sails: 'full' }, wind);
-      const r = (h * Math.PI) / 180;
-      const x = ship.x + Math.sin(r) * speed * dt;
-      const y = ship.y - Math.cos(r) * speed * dt;
-      if (water(x, y)) return { ...ship, x, y, headingDeg: h, speed, sails: 'full' };
+      if (!landAhead(ship.x, ship.y, normalizeDeg(desired + swing), 2)) {
+        desired = normalizeDeg(desired + swing);
+        break;
+      }
     }
-    return { ...ship, speed: 0 };
+    const heading = steerToward(ship.headingDeg, desired, turnRate(ship) * dt);
+    const speed = targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind);
+    const r = (heading * Math.PI) / 180;
+    const x = ship.x + Math.sin(r) * speed * dt;
+    const y = ship.y - Math.cos(r) * speed * dt;
+    if (!water(x, y)) return { ...ship, headingDeg: heading, speed: 0, ai: { ...ai, tackSign } };
+    return { ...ship, x, y, headingDeg: heading, speed, sails: 'full', ai: { ...ai, tackSign } };
   };
 
   /** Back to her lane after a chase: join it at the nearest waypoint she can sail to in a straight line. */

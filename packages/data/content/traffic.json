@@ -1,17 +1,17 @@
 {
-  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share; each role sails one class. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Every ship on screen is drawn; sightTiles (from the player's ship, times nightSight after dark) only decides what the chart and minimap remember, and covers the whole screen with a margin. Hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles. Ships lie in port portDays before sailing on.",
-  "population": 30,
+  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share; each role sails one class. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Every ship on screen is drawn; sightTiles (from the player's ship, times nightSight after dark) only decides what the chart and minimap remember, and covers the whole screen with a margin. Hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles. Ships lie in port portDays before sailing on. Pirates mark ports near their haven (by size, fading with distance) and lie in wait lurkDays on the lane.",
+  "population": 34,
   "roles": {
     "merchant": {
-      "share": 0.6,
+      "share": 0.5,
       "classId": "ship.fluyt"
     },
     "patrol": {
-      "share": 0.2,
+      "share": 0.18,
       "classId": "ship.frigate"
     },
     "pirate": {
-      "share": 0.2,
+      "share": 0.32,
       "classId": "ship.sloop"
     }
   },
@@ -22,7 +22,7 @@
   "nightSight": 1,
   "hailTiles": 3,
   "laneCell": 8,
-  "tackTiles": 1.5,
+  "tackTiles": 6,
   "portDays": [
     1,
     3
@@ -78,5 +78,9 @@
       "Night Rambler",
       "Satisfaction"
     ]
-  }
+  },
+  "lurkDays": [
+    2,
+    5
+  ]
 }

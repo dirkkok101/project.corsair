@@ -315,6 +315,8 @@ export const trafficSchema = z.object({
   laneCell: z.number().int().positive(),
   tackTiles: z.number().min(0),
   portDays: z.tuple([z.number().min(0), z.number().min(0)]),
+  /** How long a pirate lies in wait on a lane before going home. */
+  lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),
   names: z.record(nation, z.array(z.string()).min(1)),
 });
 

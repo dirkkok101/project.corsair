@@ -85,8 +85,8 @@
     ]
   },
   "chase": {
-    "chaseTiles": 14,
-    "giveUpTiles": 24,
+    "chaseTiles": 20,
+    "giveUpTiles": 30,
     "contactTiles": 2.5,
     "calmDays": 2
   },

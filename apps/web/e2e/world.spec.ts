@@ -373,7 +373,7 @@ test('leaving port: E sets sail back to the sea view, pointing out of the harbou
 test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart marks ships seen', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   const count = await page.evaluate(() => Object.values(window.__corsair.state.get('ships') as Record<string, { ai?: unknown }>).filter((s) => s.ai).length);
-  expect(count).toBe(30);
+  expect(count).toBe(34);
 
   // An English merchant sets out from Port Royal; bring the player alongside her.
   const id = await page.evaluate(() => {
