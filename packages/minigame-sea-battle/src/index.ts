@@ -52,6 +52,8 @@ export interface BattleEffect {
 
 export interface BattleState {
   tick: number;
+  /** Seconds the ships have been drawing apart beyond escape range; at battle.escapeSeconds one gets away. */
+  parting: number;
   wind: Wind;
   ships: Record<Side, BattleShip>;
   shots: Shot[];
@@ -71,7 +73,7 @@ export interface BattleSetup {
   player: Ship;
   enemy: Ship;
   seed: number;
-  /** Seat the ships this far apart along this bearing (enemy from player), in battle tiles. */
+  /** Seat the enemy this far apart along this bearing from the player, in battle tiles. */
   bearingDeg: number;
 }
 
@@ -80,27 +82,12 @@ const DT = 1 / TPS;
 const EFFECT_SECONDS = 0.6;
 const AI_THINK_TICKS = 8;
 
-/** The battle map: the world tiles around the meeting, drawn bigger (combat.json battle.tileSize). */
-export function battleMap(content: ContentPack, world: TileMap, cx: number, cy: number): { map: TileMap; originX: number; originY: number } {
-  const b = content.combat.battle;
-  const originX = Math.round(cx - b.widthTiles / 2);
-  const originY = Math.round(cy - b.heightTiles / 2);
-  const tiles = new Uint8Array(b.widthTiles * b.heightTiles);
-  const elevation = new Uint8Array(b.widthTiles * b.heightTiles);
-  for (let y = 0; y < b.heightTiles; y++) {
-    for (let x = 0; x < b.widthTiles; x++) {
-      const wx = originX + x;
-      const wy = originY + y;
-      tiles[y * b.widthTiles + x] = tileAt(world, wx, wy);
-      const inside = wx >= 0 && wy >= 0 && wx < world.width && wy < world.height;
-      elevation[y * b.widthTiles + x] = inside && world.elevation.length ? world.elevation[wy * world.width + wx]! : 0;
-    }
-  }
-  return {
-    map: { width: b.widthTiles, height: b.heightTiles, tileSize: b.tileSize, tiles, elevation, zones: new Uint8Array(0) },
-    originX,
-    originY,
-  };
+/**
+ * The battle map: the world itself, drawn bigger (combat.json battle.tileSize). A battle tile is a
+ * world tile, so the ships fight where they met with the real coasts around them and open sea beyond.
+ */
+export function battleMap(content: ContentPack, world: TileMap): TileMap {
+  return { ...world, tileSize: content.combat.battle.tileSize };
 }
 
 export function createBattle(content: ContentPack, setup: BattleSetup) {
@@ -139,8 +126,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     };
   };
 
-  // The player at the middle of the map; the enemy along the bearing she lay at, on open water.
-  const mid = { x: setup.map.width / 2, y: setup.map.height / 2 };
+  // The player where she met the enemy; the enemy along the bearing she lay at, on open water.
+  const mid = { x: setup.player.x, y: setup.player.y };
   let enemyAt = { x: mid.x, y: mid.y };
   for (let turn = 0; turn < 360; turn += 15) {
     const rad = ((setup.bearingDeg + turn) * Math.PI) / 180;
@@ -152,6 +139,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   }
   let state: BattleState = {
     tick: 0,
+    parting: 0,
     wind: setup.wind,
     ships: {
       player: { ...arm(setup.player, 'player'), x: mid.x, y: mid.y },
@@ -279,7 +267,14 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   };
 
   const end = (outcome: BattleResult['outcome']) => {
-    const strip = (s: BattleShip) => ({ hull: Math.max(0, Math.round(s.hull)), sailCondition: Math.max(0, Math.round(s.sailCondition)), crew: Math.max(0, Math.round(s.crew)) });
+    const strip = (s: BattleShip) => ({
+      hull: Math.max(0, Math.round(s.hull)),
+      sailCondition: Math.max(0, Math.round(s.sailCondition)),
+      crew: Math.max(0, Math.round(s.crew)),
+      x: s.x,
+      y: s.y,
+      headingDeg: s.headingDeg,
+    });
     state = { ...state, result: { outcome, player: strip(state.ships.player), enemy: strip(state.ships.enemy) } };
   };
 
@@ -303,6 +298,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         }
 
         // Sail: the world's navigation at battle pace.
+        const apartBefore = distance();
         const moved = nav.tick({ tick: state.tick, wind: state.wind, ships: state.ships } as unknown as WorldState, DT);
         const ships = moved.state.ships as Record<Side, BattleShip>;
         for (const side of ['player', 'enemy'] as const) {
@@ -310,6 +306,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           ships[side] = { ...s, reload: { port: Math.max(0, s.reload.port - DT), starboard: Math.max(0, s.reload.starboard - DT) } };
         }
         state = { ...state, tick: state.tick + 1, ships };
+        // Beyond escape range the parting clock runs while the gap widens and holds while it closes;
+        // back within range it starts over, so a wide turn never ends a fight by accident.
+        const apart = distance();
+        if (apart <= c.battle.escapeTiles) state = { ...state, parting: 0 };
+        else if (apart > apartBefore) state = { ...state, parting: state.parting + DT };
 
         // Balls land: a hit does its ammo's damage, a miss throws up a splash.
         const flying: Shot[] = [];
@@ -347,7 +348,6 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
 
         const p = state.ships.player;
         const e = state.ships.enemy;
-        const inside = (s: BattleShip) => s.x >= 0 && s.y >= 0 && s.x < setup.map.width && s.y < setup.map.height;
         if (e.hull <= 0) end('sunk');
         else if (p.hull <= 0) end('lost');
         else if (distance() <= c.battle.boardTiles) {
@@ -359,8 +359,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const eLoss = Math.round(e.crew * c.boarding.losses * (ps / (ps + es)));
           state = { ...state, ships: { player: { ...p, crew: p.crew - pLoss }, enemy: { ...e, crew: e.crew - eLoss } } };
           end(won ? 'boarded' : 'lost');
-        } else if (!inside(e) || !inside(p)) end('escaped');
-        else if (seconds() >= c.battle.maxSeconds) end('escaped');
+        } else if (state.parting >= c.battle.escapeSeconds) {
+          // If the player was sailing away from her, the player broke off; otherwise she got away.
+          const rad = (p.headingDeg * Math.PI) / 180;
+          const toward = (Math.sin(rad) * (e.x - p.x) - Math.cos(rad) * (e.y - p.y)) / distance();
+          end(p.speed * toward < 0 ? 'fled' : 'escaped');
+        } else if (seconds() >= c.battle.maxSeconds) end('escaped');
         else if (state.tick % TPS === 0) {
           // Once a second a beaten enemy may haul down her colours.
           const beaten = e.hull < e.hullMax * c.strike.hull || e.crew < e.crewStart * c.strike.crew;

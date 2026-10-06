@@ -7,8 +7,8 @@ import { facingIndex } from './facing';
 import type { FlagNation } from './flags';
 import { paintDeepWater, paintTerrainChunk } from './water';
 
-// The sea battle view (scenes doc S3): the local map at battle scale, the two ships from their
-// 192 px combat sets, balls in flight, and smoke, splashes and splinters drawn as a few pixels, like
+// The sea battle view (scenes doc S3): the world map at battle scale around the fight, the two ships
+// from their 192 px combat sets, balls in flight, and smoke, splashes and splinters drawn as a few pixels, like
 // the wake and spray on the world map. Structural types keep the renderer free of the battle module.
 
 export interface BattleViewShip {
@@ -27,6 +27,11 @@ export interface BattleViewState {
 }
 
 const EFFECT_SECONDS = 0.6;
+// Terrain is painted in chunks as the camera reaches them. Small chunks, since a tile here is 48 px:
+// painting one is quick enough to do in a frame, and at most one off-screen chunk is painted per frame.
+const CHUNK_TILES = 12;
+const PREFETCH_PX = 192;
+const MAX_CHUNKS = 48;
 // Palette colours, so the day/night filter maps them with the rest.
 const SMOKE = 0xc7cfcc;
 const SPLASH = 0xebede9;
@@ -43,14 +48,46 @@ export function createBattleView(
   view.visible = false;
   const water = new TilingSprite({ texture: Texture.from(paintDeepWater()), width: 1, height: 1 });
   const world = new Container();
-  const terrain = new Sprite();
+  const terrain = new Container();
   const sprites = { player: new Sprite(), enemy: new Sprite() };
   const fx = new Graphics();
   // Colours at the masthead at battle scale: 192 px cells over the same 3.7-unit framing.
   const pennants = createPennants(192 / 3.7, [12, 8]);
   view.addChild(water, world);
   world.addChild(terrain, sprites.enemy, sprites.player, pennants.view, fx);
-  let painted: TileMap | undefined;
+  // Chunks stay cached between fights over the same world; insertion order doubles as LRU order.
+  let painted: Uint8Array | undefined;
+  const chunks = new Map<string, Sprite | null>();
+  const ensureChunks = (map: TileMap, viewX: number, viewY: number, viewW: number, viewH: number) => {
+    if (painted !== map.tiles) {
+      for (const chunk of chunks.values()) chunk?.destroy({ texture: true, textureSource: true });
+      chunks.clear();
+      painted = map.tiles;
+    }
+    const chunkPx = CHUNK_TILES * map.tileSize;
+    let prefetchBudget = 1;
+    for (let cy = Math.floor((viewY - PREFETCH_PX) / chunkPx); cy <= Math.floor((viewY + viewH + PREFETCH_PX) / chunkPx); cy++) {
+      for (let cx = Math.floor((viewX - PREFETCH_PX) / chunkPx); cx <= Math.floor((viewX + viewW + PREFETCH_PX) / chunkPx); cx++) {
+        const key = `${cx},${cy}`;
+        let chunk = chunks.get(key);
+        if (chunk === undefined) {
+          const visible = cx * chunkPx < viewX + viewW && (cx + 1) * chunkPx > viewX && cy * chunkPx < viewY + viewH && (cy + 1) * chunkPx > viewY;
+          if (!visible && prefetchBudget-- <= 0) continue;
+          const canvas = paintTerrainChunk(map, cx * CHUNK_TILES, cy * CHUNK_TILES, CHUNK_TILES);
+          chunk = canvas ? new Sprite(Texture.from(canvas)) : null;
+          chunk?.position.set(cx * chunkPx, cy * chunkPx);
+          if (chunk) terrain.addChild(chunk);
+        }
+        chunks.delete(key);
+        chunks.set(key, chunk);
+      }
+    }
+    while (chunks.size > MAX_CHUNKS) {
+      const [oldest, chunk] = chunks.entries().next().value!;
+      chunks.delete(oldest);
+      chunk?.destroy({ texture: true, textureSource: true });
+    }
+  };
 
   const place = (sprite: Sprite, ship: BattleViewShip, ts: number) => {
     const spriteId = content.ships[ship.classId]!.sprites.combat ?? content.ships[ship.classId]!.sprites.world;
@@ -71,19 +108,14 @@ export function createBattleView(
     },
     update(state: BattleViewState, map: TileMap, viewW: number, viewH: number, nowMs: number, enemyFlag?: FlagNation) {
       const ts = map.tileSize;
-      if (painted !== map) {
-        // The battle map is painted once, whole: it is a screen or two across.
-        const canvas = paintTerrainChunk(map, 0, 0, Math.max(map.width, map.height));
-        terrain.texture = canvas ? Texture.from(canvas) : Texture.EMPTY;
-        painted = map;
-      }
       view.visible = true;
       water.width = viewW;
       water.height = viewH;
-      // The camera follows the player's ship, clamped to the battle map.
+      // The camera keeps the player's ship at the centre: the sea runs on in every direction.
       const p = state.ships.player;
-      const cx = Math.max(0, Math.min(map.width * ts - viewW, Math.round(p.x * ts - viewW / 2)));
-      const cy = Math.max(0, Math.min(map.height * ts - viewH, Math.round(p.y * ts - viewH / 2)));
+      const cx = Math.round(p.x * ts - viewW / 2);
+      const cy = Math.round(p.y * ts - viewH / 2);
+      ensureChunks(map, cx, cy, viewW, viewH);
       world.position.set(-cx, -cy);
       water.tilePosition.set(-cx + Math.round(nowMs / 400), -cy);
       place(sprites.enemy, state.ships.enemy, ts);

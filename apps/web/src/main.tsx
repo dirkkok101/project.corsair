@@ -226,15 +226,16 @@ async function main() {
   // A sea battle in progress (PRD section 9.1): world time stands still until its result is applied.
   let fight: { battle: Battle; map: TileMap; targetId: string; acc: number; heardAt: number } | undefined;
   let eventsSeen = 0;
-  /** Cut the battle map from the world where the ships met, and seat them as they lay. */
+  // Fights are sailed on the world map itself, drawn at battle scale.
+  const battleSea = battleMap(content, map);
+  /** Seat the ships as they lay where they met. */
   const startBattle = (targetId: string) => {
     const me = player();
     const them = sim.state.ships[targetId];
     if (!them || fight) return;
-    const { map: local } = battleMap(content, map, me.x, me.y);
     const bearingDeg = ((Math.atan2(them.x - me.x, -(them.y - me.y)) * 180) / Math.PI + 360) % 360;
     const battle = createBattle(content, {
-      map: local,
+      map: battleSea,
       wind: windAt(sim.state, me.x, me.y),
       player: me,
       enemy: them,
@@ -242,7 +243,7 @@ async function main() {
       bearingDeg,
     });
     hailing = undefined;
-    fight = { battle, map: local, targetId, acc: 0, heardAt: -1 };
+    fight = { battle, map: battleSea, targetId, acc: 0, heardAt: -1 };
   };
   /** The result goes into the world as a command, so replays and saves see the fight's outcome. */
   const endBattle = () => {
@@ -492,6 +493,7 @@ async function main() {
           enemyName={them?.ai?.name ?? 'Enemy'}
           enemyTitle={them ? shipTitle(them) : ''}
           reloadSeconds={content.combat.guns.reloadSeconds * Math.max(1, needed / Math.max(1, bs.ships.player.crew))}
+          view={{ w: renderer.canvas.clientWidth, h: renderer.canvas.clientHeight, pxPerTile: content.combat.battle.tileSize * scale }}
           onContinue={endBattle}
         />,
         battleRoot,

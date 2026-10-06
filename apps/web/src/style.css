@@ -1001,6 +1001,52 @@ body {
   width: 90px;
 }
 
+.battle-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  font-size: 12px;
+  color: #e8c170;
+  background: rgb(9 10 20 / 0.75);
+  border: 1px solid #c09473;
+  border-radius: 50%;
+}
+
+/* A triangle pointing right (0 degrees), turned toward the enemy. */
+.battle-marker-arrow {
+  display: block;
+  width: 0;
+  height: 0;
+  margin-bottom: 2px;
+  border-left: 18px solid #e8c170;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+
+.battle-parting {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  background: rgb(9 10 20 / 0.75);
+  border: 1px solid #a53030;
+}
+
+.battle-parting .battle-bar-track {
+  width: 90px;
+}
+
 .battle-keys {
   font-size: 12px;
   color: #819796;

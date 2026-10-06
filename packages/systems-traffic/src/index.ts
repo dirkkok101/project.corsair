@@ -471,15 +471,19 @@ export function createTrafficSystem(
           if (other.ai.role === 'pirate') cargo = {};
           captain = { ...captain, gold: Math.floor(captain.gold / 2) };
         }
+        // The battle was fought on the world map: each ship comes back where the fight left her.
         ships[player.id] = {
           ...player,
+          x: mine.x,
+          y: mine.y,
+          headingDeg: mine.headingDeg,
           cargo,
           paid: beaten && other.ai.role === 'pirate' ? {} : player.paid,
           hull: Math.max(beaten ? Math.ceil(cls.hull * 0.1) : 1, mine.hull),
           sailCondition: Math.max(beaten ? 20 : 0, mine.sailCondition),
           crew: Math.max(beaten ? Math.ceil(cls.minCrew / 2) : 1, mine.crew),
         };
-        if (outcome === 'escaped' || beaten) {
+        if (outcome === 'escaped' || outcome === 'fled' || beaten) {
           // She sails on, mauled, and leaves the player be a while.
           const calmUntil = state.tick + Math.round(cb.chase.calmDays * tpd);
           ships[other.id] = { ...other, ...theirs, ai: { ...other.ai, chasing: false, calmUntil } };

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
-import type { WorldState } from '@corsair/core';
+import type { BattleResult, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
 import { createEconomySystem, normalStock, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
@@ -112,10 +112,10 @@ describe('fights at sea', () => {
     return { id, near };
   };
   const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
-  const result = (outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'lost') => ({
+  const result = (outcome: BattleResult['outcome'], at = { x: 0, y: 0 }) => ({
     outcome,
-    player: { hull: 60, sailCondition: 80, crew: 50 },
-    enemy: { hull: 10, sailCondition: 40, crew: 9 },
+    player: { hull: 60, sailCondition: 80, crew: 50, x: at.x, y: at.y, headingDeg: 90 },
+    enemy: { hull: 10, sailCondition: 40, crew: 9, x: at.x + 17, y: at.y, headingDeg: 90 },
   });
 
   it('a pirate that sights the player gives chase and closes to battle', () => {
@@ -170,6 +170,20 @@ describe('fights at sea', () => {
     expect(lose.state.captain!.gold).toBe(Math.floor(gold / 2));
     expect(lose.state.ships[id]).toBeDefined();
   });
+
+  it('breaking off leaves both ships where the fight ended, and the pirate leaves the player be a while', () => {
+    const sim = world(8);
+    const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const at = { x: near.ships.player!.x - 3, y: near.ships.player!.y };
+    const fled = createSim(near, [traffic()]);
+    fled.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('fled', at) });
+    fled.applyCommands();
+    expect(fled.state.ships.player).toMatchObject({ x: at.x, y: at.y, headingDeg: 90 });
+    expect(fled.state.ships[id]).toMatchObject({ x: at.x + 17, y: at.y });
+    expect(fled.state.ships[id]!.ai).toMatchObject({ chasing: false });
+    expect(fled.state.ships[id]!.ai!.calmUntil).toBeGreaterThan(fled.state.tick);
+    expect(fled.state.captain!.gold).toBe(near.captain!.gold);
+  });
 });
 
 describe('nations at war at sea', () => {
@@ -221,7 +235,7 @@ describe('nations at war at sea', () => {
       type: 'BattleEnded',
       shipId: 'player',
       targetId: victim,
-      result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 60 }, enemy: { hull: 5, sailCondition: 50, crew: 4 } },
+      result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 60, x: v.x + 1, y: v.y, headingDeg: 0 }, enemy: { hull: 5, sailCondition: 50, crew: 4, x: v.x, y: v.y, headingDeg: 0 } },
     });
     s2.applyCommands();
     expect(s2.state.captain!.deeds).toEqual([{ nation: 'spain', role: 'merchant', kind: 'taken', tick: s2.state.tick }]);

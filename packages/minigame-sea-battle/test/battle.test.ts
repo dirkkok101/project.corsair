@@ -13,16 +13,16 @@ const world = decodeRasterMap(def, {
   elevation: readFileSync(dir + def.layers.elevation),
   zones: readFileSync(dir + def.layers.zones),
 });
+const map = battleMap(content, world);
 // Open water south of Jamaica, so fights here are about seamanship, not coastlines.
-const { map } = battleMap(content, world, 880, 680);
+const SEA = { x: 880, y: 680 };
 
 const ship = (classId: string, role?: 'merchant' | 'patrol' | 'pirate', crewShare?: number): Ship => {
   const cls = content.ships[classId]!;
   return {
     id: 'x',
     classId,
-    x: 0,
-    y: 0,
+    ...SEA,
     headingDeg: 90,
     speed: 0,
     helm: 0,
@@ -56,6 +56,62 @@ describe('sea battle', () => {
     const b = fight(ship('ship.sloop', 'pirate', 0.8), 4);
     expect(b.result()).toEqual(a.result());
     expect(b.state.tick).toBe(a.state.tick);
+  });
+
+  it('is fought on open sea: a ship sails on past where any edge would be while the fight goes on', () => {
+    // Both reaching east on a north wind, the sloop eight tiles ahead and only slowly drawing away.
+    const battle = createBattle(content, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: ship('ship.brig'),
+      enemy: ship('ship.sloop', 'merchant'),
+      seed: 1,
+      bearingDeg: 90,
+    });
+    const start = battle.state.ships.player.x;
+    for (let i = 0; i < 30 * 60 && !battle.result() && battle.state.ships.player.x - start < 40; i++) {
+      battle.send({ type: 'SetHelm', shipId: 'player', helm: 0 });
+      battle.step(1);
+    }
+    expect(battle.result()).toBeUndefined();
+    expect(battle.state.ships.player.blocked).toBe(false);
+    expect(battle.state.ships.player.x - start).toBeGreaterThanOrEqual(40);
+  });
+
+  it('drawing apart only ends a fight that keeps opening: turning back in time keeps it going', () => {
+    const c = content.combat.battle;
+    const battle = createBattle(content, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: ship('ship.brig'),
+      enemy: ship('ship.fluyt', 'merchant'),
+      seed: 2,
+      bearingDeg: 90,
+    });
+    const apart = () => Math.hypot(battle.state.ships.enemy.x - battle.state.ships.player.x, battle.state.ships.enemy.y - battle.state.ships.player.y);
+    // Run until she is out of sight, then come about and chase: the brig is faster than a fluyt.
+    let guard = 0;
+    while (apart() < c.warnTiles && guard++ < 30 * 300) battle.step(1, 'runner');
+    let parted = 0;
+    guard = 0;
+    while (apart() > c.boardTiles * 2 && !battle.result() && guard++ < 30 * 300) {
+      battle.step(1, 'aggressive');
+      parted = Math.max(parted, battle.state.parting);
+    }
+    expect(parted).toBeGreaterThan(0);
+    expect(battle.result()).toBeUndefined();
+    expect(battle.state.parting).toBe(0);
+  });
+
+  it('whoever draws clear gets away: a sloop outruns the brig, and a brig that runs has broken off', () => {
+    const outcomeOf = (enemy: Ship, autopilot: 'runner' | 'cautious') => {
+      const battle = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.5), enemy, seed: 3, bearingDeg: 200 });
+      let guard = 0;
+      while (!battle.result() && guard++ < 30 * 60 * 10) battle.step(30, autopilot);
+      return battle.result()!.outcome;
+    };
+    expect(outcomeOf(ship('ship.sloop', 'merchant'), 'cautious')).toBe('escaped');
+    expect(outcomeOf(ship('ship.fluyt', 'merchant'), 'runner')).toBe('fled');
   });
 
   it('plays matchups with the outcomes the design intends (headless runner)', () => {

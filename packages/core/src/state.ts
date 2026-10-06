@@ -157,12 +157,22 @@ export interface Politics {
 export interface BattleResult {
   /**
    * sunk: the enemy went down with her cargo. struck: she hauled down her colours. boarded: the player
-   * carried her by boarding. escaped: she got away (off the map, or the fight ran out of time).
-   * lost: the player was beaten, boarded or sinking, and struck to her.
+   * carried her by boarding. escaped: she drew clear (or the fight ran out of time). fled: the player
+   * drew clear. lost: the player was beaten, boarded or sinking, and struck to her.
    */
-  outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'lost';
-  player: { hull: number; sailCondition: number; crew: number };
-  enemy: { hull: number; sailCondition: number; crew: number };
+  outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'fled' | 'lost';
+  /** Each side's state at the end, and where she lay: the battle is fought on the world map. */
+  player: BattleEnd;
+  enemy: BattleEnd;
+}
+
+export interface BattleEnd {
+  hull: number;
+  sailCondition: number;
+  crew: number;
+  x: number;
+  y: number;
+  headingDeg: number;
 }
 
 export interface Sighting {

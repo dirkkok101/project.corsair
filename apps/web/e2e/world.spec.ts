@@ -443,6 +443,19 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.evaluate(() => window.__corsair.battle.step(30 * 4, 'cautious'));
   await page.screenshot({ path: 'test-results/battle.png' });
 
+  // Run until she is out of sight: the sea runs on, a marker on the edge points to her, and the HUD warns.
+  await page.evaluate(() => {
+    const apart = () => {
+      const s = window.__corsair.battle.state()!.ships;
+      return Math.hypot(s.enemy.x - s.player.x, s.enemy.y - s.player.y);
+    };
+    for (let i = 0; i < 30 * 60 && apart() < 13 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'runner');
+  });
+  expect(await page.evaluate(() => window.__corsair.battle.result())).toBeUndefined();
+  await expect(page.locator('.battle-marker')).toBeVisible();
+  await expect(page.locator('.battle-parting')).toContainText('Drawing apart');
+  await page.screenshot({ path: 'test-results/battle-apart.png' });
+
   // Fight it out under autopilot.
   const outcome = await page.evaluate(() => {
     for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');

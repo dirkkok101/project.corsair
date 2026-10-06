@@ -244,14 +244,17 @@ export const combatSchema = z.object({
   battle: z.object({
     /** Battle speed: navigation's tiles per second per speed point, scaled down so a fight is readable. */
     tilesPerSecondPerSpeedPoint: z.number().positive(),
-    /** The battle map, in world tiles around the meeting, drawn at tileSize px a tile. */
-    widthTiles: z.number().int().positive(),
-    heightTiles: z.number().int().positive(),
+    /** The battle is fought on the world map itself, drawn at tileSize px a tile. */
     tileSize: z.number().int().positive(),
     /** How far apart the ships start, in battle tiles. */
     startApart: z.number().positive(),
     /** Hulls this close (tiles) touch: boarding. */
     boardTiles: z.number().positive(),
+    /** Past warnTiles apart the HUD warns the ships are drawing apart; past escapeTiles, a gap that
+     * keeps widening for escapeSeconds ends the fight with one of them away. */
+    warnTiles: z.number().positive(),
+    escapeTiles: z.number().positive(),
+    escapeSeconds: z.number().positive(),
     /** A fight longer than this (seconds) ends with the enemy slipping away. */
     maxSeconds: z.number().positive(),
   }),
