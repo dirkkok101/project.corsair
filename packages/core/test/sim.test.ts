@@ -26,4 +26,9 @@ describe('hashState', () => {
     expect(hashState({ a: 1, b: 0.1 + 0.2 })).toBe(hashState({ b: 0.3, a: 1 }));
     expect(hashState({ a: 1 })).not.toBe(hashState({ a: 1.001 }));
   });
+
+  it('hashes a state the same before and after a save (a JSON round trip drops undefined fields)', () => {
+    const state = { ship: { waitUntil: undefined, route: [1, undefined] }, tick: 3 };
+    expect(hashState(JSON.parse(JSON.stringify(state)))).toBe(hashState(state));
+  });
 });

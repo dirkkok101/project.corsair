@@ -4,10 +4,13 @@ const PRECISION = 1e6;
 
 function stable(value: unknown): string {
   if (typeof value === 'number') return String(Math.round(value * PRECISION) / PRECISION);
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  // Hash what a save keeps: JSON drops undefined fields and writes undefined array slots as null, so a
+  // state hashes the same before saving and after loading.
+  if (Array.isArray(value)) return `[${value.map((v) => (v === undefined ? 'null' : stable(v))).join(',')}]`;
   if (value && typeof value === 'object') {
     const obj = value as Record<string, unknown>;
     return `{${Object.keys(obj)
+      .filter((k) => obj[k] !== undefined)
       .sort()
       .map((k) => `${JSON.stringify(k)}:${stable(obj[k])}`)
       .join(',')}}`;
