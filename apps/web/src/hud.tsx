@@ -175,7 +175,7 @@ export function Hud({
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
       {saved ? <div class="hud-saved">Saved</div> : null}
-      <div class="hud-keys">Left-click: sail there · Right-click: hail, enter port or stop · A/D steer · W/S sails · I intercept · M chart · E port · =/- cruise · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · I intercept · H hail · M chart · E port · =/- cruise · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

@@ -147,6 +147,8 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
   return groups;
 }
 
+/** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
+const MOUSE_CONTROLS = false;
 /** How often a course checks its way is still clear, and re-plots it if not. */
 const REPLAN_MS = 1000;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
@@ -399,7 +401,7 @@ async function main() {
     const [ex, ey] = port ? [port.x, port.y] : to;
     sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: ex, y: ey, portId: port?.id, route: port ? route.slice(1) : route.slice(1, -1) });
   };
-  bindMouse(renderer.canvas, {
+  if (MOUSE_CONTROLS) bindMouse(renderer.canvas, {
     toTile(px, py) {
       const view = renderer.view();
       if (fight) {
@@ -767,7 +769,6 @@ async function main() {
       renderer.camera(),
       renderer.view(),
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
-      { at: (x, y) => windAt(sim.state, x, y), strength: content.navigation.windStrength },
     );
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
@@ -908,9 +909,9 @@ async function main() {
                   : courseNote && now < courseNote.until
                     ? courseNote.text
                     : intercepting?.ai
-                      ? `Intercepting the ${intercepting.ai.name} · right-click to stop`
+                      ? `Intercepting the ${intercepting.ai.name} · I to stop`
                       : ship.assist?.mode === 'course'
-                        ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · right-click to stop`
+                        ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
                         : undefined
         }
         timeScale={cruise.held ? cruise.held : speedNow > 1 ? speedNow : undefined}

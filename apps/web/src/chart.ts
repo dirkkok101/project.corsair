@@ -1,5 +1,5 @@
-import type { KnownPrices, Ship, Sighting, Wind } from '@corsair/core';
-import { isLand, Tile, tileAt } from '@corsair/data';
+import type { KnownPrices, Ship, Sighting } from '@corsair/core';
+import { Tile } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
 
 // The map at one pixel per tile, palette colours shaded by elevation. The minimap crops it and
@@ -17,8 +17,6 @@ const RELIEF_PER_BAND = 14; // brightness change per elevation band of slope, li
 const MINIMAP_TILES = { w: 240, h: 135 };
 /** How long a sighted ship's marker lingers on the chart, in game days. */
 const SIGHTING_DAYS = 3;
-/** Tiles between wind arrows on the sea chart. */
-const WIND_STEP = 60;
 
 const NATION_COLOURS: Record<PlacedSettlement['nation'], string> = {
   spain: '#e8c170',
@@ -119,41 +117,6 @@ export function createCharts(
   sheet.className = 'chart-sheet';
   sheet.style.aspectRatio = `${map.width} / ${map.height}`;
   sheet.appendChild(overview);
-  // The wind across the sea, as the ships feel it: an arrow every WIND_STEP tiles of open water, pointing
-  // where it blows, longer and brighter the stronger it is. Lows and highs show as arrows turning round them.
-  const windLayer = sheet.appendChild(document.createElement('canvas'));
-  windLayer.className = 'chart-wind';
-  windLayer.width = map.width;
-  windLayer.height = map.height;
-  const wctx = windLayer.getContext('2d')!;
-  let windDrawn = -Infinity;
-  const drawWind = (wind: (x: number, y: number) => Wind, strength: Record<string, number>) => {
-    wctx.clearRect(0, 0, map.width, map.height);
-    wctx.lineCap = 'round';
-    for (let y = WIND_STEP / 2; y < map.height; y += WIND_STEP) {
-      for (let x = WIND_STEP / 2; x < map.width; x += WIND_STEP) {
-        if (isLand(tileAt(map, x, y))) continue;
-        const w = wind(x, y);
-        const m = strength[w.strength] ?? 0;
-        if (m <= 0.2) continue;
-        const to = ((w.fromDeg + 180) * Math.PI) / 180;
-        const len = WIND_STEP * 0.45 * m;
-        const ex = x + Math.sin(to) * len;
-        const ey = y - Math.cos(to) * len;
-        wctx.strokeStyle = `rgba(235, 237, 233, ${(0.35 + 0.5 * m).toFixed(2)})`;
-        wctx.lineWidth = 3;
-        wctx.beginPath();
-        wctx.moveTo(x - Math.sin(to) * len * 0.5, y + Math.cos(to) * len * 0.5);
-        wctx.lineTo(ex, ey);
-        // The head: two short barbs back from the tip.
-        for (const side of [-0.5, 0.5]) {
-          wctx.moveTo(ex, ey);
-          wctx.lineTo(ex - Math.sin(to + side) * len * 0.45, ey + Math.cos(to + side) * len * 0.45);
-        }
-        wctx.stroke();
-      }
-    }
-  };
   // Every port gets a dot; its name is placed later by layoutLabels, which needs the chart visible.
   const pins = settlements.map((s) => {
     const dot = sheet.appendChild(document.createElement('div'));
@@ -253,7 +216,6 @@ export function createCharts(
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') {
       chart.hidden = !chart.hidden;
-      windDrawn = -Infinity;
       // A card left from the last look would show stale prices until the pointer moved.
       prices.hidden = true;
       // Prices may have been learned since the chart was last open.
@@ -269,7 +231,6 @@ export function createCharts(
       camera: { x: number; y: number },
       view: { width: number; height: number },
       seen?: { sightings: Record<string, Sighting>; tick: number; ticksPerDay: number },
-      wind?: { at: (x: number, y: number) => Wind; strength: Record<string, number> },
     ) {
       if (!player) return;
       // Minimap: a window on the overview centred on the ship, clamped to the map.
@@ -305,12 +266,6 @@ export function createCharts(
       mctx.globalAlpha = 1;
 
       if (!chart.hidden) {
-        // Redrawn about once a second while the chart is open: the weather moves slowly.
-        const now = performance.now();
-        if (wind && now - windDrawn > 1000) {
-          drawWind(wind.at, wind.strength);
-          windDrawn = now;
-        }
         marker.style.left = `${(player.x / map.width) * 100}%`;
         marker.style.top = `${(player.y / map.height) * 100}%`;
         sighted.innerHTML = marks

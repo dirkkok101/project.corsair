@@ -139,7 +139,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
             </span>
           ))}
         </div>
-        <div class="battle-keys">Left-click: steer there · Right-click: fire (hold to fire as she bears) · Tab shot · A/D steer · board by laying her alongside</div>
+        <div class="battle-keys">Space fire (hold to fire as she bears) · Tab shot · A/D steer · W/S sails · board by laying her alongside</div>
       </div>
       {state.result ? (
         <div class="battle-report">

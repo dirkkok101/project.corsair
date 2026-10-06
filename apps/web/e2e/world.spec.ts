@@ -487,12 +487,7 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
     await page.evaluate(() => window.__corsair.battle.step(1));
   }
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('round');
-  // Mouse in battle: left-click steers her to the point; the panel's shot buttons load it; right-click fires
-  // only what bears (nothing at this range).
-  const battleBox = (await page.locator('canvas').first().boundingBox())!;
-  await page.mouse.click(battleBox.x + battleBox.width / 2 + 250, battleBox.y + battleBox.height / 2 - 150);
-  await page.evaluate(() => window.__corsair.battle.step(1));
-  expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.assist)).toMatchObject({ mode: 'course' });
+  // The ship panel's shot buttons load it too.
   await page.locator('.ship-panel').getByRole('button', { name: /Grape/ }).click();
   await page.evaluate(() => window.__corsair.battle.step(1));
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('grape');
@@ -608,7 +603,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   expect(errors).toEqual([]);
 });
 
-test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x, I intercepts, the chart shows the wind', async ({ page }) => {
+test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x, I intercepts', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // Open water south of Jamaica, away from every coast.
   await page.evaluate(() => {
@@ -645,64 +640,6 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
   await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'intercept', targetId: target });
 
-  await page.keyboard.press('m');
-  const inked = await page.locator('.chart-wind').evaluate(async (c: HTMLCanvasElement) => {
-    await new Promise((r) => setTimeout(r, 200));
-    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-    let n = 0;
-    for (let i = 3; i < d.length; i += 4) if (d[i]! > 0) n++;
-    return n;
-  });
-  expect(inked).toBeGreaterThan(500);
-  await page.screenshot({ path: 'test-results/chart-wind.png' });
   expect(errors).toEqual([]);
 });
 
-test('mouse at sea: left-click sets a course (to the sea, or into a port, docking on arrival), right-click drops it, the panel sets sail', async ({ page }) => {
-  const errors = await boot(page, '/?seed=3');
-  const canvas = page.locator('canvas').first();
-  const box = (await canvas.boundingBox())!;
-  const assist = () => page.evaluate(() => window.__corsair.state.get('ships.player.assist') as { mode: string; portId?: string; route?: unknown[] } | undefined);
-  // Open water south of Jamaica, then click out to sea to the south-east of the ship.
-  await page.evaluate(() => {
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
-    window.__corsair.sim.step(1);
-  });
-  await page.mouse.click(box.x + box.width / 2 + 300, box.y + box.height / 2 + 200);
-  await page.evaluate(() => window.__corsair.sim.step(1));
-  expect(await assist()).toMatchObject({ mode: 'course' });
-  await expect(page.locator('.hud-prompt')).toContainText('Sailing to the mark');
-  await page.screenshot({ path: 'test-results/course.png' });
-  // Right-click on the sea drops the course.
-  await page.mouse.click(box.x + box.width / 2 + 300, box.y + box.height / 2 + 200, { button: 'right' });
-  await page.evaluate(() => window.__corsair.sim.step(1));
-  expect(await assist()).toBeUndefined();
-
-  // Back off Port Royal: click its name on the sea to sail in; the course ends at its berth and docks her.
-  await page.evaluate(() => {
-    const p = window.__corsair.ports().find((x) => x.name === 'Port Royal')!;
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: p.x + 2, y: p.y + 8 });
-    window.__corsair.sim.step(1);
-  });
-  await page.evaluate(() => window.__corsair.sim.step(1));
-  // Labels move on the next frame: wait for it to be on screen.
-  const portLabel = page.locator('.label', { hasText: 'Port Royal' });
-  await expect(portLabel).toBeVisible();
-  const label = (await portLabel.boundingBox())!;
-  await page.mouse.click(label.x + label.width / 2, label.y + label.height / 2);
-  await page.evaluate(() => window.__corsair.sim.step(1));
-  expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.port_royal' });
-  // Let the game run as a player has it (the clock going, the course re-plotted as she goes) until she docks.
-  await page.evaluate(() => window.__corsair.sim.resume());
-  await expect.poll(() => page.evaluate(() => window.__corsair.state.get('ships.player.docked')), { timeout: 45_000 }).toBe('town.port_royal');
-  await page.evaluate(() => window.__corsair.sim.pause());
-  await expect(page.locator('.port-name')).toHaveText('Port Royal');
-
-  // The panel at sea: half sail by click.
-  await page.keyboard.press('e');
-  await page.evaluate(() => window.__corsair.sim.step(1));
-  await page.locator('.ship-panel').getByRole('button', { name: 'Half sail' }).click();
-  await page.evaluate(() => window.__corsair.sim.step(1));
-  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.sails'))).toBe('half');
-  expect(errors).toEqual([]);
-});
