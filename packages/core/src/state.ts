@@ -243,6 +243,8 @@ export type Command =
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
   | { type: 'Repair'; shipId: string }
+  /** Debug: put two nations at war or at peace now. */
+  | { type: 'SetRelation'; a: Nation; b: Nation; war: boolean }
   /** At a governor: buy a letter of marque from his nation, or collect bounties owed for deeds. */
   | { type: 'BuyMarque'; shipId: string }
   | { type: 'CollectBounties'; shipId: string }

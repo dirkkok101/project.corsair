@@ -332,6 +332,7 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 - AI merchants plan routes with a simple arbitrage rule: buy where p is lowest in reach, sell where it is highest, weighted by risk (known pirate activity).
 - Nations run scheduled fleets: the Spanish treasure fleet and the Silver Train (a land convoy) carry silver on fixed seasonal routes in `routes.json`.
 - Captured cargo removed from a merchant never arrives, so the destination's stock drops. The player can observe this in the data (section 16).
+- Built: pirates hunt merchants of every nation and patrols hunt pirates and their nation's enemies (AI ships sight each other at 8 tiles). A meeting settles itself by crew x (1 + guns / 10) x role: the loser is gone, a pirate takes her cargo and purse and goes home with it, and the fight is news (and gun smoke on the water if the player is near). A season sees roughly 6 to 19 merchants taken by pirates.
 - Built (`@corsair/systems-traffic`, `traffic.json`): about 34 AI ships sail at once. Merchants (fluyts, 50%) take the best margin from their port, buying at most 20 units and only while the far port pays 30% over cost, with at most two on any port pair, so they skim a trade rather than flood it; their cargo leaves the origin's stock when bought and reaches the destination's only when the ship does. Patrols (frigates, 18%) sail between their nation's ports. Pirates (sloops, 32%, so 11 at sea) slip out of the havens toward ports near home (bigger ports draw them, distance puts them off), lie in wait 2 to 5 days somewhere along the lane, then go home. Ships follow sea lanes found by A* on an 8-tile water grid (with a tile-level way out of narrow bays, and moorings always on the open sea; every port is reachable), at the speed their polar gives in the local wind, tacking on long boards (up to 6 tiles either side of the lane, shorter near land) where it runs to windward, and turning at their class's rate rather than snapping round. The population tops itself up a ship a day. A route probe after 30 days of traffic: the player's best routes keep most of their margin (Port Royal luxuries to Tortuga +684 against +723 without traffic). Treasure fleets wait.
 
 ### Plunder and crew shares
@@ -592,6 +593,7 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
 - Monthly, the sim rolls state changes: tension above 70 has a chance to trigger war; below 30 at war has a chance to trigger peace.
 - Scripted "European events" (treaties, royal marriages, wars at home) shift tension from `political_events.json`, timed by era.
 - At war: nations raise fleets, send expeditions against enemy towns, and governors pay bounties on enemy ships.
+- Built (`@corsair/systems-politics`, `politics.json`): war or peace per pair with a tension. 1660 opens at peace, Spain and England close to the edge. Each month the historical events due fire (the Second and Third Anglo-Dutch Wars, Devolution, the Franco-Dutch War, the Treaty of Madrid, the Nine Years' War), tension drifts toward each pair's base in peace and wears down toward 30 in war, and high or low tension may tip into war or peace. Every declaration and treaty is news from the nation's capital. Pirates are at war with everyone. Expeditions against towns and tension from the player's actions wait; there are no alliances yet.
 
 ### Player reputation
 
@@ -599,10 +601,12 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
 - Thresholds: wanted (-50 and below; hunters sent, entry refused), unwelcome, neutral, trusted, honoured.
 - A bounty on the player's head grows with crimes. Pirate hunters spawn with strength scaled to the bounty.
 - Amnesty: during peace or a new-king event, governors may offer a pardon for a fee.
+- Built: pirate pressure per nation. Each merchant pirates take from a nation adds 8; it fades to three quarters monthly; crossing 40 is news ("Pirates plague the Spanish trade") and raises that nation's pirate bounty.
 
 ### Letters of marque and titles
 
 - A letter of marque is a licence to attack ships of named enemies. It makes those attacks legal (reputation gain, no bounty from the issuer).
+- Built: the governor (towns and cities; hamlets and havens have none) sells a letter while his nation is at war: 800 gold at neutral standing, falling to free at standing 30, refused at -30. It covers whoever the issuer is at war with at the time, so peace ends it without revoking it. An attack under it earns 6 standing with the issuer (the victim's nation still loses 20). Every win at sea is a deed; any governor pays for pirates (150 gold, more under pirate pressure) and for ships of his nation's current enemies (120 a merchant, 400 a warship); deeds he won't pay wait for another governor, and lapse after ten weeks. Titles and promotion wait.
 - Titles per nation: Ensign, Captain, Major, Colonel, Admiral, Baron, Count, Marquis, Duke. Each gives a land grant and better prices in that nation's towns.
 - Promotion requires points earned from deeds against that nation's current enemies. A peace treaty stalls promotion until the next war.
 

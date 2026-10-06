@@ -414,3 +414,49 @@ describe('the shipwright, the tavern and a hostile port', () => {
     expect(shut.events().at(-1)!.payload.reason).toBe('hostile');
   });
 });
+
+describe('the governor', () => {
+  const atWarWithSpain = (state: WorldState): WorldState => ({
+    ...state,
+    politics: { relations: { ...structuredClone(content.politics.start), 'england:spain': { war: true, tension: 85 } }, piracy: { england: 50 }, month: 0 },
+  });
+
+  it('sells a letter of marque at war, cheaper with standing, and refuses it at peace', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.send({ type: 'BuyMarque', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('at-peace');
+
+    const war = createSim({ ...atWarWithSpain(sim.state), captain: { ...sim.state.captain!, gold: 5000, standing: { england: 15 } } }, [
+      createEconomySystem(content, settlements),
+    ]);
+    war.send({ type: 'BuyMarque', shipId: 'player' });
+    war.applyCommands();
+    expect(war.state.captain!.marques).toEqual(['england']);
+    expect(5000 - war.state.captain!.gold).toBe(Math.round(content.politics.marque.price * (1 - 15 / content.politics.marque.freeAt)));
+  });
+
+  it('pays bounties for pirates (more under pirate pressure) and for enemies of the crown, once', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const deeds = [
+      { nation: 'pirate' as const, role: 'pirate' as const, kind: 'sunk' as const, tick: sim.state.tick },
+      { nation: 'spain' as const, role: 'merchant' as const, kind: 'taken' as const, tick: sim.state.tick },
+      { nation: 'france' as const, role: 'merchant' as const, kind: 'taken' as const, tick: sim.state.tick },
+    ];
+    const s = atWarWithSpain({ ...sim.state, captain: { ...sim.state.captain!, deeds } });
+    const gov = createSim(s, [createEconomySystem(content, settlements)]);
+    const gold = gov.state.captain!.gold;
+    gov.send({ type: 'CollectBounties', shipId: 'player' });
+    gov.applyCommands();
+    const b = content.politics.bounty;
+    expect(gov.state.captain!.gold - gold).toBe(Math.round(b.pirate * (1 + 50 / b.piracyScale)) + b.merchant);
+    // France is at peace with England: that deed waits for a governor who will pay it.
+    expect(gov.state.captain!.deeds).toEqual([deeds[2]]);
+    gov.send({ type: 'CollectBounties', shipId: 'player' });
+    gov.applyCommands();
+    expect(gov.events().at(-1)!.payload.reason).toBe('nothing-owed');
+  });
+});

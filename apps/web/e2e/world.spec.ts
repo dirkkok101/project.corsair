@@ -446,3 +446,67 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing.england)).toBe(-20);
   expect(errors).toEqual([]);
 });
+
+test('privateering: a letter of marque at war, a lawful attack, and a bounty at the governor', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.locator('.port-tabs').getByRole('button', { name: 'Governor' }).click();
+  await expect(page.locator('.governor')).toContainText('at peace');
+
+  // War with Spain: the governor now sells a letter of marque.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SetRelation', a: 'england', b: 'spain', war: true });
+    window.__corsair.sim.step(1);
+  });
+  await expect(page.locator('.governor')).toContainText('at war with Spain');
+  await page.locator('.governor').getByRole('button', { name: /Letter of marque/ }).click();
+  await expect(page.locator('.governor')).toContainText('You hold an English letter of marque');
+  await page.screenshot({ path: 'test-results/governor.png' });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+
+  // A Spanish merchant, and the player alongside her.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.santo_domingo', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.sim.step(90);
+    const s = (window.__corsair.state.get('ships') as typeof ships)[id]!;
+    for (const [dx, dy] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx!, y: s.y + dy! });
+      window.__corsair.sim.step(1);
+      const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
+    }
+  });
+  await page.keyboard.press('h');
+  await expect(page.locator('.hail').getByRole('button', { name: /Attack/ })).toContainText('lawful under your English letter');
+  await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
+  const outcome = await page.evaluate(() => {
+    for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
+    return window.__corsair.battle.result()?.outcome;
+  });
+  await page.keyboard.press('Enter');
+  const standing = await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing);
+  expect(standing.spain).toBeLessThan(0);
+  expect(standing.england).toBeGreaterThan(0);
+
+  if (outcome === 'struck' || outcome === 'boarded' || outcome === 'sunk') {
+    // Back to Port Royal to collect the bounty for a Spanish ship taken in a lawful war.
+    await page.evaluate(() => {
+      const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+      window.__corsair.sim.step(1);
+    });
+    await page.keyboard.press('e');
+    await page.evaluate(() => window.__corsair.sim.step(1));
+    await page.locator('.port-tabs').getByRole('button', { name: 'Governor' }).click();
+    await page.locator('.governor').getByRole('button', { name: /Collect bounties/ }).click();
+    await expect(page.locator('.governor')).toContainText('No bounty owed here');
+  }
+  expect(errors).toEqual([]);
+});

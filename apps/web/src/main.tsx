@@ -34,6 +34,7 @@ import { battleMap, createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
 import type { TileMap } from '@corsair/data';
 import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
+import { createPoliticsSystem, legalTarget } from '@corsair/systems-politics';
 
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
 // named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
@@ -189,6 +190,7 @@ async function main() {
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
     createEconomySystem(content, settlements, map),
+    createPoliticsSystem(content, def.startDate, settlements),
     createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt),
   ]);
@@ -513,7 +515,21 @@ async function main() {
     // A fight joined this frame (the player's Attack, or a hunter closing) starts the battle.
     const evs = sim.events();
     if (evs.length < eventsSeen) eventsSeen = 0;
-    for (let i = eventsSeen; i < evs.length; i++) if (evs[i]!.type === 'BattleJoined') startBattle(evs[i]!.entityIds[1]!);
+    for (let i = eventsSeen; i < evs.length; i++) {
+      const ev = evs[i]!;
+      if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!);
+      // A fight between other ships within sight: smoke on the water and the thud of distant guns.
+      if (ev.type === 'SeaFight') {
+        const me = player();
+        const x = ev.payload.x as number;
+        const y = ev.payload.y as number;
+        const d = Math.hypot(x - me.x, y - me.y);
+        if (d <= content.traffic.sightTiles) {
+          renderer.seaFight(x, y);
+          audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
+        }
+      }
+    }
     eventsSeen = evs.length;
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
@@ -557,6 +573,7 @@ async function main() {
           ship={spoken}
           news={hailing!.news}
           close={() => (hailing = undefined)}
+          lawful={spoken.ai ? legalTarget(content, sim.state, sim.state.captain, spoken.ai.nation) : undefined}
           attack={() => {
             sim.send({ type: 'Attack', shipId: player().id, targetId: hailing!.targetId });
             sim.applyCommands();

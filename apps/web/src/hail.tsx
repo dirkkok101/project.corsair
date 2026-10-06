@@ -26,10 +26,12 @@ export interface HailProps {
   close: () => void;
   /** Open fire: starts a sea battle. */
   attack: () => void;
+  /** The nation whose letter of marque makes this attack lawful, if any. */
+  lawful?: string;
 }
 
 /** Speaking a ship at sea (PRD section 4): who she is, a hint of what she carries, and her news. */
-export function Hail({ state, content, settlements, ship, news, close, attack }: HailProps) {
+export function Hail({ state, content, settlements, ship, news, close, attack, lawful }: HailProps) {
   const ai = ship.ai!;
   const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const goods = Object.keys(ship.cargo).map((g) => content.goods.find((x) => x.id === g)?.name.toLowerCase() ?? g);
@@ -61,7 +63,12 @@ export function Hail({ state, content, settlements, ship, news, close, attack }:
         </div>
         <div class="hail-actions">
           <button class="attack" onClick={attack} title={ai.nation === 'pirate' ? 'A pirate: fair game' : `Costs standing with the ${NATION_ADJECTIVE[ai.nation]}`}>
-            Attack{ai.nation === 'pirate' ? '' : ` · angers the ${NATION_ADJECTIVE[ai.nation]}`}
+            Attack
+            {ai.nation === 'pirate'
+              ? ''
+              : lawful
+                ? ` · lawful under your ${NATION_ADJECTIVE[lawful]} letter`
+                : ` · angers the ${NATION_ADJECTIVE[ai.nation]}`}
           </button>
           <button class="leave" onClick={close}>
             Part ways · H

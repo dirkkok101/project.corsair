@@ -1,5 +1,6 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, EmittedEvent, KnownPrices, NewsItem, Ship, System, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, KnownPrices, NewsItem, Ship, System, WorldState } from '@corsair/core';
+import { atWar, enemiesOf } from '@corsair/systems-politics';
 import { isLand, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 
@@ -85,6 +86,44 @@ export function sellDepth(content: ContentPack, s: Settlement, good: string, sto
   let n = 0;
   while (n < DEPTH_CAP && quote(content, s, good, stock + n + 1).sell >= floor) n++;
   return n;
+}
+
+/** Governors sit in towns and cities; hamlets and pirate havens have none (nor a governor's house in the harbour). */
+export function hasGovernor(s: Pick<PlacedSettlement, 'size' | 'type' | 'nation'>): boolean {
+  return s.size !== 'hamlet' && s.type !== 'haven' && s.nation !== 'pirate';
+}
+
+/**
+ * What a governor asks for a letter of marque: the full price at neutral standing, falling to nothing
+ * once the captain is trusted (freeAt), dearer when he is disliked; refused (undefined) to an enemy.
+ */
+export function marquePrice(content: ContentPack, state: WorldState, nation: PlacedSettlement['nation']): number | undefined {
+  const m = content.politics.marque;
+  const standing = state.captain?.standing?.[nation] ?? 0;
+  if (standing <= content.combat.standing.hostile) return undefined;
+  return Math.max(0, Math.round(m.price * (1 - standing / m.freeAt)));
+}
+
+/**
+ * The bounties a nation's governor pays: every pirate taken or sunk (more where pirates are pressing his
+ * nation hard), and ships of the nations he is at war with now. Deeds he won't pay wait for another.
+ */
+export function bountiesOwed(content: ContentPack, state: WorldState, nation: PlacedSettlement['nation']) {
+  const b = content.politics.bounty;
+  const piracy = state.politics?.piracy[nation] ?? 0;
+  const pay: Deed[] = [];
+  const kept: Deed[] = [];
+  let total = 0;
+  for (const d of state.captain?.deeds ?? []) {
+    if (d.nation === 'pirate') {
+      pay.push(d);
+      total += Math.round(b.pirate * (1 + piracy / b.piracyScale));
+    } else if (atWar(content, state, nation, d.nation)) {
+      pay.push(d);
+      total += b[d.role === 'patrol' ? 'patrol' : 'merchant'];
+    } else kept.push(d);
+  }
+  return { pay, kept, total };
 }
 
 /** Men aboard: a ship from before crews were counted sails with the career's starting crew. */
@@ -288,6 +327,32 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           events: [{ type: 'Undocked', entityIds: [ship.id, docked], payload: {} }],
         };
       }
+      if (command.type === 'BuyMarque' || command.type === 'CollectBounties') {
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const s = byId.get(ship.docked)!;
+        if (!hasGovernor(s)) return refuse(state, ship, 'no-governor');
+        const nation = s.nation;
+        if (command.type === 'BuyMarque') {
+          const price = marquePrice(content, state, nation);
+          if ((state.captain.marques ?? []).includes(nation)) return refuse(state, ship, 'already-held');
+          if (!enemiesOf(content, state, nation).some((n) => n !== 'pirate')) return refuse(state, ship, 'at-peace');
+          if (price === undefined) return refuse(state, ship, 'unwelcome');
+          if (state.captain.gold < price) return refuse(state, ship, 'not-enough-gold');
+          return {
+            state: { ...state, captain: { ...state.captain, gold: state.captain.gold - price, marques: [...(state.captain.marques ?? []), nation] } },
+            events: [{ type: 'MarqueBought', entityIds: [ship.id, s.id], payload: { nation, gold: price } }],
+          };
+        }
+        const { pay, kept, total } = bountiesOwed(content, state, nation);
+        if (!pay.length) return refuse(state, ship, 'nothing-owed');
+        const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + pay.length) };
+        return {
+          state: { ...state, captain: { ...state.captain, gold: state.captain.gold + total, deeds: kept, standing } },
+          events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total } }],
+        };
+      }
       if (command.type === 'Recruit') {
         // The tavern: men sign on for a bounty each, up to the berths the ship has.
         const ship = state.ships[command.shipId];
@@ -445,6 +510,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           ...next,
           shocks: (next.shocks ?? []).filter((x) => x.endTick > tick),
           news: (next.news ?? []).filter((n) => n.tick >= keepFrom),
+          // Deeds no governor has paid for lapse with the news of them.
+          captain: next.captain?.deeds ? { ...next.captain, deeds: next.captain.deeds.filter((d) => d.tick >= keepFrom) } : next.captain,
         };
         // New shocks somewhere in the Caribbean: two draws a week at half the weekly rate each.
         const kinds = Object.fromEntries(Object.entries(e.shocks.kinds).map(([id, k]) => [id, k.weight]));

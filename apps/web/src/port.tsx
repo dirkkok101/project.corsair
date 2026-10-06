@@ -1,8 +1,11 @@
 import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
+  bountiesOwed,
   cargoUsed,
   crewOf,
+  hasGovernor,
+  marquePrice,
   newsAt,
   newsText,
   portTrade,
@@ -12,6 +15,7 @@ import {
   sellDepth,
   tradeLean,
 } from '@corsair/systems-economy';
+import { enemiesOf, NATIONS } from '@corsair/systems-politics';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -55,7 +59,7 @@ function Takes({ depth }: { depth: number }) {
 }
 
 /** Services that work so far; the rest are drawn but marked "soon". */
-const READY: Service[] = ['merchant', 'tavern', 'shipwright'];
+const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
@@ -192,7 +196,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           </button>
         </nav>
 
-        {open === 'shipwright' ? (
+        {open === 'governor' ? (
+          <Governor content={content} state={state} town={town} shipId={shipId} send={send} />
+        ) : open === 'shipwright' ? (
           <Shipwright content={content} state={state} shipId={shipId} send={send} />
         ) : open === 'tavern' ? (
           <Tavern
@@ -341,6 +347,84 @@ function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' |
 }
 
 /** The shipwright: hull and sails made good, as far as the purse reaches. */
+const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands', pirate: 'the pirates' };
+
+/**
+ * The governor (PRD section 12): his nation's wars and peace, how hard pirates press its trade, a letter
+ * of marque against its enemies, and bounties for the captain's deeds.
+ */
+function Governor({
+  content,
+  state,
+  town,
+  shipId,
+  send,
+}: {
+  content: ContentPack;
+  state: WorldState;
+  town: PlacedSettlement;
+  shipId: string;
+  send: PortProps['send'];
+}) {
+  if (!hasGovernor(town)) {
+    return <p class="tavern-quiet">There is no governor here: only towns and cities have one.</p>;
+  }
+  const nation = town.nation;
+  const enemies = enemiesOf(content, state, nation).filter((n) => n !== 'pirate');
+  const friends = NATIONS.filter((n) => n !== nation && !enemies.includes(n));
+  const piracy = Math.round(state.politics?.piracy[nation] ?? 0);
+  const held = (state.captain?.marques ?? []).includes(nation);
+  const price = marquePrice(content, state, nation);
+  const owed = bountiesOwed(content, state, nation);
+  const standing = state.captain?.standing?.[nation] ?? 0;
+  const list = (ns: readonly string[]) => ns.map((n) => COUNTRY[n]).join(', ');
+  return (
+    <div class="governor">
+      <p>
+        {enemies.length ? <span class="trend scarce">at war</span> : <span class="trend export">at peace</span>}{' '}
+        {enemies.length ? `${COUNTRY[nation]} is at war with ${list(enemies)}.` : `${COUNTRY[nation]} is at peace with every nation.`}
+        {friends.length && enemies.length ? ` At peace with ${list(friends)}.` : ''}
+      </p>
+      <p class="port-sub">
+        {piracy >= content.politics.piracy.plague
+          ? `Pirates are plaguing our trade (pressure ${piracy}). Every pirate you take is worth more here.`
+          : piracy > 0
+            ? `Pirates trouble our shipping (pressure ${piracy}).`
+            : 'Our trade is quiet; few pirates trouble it.'}{' '}
+        Your standing with {COUNTRY[nation]}: {standing}.
+      </p>
+      <div class="governor-row">
+        {held ? (
+          <span>
+            You hold {/^[AEIOU]/.test(NATION[nation]) ? 'an' : 'a'} {NATION[nation]} letter of marque. It covers:{' '}
+            {enemies.length ? list(enemies) : 'no one while we are at peace'}.
+          </span>
+        ) : !enemies.length ? (
+          <span class="port-sub">We are at peace: there are no letters of marque to be had.</span>
+        ) : price === undefined ? (
+          <span class="port-sub">The governor will not grant a letter to an enemy of {COUNTRY[nation]}.</span>
+        ) : (
+          <button onClick={() => send({ type: 'BuyMarque', shipId })}>
+            Letter of marque against {list(enemies)} · {price ? `${price} gold` : 'granted freely'}
+          </button>
+        )}
+      </div>
+      <div class="governor-row">
+        {owed.pay.length ? (
+          <button onClick={() => send({ type: 'CollectBounties', shipId })}>
+            Collect bounties for {owed.pay.length} {owed.pay.length === 1 ? 'ship' : 'ships'} · {owed.total} gold
+          </button>
+        ) : (
+          <span class="port-sub">
+            No bounty owed here.{' '}
+            {(state.captain?.deeds ?? []).length ? `${state.captain!.deeds!.length} of your deeds wait for a governor at war with those nations.` : ''}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Shipwright({
   content,
   state,

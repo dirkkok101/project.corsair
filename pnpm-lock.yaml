@@ -208,6 +208,9 @@ importers:
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../../packages/systems-navigation
+      '@corsair/systems-politics':
+        specifier: workspace:*
+        version: link:../../packages/systems-politics
       '@corsair/systems-traffic':
         specifier: workspace:*
         version: link:../../packages/systems-traffic
@@ -270,6 +273,9 @@ importers:
       '@corsair/data':
         specifier: workspace:*
         version: link:../data
+      '@corsair/systems-politics':
+        specifier: workspace:*
+        version: link:../systems-politics
     devDependencies:
       '@corsair/systems-navigation':
         specifier: workspace:*

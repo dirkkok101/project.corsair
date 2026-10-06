@@ -1,6 +1,6 @@
 import type { Nation, Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
-import { Application, Assets, Container, Rectangle, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Rectangle, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { createPennants, createSpray, createWake, createWhitecaps, createWindStreaks, windVector } from './effects';
 import { createDaylight } from './daylight';
@@ -30,6 +30,9 @@ export { parseGpl, rowsAt } from './daylight';
 
 /** Mast tips per frame, from the atlas packer: sprite id, then anim, then facing, as [x, y] from the pivot. */
 export type MastTops = Record<string, Record<string, [number, number][]>>;
+
+/** How long the smoke of a sea fight between AI ships hangs on the water. */
+const SMOKE_SECONDS = 4;
 
 // Pennants fly the ship's colours: the player's red, and each nation's for AI ships (palette colours).
 const PLAYER_PENNANT = 0xcf573c;
@@ -64,6 +67,8 @@ export interface Renderer {
   resize(width: number, height: number): void;
   /** Called at each lightning flash, so the app can roll thunder. */
   onLightning(cb: () => void): void;
+  /** Gun smoke on the water where two AI ships fought (`x`, `y` in tiles), drifting for a few seconds. */
+  seaFight(x: number, y: number): void;
   /** Draw a sea battle instead of the world (`renderBattle` each frame while it lasts; `render` returns to the sea). */
   renderBattle(state: BattleViewState, map: TileMap, hour: number, nowMs: number, enemyFlag?: FlagNation): void;
   /** The harbour scene shown in port; `show(undefined)` returns to the sea. */
@@ -252,8 +257,16 @@ export async function createRenderer(
   const battle = createBattleView(content, frames, options.mastTops);
   app.stage.addChild(battle.view);
 
+  // Smoke from fights between AI ships: puffs that swell and thin over SMOKE_SECONDS.
+  const fightSmoke = new Graphics();
+  world.addChild(fightSmoke);
+  let fights: { x: number; y: number; at: number }[] = [];
+
   return {
     canvas: app.canvas,
+    seaFight(x, y) {
+      fights.push({ x: x * ts, y: y * ts, at: lastMs ?? 0 });
+    },
     renderBattle(state, battleMap, hour, nowMs, enemyFlag) {
       battle.update(state, battleMap, viewW, viewH, nowMs, enemyFlag);
       for (const child of app.stage.children) if (child !== battle.view) child.visible = false;
@@ -366,6 +379,18 @@ export async function createRenderer(
         })),
         nowMs / 1000,
       );
+      fights = fights.filter((f) => nowMs - f.at < SMOKE_SECONDS * 1000);
+      fightSmoke.clear();
+      for (const f of fights) {
+        const age = (nowMs - f.at) / (SMOKE_SECONDS * 1000);
+        for (let k = 0; k < 14; k++) {
+          const a = (k / 14) * Math.PI * 2 + f.at;
+          const r = 4 + age * 22 * (0.6 + (k % 3) * 0.2);
+          fightSmoke.rect(Math.round(f.x + Math.cos(a) * r), Math.round(f.y + Math.sin(a) * r * 0.6 - age * 10), 2, 2);
+        }
+        fightSmoke.fill({ color: 0xc7cfcc, alpha: 1 - age });
+      }
+      if (fightSmoke.parent === world && world.getChildIndex(fightSmoke) !== world.children.length - 1) world.addChild(fightSmoke);
       const tpd = content.calendar.ticksPerDay;
       daylight?.setHour(((state.tick % tpd) / tpd) * 24);
       lastState = state;

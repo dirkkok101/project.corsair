@@ -68,6 +68,16 @@ export function createPoliticsSystem(content: ContentPack, startDate: string, se
 
   return {
     name: 'politics',
+    command(state, command) {
+      if (command.type !== 'SetRelation' || command.a === 'pirate' || command.b === 'pirate' || command.a === command.b) return undefined;
+      const politics = state.politics ?? initialPolitics(content);
+      const key = pairKey(command.a, command.b);
+      const tension = command.war ? p.monthly.warTension : p.monthly.peaceBelow;
+      return {
+        state: { ...state, politics: { ...politics, relations: { ...politics.relations, [key]: { war: command.war, tension } } } },
+        events: [{ type: command.war ? 'WarDeclared' : 'PeaceSigned', entityIds: [command.a, command.b], payload: { debug: true } }],
+      };
+    },
     tick(state) {
       const tick = state.tick + 1;
       const now = monthOf(content, startDate, tick);
