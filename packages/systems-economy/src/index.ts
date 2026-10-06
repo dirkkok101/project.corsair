@@ -1,7 +1,7 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { Captain, Deed, EmittedEvent, KnownPrices, NewsItem, Ship, System, WorldState } from '@corsair/core';
 import { atWar, enemiesOf } from '@corsair/systems-politics';
-import { isLand, tileAt } from '@corsair/data';
+import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
@@ -133,9 +133,19 @@ export function crewOf(content: ContentPack, ship: Ship): number {
 
 /** Repair bill: hull points and sail condition short of sound, at the shipwright's rates. */
 export function repairCost(content: ContentPack, ship: Ship): number {
-  const cls = content.ships[ship.classId]!;
+  const hullMax = shipStats(content, ship).hullMax;
   const p = content.combat.port;
-  return Math.ceil(cls.hull - (ship.hull ?? cls.hull)) * p.hullGold + Math.ceil(100 - (ship.sailCondition ?? 100)) * p.sailGold;
+  return Math.ceil(hullMax - (ship.hull ?? hullMax)) * p.hullGold + Math.ceil(100 - (ship.sailCondition ?? 100)) * p.sailGold;
+}
+
+/** Whether a port's shipwright sells cannon: every one but a hamlet's. */
+export function sellsGuns(port: { size: string }): boolean {
+  return port.size !== 'hamlet';
+}
+
+/** Whether a port's shipwright sells an upgrade: by the settlement's size (upgrades.json sizes). */
+export function sellsUpgrade(content: ContentPack, port: { size: string }, upgradeId: string): boolean {
+  return content.upgrades[upgradeId]?.sizes.includes(port.size as 'hamlet' | 'town' | 'city') ?? false;
 }
 
 export function cargoUsed(ship: Ship): number {
@@ -358,11 +368,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
-        const cls = content.ships[ship.classId]!;
+        const berths = shipStats(content, ship).maxCrew;
         const crew = crewOf(content, ship);
         const price = content.combat.port.recruitGold;
-        const count = Math.min(Math.floor(command.count), cls.maxCrew - crew, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
-        if (!(count > 0)) return refuse(state, ship, crew >= cls.maxCrew ? 'berths-full' : 'not-enough-gold');
+        const count = Math.min(Math.floor(command.count), berths - crew, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
+        if (!(count > 0)) return refuse(state, ship, crew >= berths ? 'berths-full' : 'not-enough-gold');
         return {
           state: {
             ...state,
@@ -377,21 +387,61 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
-        const cls = content.ships[ship.classId]!;
+        const hullMax = shipStats(content, ship).hullMax;
         const p = content.combat.port;
         let gold = state.captain.gold;
-        let hull = ship.hull ?? cls.hull;
+        let hull = ship.hull ?? hullMax;
         let sails = ship.sailCondition ?? 100;
-        const hullFix = Math.min(Math.ceil(cls.hull - hull), p.hullGold > 0 ? Math.floor(gold / p.hullGold) : Infinity);
-        hull = Math.min(cls.hull, hull + hullFix);
+        const hullFix = Math.min(Math.ceil(hullMax - hull), p.hullGold > 0 ? Math.floor(gold / p.hullGold) : Infinity);
+        hull = Math.min(hullMax, hull + hullFix);
         gold -= hullFix * p.hullGold;
         const sailFix = Math.min(Math.ceil(100 - sails), p.sailGold > 0 ? Math.floor(gold / p.sailGold) : Infinity);
         sails = Math.min(100, sails + sailFix);
         gold -= sailFix * p.sailGold;
-        if (hullFix <= 0 && sailFix <= 0) return refuse(state, ship, hull >= cls.hull && sails >= 100 ? 'sound' : 'not-enough-gold');
+        if (hullFix <= 0 && sailFix <= 0) return refuse(state, ship, hull >= hullMax && sails >= 100 ? 'sound' : 'not-enough-gold');
         return {
           state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, hull, sailCondition: sails } }, captain: { ...state.captain, gold } },
           events: [{ type: 'Repaired', entityIds: [ship.id, ship.docked], payload: { gold: state.captain.gold - gold } }],
+        };
+      }
+      if (command.type === 'BuyGuns' || command.type === 'SellGuns') {
+        // The shipwright mounts cannon up to her gun deck, or buys them back at half.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        if (!sellsGuns(byId.get(ship.docked)!)) return refuse(state, ship, 'not-sold-here');
+        const { guns, maxGuns } = shipStats(content, ship);
+        const p = content.combat.port;
+        const buying = command.type === 'BuyGuns';
+        const count = buying
+          ? Math.min(Math.floor(command.count), maxGuns - guns, p.gunGold > 0 ? Math.floor(state.captain.gold / p.gunGold) : Infinity)
+          : Math.min(Math.floor(command.count), guns);
+        if (!(count > 0)) return refuse(state, ship, buying ? (guns >= maxGuns ? 'battery-full' : 'not-enough-gold') : 'no-guns');
+        const gold = buying ? -count * p.gunGold : count * p.gunSellGold;
+        return {
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: { ...ship, guns: guns + (buying ? count : -count) } },
+            captain: { ...state.captain, gold: state.captain.gold + gold },
+          },
+          events: [{ type: buying ? 'GunsBought' : 'GunsSold', entityIds: [ship.id, ship.docked], payload: { count, gold: Math.abs(gold) } }],
+        };
+      }
+      if (command.type === 'BuyUpgrade') {
+        const ship = state.ships[command.shipId];
+        const upgrade = content.upgrades[command.upgradeId];
+        if (!ship || !upgrade) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        if (ship.upgrades?.includes(upgrade.id)) return refuse(state, ship, 'installed');
+        if (!sellsUpgrade(content, byId.get(ship.docked)!, upgrade.id)) return refuse(state, ship, 'not-sold-here');
+        if (state.captain.gold < upgrade.price) return refuse(state, ship, 'not-enough-gold');
+        return {
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: { ...ship, upgrades: [...(ship.upgrades ?? []), upgrade.id] } },
+            captain: { ...state.captain, gold: state.captain.gold - upgrade.price },
+          },
+          events: [{ type: 'UpgradeBought', entityIds: [ship.id, ship.docked], payload: { upgradeId: upgrade.id, gold: upgrade.price } }],
         };
       }
       if (command.type === 'HearNews') {

@@ -20,7 +20,9 @@
     "classId": "ship.brig",
     "lon": -76.83,
     "lat": 17.92,
-    "headingDeg": 180
+    "headingDeg": 180,
+    "guns": 10,
+    "port": "town.port_royal"
   },
   "startDate": "1660-03-01",
   "startHour": 8,

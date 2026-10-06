@@ -1,4 +1,5 @@
 import type { Wind, WorldState } from '@corsair/core';
+import { shipStats } from '@corsair/data';
 import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
@@ -112,7 +113,8 @@ export function Hud({
   const polar = content.polars[cls.polar]!;
   const drive = nav.windStrength[wind.strength]! * nav.sailSettings[ship.sails]!;
   const strongest = Math.max(...Object.values(nav.windStrength)) * Math.max(...Object.values(nav.sailSettings));
-  const best = cls.speed * Math.max(...polar.values) * drive;
+  const stats = shipStats(content, ship);
+  const best = stats.speed * Math.max(...polar.values) * drive;
   return (
     <>
       <div class="hud">
@@ -163,7 +165,7 @@ export function Hud({
         </div>
         <div>Ship</div>
         <div>
-          crew {crewOf(content, ship)} · hull {Math.round(ship.hull ?? cls.hull)}/{cls.hull}
+          crew {crewOf(content, ship)} · guns {stats.guns}/{stats.maxGuns} · hull {Math.round(ship.hull ?? stats.hullMax)}/{stats.hullMax}
           {(ship.sailCondition ?? 100) < 100 ? ` · sails ${Math.round(ship.sailCondition ?? 100)}%` : ''}
         </div>
       </div>

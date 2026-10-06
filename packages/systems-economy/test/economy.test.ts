@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
-import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
+import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -412,6 +412,76 @@ describe('the shipwright, the tavern and a hostile port', () => {
     shut.applyCommands();
     expect(player(shut.state).docked).toBeUndefined();
     expect(shut.events().at(-1)!.payload.reason).toBe('hostile');
+  });
+});
+
+describe('outfitting at the shipwright', () => {
+  const docked = (at = portRoyal, gold?: number) => {
+    const sim = moored(at);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: at.id });
+    sim.applyCommands();
+    if (gold === undefined) return sim;
+    return createSim({ ...sim.state, captain: { ...sim.state.captain!, gold } }, [createEconomySystem(content, settlements)]);
+  };
+  const reason = (sim: ReturnType<typeof docked>) => sim.events().at(-1)!.payload.reason;
+  const p = content.combat.port;
+
+  it('a new career starts under-gunned; cannon are mounted up to the gun deck and sold back at half', () => {
+    const sim = docked(portRoyal, 5000);
+    const max = content.ships['ship.brig']!.guns;
+    expect(shipStats(content, player(sim.state)).guns).toBe(def.start.guns);
+    sim.send({ type: 'BuyGuns', shipId: 'player', count: 100 });
+    sim.applyCommands();
+    expect(player(sim.state).guns).toBe(max);
+    expect(sim.state.captain!.gold).toBe(5000 - (max - def.start.guns!) * p.gunGold);
+    sim.send({ type: 'BuyGuns', shipId: 'player', count: 1 });
+    sim.applyCommands();
+    expect(reason(sim)).toBe('battery-full');
+    const before = sim.state.captain!.gold;
+    sim.send({ type: 'SellGuns', shipId: 'player', count: 2 });
+    sim.applyCommands();
+    expect(player(sim.state).guns).toBe(max - 2);
+    expect(sim.state.captain!.gold).toBe(before + 2 * p.gunSellGold);
+  });
+
+  it('buys only what the purse covers, and a hamlet sells no cannon', () => {
+    const poor = docked(portRoyal, p.gunGold * 3 + 10);
+    poor.send({ type: 'BuyGuns', shipId: 'player', count: 8 });
+    poor.applyCommands();
+    expect(player(poor.state).guns).toBe(def.start.guns! + 3);
+    const hamlet = settlements.find((s) => s.size === 'hamlet' && s.nation !== 'pirate')!;
+    const small = docked(hamlet, 5000);
+    small.send({ type: 'BuyGuns', shipId: 'player', count: 1 });
+    small.applyCommands();
+    expect(reason(small)).toBe('not-sold-here');
+  });
+
+  it('upgrades are sold by town size, installed once, and raise what repairs and recruiting reach', () => {
+    const sim = docked(portRoyal, 10_000);
+    for (const id of ['scantlings', 'hammocks']) sim.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: id });
+    sim.applyCommands();
+    expect(player(sim.state).upgrades).toEqual(['scantlings', 'hammocks']);
+    expect(sim.state.captain!.gold).toBe(10_000 - content.upgrades.scantlings!.price - content.upgrades.hammocks!.price);
+    sim.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'hammocks' });
+    sim.applyCommands();
+    expect(reason(sim)).toBe('installed');
+    const stats = shipStats(content, player(sim.state));
+    const cls = content.ships['ship.brig']!;
+    expect(stats.hullMax).toBe(Math.round(cls.hull * 1.2));
+    expect(stats.maxCrew).toBe(Math.round(cls.maxCrew * 1.25));
+    // At her old full hull, the new planking is there to be made good.
+    const yard = createSim({ ...sim.state, ships: { player: { ...player(sim.state), hull: cls.hull } } }, [createEconomySystem(content, settlements)]);
+    yard.send({ type: 'Recruit', shipId: 'player', count: 1000 });
+    yard.send({ type: 'Repair', shipId: 'player' });
+    yard.applyCommands();
+    expect(player(yard.state).crew).toBe(stats.maxCrew);
+    expect(player(yard.state).hull).toBe(stats.hullMax);
+    // Copper sheathing is a city's trade: a town's shipwright doesn't sell it.
+    const town = settlements.find((s) => s.size === 'town' && s.nation !== 'pirate')!;
+    const small = docked(town, 10_000);
+    small.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'copper' });
+    small.applyCommands();
+    expect(reason(small)).toBe('not-sold-here');
   });
 });
 

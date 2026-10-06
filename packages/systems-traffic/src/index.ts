@@ -334,9 +334,19 @@ export function createTrafficSystem(
   };
 
 
+  /**
+   * Whether a ship at (x, y) lies under the guns of a port the hunter fears: pirates fear every port but
+   * a haven, patrols the ports of nations they are at war with. A hunter won't chase or fight her there.
+   */
+  const sheltered = (state: WorldState, hunter: Ship, x: number, y: number) =>
+    settlements.some((s) => {
+      const fears = hunter.ai!.role === 'pirate' ? !isHaven(s) : atWar(content, state, hunter.ai!.nation, s.nation);
+      return fears && Math.hypot(s.x - x, s.y - y) <= (cb.chase.harbourTiles[s.size] ?? 0);
+    });
+
   /** What a hunter goes after: pirates take merchants; patrols take pirates and their nation's enemies. */
   const isPrey = (state: WorldState, hunter: Ship, s: Ship) => {
-    if (!s.ai || s.id === hunter.id || inPort(s)) return false;
+    if (!s.ai || s.id === hunter.id || inPort(s) || sheltered(state, hunter, s.x, s.y)) return false;
     if (hunter.ai!.role === 'pirate') return s.ai.role === 'merchant';
     return s.ai.role === 'pirate' || atWar(content, state, hunter.ai!.nation, s.ai.nation);
   };
@@ -480,12 +490,10 @@ export function createTrafficSystem(
           if (other.ai.role === 'pirate') cargo = {};
           captain = { ...captain, gold: Math.floor(captain.gold / 2) };
         }
-        // The battle was fought on the world map: each ship comes back where the fight left her.
+        // The fight was virtual: each ship stays where they met. Guns knocked out stay lost.
         ships[player.id] = {
           ...player,
-          x: mine.x,
-          y: mine.y,
-          headingDeg: mine.headingDeg,
+          guns: mine.guns,
           cargo,
           paid: beaten && other.ai.role === 'pirate' ? {} : player.paid,
           hull: Math.max(beaten ? Math.ceil(cls.hull * 0.1) : 1, mine.hull),
@@ -573,11 +581,12 @@ export function createTrafficSystem(
           const d = Math.hypot(p.x - ship.x, p.y - ship.y);
           const calm = (ship.ai.calmUntil ?? 0) > tick;
           const sighted = d <= cb.chase.chaseTiles && lanes.clear([ship.x, ship.y], [p.x, p.y]);
-          if (ship.ai.chasing && (p.docked || calm || d > cb.chase.giveUpTiles || !hunts(next, ship))) {
+          const safe = sheltered(next, ship, p.x, p.y);
+          if (ship.ai.chasing && (p.docked || calm || safe || d > cb.chase.giveUpTiles || !hunts(next, ship))) {
             ships = { ...ships, [id]: rejoin(ship) };
             continue;
           }
-          if (!p.docked && !calm && (ship.ai.chasing || sighted)) {
+          if (!p.docked && !calm && !safe && (ship.ai.chasing || sighted)) {
             if (d <= cb.chase.contactTiles) {
               const calmUntil = tick + Math.round(cb.chase.calmDays * tpd);
               ships = { ...ships, [id]: rejoin({ ...ship, ai: { ...ship.ai, calmUntil } }) };
@@ -593,7 +602,8 @@ export function createTrafficSystem(
         // ship. Contact settles it on the spot (no battle view: the player isn't there).
         if (atSea && ship.ai.role !== 'merchant' && (ship.ai.calmUntil ?? 0) <= tick) {
           let prey = ship.ai.target ? ships[ship.ai.target] : undefined;
-          const gone = (s: Ship | undefined) => !s?.ai || inPort(s) || Math.hypot(s.x - ship.x, s.y - ship.y) > cb.chase.giveUpTiles;
+          const gone = (s: Ship | undefined) =>
+            !s?.ai || inPort(s) || sheltered(next, ship, s.x, s.y) || Math.hypot(s.x - ship.x, s.y - ship.y) > cb.chase.giveUpTiles;
           if (ship.ai.target && gone(prey)) {
             ships = { ...ships, [id]: rejoin({ ...ship, ai: { ...ship.ai, target: undefined } }) };
             continue;

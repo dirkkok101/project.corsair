@@ -54,7 +54,15 @@ export const spriteSchema = z.object({
   mast: z.object({ forward: z.number(), up: z.number() }).optional(),
 });
 
-const shipStart = { shipId: z.string(), classId: z.string(), headingDeg: degrees };
+/** The player's ship at the start of a career: her class, guns mounted (her class's full battery when
+ * unset), and the port she starts docked in (at sea when unset). */
+const shipStart = {
+  shipId: z.string(),
+  classId: z.string(),
+  headingDeg: degrees,
+  guns: z.number().int().min(0).optional(),
+  port: z.string().optional(),
+};
 const lonLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
 const month = z.number().int().min(1).max(12);
 const range = z.tuple([z.number(), z.number()]).refine(([a, b]) => a <= b, 'range must be [min, max]');
@@ -321,11 +329,22 @@ export const combatSchema = z.object({
     aiChaseTiles: z.number().positive(),
     /** A pirate with a prize heads home and leaves off hunting this long. */
     prizeCalmDays: z.number().min(0),
+    /** Under a port's guns: within this many tiles of a port the hunter fears (by the port's size), she
+     * won't chase or fight. Pirates fear every port but a haven; patrols fear their enemies' ports. */
+    harbourTiles: z.record(z.string(), z.number().min(0)),
   }),
   /** Standing: attacking a nation's ship costs `attack`; sinking or taking a pirate earns `pirate` with every nation. */
   standing: z.object({ attack: z.number(), pirate: z.number(), hostile: z.number(), refused: z.number() }),
   /** Tavern and shipwright prices. */
-  port: z.object({ recruitGold: z.number().min(0), hullGold: z.number().min(0), sailGold: z.number().min(0) }),
+  /** Shipwright and tavern prices: a man signed on, a hull point and a sail percent made good, and a
+   * cannon bought (gunGold) or sold back (gunSellGold). */
+  port: z.object({
+    recruitGold: z.number().min(0),
+    hullGold: z.number().min(0),
+    sailGold: z.number().min(0),
+    gunGold: z.number().min(0),
+    gunSellGold: z.number().min(0),
+  }),
   /** The player's crew at the start of a career, as a share of the class's berths. */
   startCrew: share,
   /** News of a fight: {ship}, {nation} and {town} are filled in. */
@@ -400,3 +419,22 @@ export type Traffic = z.infer<typeof trafficSchema>;
 export type Combat = z.infer<typeof combatSchema>;
 export type PoliticsConfig = z.infer<typeof politicsSchema>;
 export type Tune = Music['tunes'][number];
+
+/** A shipwright's upgrade (PRD section 7): stat modifiers, a price, and the settlement sizes that sell it. */
+export const upgradeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  effect: z.string(),
+  price: z.number().min(0),
+  sizes: z.array(z.enum(['hamlet', 'town', 'city'])),
+  modifiers: z.object({
+    speed: z.number().optional(),
+    upwindDeg: z.number().optional(),
+    crewMult: z.number().positive().optional(),
+    hullMult: z.number().positive().optional(),
+    rangeMult: z.number().positive().optional(),
+    reloadMult: z.number().positive().optional(),
+  }),
+});
+export const upgradesSchema = z.object({ upgrades: z.array(upgradeSchema) });
+export type Upgrade = z.infer<typeof upgradeSchema>;

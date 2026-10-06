@@ -2,7 +2,7 @@ import { createSim, TICKS_PER_SECOND } from '@corsair/core';
 import type { Command, WorldState } from '@corsair/core';
 import { buildTileMap, isLand, loadContent, tileAt } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
-import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, polarAt } from '../src';
+import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, polarAt, targetSpeed } from '../src';
 
 const content = loadContent();
 const map = buildTileMap(content.maps.placeholder);
@@ -229,5 +229,20 @@ describe('determinism', () => {
       replay.step();
     }
     expect(replay.hash()).toBe(live.hash());
+  });
+});
+
+describe('upgrades at sea', () => {
+  const brig = { id: 'p', classId: 'ship.brig', x: 0, y: 0, headingDeg: 0, speed: 0, helm: 0 as const, sails: 'full' as const, blocked: false, cargo: {} };
+  const wind = { fromDeg: 0, strength: 'fresh' as const };
+  const at = (offDeg: number, upgrades?: string[]) => targetSpeed(content, { ...brig, headingDeg: offDeg, upgrades }, wind);
+
+  it('copper sheathing adds a speed point on every point of sail', () => {
+    for (const off of [60, 90, 150]) expect(at(off, ['copper']) / at(off)).toBeCloseTo((content.ships['ship.brig']!.speed + 1) / content.ships['ship.brig']!.speed);
+  });
+
+  it('cotton sails draw better to windward and change nothing off the wind', () => {
+    expect(at(50, ['cotton_sails'])).toBeGreaterThan(at(50));
+    expect(at(120, ['cotton_sails'])).toBe(at(120));
   });
 });

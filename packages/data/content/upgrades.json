@@ -1,0 +1,53 @@
+{
+  "$comment": "Shipwright upgrades (PRD section 7): installed for good, one of each per ship. Each is a set of stat modifiers: speed adds speed points; upwindDeg lets her sail that many degrees closer to the wind; the *Mult fields multiply crew berths, hull, gun range (round and grape) and reload time. sizes: the settlement sizes whose shipwright sells it. Era availability waits for eras.",
+  "upgrades": [
+    {
+      "id": "hammocks",
+      "name": "Triple hammocks",
+      "effect": "+25% crew berths",
+      "price": 400,
+      "sizes": ["town", "city"],
+      "modifiers": { "crewMult": 1.25 }
+    },
+    {
+      "id": "powder",
+      "name": "Fine-grain powder",
+      "effect": "+15% gun range",
+      "price": 500,
+      "sizes": ["town", "city"],
+      "modifiers": { "rangeMult": 1.15 }
+    },
+    {
+      "id": "cotton_sails",
+      "name": "Cotton sails",
+      "effect": "Sails 8 degrees closer to the wind",
+      "price": 800,
+      "sizes": ["town", "city"],
+      "modifiers": { "upwindDeg": 8 }
+    },
+    {
+      "id": "scantlings",
+      "name": "Iron scantlings",
+      "effect": "+20% hull",
+      "price": 900,
+      "sizes": ["town", "city"],
+      "modifiers": { "hullMult": 1.2 }
+    },
+    {
+      "id": "copper",
+      "name": "Copper sheathing",
+      "effect": "+1 speed",
+      "price": 1500,
+      "sizes": ["city"],
+      "modifiers": { "speed": 1 }
+    },
+    {
+      "id": "bronze_cannon",
+      "name": "Bronze cannon",
+      "effect": "+20% gun range, reload 20% faster",
+      "price": 2000,
+      "sizes": ["city"],
+      "modifiers": { "rangeMult": 1.2, "reloadMult": 0.8 }
+    }
+  ]
+}

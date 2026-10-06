@@ -1,6 +1,6 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
-import { isLand, tileAt } from '@corsair/data';
+import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, TileMap } from '@corsair/data';
 import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg } from '@corsair/systems-navigation';
 
@@ -27,6 +27,9 @@ export interface BattleShip extends Ship {
   ammo: Ammo;
   /** Enemy only: her role, which sets how she fights and how hard she boards. */
   role?: AiCaptain['role'];
+  /** Her guns' reach and reload as multiples of combat.json's (bronze cannon, fine-grain powder). */
+  rangeMult: number;
+  reloadMult: number;
 }
 
 /** A ball in flight: it lands at (tx, ty) after `t` seconds, and hits only if `hit`. */
@@ -112,6 +115,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
 
   const arm = (ship: Ship, side: Side): BattleShip => {
     const cls = content.ships[ship.classId]!;
+    const stats = shipStats(content, ship);
     const crew = ship.crew ?? Math.round(cls.maxCrew * c.startCrew);
     return {
       ...ship,
@@ -123,12 +127,14 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       docked: undefined,
       blocked: false,
       sails: 'full',
-      hull: ship.hull ?? cls.hull,
+      hull: ship.hull ?? stats.hullMax,
       sailCondition: ship.sailCondition ?? 100,
       crew,
-      hullMax: cls.hull,
+      hullMax: stats.hullMax,
       crewStart: crew,
-      guns: cls.guns,
+      guns: stats.guns,
+      rangeMult: stats.rangeMult,
+      reloadMult: stats.reloadMult,
       reload: { port: 0, starboard: 0 },
       ammo: 'round',
       role: ship.ai?.role,
@@ -174,8 +180,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const reloadSeconds = (ship: BattleShip) => {
     // Short-handed, every broadside takes longer: the crew is split between the guns.
     const needed = (ship.guns * c.guns.crewPerGun) / 2;
-    return c.guns.reloadSeconds * Math.max(1, needed / Math.max(1, ship.crew));
+    return c.guns.reloadSeconds * ship.reloadMult * Math.max(1, needed / Math.max(1, ship.crew));
   };
+  /** How far a ship's guns reach: round and chain to rangeTiles, grape shorter, both stretched by her guns. */
+  const reach = (ship: BattleShip, ammo: Ammo = ship.ammo) => (c.ammo[ammo]!.short ? c.guns.grapeTiles : c.guns.rangeTiles) * ship.rangeMult;
 
   /** Whether a broadside can fire now, and if not, why: the HUD shows it so a refused shot never puzzles. */
   const aim = (side: Side, broadside: Broadside): Aim => {
@@ -184,7 +192,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     if (ship.guns < 2) return 'no-guns';
     if (ship.reload[broadside] > 0) return 'loading';
     if (bears(ship, target) !== broadside) return 'no-target';
-    if (distance() > (c.ammo[ship.ammo]!.short ? c.guns.grapeTiles : c.guns.rangeTiles)) return 'out-of-range';
+    if (distance() > reach(ship)) return 'out-of-range';
     return 'ready';
   };
 
@@ -195,7 +203,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     if (aim(side, broadside) !== 'ready') return;
     // Raking fire runs along the target's length (bow or stern on), where a ball does the most harm.
     const along = Math.abs(Math.cos(((bearing(ship, target) - target.headingDeg) * Math.PI) / 180));
-    const near = 1 - Math.min(1, d / c.guns.rangeTiles);
+    const near = 1 - Math.min(1, d / reach(ship, 'round'));
     const hitChance = Math.min(0.95, (c.guns.hitFar + (c.guns.hitNear - c.guns.hitFar) * near) * (1 + c.guns.rakeBonus * along));
     const shots: Shot[] = [];
     const flight = d / c.guns.shotTilesPerSecond;
@@ -237,14 +245,14 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       (state.grappling > 0 || me.crew > them.crew * c.tactics.boardCrewRatio || them.sailCondition < c.tactics.boardBelowSails)
     )
       want = toThem; // grapples out, or she is hurt: close and hold on
-    else if (personality === 'aggressive' && d > c.guns.rangeTiles * 0.8) {
+    else if (personality === 'aggressive' && d > reach(me, 'round') * 0.8) {
       // Come in on her bow or stern, whichever is nearer, where her broadsides can't bear.
       const r = (them.headingDeg * Math.PI) / 180;
       const ends = [1, -1].map((k) => ({ x: them.x + Math.sin(r) * k * c.tactics.approachTiles, y: them.y - Math.cos(r) * k * c.tactics.approachTiles }));
       const near = ends.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0]!;
       want = normalizeDeg((Math.atan2(near.x - me.x, -(near.y - me.y)) * 180) / Math.PI);
-    } else if (d > c.guns.rangeTiles * 0.8) want = toThem;
-    else if (personality === 'cautious' && d < c.guns.rangeTiles * 0.5) want = toThem + 180;
+    } else if (d > reach(me, 'round') * 0.8) want = toThem;
+    else if (personality === 'cautious' && d < reach(me, 'round') * 0.5) want = toThem + 180;
     // Put the loaded broadside to bear: the target abeam on that side.
     else want = ready === 'starboard' ? toThem - 90 : toThem + 90;
     want = normalizeDeg(want);
@@ -273,7 +281,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const cmds: BattleCommand[] = [{ type: 'SetHelm', shipId: side, helm }];
     if (me.sails !== 'full') cmds.push({ type: 'SetSails', shipId: side, sails: 'full' });
     // Ammo: pirates cripple with chain, then sweep the deck with grape before boarding; others fire round shot.
-    const ammo: Ammo = personality === 'aggressive' ? (d <= c.guns.grapeTiles ? 'grape' : 'chain') : 'round';
+    const ammo: Ammo = personality === 'aggressive' ? (d <= reach(me, 'grape') ? 'grape' : 'chain') : 'round';
     if (me.ammo !== ammo) cmds.push({ type: 'SetAmmo', ammo });
     const side2 = bears(me, them);
     if (side2) cmds.push({ type: 'Fire', side: side2 });
@@ -300,9 +308,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       hull: Math.max(0, Math.round(s.hull)),
       sailCondition: Math.max(0, Math.round(s.sailCondition)),
       crew: Math.max(0, Math.round(s.crew)),
-      x: s.x,
-      y: s.y,
-      headingDeg: s.headingDeg,
+      guns: s.guns,
     });
     state = { ...state, result: { outcome, player: strip(state.ships.player), enemy: strip(state.ships.enemy) } };
   };
@@ -317,6 +323,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     result: () => state.result,
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
+    /** The player's guns now: a broadside's reload, and how far the shot loaded reaches. */
+    gunnery: () => ({ reloadSeconds: reloadSeconds(state.ships.player), rangeTiles: reach(state.ships.player) }),
     /** Advance `ticks` thirtieths of a second. `autopilot` steers the player too (the headless runner). */
     step(ticks = 1, autopilot?: 'runner' | 'cautious' | 'aggressive') {
       for (let i = 0; i < ticks && !state.result; i++) {

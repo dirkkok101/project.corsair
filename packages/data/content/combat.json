@@ -102,7 +102,12 @@
     "contactTiles": 2.5,
     "calmDays": 2,
     "aiChaseTiles": 8,
-    "prizeCalmDays": 7
+    "prizeCalmDays": 7,
+    "harbourTiles": {
+      "hamlet": 0,
+      "town": 5,
+      "city": 9
+    }
   },
   "standing": {
     "attack": -20,
@@ -113,7 +118,9 @@
   "port": {
     "recruitGold": 10,
     "hullGold": 6,
-    "sailGold": 2
+    "sailGold": 2,
+    "gunGold": 150,
+    "gunSellGold": 75
   },
   "startCrew": 0.5,
   "news": {

@@ -70,7 +70,9 @@ describe('ships at sea', () => {
         expect(a.state.markets![s.id]![g.id]!).toBeGreaterThanOrEqual(0);
       }
     }
-    expect(ai(a.state).length).toBe(content.traffic.population);
+    // Ships lost at sea are made good one a day per role, so a fight late in the season can leave one short.
+    expect(ai(a.state).length).toBeLessThanOrEqual(content.traffic.population);
+    expect(ai(a.state).length).toBeGreaterThanOrEqual(content.traffic.population - 2);
     expect(run().hash()).toBe(a.hash());
   }, 60_000);
 
@@ -112,10 +114,10 @@ describe('fights at sea', () => {
     return { id, near };
   };
   const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
-  const result = (outcome: BattleResult['outcome'], at = { x: 0, y: 0 }) => ({
+  const result = (outcome: BattleResult['outcome']) => ({
     outcome,
-    player: { hull: 60, sailCondition: 80, crew: 50, x: at.x, y: at.y, headingDeg: 90 },
-    enemy: { hull: 10, sailCondition: 40, crew: 9, x: at.x + 17, y: at.y, headingDeg: 90 },
+    player: { hull: 60, sailCondition: 80, crew: 50, guns: 14 },
+    enemy: { hull: 10, sailCondition: 40, crew: 9, guns: 6 },
   });
 
   it('a pirate that sights the player gives chase and closes to battle', () => {
@@ -132,6 +134,23 @@ describe('fights at sea', () => {
     const chase = createSim(start, [traffic()]);
     chase.step(30 * 20);
     expect(chase.events().some((e) => e.type === 'BattleJoined' && e.entityIds[1] === id)).toBe(true);
+  });
+
+  it("a pirate won't follow the player under a port's guns: she gives up the chase and leaves her be", () => {
+    const sim = world(5);
+    const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const royal = settlements.find((s) => s.id === 'town.port_royal')!;
+    // The player off Port Royal (a city: under its guns), the pirate in full chase within contact range.
+    const pirate = near.ships[id]!;
+    const at = { x: royal.x + 2, y: royal.y + 2 };
+    const start = {
+      ...near,
+      ships: { ...near.ships, player: { ...near.ships.player!, ...at, docked: undefined }, [id]: { ...pirate, x: at.x + 1, y: at.y, ai: { ...pirate.ai!, chasing: true } } },
+    };
+    const chase = createSim(start, [traffic()]);
+    chase.step(30);
+    expect(chase.events().some((e) => e.type === 'BattleJoined')).toBe(false);
+    expect(chase.state.ships[id]!.ai!.chasing).toBe(false);
   });
 
   it("taking a merchant costs standing with her nation, and brings her gold and cargo aboard", () => {
@@ -171,15 +190,14 @@ describe('fights at sea', () => {
     expect(lose.state.ships[id]).toBeDefined();
   });
 
-  it('breaking off leaves both ships where the fight ended, and the pirate leaves the player be a while', () => {
+  it('a fight is virtual: both ships stay where they met, guns lost stay lost, and the pirate leaves the player be', () => {
     const sim = world(8);
     const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
-    const at = { x: near.ships.player!.x - 3, y: near.ships.player!.y };
     const fled = createSim(near, [traffic()]);
-    fled.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('fled', at) });
+    fled.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('fled') });
     fled.applyCommands();
-    expect(fled.state.ships.player).toMatchObject({ x: at.x, y: at.y, headingDeg: 90 });
-    expect(fled.state.ships[id]).toMatchObject({ x: at.x + 17, y: at.y });
+    expect(fled.state.ships.player).toMatchObject({ x: near.ships.player!.x, y: near.ships.player!.y, guns: 14 });
+    expect(fled.state.ships[id]).toMatchObject({ x: near.ships[id]!.x, y: near.ships[id]!.y });
     expect(fled.state.ships[id]!.ai).toMatchObject({ chasing: false });
     expect(fled.state.ships[id]!.ai!.calmUntil).toBeGreaterThan(fled.state.tick);
     expect(fled.state.captain!.gold).toBe(near.captain!.gold);
@@ -198,13 +216,25 @@ describe('nations at war at sea', () => {
     const sim = world(9);
     const merchant = spawn(sim, 'merchant', 'town.port_royal', 'town.cartagena');
     const pirate = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
-    const m = sim.state.ships[merchant]!;
+    // Out on the open sea, halfway down her lane (by distance): under a port's guns a pirate leaves her be.
+    const m0 = sim.state.ships[merchant]!;
+    const route = m0.ai!.route;
+    const legs = route.slice(1).map((q, i) => Math.hypot(q[0] - route[i]![0], q[1] - route[i]![1]));
+    const along = legs.reduce((t, l) => t + l, 0) / 2;
+    let i = 0;
+    let run = 0;
+    while (run + legs[i]! < along) run += legs[i++]!;
+    const f = (along - run) / legs[i]!;
+    const [x0, y0] = route[i]!;
+    const [x1, y1] = route[i + 1]!;
+    // She sails by her distance along the lane, so set that with her position.
+    const m = { ...m0, x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f, ai: { ...m0.ai!, along } };
     // Lay the pirate alongside the merchant, at sea, with a weak merchant crew so the pirate wins.
     const ships = {
       ...sim.state.ships,
       player: { ...sim.state.ships.player!, docked: 'town.port_royal' },
       [merchant]: { ...m, crew: 5, cargo: { sugar: 10 }, ai: { ...m.ai!, purse: 200 } },
-      [pirate]: { ...sim.state.ships[pirate]!, x: m.x + 1, y: m.y, ai: { ...sim.state.ships[pirate]!.ai!, route: m.ai!.route, along: 0 } },
+      [pirate]: { ...sim.state.ships[pirate]!, x: m.x + 1, y: m.y, ai: { ...sim.state.ships[pirate]!.ai!, route: m.ai!.route, along } },
     };
     const fight = createSim({ ...sim.state, ships }, [traffic()]);
     fight.step(30);
@@ -235,7 +265,7 @@ describe('nations at war at sea', () => {
       type: 'BattleEnded',
       shipId: 'player',
       targetId: victim,
-      result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 60, x: v.x + 1, y: v.y, headingDeg: 0 }, enemy: { hull: 5, sailCondition: 50, crew: 4, x: v.x, y: v.y, headingDeg: 0 } },
+      result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 60, guns: 18 }, enemy: { hull: 5, sailCondition: 50, crew: 4, guns: 8 } },
     });
     s2.applyCommands();
     expect(s2.state.captain!.deeds).toEqual([{ nation: 'spain', role: 'merchant', kind: 'taken', tick: s2.state.tick }]);

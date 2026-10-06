@@ -7,7 +7,8 @@ const musicTitles = music.tunes.map((t) => t.title);
 // Drives the real game through window.__corsair (PRD section 16): the debug API confirms behaviour,
 // screenshots confirm rendering.
 
-async function boot(page: Page, url = '/') {
+/** Start a new career. It begins docked in port; most checks set sail first (`inPort` keeps her there). */
+async function boot(page: Page, url = '/', { inPort = false } = {}) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -15,11 +16,31 @@ async function boot(page: Page, url = '/') {
   await page.waitForFunction(() => Boolean(window.__corsair));
   // Freeze the clock so every check below steps the sim explicitly.
   await page.evaluate(() => window.__corsair.sim.pause());
+  if (!inPort) {
+    await page.keyboard.press('e');
+    await page.evaluate(() => window.__corsair.sim.step(1));
+  }
   return errors;
 }
 
 const player = (page: Page) =>
   page.evaluate(() => window.__corsair.state.get('ships.player') as { x: number; y: number; headingDeg: number; speed: number });
+
+test('a new career starts docked in port, under-gunned, and the shipwright outfits her', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await expect(page.locator('.port-name')).toHaveText('Port Royal');
+  await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await expect(page.locator('.shipwright')).toContainText('Guns 10 / 18');
+  const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
+  await page.locator('.shipwright').getByRole('button', { name: /^Buy 1/ }).click();
+  await expect(page.locator('.shipwright')).toContainText('Guns 11 / 18');
+  await page.locator('.upgrades tr', { hasText: 'Triple hammocks' }).getByRole('button', { name: /^Buy/ }).click();
+  await expect(page.locator('.upgrades tr', { hasText: 'Triple hammocks' })).toContainText('installed');
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(gold - 150 - 400);
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.upgrades'))).toEqual(['hammocks']);
+  await page.screenshot({ path: 'test-results/shipwright.png' });
+  expect(errors).toEqual([]);
+});
 
 test('boots onto the Caribbean at 960x540, scaled 2x, with no errors', async ({ page }) => {
   const errors = await boot(page);
@@ -114,6 +135,8 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.__corsair));
+  // A career opens in port, where the clock stands still: set sail so it runs.
+  await page.keyboard.press('e');
   await page.keyboard.press('Shift');
   await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 20_000 });
   const title = await page.evaluate(() => window.__corsair.audio.levels().nowPlaying);
@@ -182,12 +205,13 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   const startGold = await gold();
   // What the port makes and needs is common knowledge, and the rows say which way to trade.
   await expect(page.locator('.port-lean')).toContainText('exports Sugar');
-  const sugar = page.locator('tr', { hasText: 'Sugar' });
+  const sugar = page.locator('.port .market tr', { hasText: 'Sugar' });
   await expect(sugar).toContainText('buy here');
   // Food is a staple: never worth carrying, so it gets no trade tag. Every good shows how much its market takes.
   await expect(page.locator('tr', { hasText: 'Food' }).locator('.trend')).toHaveCount(0);
-  await expect(sugar.locator('.takes')).toHaveText(/^~\d+$/);
-  await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
+  // This port's own depth comes first; a remembered best sale elsewhere shows its depth too.
+  await expect(sugar.locator('.takes').first()).toHaveText(/^~\d+$/);
+  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
   await expect(sugar.locator('.paid')).toContainText('@');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);
@@ -202,14 +226,14 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await expect(page.locator('.port')).toHaveCount(0);
 
   await goTo('Port Royal');
-  const sugarHere = page.locator('tr', { hasText: 'Sugar' });
+  const sugarHere = page.locator('.port .market tr', { hasText: 'Sugar' });
   await expect(sugarHere).toContainText('sells well');
   // Selling above what the hold cost shows as a gain; Bridgetown is now a remembered price.
   await expect(sugarHere.locator('td.num.gain')).toHaveCount(1);
   await expect(sugarHere.locator('.best')).toContainText('Bridgetown');
   await expect(sugarHere.locator('.best .takes')).toHaveText(/^~\d+$/);
   await page.screenshot({ path: 'test-results/port-trade.png' });
-  await page.locator('tr', { hasText: 'Sugar' }).getByRole('button', { name: 'All' }).click();
+  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'All' }).click();
   expect(await gold()).toBeGreaterThan(startGold);
   expect(errors).toEqual([]);
 });
@@ -246,7 +270,8 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
 test('sea chart: hovering a port shows the prices last seen there, or that none are known', async ({ page }) => {
   await boot(page);
   await page.keyboard.press('m');
-  await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
+  // The career began in Port Royal, so its prices are known; a port never visited shows none.
+  await page.locator('.chart-port', { hasText: 'Tortuga' }).hover();
   await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
 
   await page.keyboard.press('m');
@@ -368,10 +393,9 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
 });
 
 test('leaving port: E sets sail back to the sea view, pointing out of the harbour', async ({ page }) => {
-  // The game runs here (no pause), as a player has it.
+  // The game runs here (no pause), as a player has it. A new career opens docked in Port Royal.
   await page.goto('/?seed=3');
   await page.waitForFunction(() => Boolean(window.__corsair));
-  await page.keyboard.press('e');
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('harbour');
 

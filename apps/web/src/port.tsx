@@ -1,5 +1,6 @@
 import { inPort } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
+import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
   bountiesOwed,
@@ -14,6 +15,8 @@ import {
   referenceStock,
   repairCost,
   sellDepth,
+  sellsGuns,
+  sellsUpgrade,
   tradeLean,
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
@@ -201,7 +204,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         {open === 'governor' ? (
           <Governor content={content} state={state} town={town} shipId={shipId} send={send} />
         ) : open === 'shipwright' ? (
-          <Shipwright content={content} state={state} shipId={shipId} send={send} />
+          <Shipwright content={content} state={state} town={town} shipId={shipId} send={send} />
         ) : open === 'tavern' ? (
           <Tavern
             content={content}
@@ -333,11 +336,12 @@ function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' |
   const cls = content.ships[ship.classId]!;
   const crew = crewOf(content, ship);
   const price = content.combat.port.recruitGold;
-  const room = cls.maxCrew - crew;
+  const berths = shipStats(content, ship).maxCrew;
+  const room = berths - crew;
   return (
     <div class="recruit">
       <span>
-        Crew {crew} / {cls.maxCrew}
+        Crew {crew} / {berths}
         {crew < cls.minCrew ? <span class="trend scarce">short-handed</span> : null}
       </span>
       <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: 10 })}>
@@ -432,29 +436,76 @@ function Governor({
 function Shipwright({
   content,
   state,
+  town,
   shipId,
   send,
 }: {
   content: ContentPack;
   state: WorldState;
+  town: PlacedSettlement;
   shipId: string;
   send: PortProps['send'];
 }) {
   const ship = state.ships[shipId]!;
-  const cls = content.ships[ship.classId]!;
+  const stats = shipStats(content, ship);
   const cost = repairCost(content, ship);
+  const gold = state.captain?.gold ?? 0;
+  const p = content.combat.port;
+  const room = stats.maxGuns - stats.guns;
+  const installed = new Set(ship.upgrades ?? []);
   return (
     <div class="shipwright">
-      <p>
-        Hull {Math.round(ship.hull ?? cls.hull)} / {cls.hull} · Sails {Math.round(ship.sailCondition ?? 100)}% · {cls.guns} guns
-      </p>
-      {cost > 0 ? (
-        <button class="leave" onClick={() => send({ type: 'Repair', shipId })}>
-          Repair · {cost} gold
-        </button>
-      ) : (
-        <p class="port-sub">She is sound. Nothing needs doing.</p>
-      )}
+      <div class="shipwright-row">
+        <span>
+          Hull {Math.round(ship.hull ?? stats.hullMax)} / {stats.hullMax} · Sails {Math.round(ship.sailCondition ?? 100)}%
+        </span>
+        {cost > 0 ? (
+          <button onClick={() => send({ type: 'Repair', shipId })}>Repair · {cost} gold</button>
+        ) : (
+          <span class="port-sub">She is sound.</span>
+        )}
+      </div>
+      <div class="shipwright-row">
+        <span>
+          Guns {stats.guns} / {stats.maxGuns}
+        </span>
+        {sellsGuns(town) ? (
+          <>
+            <button disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: 1 })}>
+              Buy 1 · {p.gunGold} gold
+            </button>
+            <button disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: room })}>
+              Fill the gun deck · {Math.min(room, Math.floor(gold / Math.max(1, p.gunGold))) * p.gunGold} gold
+            </button>
+            <button disabled={stats.guns <= 0} onClick={() => send({ type: 'SellGuns', shipId, count: 1 })}>
+              Sell 1 · {p.gunSellGold} gold
+            </button>
+          </>
+        ) : (
+          <span class="port-sub">No cannon for sale in a hamlet.</span>
+        )}
+      </div>
+      <table class="upgrades">
+        <tbody>
+          {Object.values(content.upgrades).map((u) => (
+            <tr key={u.id}>
+              <td>{u.name}</td>
+              <td class="port-sub">{u.effect}</td>
+              <td>
+                {installed.has(u.id) ? (
+                  <span class="trend export">installed</span>
+                ) : sellsUpgrade(content, town, u.id) ? (
+                  <button disabled={gold < u.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
+                    Buy · {u.price} gold
+                  </button>
+                ) : (
+                  <span class="port-sub">not sold here</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

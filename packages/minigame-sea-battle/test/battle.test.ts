@@ -34,12 +34,15 @@ const ship = (classId: string, role?: 'merchant' | 'patrol' | 'pirate', crewShar
   };
 };
 
-/** One fight to the end: the player's brig sails under `autopilot` (by default a gunner keeping her range). */
-function fight(enemy: Ship, seed: number, autopilot: 'runner' | 'cautious' | 'aggressive' = 'cautious') {
+/**
+ * One fight to the end: the player's brig sails under `autopilot` (by default a gunner keeping her range),
+ * with `outfit` (guns mounted, upgrades) when given, else her class's full battery.
+ */
+function fight(enemy: Ship, seed: number, autopilot: 'runner' | 'cautious' | 'aggressive' = 'cautious', outfit: Partial<Ship> = {}) {
   const battle = createBattle(content, {
     map,
     wind: { fromDeg: 70, strength: 'fresh' },
-    player: ship('ship.brig', undefined, 0.5),
+    player: { ...ship('ship.brig', undefined, 0.5), ...outfit },
     enemy,
     seed,
     bearingDeg: 45 + seed * 37,
@@ -195,6 +198,44 @@ describe('sea battle', () => {
     expect(cut.result()).toBeUndefined();
     expect(cut.state.grappling).toBe(0);
   });
+
+  it('fires half her mounted guns a broadside, and reports the guns she has left', () => {
+    const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } };
+    const broadside = (guns?: number) => {
+      const b = createBattle(quick, {
+        map,
+        wind: { fromDeg: 90, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 0, guns },
+        enemy: ship('ship.fluyt', 'merchant'),
+        seed: 7,
+        bearingDeg: 90,
+      });
+      b.send({ type: 'Fire', side: 'starboard' });
+      b.step(1);
+      return b.state.shots.filter((s) => s.from === 'player').length;
+    };
+    expect(broadside(10)).toBe(5);
+    expect(broadside()).toBe(content.ships['ship.brig']!.guns / 2);
+    const done = fight(ship('ship.sloop', 'pirate', 0.85), 3, 'cautious', { guns: 12 });
+    expect(done.result()!.player.guns).toBeLessThanOrEqual(12);
+  });
+
+  it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
+    const wins = (outfit: Partial<Ship>) => {
+      let n = 0;
+      for (let seed = 1; seed <= 40; seed++) {
+        const o = fight(ship('ship.sloop', 'pirate', 0.85), seed, 'cautious', outfit).result()!.outcome;
+        if (o === 'sunk' || o === 'struck' || o === 'boarded') n++;
+      }
+      return n;
+    };
+    const stock = wins({ guns: 10 });
+    const full = wins({});
+    const fitted = wins({ upgrades: Object.keys(content.upgrades) });
+    console.log('OUTFIT brig vs pirate sloop wins of 40: 10 guns', stock, '18 guns', full, 'fully fitted', fitted);
+    expect(full).toBeGreaterThanOrEqual(stock);
+    expect(fitted).toBeGreaterThanOrEqual(full);
+  }, 120_000);
 
   it('plays matchups with the outcomes the design intends (headless runner)', () => {
     const tally = (enemy: () => Ship, n = 40) => {

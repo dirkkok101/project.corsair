@@ -1,6 +1,6 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
-import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from '@corsair/data';
+import { decodeRasterMap, gameplayContent, loadContent, placeSettlements, shipStats } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
@@ -194,6 +194,11 @@ async function main() {
     createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt),
   ]);
+  // A new career begins in port, so the ship can be outfitted before she first sails.
+  if (!resumed && def.start.port) {
+    sim.send({ type: 'Dock', shipId: def.start.shipId, settlementId: def.start.port });
+    sim.applyCommands();
+  }
   const breezes = createBreezeField(content, def, map);
   // Sound needs a user gesture before the browser lets it play; V toggles mute, N the music.
   const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
@@ -481,19 +486,18 @@ async function main() {
         if (!audioFailed) console.error('battle audio failed', err);
         audioFailed = true;
       }
-      const guns = content.combat.guns;
+      const gunnery = fight.battle.gunnery();
       const arcs = bs.result
         ? undefined
         : {
-            arcDeg: guns.arcDeg,
-            rangeTiles: content.combat.ammo[bs.ships.player.ammo]!.short ? guns.grapeTiles : guns.rangeTiles,
+            arcDeg: content.combat.guns.arcDeg,
+            rangeTiles: gunnery.rangeTiles,
             port: fight.battle.aim('port'),
             starboard: fight.battle.aim('starboard'),
           };
       renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, sim.state.ships[fight.targetId]?.ai?.nation);
       const them = sim.state.ships[fight.targetId];
       const me = player();
-      const needed = (content.ships[me.classId]!.guns * content.combat.guns.crewPerGun) / 2;
       render(
         <BattleHud
           state={bs}
@@ -501,7 +505,7 @@ async function main() {
           playerTitle={me.classId.replace(/^ship\./, '')}
           enemyName={them?.ai?.name ?? 'Enemy'}
           enemyTitle={them ? shipTitle(them) : ''}
-          reloadSeconds={content.combat.guns.reloadSeconds * Math.max(1, needed / Math.max(1, bs.ships.player.crew))}
+          reloadSeconds={gunnery.reloadSeconds}
           aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}
           view={{ w: renderer.canvas.clientWidth, h: renderer.canvas.clientHeight, pxPerTile: content.combat.battle.tileSize * scale }}
           onContinue={endBattle}
@@ -623,7 +627,7 @@ async function main() {
         {
           wind: content.navigation.windStrength[wind.strength]!,
           offWindDeg: offWind,
-          speed: speedPoints(content, ship) / cls.speed,
+          speed: speedPoints(content, ship) / shipStats(content, ship).speed,
           sailsSet: ship.sails !== 'furled',
           luffing: pointOfSail(content, offWind).id === 'irons',
           inStorm,

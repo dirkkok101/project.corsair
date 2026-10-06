@@ -1,5 +1,5 @@
 import type { EmittedEvent, Ship, System, Tack, Wind, WorldState } from '@corsair/core';
-import { isLand, startOf, tileAt } from '@corsair/data';
+import { isLand, shipStats, startOf, tileAt } from '@corsair/data';
 import type { ContentPack, MapDef, Polar, TileMap } from '@corsair/data';
 
 export function normalizeDeg(deg: number): number {
@@ -31,19 +31,22 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
  */
 /** How a ship's condition slows her (PRD section 7): shot-through sails draw less, and a hull below 30% drags. */
 export function conditionFactor(content: ContentPack, ship: Ship): number {
-  const cls = content.ships[ship.classId]!;
   const sails = 0.3 + 0.7 * ((ship.sailCondition ?? 100) / 100);
-  const hull = ship.hull !== undefined && ship.hull < cls.hull * 0.3 ? 0.8 : 1;
+  const hull = ship.hull !== undefined && ship.hull < shipStats(content, ship).hullMax * 0.3 ? 0.8 : 1;
   return sails * hull;
 }
 
 export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): number {
   const nav = content.navigation;
   const cls = content.ships[ship.classId]!;
+  const stats = shipStats(content, ship);
+  // Better sails (upwindDeg) draw as if she were that much further off the wind, up to a beam reach.
+  const off = angleOffWind(ship.headingDeg, wind.fromDeg);
+  const drawn = off < 90 ? Math.min(90, off + stats.upwindDeg) : off;
   return (
-    cls.speed *
+    stats.speed *
     nav.tilesPerSecondPerSpeedPoint *
-    polarAt(content.polars[cls.polar]!, angleOffWind(ship.headingDeg, wind.fromDeg)) *
+    polarAt(content.polars[cls.polar]!, drawn) *
     nav.windStrength[wind.strength]! *
     nav.sailSettings[ship.sails]! *
     conditionFactor(content, ship)
@@ -220,6 +223,7 @@ export function createWorld(def: MapDef): WorldState {
     sails: 'full',
     blocked: false,
     cargo: {},
+    ...(start.guns !== undefined ? { guns: start.guns } : {}),
   };
   return { tick: 0, wind: { ...wind }, ships: { [ship.id]: ship } };
 }

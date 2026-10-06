@@ -76,6 +76,10 @@ export interface Ship {
   hull?: number;
   sailCondition?: number;
   crew?: number;
+  /** Outfitting (PRD section 7): guns mounted, absent meaning her class's full battery (AI ships, and
+   * saves from before outfitting); and the shipwright's upgrades installed, by id. */
+  guns?: number;
+  upgrades?: string[];
   /** Set on AI ships; the player's ship has none. */
   ai?: AiCaptain;
   /** Settlement id while the ship is in port; it doesn't sail until it undocks. */
@@ -161,7 +165,7 @@ export interface BattleResult {
    * drew clear. lost: the player was beaten, boarded or sinking, and struck to her.
    */
   outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'fled' | 'lost';
-  /** Each side's state at the end, and where she lay: the battle is fought on the world map. */
+  /** Each side's state at the end. The fight is virtual: both ships stay where they met on the world map. */
   player: BattleEnd;
   enemy: BattleEnd;
 }
@@ -170,9 +174,8 @@ export interface BattleEnd {
   hull: number;
   sailCondition: number;
   crew: number;
-  x: number;
-  y: number;
-  headingDeg: number;
+  /** Guns still mounted: a gun knocked out in the fight stays lost until the shipwright replaces it. */
+  guns: number;
 }
 
 export interface Sighting {
@@ -253,6 +256,10 @@ export type Command =
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
   | { type: 'Repair'; shipId: string }
+  /** At the shipwright: mount or sell back cannon, or install an upgrade. */
+  | { type: 'BuyGuns'; shipId: string; count: number }
+  | { type: 'SellGuns'; shipId: string; count: number }
+  | { type: 'BuyUpgrade'; shipId: string; upgradeId: string }
   /** Debug: put two nations at war or at peace now. */
   | { type: 'SetRelation'; a: Nation; b: Nation; war: boolean }
   /** At a governor: buy a letter of marque from his nation, or collect bounties owed for deeds. */

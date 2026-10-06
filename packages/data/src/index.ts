@@ -15,6 +15,7 @@ import polarsJson from '../content/polars.json';
 import shipsJson from '../content/ships.json';
 import spritesJson from '../content/sprites.json';
 import trafficJson from '../content/traffic.json';
+import upgradesJson from '../content/upgrades.json';
 import {
   calendarSchema,
   combatSchema,
@@ -30,6 +31,7 @@ import {
   shipClassSchema,
   spriteSchema,
   trafficSchema,
+  upgradesSchema,
   weatherSchema,
   windZonesSchema,
 } from './schemas';
@@ -48,12 +50,14 @@ import type {
   ShipClass,
   SpriteDef,
   Traffic,
+  Upgrade,
   Weather,
   WindZones,
 } from './schemas';
 
 export * from './schemas';
 export * from './tilemap';
+export * from './stats';
 
 export interface ContentPack {
   ships: Record<string, ShipClass>;
@@ -71,6 +75,7 @@ export interface ContentPack {
   traffic: Traffic;
   combat: Combat;
   politics: PoliticsConfig;
+  upgrades: Record<string, Upgrade>;
 }
 
 /**
@@ -101,6 +106,7 @@ export function loadContent(): ContentPack {
     traffic: trafficSchema.parse(trafficJson),
     combat: combatSchema.parse(combatJson),
     politics: politicsSchema.parse(politicsJson),
+    upgrades: Object.fromEntries(upgradesSchema.parse(upgradesJson).upgrades.map((u) => [u.id, u])),
   };
   for (const r of Object.values(pack.traffic.roles)) {
     if (!pack.ships[r.classId]) throw new Error(`traffic: unknown class ${r.classId}`);
@@ -126,6 +132,8 @@ export function loadContent(): ContentPack {
   }
   for (const map of Object.values(pack.maps)) {
     if (!pack.ships[map.start.classId]) throw new Error(`${map.id}: unknown start class`);
+    if ((map.start.guns ?? 0) > pack.ships[map.start.classId]!.guns) throw new Error(`${map.id}: more start guns than the class mounts`);
+    if (map.start.port && !pack.settlements.some((s) => s.id === map.start.port)) throw new Error(`${map.id}: unknown start port ${map.start.port}`);
   }
   const ids = new Set<string>();
   for (const s of pack.settlements) {

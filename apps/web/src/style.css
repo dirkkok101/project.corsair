@@ -1100,6 +1100,34 @@ body {
   min-height: 120px;
 }
 
+.shipwright-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.shipwright-row > span:first-child {
+  min-width: 190px;
+}
+
+.upgrades {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.upgrades td {
+  padding: 1px 12px 1px 0;
+}
+
+.upgrades button:disabled,
+.shipwright-row button:disabled {
+  color: #577277;
+  background: transparent;
+  border-color: #394a50;
+  cursor: default;
+}
+
 /* Ship labels: smaller and quieter than town names, but in the nation's colour. */
 .ship-label {
   font-size: 11px;
