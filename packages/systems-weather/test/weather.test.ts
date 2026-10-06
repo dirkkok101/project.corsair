@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim, rngStream, seedRng } from '@corsair/core';
-import type { Storm, WorldState } from '@corsair/core';
+import type { Storm, WeatherSystem, WorldState } from '@corsair/core';
 import { decodeRasterMap, loadContent, tileOf } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { describe, expect, it } from 'vitest';
@@ -84,13 +84,43 @@ describe('zones and seasons', () => {
     // Open Caribbean, far beyond any coastal breeze.
     const { x, y } = tileOf(def, -75, 15);
     const zone = zoneAt(content, map, x, y).id;
-    expect(windAt(sim.state, x, y)).toEqual({
+    // With no weather system overhead the zone's wind is the wind.
+    const clear = { ...sim.state, weather: { ...sim.state.weather!, systems: [] } };
+    expect(windAt(clear, x, y)).toEqual({
       fromDeg: sim.state.weather!.zones[zone]!.fromDeg,
       strength: sim.state.weather!.zones[zone]!.strength,
     });
     sim.send({ type: 'SpawnStorm', x: x + 5, y });
     sim.step();
     expect(['gale', 'strong']).toContain(windAt(sim.state, x, y).strength);
+  });
+
+  it('weather systems turn the wind around them, fade in and out, drift, and replay from the seed', () => {
+    const windAt = createWindField(content, def, map);
+    const sim = newSim(3);
+    const { x, y } = tileOf(def, -75, 15);
+    const zone = zoneAt(content, map, x, y).id;
+    const trades = { fromDeg: 80, strength: 'fresh' as const };
+    const low: WeatherSystem = { id: 'system.t', kind: 'low', x, y: y - 100, radius: 300, headingDeg: 90, speed: 50, strength: 'strong', startDay: -5, endDay: 50 };
+    const sky = (systems: WeatherSystem[]) => ({ ...sim.state, weather: { ...sim.state.weather!, zones: { ...sim.state.weather!.zones, [zone]: trades }, systems } });
+    // Due south of a low the wind turns westerly: the run east the trades deny.
+    const under = windAt(sky([low]), x, y);
+    expect(Math.abs(((under.fromDeg - 270 + 540) % 360) - 180)).toBeLessThan(45);
+    // A high the other way round; past the edge, the trades.
+    expect(Math.abs(((windAt(sky([{ ...low, kind: 'high' }]), x, y).fromDeg - 90 + 540) % 360) - 180)).toBeLessThan(45);
+    expect(windAt(sky([{ ...low, y: y - 400 }]), x, y)).toEqual(trades);
+    // Fading: a system just forming hardly moves the wind.
+    const day = sim.state.tick / content.calendar.ticksPerDay;
+    const forming = windAt(sky([{ ...low, startDay: day }]), x, y);
+    expect(forming).toEqual(trades);
+    // Systems drift and new ones form as old ones die; the same seed gives the same skies.
+    const a = newSim(9);
+    const b = newSim(9);
+    a.step(content.calendar.ticksPerDay * 20);
+    b.step(content.calendar.ticksPerDay * 20);
+    expect(a.state.weather!.systems).toEqual(b.state.weather!.systems);
+    expect(a.state.weather!.systems!.length).toBeGreaterThanOrEqual(content.weather.systems.count[0]);
+    expect(a.events().some((e) => e.type === 'WeatherSystemFormed')).toBe(true);
   });
 
   describe('coastal breezes', () => {

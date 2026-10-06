@@ -63,8 +63,11 @@ export interface Ship {
   speed: number;
   helm: Helm;
   sails: SailSetting;
-  /** Helm assist: hold the best upwind course on a tack until the helm is used by hand. */
-  assist?: { mode: 'beat'; tack: Tack };
+  /**
+   * Helm assist until the helm is used by hand: `beat` holds the best upwind course on a tack; `intercept`
+   * steers to meet another ship (leading her by her course and speed), beating on `tack` when she lies upwind.
+   */
+  assist?: { mode: 'beat' | 'intercept'; tack: Tack; targetId?: string };
   /** Units of each good in the hold. */
   cargo: Record<string, number>;
   /** Gold paid for the units of each good now in the hold, so the merchant can show the margin. */
@@ -100,6 +103,24 @@ export interface Storm {
   endDay: number;
 }
 
+/**
+ * A roaming weather system: a low turns the wind anticlockwise around it and blows fresh, a high turns it
+ * clockwise and blows light. Its wind blends into the zones' trades, strongest at the centre.
+ */
+export interface WeatherSystem {
+  id: string;
+  kind: 'low' | 'high';
+  x: number;
+  y: number;
+  radius: number;
+  headingDeg: number;
+  /** Tiles per game day. */
+  speed: number;
+  strength: WindStrength;
+  startDay: number;
+  endDay: number;
+}
+
 export interface ZoneWeather {
   fromDeg: number;
   strength: WindStrength;
@@ -112,6 +133,9 @@ export interface WeatherState {
   zones: Record<string, ZoneWeather>;
   storms: Storm[];
   nextStormId: number;
+  /** Roaming weather systems (absent on saves from before them; they form over the first days). */
+  systems?: WeatherSystem[];
+  nextSystemId?: number;
 }
 
 export interface KnownPrices {
@@ -239,7 +263,7 @@ export type Command =
   | { type: 'SetHelm'; shipId: string; helm: Helm }
   | { type: 'SetSails'; shipId: string; sails: SailSetting }
   /** Tacking aid: `beat` holds the best upwind course on the current tack, `tack` comes about onto the other. */
-  | { type: 'SetAssist'; shipId: string; assist: 'beat' | 'tack' | 'off' }
+  | { type: 'SetAssist'; shipId: string; assist: 'beat' | 'tack' | 'off' | 'intercept'; targetId?: string }
   | { type: 'SetWind'; fromDeg: number; strength: WindStrength }
   /** Debug: start a storm centred on a tile. */
   | { type: 'SpawnStorm'; x: number; y: number }

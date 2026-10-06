@@ -1,6 +1,6 @@
 {
-  "$comment": "Sailing tuning, PRD section 4. Hull, crew and load factors and currents are deferred; they are 1 and 0 for now. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet.",
-  "tilesPerSecondPerSpeedPoint": 1,
+  "$comment": "Sailing tuning, PRD section 4. Hull, crew and load factors and currents are deferred; they are 1 and 0 for now. World pace is half what it was (0.5 tiles/s per speed point) so a passing ship stays on screen long enough to deal with; days are twice as long to match (calendar.json), and the game cruises at 2x on empty sea. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet.",
+  "tilesPerSecondPerSpeedPoint": 0.5,
   "turnDegPerSecondPerPoint": 6,
   "accelPerSecond": 0.6,
   "sailSettings": {

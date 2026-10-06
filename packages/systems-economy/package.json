@@ -8,10 +8,10 @@
   "dependencies": {
     "@corsair/core": "workspace:*",
     "@corsair/data": "workspace:*",
+    "@corsair/systems-navigation": "workspace:*",
     "@corsair/systems-politics": "workspace:*"
   },
   "devDependencies": {
-    "@corsair/systems-navigation": "workspace:*",
     "@corsair/systems-weather": "workspace:*"
   }
 }

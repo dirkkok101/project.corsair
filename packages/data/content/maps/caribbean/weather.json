@@ -10,6 +10,21 @@
     "strength": 0.6,
     "seaBreezePeakHour": 15
   },
+  "systems": {
+    "$comment": "Lows and highs drifting over the map (game-first, PRD section 3): a low's south side brings westerlies, the run east the trades deny. Tuned so the wind blows from the east about half the time across the open sea (packages/systems-weather/test/sailing.test.ts).",
+    "count": [4, 6],
+    "spawnChancePerDay": 0.35,
+    "lowShare": 0.6,
+    "radiusKm": [700, 1200],
+    "speedKmPerDay": [100, 250],
+    "lifetimeDays": [4, 10],
+    "fadeDays": 1,
+    "maxBlend": 0.95,
+    "strength": {
+      "low": { "fresh": 0.6, "strong": 0.4 },
+      "high": { "light": 0.6, "fresh": 0.4 }
+    }
+  },
   "storms": {
     "$comment": "The real main development region lies far east of the map; storms enter here already formed. Late-season (Oct-Nov) western-Caribbean genesis is not modelled. Forward speed 250-550 km/day is ~10-23 km/h; most Caribbean storms recurve near 25-30N.",
     "months": [

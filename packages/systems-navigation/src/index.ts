@@ -1,3 +1,4 @@
+import { inPort } from '@corsair/core';
 import type { EmittedEvent, Ship, System, Tack, Wind, WorldState } from '@corsair/core';
 import { isLand, shipStats, startOf, tileAt } from '@corsair/data';
 import type { ContentPack, MapDef, Polar, TileMap } from '@corsair/data';
@@ -109,15 +110,47 @@ export function createNavigationSystem(
     const speed = ship.speed + (target - ship.speed) * Math.min(1, rate * dt);
     const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]!;
     let headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);
-    if (ship.assist) {
+    let assist = ship.assist;
+    const events: EmittedEvent[] = [];
+    if (assist) {
       // Steer toward the best upwind course on the chosen tack at the normal turn rate, so the
       // ship follows the wind as it shifts. Starboard tack keeps the wind on the starboard side.
-      const off = upwindOf(cls.polar);
-      const goal = ship.assist.tack === 'starboard' ? wind.fromDeg - off : wind.fromDeg + off;
-      const diff = ((normalizeDeg(goal - ship.headingDeg) + 540) % 360) - 180;
-      const step = turnRate * dt;
-      headingDeg = normalizeDeg(ship.headingDeg + Math.max(-step, Math.min(step, diff)));
+      // Better sails (upwindDeg) let her point that much higher.
+      const off = Math.max(0, upwindOf(cls.polar) - shipStats(content, ship).upwindDeg);
+      const closeHauled = (tack: Tack) => normalizeDeg(tack === 'starboard' ? wind.fromDeg - off : wind.fromDeg + off);
+      let goal: number | undefined = closeHauled(assist.tack);
+      if (assist.mode === 'intercept') {
+        const them = assist.targetId ? state.ships[assist.targetId] : undefined;
+        if (!them || inPort(them)) {
+          // She's gone, or into port: hand the helm back.
+          assist = undefined;
+          goal = undefined;
+          events.push({ type: 'AssistEnded', entityIds: [ship.id], payload: { reason: 'target-gone' } });
+        } else {
+          // Lead her: aim where she will be by the time we could get there, looking no more than a minute ahead.
+          const eta = Math.min(60, Math.hypot(them.x - ship.x, them.y - ship.y) / Math.max(0.5, speed));
+          const r = (them.headingDeg * Math.PI) / 180;
+          const ax = them.x + Math.sin(r) * them.speed * eta;
+          const ay = them.y - Math.cos(r) * them.speed * eta;
+          const want = normalizeDeg((Math.atan2(ax - ship.x, -(ay - ship.y)) * 180) / Math.PI);
+          if (angleOffWind(want, wind.fromDeg) >= off) goal = want;
+          else {
+            // Upwind of us: beat, holding the tack until the other is clearly nearer her bearing.
+            const apart = (a: number) => Math.abs(((a - want + 540) % 360) - 180);
+            const other: Tack = assist.tack === 'port' ? 'starboard' : 'port';
+            const tack = apart(closeHauled(other)) + 15 < apart(closeHauled(assist.tack)) ? other : assist.tack;
+            assist = { ...assist, tack };
+            goal = closeHauled(tack);
+          }
+        }
+      }
+      if (goal !== undefined) {
+        const diff = ((normalizeDeg(goal - ship.headingDeg) + 540) % 360) - 180;
+        const step = turnRate * dt;
+        headingDeg = normalizeDeg(ship.headingDeg + Math.max(-step, Math.min(step, diff)));
+      }
     }
+    const steered: Ship = assist ? { ...ship, assist } : (({ assist: _a, ...rest }) => rest)(ship);
 
     const rad = (headingDeg * Math.PI) / 180;
     const dx = Math.sin(rad) * speed * dt;
@@ -127,7 +160,7 @@ export function createNavigationSystem(
       // Contact ends only once land is no longer just ahead; otherwise a ship nosing the coast
       // would flip in and out of contact every tick and repeat ShipBlocked.
       const blocked = ship.blocked && !water(ship.x + dx + Math.sin(rad) * 0.5, ship.y + dy - Math.cos(rad) * 0.5);
-      return { ship: { ...ship, x: ship.x + dx, y: ship.y + dy, headingDeg, speed, blocked }, events: [] };
+      return { ship: { ...steered, x: ship.x + dx, y: ship.y + dy, headingDeg, speed, blocked }, events };
     }
 
     // Against land the ship slides along the coast on whichever axis is still water. Stopping dead
@@ -138,10 +171,8 @@ export function createNavigationSystem(
     const axes: [number, number][] = Math.abs(dx) >= Math.abs(dy) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
     const free = axes.find(([ax, ay]) => (ax !== 0 || ay !== 0) && water(ship.x + ax, ship.y + ay));
     const [x, y] = free ? [ship.x + free[0], ship.y + free[1]] : [ship.x, ship.y];
-    const events: EmittedEvent[] = ship.blocked
-      ? []
-      : [{ type: 'ShipBlocked', entityIds: [ship.id], payload: { x, y, headingDeg } }];
-    return { ship: { ...ship, x, y, headingDeg, speed, blocked: true }, events };
+    if (!ship.blocked) events.push({ type: 'ShipBlocked', entityIds: [ship.id], payload: { x, y, headingDeg } });
+    return { ship: { ...steered, x, y, headingDeg, speed, blocked: true }, events };
   };
 
   return {
@@ -169,6 +200,15 @@ export function createNavigationSystem(
           return { state: { ...state, ships: { ...state.ships, [ship.id]: rest } }, events: [] };
         }
         const current: Tack = ship.assist?.tack ?? tackOf(ship.headingDeg, windAt(state, ship.x, ship.y).fromDeg);
+        if (command.assist === 'intercept') {
+          const them = command.targetId ? state.ships[command.targetId] : undefined;
+          if (!them || them.id === ship.id) return undefined;
+          const next = { ...rest, helm: 0 as const, assist: { mode: 'intercept' as const, tack: current, targetId: them.id } };
+          return {
+            state: { ...state, ships: { ...state.ships, [ship.id]: next } },
+            events: [{ type: 'AssistSet', entityIds: [ship.id, them.id], payload: { assist: 'intercept' } }],
+          };
+        }
         const tack: Tack = command.assist === 'tack' ? (current === 'port' ? 'starboard' : 'port') : current;
         const next = { ...rest, helm: 0 as const, assist: { mode: 'beat' as const, tack } };
         return {

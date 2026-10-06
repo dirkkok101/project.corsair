@@ -1,5 +1,5 @@
 {
-  "$comment": "Prevailing winds by region and season, PRD section 3. fromDeg is the direction the wind blows FROM, clockwise from north. dry = Dec-May, wet = Jun-Nov. First matching zone wins, so small zones come first; the Caribbean Sea zone is the fallback. Weather breaks (fronts, tropical waves, variable spells) keep the trades from blowing the same way for weeks, so routes east open up from time to time.",
+  "$comment": "Prevailing winds by region and season, PRD section 3. fromDeg is the direction the wind blows FROM, clockwise from north. dry = Dec-May, wet = Jun-Nov. First matching zone wins, so small zones come first; the Caribbean Sea zone is the fallback. Weather breaks (fronts, tropical waves, variable spells) keep the trades from blowing the same way for weeks, so routes east open up from time to time. Westerly spells (game-first, not climatology) open a run east every week or two in every region, so the trades are flavour rather than a wall; packages/systems-weather/test/sailing.test.ts measures it.",
   "defaultZone": "zone.caribbean_sea",
   "zones": [
     {
@@ -103,6 +103,31 @@
           "durationDays": [
             1,
             2
+          ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
           ]
         }
       ]
@@ -225,6 +250,31 @@
             1,
             2
           ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
+          ]
         }
       ]
     },
@@ -326,6 +376,31 @@
             1,
             2
           ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
+          ]
         }
       ]
     },
@@ -418,6 +493,31 @@
           "durationDays": [
             1,
             2
+          ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
           ]
         }
       ]
@@ -548,6 +648,31 @@
           "durationDays": [
             1,
             2
+          ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
           ]
         }
       ]
@@ -681,6 +806,31 @@
             1,
             2
           ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
+          ]
         }
       ]
     },
@@ -789,6 +939,31 @@
           "durationDays": [
             1,
             2
+          ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
           ]
         }
       ]
@@ -915,6 +1090,31 @@
           "durationDays": [
             1,
             2
+          ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
           ]
         }
       ]
@@ -1047,6 +1247,31 @@
           "durationDays": [
             1,
             2
+          ]
+        },
+        {
+          "id": "westerly",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "chancePerDay": 0.12,
+          "fromDeg": 260,
+          "spreadDeg": 40,
+          "strength": "fresh",
+          "durationDays": [
+            3,
+            6
           ]
         }
       ]

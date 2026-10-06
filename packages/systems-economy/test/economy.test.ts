@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
-import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
+import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import {
@@ -383,6 +383,23 @@ describe('leaving port', () => {
     expect(player(sim.state).docked).toBeUndefined();
     expect(player(sim.state).headingDeg).toBe(seawardHeading(map, at, portRoyal, 0));
     expect(player(sim.state).headingDeg).not.toBe(0);
+  });
+
+  it('never casts off into irons: with the wind blowing in from the sea she takes the nearest sailable way out', () => {
+    const w = createWorld(def);
+    const at = { x: portRoyal.x + 1, y: portRoyal.y + 2 };
+    const seaward = seawardHeading(map, at, portRoyal, 0);
+    // The wind blows straight in from seaward: dead ahead on the plain seaward heading.
+    const wind = { fromDeg: seaward, strength: 'fresh' as const };
+    const sim = createSim(withEconomy({ ...w, ships: { player: { ...w.ships.player!, ...at, headingDeg: 0 } } }, content, settlements, 1), [
+      createEconomySystem(content, settlements, map, () => wind),
+    ]);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.send({ type: 'Undock', shipId: 'player' });
+    sim.applyCommands();
+    const heading = player(sim.state).headingDeg;
+    const polar = content.polars[content.ships['ship.brig']!.polar]!;
+    expect(polarAt(polar, angleOffWind(heading, wind.fromDeg))).toBeGreaterThanOrEqual(0.5);
   });
 });
 

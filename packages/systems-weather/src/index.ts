@@ -1,5 +1,5 @@
 import { dateOf, rngStream, seedRng } from '@corsair/core';
-import type { EmittedEvent, Storm, System, WeatherState, Wind, WindStrength, WorldState } from '@corsair/core';
+import type { EmittedEvent, Storm, System, WeatherState, WeatherSystem, Wind, WindStrength, WorldState } from '@corsair/core';
 import { isLand, tileOf } from '@corsair/data';
 import type { ContentPack, RasterMapDef, Tile, TileMap, WindZones } from '@corsair/data';
 
@@ -42,6 +42,34 @@ export function stormWindAt(storm: Storm, x: number, y: number): Wind | undefine
   const toBearing = normalizeDeg((Math.atan2(dy, dx) * 180) / Math.PI);
   const gale = storm.radius * 0.6;
   return { fromDeg: normalizeDeg(toBearing + 180), strength: r2 < gale * gale ? 'gale' : 'strong' };
+}
+
+/** Kilometres per tile: equirectangular tiles are close to square, so the two axes are averaged. */
+function kmPerTileOf(def: RasterMapDef): number {
+  const { lonMax, lonMin, latMin, latMax } = def.bounds;
+  const midLat = ((latMin + latMax) / 2) * (Math.PI / 180);
+  return (((lonMax - lonMin) / def.width) * 111.32 * Math.cos(midLat) + ((latMax - latMin) / def.height) * 110.57) / 2;
+}
+
+/**
+ * A weather system's wind at a tile, as a toward-vector in east/north wind-multiplier units, and how much
+ * of the wind it sets there: maxBlend at the centre, none at its edge, faded in and out over fadeDays.
+ * A low turns the wind anticlockwise (as a storm does), a high clockwise.
+ */
+export function systemWindAt(content: ContentPack, s: WeatherSystem, x: number, y: number, day: number) {
+  const dx = x - s.x;
+  const dy = y - s.y;
+  const r2 = dx * dx + dy * dy;
+  if (r2 >= s.radius * s.radius) return undefined;
+  const c = content.weather.systems;
+  const fade = Math.max(0, Math.min(1, (day - s.startDay) / c.fadeDays, (s.endDay - day) / c.fadeDays));
+  const weight = c.maxBlend * fade * (1 - r2 / (s.radius * s.radius));
+  if (weight <= 0) return undefined;
+  // Anticlockwise tangent in east/north terms (map y grows southward) is (dy, dx); a high runs the other way.
+  const sign = s.kind === 'low' ? 1 : -1;
+  const len = Math.sqrt(r2) || 1;
+  const m = content.navigation.windStrength[s.strength]!;
+  return { east: (sign * dy * m) / len, north: (sign * dx * m) / len, weight };
 }
 
 /** Hour of the game day, 0 to 24, from the tick (a new game starts at midnight). */
@@ -134,12 +162,19 @@ export function createWindField(content: ContentPack, def: RasterMapDef, map: Ti
     const zone = weather.zones[zoneAt(content, map, x, y).id];
     if (!zone) return state.wind;
     const breeze = breezes.at(state.tick, x, y);
-    if (!breeze) return { fromDeg: zone.fromDeg, strength: zone.strength };
-    // Add the breeze to the zone wind as vectors, then read back a direction and the nearest strength.
+    const day = state.tick / content.calendar.ticksPerDay;
+    const near = (weather.systems ?? []).map((s) => systemWindAt(content, s, x, y, day)).filter((v) => v !== undefined);
+    if (!breeze && !near.length) return { fromDeg: zone.fromDeg, strength: zone.strength };
+    // Add the breeze to the zone wind as vectors, blend in each weather system by its weight, then read
+    // back a direction and the nearest strength.
     const to = ((zone.fromDeg + 180) * Math.PI) / 180;
     const m = multipliers[zone.strength]!;
-    const east = Math.sin(to) * m + breeze.east;
-    const north = Math.cos(to) * m + breeze.north;
+    let east = Math.sin(to) * m + (breeze?.east ?? 0);
+    let north = Math.cos(to) * m + (breeze?.north ?? 0);
+    for (const v of near) {
+      east = east * (1 - v.weight) + v.east * v.weight;
+      north = north * (1 - v.weight) + v.north * v.weight;
+    }
     const speed = Math.hypot(east, north);
     const strength = levels.reduce((best, l) => (Math.abs(l[1] - speed) < Math.abs(best[1] - speed) ? l : best))[0];
     const fromDeg = normalizeDeg((Math.atan2(east, north) * 180) / Math.PI + 180);
@@ -165,7 +200,33 @@ export function initialWeather(content: ContentPack, def: RasterMapDef, seed: nu
       strength: rng.weighted<WindStrength>(prevailing.strength),
     };
   }
-  return { weather: { zones, storms: [], nextStormId: 1 } satisfies WeatherState, rng: rng.state() };
+  let weather: WeatherState = { zones, storms: [], nextStormId: 1, systems: [], nextSystemId: 1 };
+  for (let i = 0; i < content.weather.systems.count[0]; i++) weather = formSystem(content, def, weather, rng, 0, true);
+  return { weather, rng: rng.state() };
+}
+
+/** A new weather system somewhere over the map, already at full strength when `grown` (a new world). */
+function formSystem(content: ContentPack, def: RasterMapDef, weather: WeatherState, rng: ReturnType<typeof rngStream>, day: number, grown = false): WeatherState {
+  const c = content.weather.systems;
+  const kmPerTile = kmPerTileOf(def);
+  const n = weather.nextSystemId ?? 1;
+  const kind = rng.float() < c.lowShare ? 'low' : 'high';
+  const life = rng.range(...c.lifetimeDays);
+  // A grown system started a while ago, so it doesn't fade in on the first day of a new world.
+  const startDay = grown ? day - rng.range(c.fadeDays, life / 2) : day;
+  const system: WeatherSystem = {
+    id: `system.${n}`,
+    kind,
+    x: rng.range(0, def.width),
+    y: rng.range(0, def.height),
+    radius: rng.range(...c.radiusKm) / kmPerTile,
+    headingDeg: rng.range(0, 360),
+    speed: rng.range(...c.speedKmPerDay) / kmPerTile,
+    strength: rng.weighted<WindStrength>(c.strength[kind] as Record<WindStrength, number>),
+    startDay,
+    endDay: startDay + life,
+  };
+  return { ...weather, systems: [...(weather.systems ?? []), system], nextSystemId: n + 1 };
 }
 
 /**
@@ -275,6 +336,26 @@ export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map
         return alive;
       });
 
+      // Weather systems drift; one past its time (or off the map) breaks up, and new ones form.
+      let systems = (weather.systems ?? [])
+        .map((s) => {
+          const rad = (s.headingDeg * Math.PI) / 180;
+          const step = s.speed / ticksPerDay;
+          return { ...s, x: s.x + Math.sin(rad) * step, y: s.y - Math.cos(rad) * step };
+        })
+        .filter((s) => day < s.endDay && s.x > -s.radius && s.y > -s.radius && s.x < def.width + s.radius && s.y < def.height + s.radius);
+      let nextSystemId = weather.nextSystemId ?? 1;
+      if (tick % ticksPerDay === 0) {
+        const c = w.systems;
+        const form = systems.length < c.count[0] || (systems.length < c.count[1] && rng.float() < c.spawnChancePerDay);
+        if (form) {
+          const formed = formSystem(content, def, { ...weather, systems, nextSystemId }, rng, day);
+          systems = formed.systems!;
+          nextSystemId = formed.nextSystemId!;
+          events.push({ type: 'WeatherSystemFormed', entityIds: [systems.at(-1)!.id], payload: { kind: systems.at(-1)!.kind } });
+        }
+      }
+
       let zones = weather.zones;
       let nextStormId = weather.nextStormId;
       const season = seasonOf(month);
@@ -336,7 +417,7 @@ export function createWeatherSystem(content: ContentPack, def: RasterMapDef, map
       }
 
       return {
-        state: { ...state, weather: { zones, storms, nextStormId }, rng: { ...state.rng, weather: rng.state() } },
+        state: { ...state, weather: { zones, storms, nextStormId, systems, nextSystemId }, rng: { ...state.rng, weather: rng.state() } },
         events,
       };
     },

@@ -80,7 +80,7 @@ test('opens the sea chart with every port', async ({ page }) => {
 
 test('weather: days pass and a storm over the ship takes over the wind', async ({ page }) => {
   await boot(page);
-  await page.evaluate(() => window.__corsair.sim.step(540 * 2));
+  await page.evaluate(() => window.__corsair.sim.step(1080 * 2));
   await expect(page.locator('.hud')).toContainText('3 March 1660');
 
   await page.evaluate(() => {
@@ -278,7 +278,7 @@ test('sea chart: hovering a port shows the prices last seen there, or that none 
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.keyboard.press('e');
-  await page.evaluate(() => window.__corsair.sim.step(540 * 2));
+  await page.evaluate(() => window.__corsair.sim.step(1080 * 2));
   await page.mouse.move(0, 0);
   await page.keyboard.press('m');
   await expect(page.locator('.chart-prices')).toBeHidden();
@@ -309,7 +309,7 @@ test('harbour scenes: a pirate haven has its own scene, and night falls on it to
   });
   await page.keyboard.press('e');
   // 14 hours on from 08:00: the debug step runs the clock even in port.
-  await page.evaluate(() => window.__corsair.sim.step(540 * (14 / 24)));
+  await page.evaluate(() => window.__corsair.sim.step(1080 * (14 / 24)));
   await expect(page.locator('.port-name')).toHaveText('Tortuga');
   await page.keyboard.press('Escape');
   // A haven has no governor.
@@ -425,7 +425,8 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
     window.__corsair.sim.step(1);
     const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
     const newest = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
-    window.__corsair.sim.step(60);
+    // Clear of Port Royal's reach (half pace since the sailing slice), so the hail is the prompt.
+    window.__corsair.sim.step(240);
     const s = (window.__corsair.state.get('ships') as typeof ships)[newest]!;
     for (const [dx, dy] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1]]) {
       window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx!, y: s.y + dy! });
@@ -571,5 +572,55 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
     await page.locator('.governor').getByRole('button', { name: /Collect bounties/ }).click();
     await expect(page.locator('.governor')).toContainText('No bounty owed here');
   }
+  expect(errors).toEqual([]);
+});
+
+test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x, I intercepts, the chart shows the wind', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // Open water south of Jamaica, away from every coast.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.sim.step(1);
+  });
+  // Clear the nearby sea so cruising isn't held by a passing sail.
+  const far = await page.evaluate(() => {
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
+    return Object.values(ships).filter((s) => s.ai && Math.hypot(s.x - 880, s.y - 700) < 15).length;
+  });
+  if (far === 0) await expect(page.locator('.hud-date').first()).toContainText('2×');
+
+  // A merchant out of Port Royal, a few hours on her way: put the player near her.
+  const target = await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ids = Object.keys(window.__corsair.state.get('ships') as object).filter((k) => k.startsWith('ai.'));
+    const id = ids.sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.sim.step(1080 / 4);
+    const at = { ...(window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>)[id]!, id };
+    for (const [dx, dy] of [[8, 0], [-8, 0], [0, 8], [0, -8], [6, 6], [-6, -6]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: at.x + dx!, y: at.y + dy! });
+      window.__corsair.sim.step(1);
+      const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(p.x - at.x, p.y - at.y) < 12) break;
+    }
+    return at.id;
+  });
+  await expect(page.locator('.hud-prompt')).toContainText('Sail ho!');
+  // Cruising holds at 1x (here the coast may hold it too: either reason drops it).
+  await expect(page.locator('.hud-date').first()).toContainText('1×,');
+  await page.keyboard.press('i');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'intercept', targetId: target });
+
+  await page.keyboard.press('m');
+  const inked = await page.locator('.chart-wind').evaluate(async (c: HTMLCanvasElement) => {
+    await new Promise((r) => setTimeout(r, 200));
+    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i]! > 0) n++;
+    return n;
+  });
+  expect(inked).toBeGreaterThan(500);
+  await page.screenshot({ path: 'test-results/chart-wind.png' });
   expect(errors).toEqual([]);
 });

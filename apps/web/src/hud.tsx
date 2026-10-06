@@ -84,8 +84,8 @@ export interface HudProps {
   sound?: string;
   /** "Enter Port Royal · E" when a port is in reach. */
   prompt?: string;
-  /** Time acceleration in force (2 or 4), or 'held' when it is wanted but paused near land or a storm. */
-  timeScale?: number | 'held';
+  /** Time acceleration in force (2 or 4), or why cruising is held at 1x ("near land", "sail in sight", "storm"). */
+  timeScale?: number | string;
   /** True for a moment after the career is saved. */
   saved?: boolean;
 }
@@ -120,7 +120,7 @@ export function Hud({
       <div class="hud">
         <div class="hud-date">
           {date} · {time}
-          {timeScale === 'held' ? ' · 1× near land' : timeScale ? ` · ${timeScale}×` : ''}
+          {typeof timeScale === 'string' ? ` · 1×, ${timeScale}` : timeScale ? ` · ${timeScale}×` : ''}
         </div>
         <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>
         {/* The arrow shows where the wind blows to; fromDeg is where it comes from. */}
@@ -173,7 +173,7 @@ export function Hud({
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
       {saved ? <div class="hud-saved">Saved</div> : null}
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · M chart · E port · =/- time · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · I intercept · M chart · E port · =/- cruise · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

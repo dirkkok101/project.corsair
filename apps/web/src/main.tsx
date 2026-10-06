@@ -144,6 +144,10 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
   return groups;
 }
 
+/** A ship this near (tiles) is called out ("Sail ho!") and holds time at 1x. */
+const SAIL_HO_TILES = 15;
+const SAIL_HO_MS = 3500;
+
 async function main() {
   const content = loadContent();
   const def = content.maps.caribbean;
@@ -189,7 +193,7 @@ async function main() {
     );
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
-    createEconomySystem(content, settlements, map),
+    createEconomySystem(content, settlements, map, windAt),
     createPoliticsSystem(content, def.startDate, settlements),
     createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt),
@@ -343,7 +347,19 @@ async function main() {
       e.preventDefault();
       if (!e.repeat) save();
     }
-    // Time acceleration in open water: = faster, - slower.
+    // I: intercept the nearest ship in sight (again to stop), steering to meet her until the helm is used.
+    if (e.key.toLowerCase() === 'i' && !e.repeat && !e.ctrlKey && !e.metaKey && !player().docked) {
+      const me = player();
+      if (me.assist?.mode === 'intercept') sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
+      else {
+        const sight = content.traffic.sightTiles;
+        const target = Object.values(sim.state.ships)
+          .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - me.x, s.y - me.y) <= sight)
+          .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
+        if (target) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: target.id });
+      }
+    }
+    // Cruise speed in open water: = faster, - slower (1x to 4x).
     if (e.key === '=' || e.key === '+') wantedSpeed = Math.min(4, wantedSpeed * 2);
     if (e.key === '-') wantedSpeed = Math.max(1, wantedSpeed / 2);
   });
@@ -439,13 +455,32 @@ async function main() {
     return out;
   };
 
-  // Time acceleration the player asked for; it drops to 1x whenever something needs attention.
-  let wantedSpeed = 1;
-  const timeScale = (inStorm: boolean) => {
+  // Cruising: on empty sea time runs at the cruise speed (2x unless the player changes it with = and -),
+  // and drops to 1x whenever something needs attention: land, a storm, port, or a sail in sight. Encounters
+  // play out at 1x, where a passing ship stays on screen long enough to deal with.
+  let wantedSpeed = 2;
+  const sailInSight = () => {
+    const me = player();
+    let best: { s: (typeof sim.state.ships)[string]; d: number } | undefined;
+    for (const s of Object.values(sim.state.ships)) {
+      if (!s.ai || inPort(s)) continue;
+      const d = Math.hypot(s.x - me.x, s.y - me.y);
+      if (d <= SAIL_HO_TILES && (!best || d < best.d)) best = { s, d };
+    }
+    return best?.s;
+  };
+  const timeScale = (inStorm: boolean): { scale: number; held?: string } => {
     const ship = player();
     const nearLand = breezes.coastNearness(ship.x, ship.y) > 0.4 || harbourNearness(ship.x, ship.y) > 0.3;
-    return inStorm || nearLand || ship.docked ? 1 : wantedSpeed;
+    if (ship.docked || wantedSpeed <= 1) return { scale: 1 };
+    if (inStorm) return { scale: 1, held: 'storm' };
+    if (nearLand) return { scale: 1, held: 'near land' };
+    if (sailInSight()) return { scale: 1, held: 'sail in sight' };
+    return { scale: wantedSpeed };
   };
+  // Sail ho! A ship coming within SAIL_HO_TILES is called out once, for a few seconds.
+  const inSight = new Set<string>();
+  let sailHo: { text: string; until: number } | undefined;
 
   // Fixed 30 Hz sim under a variable frame rate; the cap stops a background tab from fast-forwarding.
   const dt = 1 / TICKS_PER_SECOND;
@@ -550,11 +585,13 @@ async function main() {
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
     shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
-    charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view(), {
-      sightings: sim.state.captain?.sightings ?? {},
-      tick: sim.state.tick,
-      ticksPerDay: content.calendar.ticksPerDay,
-    });
+    charts.update(
+      sim.state.ships[def.start.shipId],
+      renderer.camera(),
+      renderer.view(),
+      { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
+      { at: (x, y) => windAt(sim.state, x, y), strength: content.navigation.windStrength },
+    );
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     const hour = hourOf(sim.state.tick, content.calendar.ticksPerDay);
@@ -563,7 +600,18 @@ async function main() {
     const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
     const inStorm = (sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y));
     const cls = content.ships[ship.classId]!;
-    speedNow = timeScale(inStorm);
+    const cruise = timeScale(inStorm);
+    speedNow = cruise.scale;
+    // Sail ho: call out each ship as she first comes within range.
+    const seen = new Set<string>();
+    for (const s of Object.values(sim.state.ships)) {
+      if (!s.ai || inPort(s) || ship.docked || Math.hypot(s.x - ship.x, s.y - ship.y) > SAIL_HO_TILES) continue;
+      seen.add(s.id);
+      if (!inSight.has(s.id)) sailHo = { text: `Sail ho! ${shipTitle(s).replace(/^./, (c) => c.toUpperCase())}, the ${s.ai.name}`, until: now + SAIL_HO_MS };
+    }
+    inSight.clear();
+    for (const id of seen) inSight.add(id);
+    const intercepting = ship.assist?.mode === 'intercept' && ship.assist.targetId ? sim.state.ships[ship.assist.targetId] : undefined;
     // Autosave on arriving in port, whichever way the Dock command came in.
     if (ship.docked && !wasDocked) {
       save();
@@ -678,9 +726,13 @@ async function main() {
               ? `Enter ${reach.name} · E`
               : near
                 ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
-                : undefined
+                : sailHo && now < sailHo.until
+                  ? `${sailHo.text} · I intercept`
+                  : intercepting?.ai
+                    ? `Intercepting the ${intercepting.ai.name} · I to stop`
+                    : undefined
         }
-        timeScale={speedNow > 1 ? speedNow : wantedSpeed > 1 ? 'held' : undefined}
+        timeScale={cruise.held ? cruise.held : speedNow > 1 ? speedNow : undefined}
         saved={now - savedAt < 2000}
       />,
       hudRoot,

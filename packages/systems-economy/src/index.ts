@@ -1,5 +1,8 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, Deed, EmittedEvent, KnownPrices, NewsItem, Ship, System, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, KnownPrices, NewsItem, Ship, System, Wind, WorldState } from '@corsair/core';
+
+type WindAt = (state: WorldState, x: number, y: number) => Wind;
+import { angleOffWind, polarAt } from '@corsair/systems-navigation';
 import { atWar, enemiesOf } from '@corsair/systems-politics';
 import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
@@ -258,12 +261,15 @@ export function seawardHeading(
   ship: Pick<Ship, 'x' | 'y'>,
   town: Pick<Settlement, 'x' | 'y'>,
   currentDeg: number,
+  /** Headings she can actually sail on this wind; out of irons beats straight out to sea. */
+  canSail: (deg: number) => boolean = () => true,
 ): number {
   // Headings are compass degrees: 0 north (up, -y), 90 east (+x).
   const away = Math.atan2(ship.x - town.x, -(ship.y - town.y));
+  const all = Array.from({ length: 32 }, (_, i) => i * 11.25);
+  const sailable = all.filter(canSail);
   let best = { deg: currentDeg, score: -Infinity };
-  for (let i = 0; i < 32; i++) {
-    const deg = i * 11.25;
+  for (const deg of sailable.length ? sailable : all) {
     const rad = (deg * Math.PI) / 180;
     let clear = 0;
     while (clear < SEAWARD_LOOK_TILES && !isLand(tileAt(map, ship.x + Math.sin(rad) * (clear + 1), ship.y - Math.cos(rad) * (clear + 1)))) clear++;
@@ -275,7 +281,7 @@ export function seawardHeading(
 }
 
 /** `map` lets a ship cast off pointing out to sea; without one (some tests) it keeps its heading. */
-export function createEconomySystem(content: ContentPack, settlements: Settlement[], map?: TileMap): System {
+export function createEconomySystem(content: ContentPack, settlements: Settlement[], map?: TileMap, windAt?: WindAt): System {
   const e = content.economy;
   const byId = new Map(settlements.map((s) => [s.id, s]));
   const ticksPerWeek = e.daysPerWeek * content.calendar.ticksPerDay;
@@ -331,7 +337,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const { docked, ...rest } = ship;
         // Cast off pointing out to sea, so the ship sails clear of the harbour rather than into the quay.
         const town = byId.get(docked);
-        const headingDeg = map && town ? seawardHeading(map, ship, town, ship.headingDeg) : ship.headingDeg;
+        // Only on a heading with real drive, so a ship never casts off into irons.
+        const wind = windAt?.(state, ship.x, ship.y);
+        const polar = content.polars[content.ships[ship.classId]!.polar]!;
+        const canSail = (deg: number) => !wind || polarAt(polar, angleOffWind(deg, wind.fromDeg)) >= 0.5;
+        const headingDeg = map && town ? seawardHeading(map, ship, town, ship.headingDeg, canSail) : ship.headingDeg;
         return {
           state: { ...state, ships: { ...state.ships, [ship.id]: { ...rest, headingDeg } } },
           events: [{ type: 'Undocked', entityIds: [ship.id, docked], payload: {} }],

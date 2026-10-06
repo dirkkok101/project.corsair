@@ -246,3 +246,59 @@ describe('upgrades at sea', () => {
     expect(at(120, ['cotton_sails'])).toBe(at(120));
   });
 });
+
+describe('working to windward', () => {
+  const made = (polarId: string) => {
+    const p = content.polars[polarId]!;
+    const off = bestUpwindDeg(p);
+    return { off, vmg: polarAt(p, off) * Math.cos((off * Math.PI) / 180) };
+  };
+
+  it('a square rig makes good about half her speed to windward, and a sloop more', () => {
+    const square = made('polar.square');
+    const sloop = made('polar.fore_aft');
+    console.log('WINDWARD square', square.off, square.vmg.toFixed(2), 'fore-and-aft', sloop.off, sloop.vmg.toFixed(2));
+    expect(square.vmg).toBeGreaterThan(0.43);
+    expect(square.vmg).toBeLessThan(0.52);
+    expect(sloop.vmg).toBeGreaterThan(square.vmg);
+    expect(sloop.off).toBeLessThan(square.off);
+  });
+});
+
+describe('intercept', () => {
+  const bearing = (a: { x: number; y: number }, b: { x: number; y: number }) => ((Math.atan2(b.x - a.x, -(b.y - a.y)) * 180) / Math.PI + 360) % 360;
+  const offBy = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+  const withTarget = (windFrom: number, at: { x: number; y: number }, headingDeg: number, speed: number) => {
+    const world = openSea(0, windFrom);
+    const target = { ...world.ships.player!, id: 'ai.1', ...at, headingDeg, speed, ai: undefined };
+    return createSim({ ...world, ships: { ...world.ships, 'ai.1': target } }, [createNavigationSystem(content, map)]);
+  };
+
+  it('leads a crossing ship and closes on her, then hands back the helm when she is gone', () => {
+    // Wind from the south; she lies due east, sailing north: aim ahead of her, north of east.
+    const sim = withTarget(180, { x: 230, y: 200 }, 0, 2);
+    const start = Math.hypot(30, 0);
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'intercept', targetId: 'ai.1' });
+    sim.step(4 * TICKS_PER_SECOND);
+    const me = sim.state.ships.player!;
+    const her = sim.state.ships['ai.1']!;
+    expect(me.assist).toMatchObject({ mode: 'intercept', targetId: 'ai.1' });
+    expect(me.headingDeg).toBeGreaterThan(10);
+    expect(me.headingDeg).toBeLessThan(90);
+    expect(Math.hypot(her.x - me.x, her.y - me.y)).toBeLessThan(start);
+    const gone = createSim({ ...sim.state, ships: { player: me } }, [createNavigationSystem(content, map)]);
+    gone.step();
+    expect(gone.state.ships.player!.assist).toBeUndefined();
+    expect(gone.events().some((e) => e.type === 'AssistEnded')).toBe(true);
+  });
+
+  it('beats toward a ship lying dead to windward instead of heading into irons', () => {
+    const sim = withTarget(0, { x: 200, y: 160 }, 0, 0);
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'intercept', targetId: 'ai.1' });
+    sim.step(5 * TICKS_PER_SECOND);
+    const me = sim.state.ships.player!;
+    const off = bestUpwindDeg(content.polars['polar.square']!);
+    expect(Math.min(offBy(me.headingDeg, off), offBy(me.headingDeg, 360 - off))).toBeLessThan(1);
+    expect(offBy(me.headingDeg, bearing(me, sim.state.ships['ai.1']!))).toBeGreaterThan(20);
+  });
+});

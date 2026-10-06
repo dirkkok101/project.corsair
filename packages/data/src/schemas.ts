@@ -151,6 +151,20 @@ export const weatherSchema = z.object({
     /** Hour of peak sea breeze; the land breeze peaks twelve hours later. */
     seaBreezePeakHour: z.number().min(0).lt(24),
   }),
+  /** Roaming weather systems: lows and highs that drift over the map for days, turning the wind around
+   * them so the trades don't blow the same way everywhere for weeks. `count` is [min, max] at once;
+   * `maxBlend` is how much of the wind a system sets at its centre, fading to none at its edge. */
+  systems: z.object({
+    count: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+    spawnChancePerDay: z.number().min(0).max(1),
+    lowShare: z.number().min(0).max(1),
+    radiusKm: z.tuple([z.number().positive(), z.number().positive()]),
+    speedKmPerDay: z.tuple([z.number().min(0), z.number().min(0)]),
+    lifetimeDays: z.tuple([z.number().positive(), z.number().positive()]),
+    fadeDays: z.number().positive(),
+    maxBlend: z.number().min(0).max(1),
+    strength: z.object({ low: z.record(z.string(), z.number().min(0)), high: z.record(z.string(), z.number().min(0)) }),
+  }),
   storms: z.object({
     months: z.array(month),
     spawnChancePerDay: z.record(z.string(), z.number().min(0).max(1)),
