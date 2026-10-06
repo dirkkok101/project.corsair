@@ -428,6 +428,18 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   await expect(page.locator('.battle-card').first()).toContainText('Hull');
+  // With the clock running the battle advances on its own, and both ship cards sit inside the view.
+  const startTick = await page.evaluate(() => window.__corsair.battle.state()!.tick);
+  await page.evaluate(() => window.__corsair.sim.resume());
+  await expect.poll(() => page.evaluate(() => window.__corsair.battle.state()!.tick)).toBeGreaterThan(startTick + 10);
+  await page.evaluate(() => window.__corsair.sim.pause());
+  const viewport = page.viewportSize()!;
+  for (const card of await page.locator('.battle .battle-card').all()) {
+    const box = (await card.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+  }
   await page.evaluate(() => window.__corsair.battle.step(30 * 4, 'cautious'));
   await page.screenshot({ path: 'test-results/battle.png' });
 

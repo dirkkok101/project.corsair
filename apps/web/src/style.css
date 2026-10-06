@@ -897,6 +897,7 @@ body {
 .battle-enemy {
   left: auto;
   right: 12px;
+  width: auto;
   padding: 0;
   border: none;
   background: none;

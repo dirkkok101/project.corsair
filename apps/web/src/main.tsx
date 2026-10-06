@@ -448,18 +448,18 @@ async function main() {
   let speedNow = 1;
   let wasDocked = Boolean(player().docked);
   const frame = (now: number) => {
-    acc = loop.paused ? 0 : Math.min(acc + ((now - last) / 1000) * speedNow, 0.25 * speedNow);
+    const elapsed = (now - last) / 1000;
+    acc = loop.paused ? 0 : Math.min(acc + elapsed * speedNow, 0.25 * speedNow);
     last = now;
     if (fight) {
       // The battle runs in real time (no acceleration) while the world waits.
       if (!loop.paused && !fight.battle.result()) {
-        fight.acc = Math.min(fight.acc + (now - last) / 1000, 0.25);
+        fight.acc = Math.min(fight.acc + elapsed, 0.25);
         while (fight.acc >= dt) {
           fight.battle.step();
           fight.acc -= dt;
         }
       }
-      last = now;
       const bs = fight.battle.state;
       // Sound for what just happened: placed left or right of the player's ship, fainter further off.
       try {
