@@ -135,8 +135,10 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.__corsair));
-  // A career opens in port, where the clock stands still: set sail so it runs.
+  // A career opens in port, where the clock stands still: set sail so it runs, and let her settle at speed
+  // so the sea sounds the same in both measurements below (the gentler tunes are quiet next to it).
   await page.keyboard.press('e');
+  await page.waitForTimeout(4000);
   await page.keyboard.press('Shift');
   await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 20_000 });
   const title = await page.evaluate(() => window.__corsair.audio.levels().nowPlaying);
