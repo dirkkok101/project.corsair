@@ -4,6 +4,7 @@ import { isLand, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { newsAt, normalStock, quote } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
+import { atWar, legalTarget, raisePiracy } from '@corsair/systems-politics';
 import type { SeaLanes } from './lanes';
 
 export { createSeaLanes } from './lanes';
@@ -21,6 +22,8 @@ type Role = AiCaptain['role'];
 const ROLES: Role[] = ['merchant', 'patrol', 'pirate'];
 /** A chaser changes tack only when the other tack points this much nearer the player. */
 const TACK_MARGIN_DEG = 25;
+/** Hunters look about for prey every this many ticks. */
+const LOOKOUT_TICKS = 10;
 /** Pirates' interest in a port halves this far (in tiles) from their haven. */
 const PIRATE_RANGE_TILES = 180;
 /** Pirates lurk somewhere in this stretch of the lane toward their mark (as shares of it), then turn for home. */
@@ -304,8 +307,104 @@ export function createTrafficSystem(
       const d = Math.hypot(p[0] - ship.x, p[1] - ship.y);
       if (lanes.clear(here, p) && (!best || d < best.d)) best = { k, d };
     });
-    const route = best ? [here, ...ai.route.slice(best.k)] : [here, ...ai.route.slice(-1)];
-    return { ...ship, ai: { ...ai, chasing: false, route, along: 0, offset: 0 } };
+    if (best) return { ...ship, ai: { ...ai, chasing: false, route: [here, ...ai.route.slice(best.k)], along: 0, offset: 0 } };
+    // Far off her lane with land in the way: make for the nearest anchorage she can see, and take
+    // that port's lane on to where she was bound.
+    const ports = settlements
+      .map((s) => ({ s, at: lanes.mooring(s.id) }))
+      .filter((m): m is { s: Settlement; at: [number, number] } => Boolean(m.at) && lanes.clear(here, m.at!))
+      .sort((a, b) => Math.hypot(a.at[0] - ship.x, a.at[1] - ship.y) - Math.hypot(b.at[0] - ship.x, b.at[1] - ship.y));
+    for (const { s, at } of ports) {
+      const onward = s.id === ai.to ? [at] : lanes.route(s.id, ai.to);
+      if (onward) return { ...ship, ai: { ...ai, chasing: false, route: [here, at, ...onward.slice(1)], along: 0, offset: 0 } };
+    }
+    // Nowhere in sight: lie where she is until the lane is found again (she arrives in place).
+    return { ...ship, ai: { ...ai, chasing: false, route: [here, here], along: 0, offset: 0 } };
+  };
+
+  const inPort = (s: Ship) => s.ai!.waitUntil !== undefined && !s.ai!.route.length;
+
+  /** What a hunter goes after: pirates take merchants; patrols take pirates and their nation's enemies. */
+  const isPrey = (state: WorldState, hunter: Ship, s: Ship) => {
+    if (!s.ai || s.id === hunter.id || inPort(s)) return false;
+    if (hunter.ai!.role === 'pirate') return s.ai.role === 'merchant';
+    return s.ai.role === 'pirate' || atWar(content, state, hunter.ai!.nation, s.ai.nation);
+  };
+  /** The nearest prey in sight, if any. */
+  const sightPrey = (state: WorldState, ships: Record<string, Ship>, hunter: Ship): Ship | undefined => {
+    let best: { s: Ship; d: number } | undefined;
+    for (const s of Object.values(ships)) {
+      if (!isPrey(state, hunter, s)) continue;
+      const d = Math.hypot(s.x - hunter.x, s.y - hunter.y);
+      if (d <= cb.chase.aiChaseTiles && (!best || d < best.d) && lanes.clear([hunter.x, hunter.y], [s.x, s.y])) best = { s, d };
+    }
+    return best?.s;
+  };
+
+  /**
+   * Two AI ships fight it out: crew x (1 + guns / 10) x role decides it. The loser is gone from the
+   * sea (a pirate takes a merchant's cargo and gold; a warship sinks a pirate or takes an enemy), the
+   * winner is mauled and leaves off hunting a while, and it is news from the nearest port. Pirates
+   * taking a nation's merchant raise its pirate pressure.
+   */
+  const seaFight = (state: WorldState, ships: Record<string, Ship>, a: Ship, b: Ship, tick: number, rng: Rng) => {
+    const ar = cb.autoResolve;
+    const strength = (s: Ship) => (s.crew ?? content.ships[s.classId]!.minCrew) * (1 + content.ships[s.classId]!.guns / 10) * ar[s.ai!.role];
+    const sa = strength(a);
+    const sb = strength(b);
+    const [winner, loser] = rng.float() < sa / (sa + sb) ? [a, b] : [b, a];
+    const out = { ...ships };
+    delete out[loser.id];
+    const calmUntil = tick + Math.round(cb.chase.calmDays * tpd);
+    const crew = Math.max(content.ships[winner.classId]!.minCrew, Math.round((winner.crew ?? 0) * (1 - ar.losses)));
+    let cargo = winner.cargo;
+    let purse = winner.ai!.purse ?? 0;
+    if (winner.ai!.role === 'pirate') {
+      // Plunder: what the sloop's hold takes, and the purse.
+      cargo = { ...cargo };
+      const room = () => content.ships[winner.classId]!.cargo - Object.values(cargo).reduce((x, y) => x + y, 0);
+      for (const [good, units] of Object.entries(loser.cargo)) {
+        const take = Math.min(units, room());
+        if (take > 0) cargo[good] = (cargo[good] ?? 0) + take;
+      }
+      purse += loser.ai!.purse ?? 0;
+    }
+    // A pirate with a prize makes for home (the lane back to her haven) and lies low a week.
+    const homeward = winner.ai!.role === 'pirate' && loser.ai!.role === 'merchant';
+    const sailor = rejoin({
+      ...winner,
+      crew,
+      cargo,
+      ai: { ...winner.ai!, target: undefined, purse, calmUntil: homeward ? tick + Math.round(cb.chase.prizeCalmDays * tpd) : calmUntil },
+    });
+    out[winner.id] = homeward && byId.get(winner.ai!.from) && isHaven(byId.get(winner.ai!.from)!)
+      ? rejoin({ ...sailor, ai: { ...sailor.ai!, to: winner.ai!.from, route: lanes.route(nearestPort(winner.x, winner.y).id, winner.ai!.from) ?? sailor.ai!.route } })
+      : sailor;
+    let next = state;
+    const kind = winner.ai!.role === 'pirate' ? 'aiTaken' : loser.ai!.role === 'pirate' ? 'aiPirateSunk' : 'warPrize';
+    if (winner.ai!.role === 'pirate' && loser.ai!.role === 'merchant') {
+      next = raisePiracy(content, next, settlements, loser.ai!.nation, Math.floor(rng.range(content.economy.news.delayDays[0], content.economy.news.delayDays[1] + 1)));
+    }
+    const n = next.nextNewsId ?? 0;
+    const item = {
+      id: `news.${n}`,
+      tick,
+      settlementId: nearestPort(loser.x, loser.y).id,
+      kind,
+      good: '',
+      delayDays: Math.floor(rng.range(content.economy.news.delayDays[0], content.economy.news.delayDays[1] + 1)),
+      ship: loser.ai!.name,
+      nation: loser.ai!.nation,
+      other: winner.ai!.nation,
+    };
+    next = { ...next, news: [...(next.news ?? []), item], nextNewsId: n + 1 };
+    return {
+      state: next,
+      ships: out,
+      events: [
+        { type: 'SeaFight', entityIds: [winner.id, loser.id], payload: { x: loser.x, y: loser.y, winner: winner.ai!.nation, loser: loser.ai!.nation } },
+      ] as EmittedEvent[],
+    };
   };
 
   /** The port nearest a spot at sea, where news of what happened there starts out from. */
@@ -344,11 +443,14 @@ export function createTrafficSystem(
         if (player.docked || inPort || Math.hypot(other.x - player.x, other.y - player.y) > t.hailTiles) {
           return { state, events: [{ type: 'AttackRefused', entityIds: [player.id, other.id], payload: {} }] };
         }
-        // Firing on a nation's ship costs standing with that nation; pirates are fair game.
+        // Firing on a nation's ship costs standing with that nation; pirates are fair game. Under a
+        // letter of marque from her enemy it is lawful privateering, and the issuer thinks the better of you.
         let next = state;
         const nation = other.ai.nation;
         if (nation !== 'pirate' && state.captain) {
           const standing = { ...state.captain.standing, [nation]: Math.max(-100, standingWith(state, nation) + cb.standing.attack) };
+          const issuer = legalTarget(content, state, state.captain, nation);
+          if (issuer) standing[issuer] = Math.min(100, standingWith(state, issuer) + content.politics.marque.standingGain);
           next = { ...state, captain: { ...state.captain, standing } };
         }
         return { state: next, events: [{ type: 'BattleJoined', entityIds: [player.id, other.id], payload: { by: 'player' } }] };
@@ -399,6 +501,9 @@ export function createTrafficSystem(
             for (const n of ['spain', 'england', 'france', 'netherlands'] as const) standing[n] = Math.min(100, (standing[n] ?? 0) + cb.standing.pirate);
             captain = { ...captain, standing };
           }
+          // A deed for a governor's bounty: any governor pays for pirates; enemies of his nation, too.
+          const deed = { nation: other.ai.nation, role: other.ai.role, kind: outcome === 'sunk' ? ('sunk' as const) : ('taken' as const), tick: state.tick };
+          captain = { ...captain, deeds: [...(captain.deeds ?? []), deed] };
         }
         // The fight is news, starting from the nearest port.
         let next: WorldState = { ...state, ships, captain };
@@ -442,8 +547,9 @@ export function createTrafficSystem(
       const events: EmittedEvent[] = [];
       let ships = { ...state.ships };
       for (const id of Object.keys(ships).sort()) {
-        const ship = ships[id]!;
-        if (!ship.ai) continue;
+        // A ship taken or sunk earlier this tick is gone.
+        const ship = ships[id];
+        if (!ship?.ai) continue;
         let moved: Ship;
         // The hunt: a pirate (or hostile patrol) at sea that sights the player gives chase, and a chase
         // that closes to contact starts a sea battle. Docking, distance or a recent fight ends it.
@@ -466,6 +572,30 @@ export function createTrafficSystem(
             } else {
               const chased = pursue(next, ship, p, dt);
               ships = { ...ships, [id]: { ...chased, ai: { ...chased.ai!, chasing: true } } };
+            }
+            continue;
+          }
+        }
+        // Hunting other ships: a pirate after a merchant, a patrol after a pirate or an enemy nation's
+        // ship. Contact settles it on the spot (no battle view: the player isn't there).
+        if (atSea && ship.ai.role !== 'merchant' && (ship.ai.calmUntil ?? 0) <= tick) {
+          let prey = ship.ai.target ? ships[ship.ai.target] : undefined;
+          const gone = (s: Ship | undefined) => !s?.ai || inPort(s) || Math.hypot(s.x - ship.x, s.y - ship.y) > cb.chase.giveUpTiles;
+          if (ship.ai.target && gone(prey)) {
+            ships = { ...ships, [id]: rejoin({ ...ship, ai: { ...ship.ai, target: undefined } }) };
+            continue;
+          }
+          // Look about a few times a second, not every tick.
+          if (!prey && (tick + Number(id.split('.')[1] ?? 0)) % LOOKOUT_TICKS === 0) prey = sightPrey(next, ships, ship);
+          if (prey) {
+            if (Math.hypot(prey.x - ship.x, prey.y - ship.y) <= cb.chase.contactTiles) {
+              const fought = seaFight(next, ships, ship, prey, tick, rng);
+              next = fought.state;
+              ships = fought.ships;
+              events.push(...fought.events);
+            } else {
+              const chased = pursue(next, ship, prey, dt);
+              ships = { ...ships, [id]: { ...chased, ai: { ...chased.ai!, target: prey.id } } };
             }
             continue;
           }

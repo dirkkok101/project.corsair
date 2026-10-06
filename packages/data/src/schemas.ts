@@ -280,13 +280,24 @@ export const combatSchema = z.object({
   strike: z.object({ hull: share, crew: share, chance: share }),
   /** Boarding: each side's strength is crew x this factor; the player's uses `player`. */
   boarding: z.object({ player: z.number().positive(), merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
+  /** A fight between two AI ships: strength is crew x (1 + guns / 10) x the role's factor; the winner loses `losses` of her crew. */
+  autoResolve: z.object({ merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
   /** Steering style per AI role. */
   personality: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.enum(['runner', 'cautious', 'aggressive'])),
   /** Crew and purse an AI ship sails with, as shares of her class's berths, and gold. */
   crew: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.tuple([share, share])),
   purse: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.tuple([z.number().min(0), z.number().min(0)])),
   /** Pirates (and a hostile nation's patrols) chase a player they sight within chaseTiles, give up past giveUpTiles. */
-  chase: z.object({ chaseTiles: z.number().positive(), giveUpTiles: z.number().positive(), contactTiles: z.number().positive(), calmDays: z.number().min(0) }),
+  chase: z.object({
+    chaseTiles: z.number().positive(),
+    giveUpTiles: z.number().positive(),
+    contactTiles: z.number().positive(),
+    calmDays: z.number().min(0),
+    /** Hunters sight other AI ships at this range (shorter than the player, who stands out). */
+    aiChaseTiles: z.number().positive(),
+    /** A pirate with a prize heads home and leaves off hunting this long. */
+    prizeCalmDays: z.number().min(0),
+  }),
   /** Standing: attacking a nation's ship costs `attack`; sinking or taking a pirate earns `pirate` with every nation. */
   standing: z.object({ attack: z.number(), pirate: z.number(), hostile: z.number(), refused: z.number() }),
   /** Tavern and shipwright prices. */

@@ -1,5 +1,5 @@
 {
-  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing.",
+  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing. autoResolve: a fight between AI ships is settled by crew x (1 + guns/10) x the role's factor; the winner loses `losses` of her crew.",
   "battle": {
     "tilesPerSecondPerSpeedPoint": 0.25,
     "widthTiles": 30,
@@ -88,7 +88,9 @@
     "chaseTiles": 20,
     "giveUpTiles": 30,
     "contactTiles": 2.5,
-    "calmDays": 2
+    "calmDays": 2,
+    "aiChaseTiles": 8,
+    "prizeCalmDays": 7
   },
   "standing": {
     "attack": -20,
@@ -106,5 +108,11 @@
     "sunk": "The {nation} {ship} was sunk in a sea fight off {town}.",
     "taken": "The {nation} {ship} was taken off {town}, and her cargo with her.",
     "pirateSunk": "A pirate, the {ship}, was sent to the bottom off {town}."
+  },
+  "autoResolve": {
+    "merchant": 0.9,
+    "patrol": 1.4,
+    "pirate": 1.1,
+    "losses": 0.15
   }
 }

@@ -171,3 +171,59 @@ describe('fights at sea', () => {
     expect(lose.state.ships[id]).toBeDefined();
   });
 });
+
+describe('nations at war at sea', () => {
+  const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
+  const spawn = (sim: ReturnType<typeof world>, role: 'merchant' | 'pirate', from: string, to: string) => {
+    sim.send({ type: 'SpawnShip', role, from, to });
+    sim.applyCommands();
+    return Object.keys(sim.state.ships).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+  };
+
+  it('a pirate that meets a merchant at sea takes her: news, plunder, and pressure on her nation', () => {
+    const sim = world(9);
+    const merchant = spawn(sim, 'merchant', 'town.port_royal', 'town.cartagena');
+    const pirate = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const m = sim.state.ships[merchant]!;
+    // Lay the pirate alongside the merchant, at sea, with a weak merchant crew so the pirate wins.
+    const ships = {
+      ...sim.state.ships,
+      player: { ...sim.state.ships.player!, docked: 'town.port_royal' },
+      [merchant]: { ...m, crew: 5, cargo: { sugar: 10 }, ai: { ...m.ai!, purse: 200 } },
+      [pirate]: { ...sim.state.ships[pirate]!, x: m.x + 1, y: m.y, ai: { ...sim.state.ships[pirate]!.ai!, route: m.ai!.route, along: 0 } },
+    };
+    const fight = createSim({ ...sim.state, ships }, [traffic()]);
+    fight.step(30);
+    expect(fight.events().some((e) => e.type === 'SeaFight')).toBe(true);
+    expect(fight.state.ships[merchant]).toBeUndefined();
+    expect(fight.state.ships[pirate]!.cargo.sugar).toBe(10);
+    expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'aiTaken', nation: 'england', other: 'pirate' });
+    expect(fight.state.politics!.piracy.england).toBe(content.politics.piracy.perTaken);
+  });
+
+  it('under a letter of marque an attack is lawful: the issuer approves, the victim still resents it, and a win is a deed', () => {
+    const sim = world(10);
+    const victim = spawn(sim, 'merchant', 'town.santo_domingo', 'town.cartagena');
+    const v = sim.state.ships[victim]!;
+    const atWarWithSpain = { ...sim.state.politics ?? { relations: structuredClone(content.politics.start), piracy: {}, month: 0 } };
+    atWarWithSpain.relations = { ...atWarWithSpain.relations, 'england:spain': { war: true, tension: 85 } };
+    const state: WorldState = {
+      ...sim.state,
+      politics: atWarWithSpain,
+      captain: { ...sim.state.captain!, marques: ['england'] },
+      ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, x: v.x + 1, y: v.y } },
+    };
+    const s2 = createSim(state, [traffic()]);
+    s2.send({ type: 'Attack', shipId: 'player', targetId: victim });
+    s2.applyCommands();
+    expect(s2.state.captain!.standing).toMatchObject({ spain: content.combat.standing.attack, england: content.politics.marque.standingGain });
+    s2.send({
+      type: 'BattleEnded',
+      shipId: 'player',
+      targetId: victim,
+      result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 60 }, enemy: { hull: 5, sailCondition: 50, crew: 4 } },
+    });
+    s2.applyCommands();
+    expect(s2.state.captain!.deeds).toEqual([{ nation: 'spain', role: 'merchant', kind: 'taken', tick: s2.state.tick }]);
+  });
+});

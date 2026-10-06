@@ -314,6 +314,9 @@ importers:
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../systems-navigation
+      '@corsair/systems-politics':
+        specifier: workspace:*
+        version: link:../systems-politics
     devDependencies:
       '@corsair/systems-weather':
         specifier: workspace:*

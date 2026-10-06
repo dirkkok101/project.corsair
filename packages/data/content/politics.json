@@ -138,8 +138,8 @@
     }
   ],
   "piracy": {
-    "perTaken": 12,
-    "decay": 0.85,
+    "perTaken": 8,
+    "decay": 0.75,
     "plague": 40
   },
   "marque": {
@@ -158,7 +158,7 @@
     "peace": "{nation} and {other} have made peace. Letters of marque between them no longer hold.",
     "plague": "Pirates plague the {nation} trade. {nation} governors pay well for every pirate taken.",
     "aiTaken": "The {nation} {ship} was taken by pirates off {town}.",
-    "aiPirateSunk": "A {other} man-of-war sent the pirate {ship} to the bottom off {town}.",
-    "warPrize": "The {nation} {ship} was taken by a {other} man-of-war off {town}."
+    "aiPirateSunk": "The pirate {ship} was sent to the bottom by a {other} ship off {town}.",
+    "warPrize": "The {nation} {ship} was taken by a {other} ship off {town}."
   }
 }
