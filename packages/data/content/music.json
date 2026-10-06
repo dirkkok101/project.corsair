@@ -110,6 +110,216 @@
       "beatsPerBar": 4,
       "melody": "r/3 D4/1 | G4/1 B4/1 A4/0.5 G4/0.5 F#4/1 | G4/2 B4/1 C5/1 | D5/2 C5/1 B4/1 | A4/1 C5/1 B4/1 A4/1 | G4/1 G4/1 A4/1 F#4/1 | G4/1 D4/1 E4/1 C4/1 | D4/3 C5/1 | B4/1 A4/1 B4/1 C5/1 | D5/3 B4/1 | A4/1 G4/1 F#4/1 E4/1 | D4/1 E4/1 F#4/1 D4/1 | G4/1 G4/1 G4/1 E4/1 | C4/2 B3/1 C4/1 | D4/1 C5/1 B4/1 A4/1 | G4/3 r/1",
       "chords": "G | G | G | G | Am | G | C | D | G | G | D | D | C | C | D | G"
+    },
+    {
+      "id": "rio_grande",
+      "title": "Rio Grande",
+      "source": "Traditional capstan shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 2, \"Bound for the Rio Grande\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "night",
+      "bpm": 150,
+      "beatsPerBar": 6,
+      "melody": "Eb4/1 Eb4/1 Eb4/1 G4/1 G4/1 G4/1 | F4/1 Eb4/1 F4/1 Eb4/3 | Bb4/5 G4/1 | C5/1 Bb4/4 Bb4/1 | C5/1 Eb5/1 C5/1 Bb4/1 Ab4/1 G4/1 | Ab4/1 Bb4/1 Ab4/1 G4/1 Eb4/1 F4/1 | G4/1.5 Ab4/0.5 G4/1 F4/1 Eb4/1 F4/1 | Eb4/3 Eb4/2 F4/1 | G4/3 F4/1 Eb4/1 F4/1 | Eb4/6 | Bb4/5 G4/1 | C5/1 Bb4/4 Bb4/1 | C5/1 Eb5/1 C5/1 Bb4/1 Ab4/1 G4/1 | Ab4/1 Bb4/1 Ab4/1 G4/1 Eb4/1 F4/1 | G4/1.5 Ab4/0.5 G4/1 F4/1 Eb4/1 F4/1 | Eb4/5 Bb3/1",
+      "chords": "Eb | Bb/3 Eb/3 | Eb | Eb | Ab | Ab/3 Bb/3 | Eb/3 Bb/3 | Cm | Eb/3 Bb/3 | Eb | Eb | Eb | Ab | Ab/3 Bb/3 | Eb/3 Bb/3 | Eb"
+    },
+    {
+      "id": "homeward_bound",
+      "title": "Homeward Bound (Good-bye, Fare Ye Well)",
+      "source": "Traditional capstan shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 3, \"Good-bye, Fare Ye Well\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "gentle",
+      "bpm": 144,
+      "beatsPerBar": 6,
+      "melody": "A4/2 A4/1 A4/1 G#4/1 A4/1 | B4/2 A4/1 F#4/2 A4/1 | A4/1 G4/1 F#4/0.5 G4/2 B4/1.5 | B4/1 A4/1.5 G4/0.5 F#4/2 A4/1 | A4/2 A4/1 A4/1 G#4/1 A4/1 | B4/1 C#5/1 B4/1 A4/2 D5/1 | C#5/2 A4/1 B4/2 G#4/1 | A4/1 C#5/1 B4/1 A4/2 A4/1",
+      "chords": "D | D | A | D | D | D | E | A"
+    },
+    {
+      "id": "lowlands_away",
+      "title": "Lowlands Away",
+      "source": "Traditional pumping/capstan shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 6, \"Lowlands\", second verse; its 2/4 bars rebarred in 3/4); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "night",
+      "bpm": 72,
+      "beatsPerBar": 3,
+      "melody": "C5/1 G4/2 | C5/1 D5/1.5 E5/0.5 | C5/2 B4/1 | G4/2 G4/1 | G4/1 B4/1.5 C5/0.5 | D5/3 | E5/1 C5/1 A4/1 | F4/2 A4/1 | G4/2 G4/0.5 G4/0.5 | F4/2 E4/1 | C4/3 | C4/1 E4/1.5 F4/0.5 | G4/3 | A4/1 G4/1 F4/1 | E4/1 C4/2",
+      "chords": "C | C | G | C | G | G | Am | Dm | C | Em | C | Am | G | F | C"
+    },
+    {
+      "id": "sally_brown",
+      "title": "Sally Brown (Roll and Go)",
+      "source": "Traditional capstan shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 7, \"Sally Brown\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "lively",
+      "bpm": 116,
+      "beatsPerBar": 4,
+      "melody": "C4/1.5 E4/0.5 G4/1 C5/0.5 B4/0.5 | A4/1 G4/1 E4/0.5 F4/0.5 G4/1 | C5/2 D5/1.5 C5/0.5 | E5/1 D5/1 C5/2 | E5/1 D5/1 C5/1 A4/1 | G4/1 E4/1 D4/0.5 C4/1.5 | G4/1 G4/1 G4/0.5 G4/0.5 G4/1 | A4/1 B4/1 C5/2",
+      "chords": "C | C | F | C | C/2 Am/2 | G/2 C/2 | G | G/2 C/2"
+    },
+    {
+      "id": "stormalong_john",
+      "title": "Stormalong John",
+      "source": "Traditional capstan shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 10); its 3/4 and 2/4 bars held out to 4/4; chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "gentle",
+      "bpm": 96,
+      "beatsPerBar": 4,
+      "melody": "C5/1 C5/1 B4/1 B4/1 | A4/1 A4/1 G4/1 G4/0.333333333333333 A4/0.333333333333333 B4/0.333333333333333 | C5/2 B4/2 | A4/1.5 G4/0.5 E4/2 | G4/1 G4/1 G4/2 | A4/1 A4/1 C5/1 E4/0.5 F4/0.5 | G4/1 G4/1 D4/1 G4/1 | G4/2 G4/1 G4/1 | A4/2 A4/1 A4/1 | A4/4 | G4/1 B4/1 A4/2 | G4/1 G4/1 G4/1 G4/1",
+      "chords": "Am | F | C | Am | G | F | G | C | F | F | G | C"
+    },
+    {
+      "id": "wild_goose",
+      "title": "The Wild Goose",
+      "source": "Traditional capstan shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 12, \"The Wild Goose Shanty\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "gentle",
+      "bpm": 92,
+      "beatsPerBar": 4,
+      "melody": "D4/1 D4/0.75 E4/0.25 G4/1 A4/0.75 B4/0.25 | C5/0.75 A4/0.25 B4/0.75 G4/0.25 A4/0.75 F#4/0.25 D4/0.5 A4/0.25 B4/0.25 | C5/1.5 B4/0.25 A4/0.25 B4/1.5 A4/0.25 G4/0.25 | A4/1 D5/1 D4/1 B4/0.75 C5/0.25 | D5/1 D5/0.75 B4/0.25 C5/1 B4/0.75 A4/0.25 | G4/0.75 A4/0.25 G4/0.75 E4/0.25 D4/0.75 E4/0.25 F#4/0.75 D4/0.25 | G4/0.5 G4/1.25 A4/0.25 B4/1 A4/1 | G4/3 G4/0.75 E4/0.25",
+      "chords": "G | C/2 D/2 | Am/2 G/2 | D | G/2 Am/2 | C/2 D/2 | G/2 D/2 | G"
+    },
+    {
+      "id": "cheerly_man",
+      "title": "Cheerly Man",
+      "source": "Traditional halyard shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 17, \"Cheer'ly, Men\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "lively",
+      "bpm": 200,
+      "beatsPerBar": 9,
+      "melody": "C4/1 F4/1 F4/1 F4/1 G4/1 A4/1 G4/2 Bb4/1 | A4/1 G4/1 F4/4 r/3 | D4/1 G4/1 G4/1 G4/1 Bb4/1 A4/1 G4/2 Bb4/1 | A4/1 G4/1 F4/4 r/3 | C4/1 F4/1 G4/1 A4/1 C5/1 Bb4/1 A4/3 | Bb4/1 C5/1 D5/4 r/3 | C5/3 C5/1 Bb4/1 A4/1 G4/2 Bb4/1 | A4/1 G4/1 F4/4 r/3",
+      "chords": "F/6 C/3 | F | Bb/6 C/3 | F | F | Bb | F/6 C/3 | F"
+    },
+    {
+      "id": "good_morning_ladies",
+      "title": "Good Morning, Ladies All",
+      "source": "Traditional halyard shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 18); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "lively",
+      "bpm": 168,
+      "beatsPerBar": 6,
+      "melody": "B4/2 B4/1 B4/1 A4/1 B4/1 | A4/2 G4/1 G4/1 F#4/1 G4/1 | A4/3 E4/3 | A4/4 G4/1 A4/1 | B4/2 B4/1 B4/1 A4/1 B4/1 | A4/2 G4/1 G4/1 F#4/1 G4/1 | B4/2 D5/1 A4/2 B4/1 | G4/4 G4/1 A4/1",
+      "chords": "G | D/3 G/3 | Am | C | G | D/3 G/3 | G/3 D/3 | G"
+    },
+    {
+      "id": "dead_horse",
+      "title": "The Dead Horse (Poor Old Man)",
+      "source": "Traditional halyard shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 23, \"The Dead Horse\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "night",
+      "bpm": 72,
+      "beatsPerBar": 4,
+      "melody": "D4/1 E4/0.5 F#4/0.5 G4/1 A4/1 | B4/1 B4/1 A4/1 G4/0.5 A4/0.5 | B4/1 A4/2 G4/0.5 A4/0.5 | B4/1 A4/2 D4/1 | D4/1 E4/0.5 F#4/0.5 G4/1 B4/1 | D5/1 D5/0.5 B4/0.5 G4/1 C5/1 | B4/2 A4/2 | G4/3 D4/1",
+      "chords": "G | G | G/2 D/2 | D | Em | G/2 C/2 | G/2 D/2 | G"
+    },
+    {
+      "id": "whiskey_johnny",
+      "title": "Whiskey Johnny",
+      "source": "Traditional halyard shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 25, \"Whisky Johnny\"); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "lively",
+      "bpm": 108,
+      "beatsPerBar": 4,
+      "melody": "Ab4/1 C5/1 C5/1 Eb4/1 | Ab4/1 C5/1 C5/2 | Ab4/1 C5/3 | Ab4/1 C5/2 Eb5/1 | Db5/1 Db5/1 Bb4/1 Bb4/1 | G4/1 Bb4/1 Eb4/2 | G4/1 Bb4/1 Db5/1.5 Db5/0.5 | C5/1 Ab4/2 Eb4/1",
+      "chords": "Ab | Ab | Fm | Ab | Db/2 Bbm/2 | Eb | Eb | Ab"
+    },
+    {
+      "id": "johnny_boker",
+      "title": "Johnny Boker",
+      "source": "Traditional fore-sheet shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 27); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "lively",
+      "bpm": 112,
+      "beatsPerBar": 4,
+      "melody": "Bb4/0.5 Bb4/0.5 Bb4/0.5 Bb4/0.5 Bb4/1 A4/0.5 Bb4/0.5 | C5/0.5 Bb4/0.5 A4/0.5 Bb4/0.5 G4/0.5 A4/0.5 Bb4/1 | F4/0.5 F4/0.5 F4/0.5 F4/0.5 G4/1 A4/1 | Bb4/3 F4/1 | Bb4/0.5 Bb4/0.5 Bb4/0.5 Bb4/0.5 Bb4/1 A4/0.5 Bb4/0.5 | C5/0.5 Bb4/0.5 A4/0.5 Bb4/0.5 G4/0.5 A4/0.5 Bb4/1 | F4/0.5 F4/0.5 F4/0.5 F4/0.5 G4/1 A4/1 | Bb4/3 F4/1",
+      "chords": "Bb | F/2 Bb/2 | Bb/2 F/2 | Bb | Bb | F/2 Bb/2 | Bb/2 F/2 | Bb"
+    },
+    {
+      "id": "paddy_doyles_boots",
+      "title": "Paddy Doyle's Boots",
+      "source": "Traditional bunt shanty, public domain; melody from R. R. Terry, The Shanty Book, Part I (Curwen, 1921), Project Gutenberg #20774, https://www.gutenberg.org/ebooks/20774 (No. 30); chords derived, guided by Terry's pianoforte accompaniment",
+      "mood": "gentle",
+      "bpm": 132,
+      "beatsPerBar": 6,
+      "melody": "A4/3 B4/1.5 A4/0.5 B4/1 | C#5/3 E4/2 D5/1 | C#5/1 C#5/1 C#5/1 B4/1.5 A4/0.5 B4/1 | A4/1 r/3 E4/1 E4/1 | A4/3 B4/1.5 A4/0.5 B4/1 | C#5/3 E4/2 D5/1 | C#5/1 C#5/1 C#5/1 B4/1.5 A4/0.5 B4/1 | A4/1 r/3 E4/1 E4/1",
+      "chords": "A/3 E/3 | F#m | A/3 E/3 | A | A/3 E/3 | F#m | A/3 E/3 | A"
+    },
+    {
+      "id": "a_roving",
+      "title": "A-Roving (The Maid of Amsterdam)",
+      "source": "Traditional capstan shanty, public domain; noted by Cecil Sharp from Mr Stileman, Bristol, 14 July 1914 (VWML CJS2/10/3012), https://abcnotation.com/tunePage?a=www.vwml.org/components/com_rbdmdtallis/media/abctranscriptions/abc/CJS2-10-3012-0/0000; one short bar read as four even crotchets; chords derived",
+      "mood": "gentle",
+      "bpm": 96,
+      "beatsPerBar": 4,
+      "melody": "G4/1.5 A4/0.5 B4/1 C5/1 | D5/1 D5/1 B4/1 D4/1 | G4/1.5 A4/0.5 B4/1 C5/1 | D5/3 G5/0.5 F#5/0.5 | E5/1 E5/1 C5/0.5 D5/0.5 E5/1 | D5/1 D5/1 B4/1 D5/1 | C5/1 B4/1 A4/1 G4/1 | B4/1 G4/1 E4/1 D4/1 | G4/1.5 A4/0.5 B4/1 C5/1 | D5/1 G5/1 E5/1 C5/1 | B4/2 A4/2 | G4/3 D4/1 | E5/2 C5/0.5 D5/0.5 E5/1 | D5/2 B4/0.5 C5/0.5 D5/1 | D5/1 C5/1 A4/1 G4/0.5 A4/0.5 | B4/1 G4/1 E4/1 D4/1 | G4/1.5 A4/0.5 B4/1 C5/1 | D5/1 G5/1 E5/1 C5/1 | B4/2 A4/2 | G4/3 D4/1",
+      "chords": "G | G | G | G | C | G | C/2 D/2 | G/2 D/2 | G | G/2 C/2 | G/2 D/2 | G | C | G | D | G/2 D/2 | G | G/2 C/2 | G/2 D/2 | G"
+    },
+    {
+      "id": "derby_ram",
+      "title": "The Derby Ram",
+      "source": "Traditional English song, sung as a capstan shanty, public domain; noted by Cecil Sharp from Anne Dyke, Kingsbury, Somerset (VWML CJS2/10/634), https://abcnotation.com/tunePage?a=www.vwml.org/components/com_rbdmdtallis/media/abctranscriptions/abc/CJS2-10-634-0/0000; main tune, short bars joined; chords derived",
+      "mood": "gentle",
+      "bpm": 176,
+      "beatsPerBar": 6,
+      "melody": "G4/2 G4/1 G4/1 G4/1 G4/1 | E4/2 E4/1 D4/2 D4/1 | G4/2 G4/1 G4/2 B4/1 | D5/3 D5/2 B4/1 | C5/2 E5/1 D5/2 B4/1 | A4/3 G4/2 A4/1 | B4/1 B4/1 G4/1 E4/2 D4/1 | G4/3 E4/2 D4/1 | G4/3 G4/1 G4/1 G4/1 | E4/3 D4/3 | G4/3 G4/1 G4/1 B4/1 | D5/3 D5/1 B4/1 B4/1 | E5/3 E5/1 E5/1 E5/1 | D5/3 B4/2 C5/1 | B4/2 C5/1 B4/2 A4/1 | G4/5 D4/1",
+      "chords": "G | C/3 G/3 | G | G | C/3 G/3 | D | G/3 C/3 | G | G | C/3 G/3 | G | G | C | G | G/3 D/3 | G"
+    },
+    {
+      "id": "high_barbary",
+      "title": "The Coasts of High Barbary",
+      "source": "Traditional English sea song, public domain; from the Sabine Baring-Gould manuscripts, version \"in C time\" (VWML SBG/1/2/575), https://abcnotation.com/tunePage?a=www.vwml.org/components/com_rbdmdtallis/media/abctranscriptions/abc/SBG-1-2-575-0/0000; chords derived",
+      "mood": "night",
+      "bpm": 84,
+      "beatsPerBar": 4,
+      "melody": "G5/1 F5/1 D5/1 C5/1 | D5/0.5 Eb5/0.5 D5/0.5 C5/0.5 D5/1 r/0.5 Bb4/0.5 | C5/1 D5/1 G4/1 Bb4/0.5 A4/0.5 | A4/1 G4/1 G4/1 r/0.5 A4/0.5 | Bb4/1 C5/1 D5/1 C5/0.5 Bb4/0.5 | A4/0.5 G4/0.5 F#4/0.5 G4/0.5 D5/1 G4/0.5 G4/0.5 | A4/0.5 A4/0.5 C5/2 r/0.5 C5/0.5 | Bb4/1 A4/1 G4/1 D5/1",
+      "chords": "Gm/2 F/2 | Gm | Cm/2 Gm/2 | D/2 Gm/2 | Bb | D/2 Gm/2 | F | D/2 Gm/2"
+    },
+    {
+      "id": "randy_dandy_o",
+      "title": "Randy Dandy-O",
+      "source": "Traditional capstan shanty, public domain; melody from the Digital Tradition (collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/RANDDAND/0000; chords derived",
+      "mood": "lively",
+      "bpm": 184,
+      "beatsPerBar": 6,
+      "melody": "F5/2 F5/0.5 F5/0.5 E5/1 F5/1 E5/1 | D5/1.5 E5/0.5 D5/1 A4/3 | D5/3 E5/3 | D5/2 C5/1 A4/2 A4/0.5 Bb4/0.5 | C5/1.5 D5/0.5 C5/1 C5/1 Bb4/1 A4/1 | G4/1 G4/1 G4/1 C4/2 F4/0.5 G4/0.5 | A4/1.5 Bb4/0.5 A4/1 A4/2 G4/1 | F4/2 D4/1 D4/3 | F5/2 F5/1 E5/2 E5/1 | D5/2 D5/1 A4/3 | D5/3 E5/3 | D5/2 C5/1 A4/2 A4/1 | C5/1.5 D5/0.5 C5/1 C5/1 Bb4/1 A4/1 | G4/1 G4/1 G4/1 C4/2 F4/0.5 G4/0.5 | A4/1.5 Bb4/0.5 A4/1 A4/2 G4/1 | F4/2 D4/1 D4/2 r/1",
+      "chords": "F/3 C/3 | Dm | Bb/3 C/3 | Dm | F | C | F/3 C/3 | Dm | F/3 C/3 | Dm | Bb/3 C/3 | Dm | F | C | F/3 C/3 | Dm"
+    },
+    {
+      "id": "bully_in_the_alley",
+      "title": "Bully in the Alley",
+      "source": "Traditional halyard shanty, public domain; melody from the Digital Tradition (collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/BULLYALL/0000; chords derived",
+      "mood": "lively",
+      "bpm": 112,
+      "beatsPerBar": 4,
+      "melody": "G4/1 G4/1 G4/1 G4/1 | B4/0.5 B4/0.5 D5/0.5 D5/0.5 B4/1 G4/1 | C5/1.5 B4/0.25 A4/0.25 B4/1.5 A4/0.25 G4/0.25 | A4/0.5 A4/0.5 A4/0.5 G4/0.5 E4/1 G4/0.5 D4/0.5 | G4/1 G4/1 G4/1 G4/1 | B4/0.5 B4/0.5 D5/0.5 D5/0.5 B4/1 G4/1 | D4/0.5 D4/0.5 D4/0.5 D4/0.5 E4/1 F#4/1 | G4/3 D4/1",
+      "chords": "G | G | C/2 G/2 | D/2 C/2 | G | G | D | G"
+    },
+    {
+      "id": "bold_riley",
+      "title": "Bold Riley",
+      "source": "Traditional halyard shanty, public domain; melody from the Digital Tradition (collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/BOLDRILY/0000; chords derived",
+      "mood": "night",
+      "bpm": 132,
+      "beatsPerBar": 6,
+      "melody": "C5/1 G4/1 F4/1 E4/1 D4/1 C4/1 | F4/1 G4/1 E4/1 D4/3 | F4/1 F4/1 G4/1 E4/3 | F4/2 G4/1 G4/2 G4/0.5 G4/0.5 | C5/1 G4/1 F4/1 E4/1 D4/1 C4/1 | F4/1 G4/1 F4/1 D4/3 | F4/1 F4/1 G4/1 E4/3 | D4/2 C4/1 C4/3 | G4/1 G4/1 G4/1 E4/1 G4/2 | G4/1 G4/1 G4/1 F4/1 D4/2 | F4/1 F4/1 G4/1 E4/3 | F4/2 G4/1 G4/3 | G4/1 G4/1 G4/1 E4/1 G4/2 | G4/1 G4/1 G4/1 F4/1 D4/2 | F4/1 F4/1 G4/1 E4/3 | D4/2 C4/1 C4/2 G4/1",
+      "chords": "C | C/3 G/3 | F/3 C/3 | Dm/3 G/3 | C | Dm/3 G/3 | F/3 C/3 | G/3 C/3 | C | G | F/3 C/3 | Dm/3 G/3 | C | G | F/3 C/3 | G/3 C/3"
+    },
+    {
+      "id": "donkey_riding",
+      "title": "Donkey Riding",
+      "source": "Traditional Canadian timber-droghing song, public domain; melody from the Digital Tradition (collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/DONKEYRD/0000 (written in 2/4, barred here in 4/4); chords derived",
+      "mood": "lively",
+      "bpm": 112,
+      "beatsPerBar": 4,
+      "melody": "Eb4/0.75 F4/0.25 G4/0.5 G4/0.5 Ab4/0.5 F4/0.5 G4/1 | G4/0.5 F4/0.5 F4/0.5 Eb4/0.5 G4/0.5 F4/0.5 F4/1 | Eb4/0.5 F4/0.25 F4/0.25 G4/0.5 G4/0.25 G4/0.25 Ab4/0.5 F4/0.5 G4/1 | Eb4/0.5 C4/0.5 D4/0.5 B3/0.5 C4/1 C4/1 | C5/1 Bb4/0.5 G4/0.25 G4/0.25 Ab4/0.5 Ab4/0.5 G4/1 | G4/0.5 F4/0.5 F4/0.5 Eb4/0.5 G4/0.5 F4/0.5 F4/0.5 Eb4/0.5 | C5/1 Bb4/0.5 G4/0.25 G4/0.25 Ab4/0.5 Ab4/0.5 G4/0.75 F4/0.25 | Eb4/0.5 C4/0.5 D4/0.5 B3/0.5 C4/1 C4/1",
+      "chords": "Eb/2 Bb/2 | Bb | Eb/2 Bb/2 | G/2 Cm/2 | Cm/2 Ab/2 | Bb/2 Eb/2 | Cm/2 Ab/2 | G/2 Cm/2"
+    },
+    {
+      "id": "new_york_girls",
+      "title": "New York Girls",
+      "source": "Traditional capstan shanty, public domain; melody from the Digital Tradition (\"Can't You Dance the Polka\", collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/NYGIRLS/0000 (pickups rebarred); chords derived",
+      "mood": "lively",
+      "bpm": 120,
+      "beatsPerBar": 4,
+      "melody": "E4/1 G4/1 G4/1.5 G4/0.5 | F4/1 A4/1 A4/1.5 A4/0.5 | G4/1 G4/1 F4/1 G4/1 | E4/3 G4/1 | C5/1.5 C5/0.5 C5/1 G4/1 | B4/1 A4/1 A4/1.5 A4/0.5 | G4/1.5 G4/0.5 F4/1 D4/1 | C4/2 E4/1 F4/1 | G4/3 E4/1 | F4/1 A4/3 | B4/2 A4/2 | A4/1 G4/2 r/1 | C5/3 B4/1 | B4/1 A4/1 A4/2 | G4/1.5 G4/0.5 F4/1 B3/1 | D4/1 C4/2 G4/1",
+      "chords": "C | F | G | C | C | F | G | C | C | F | G/2 Dm/2 | C | C | F | G | C"
+    },
+    {
+      "id": "billy_riley",
+      "title": "Billy Riley",
+      "source": "Traditional halyard shanty, public domain; melody from the Digital Tradition (\"O! Billy Riley\", collection not stated), https://abcnotation.com/tunePage?a=sniff.numachi.com/~rickheit/dtrad/abc_dtrad.tar.gz/abc_dtrad/BILLRILY/0000; chords derived",
+      "mood": "lively",
+      "bpm": 108,
+      "beatsPerBar": 4,
+      "melody": "G4/1 G4/0.5 G4/0.5 G4/1 G4/1 | A4/0.5 G4/0.5 F#4/0.5 E4/0.5 F#4/1 D4/1 | A4/1 A4/0.5 A4/0.5 C5/1 B4/1 | A4/2 r/2 | C5/1 C5/0.5 A4/0.5 B4/1 C5/1 | B4/0.5 A4/0.5 C5/0.5 A4/0.5 B4/1 C5/1 | B4/1 D5/0.5 D5/0.5 C5/1 A4/1 | G4/2 r/2",
+      "chords": "G | D | D/2 G/2 | D | Am/2 C/2 | Am/2 G/2 | G/2 D/2 | G"
     }
   ]
 }
