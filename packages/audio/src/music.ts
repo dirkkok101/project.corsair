@@ -67,6 +67,7 @@ export function chordTones(symbol: string): number[] {
 
 /** Where the bass and drums land in a bar: strong beats for the metre. */
 function strongBeats(beatsPerBar: number): number[] {
+  if (beatsPerBar === 9) return [0, 3, 6];
   if (beatsPerBar === 6) return [0, 3];
   if (beatsPerBar === 4) return [0, 2];
   return [0];
