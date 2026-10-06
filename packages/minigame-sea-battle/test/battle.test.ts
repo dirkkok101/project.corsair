@@ -114,6 +114,37 @@ describe('sea battle', () => {
     expect(outcomeOf(ship('ship.fluyt', 'merchant'), 'runner')).toBe('fled');
   });
 
+  it('grape shot fires at close range, and a broadside says why it will not fire', () => {
+    // The enemy seated abeam to starboard of a brig heading north; a quick reload so she can't move far.
+    const at = (apart: number) => {
+      const quick = {
+        ...content,
+        combat: { ...content.combat, battle: { ...content.combat.battle, startApart: apart }, guns: { ...content.combat.guns, reloadSeconds: 0.1 } },
+      };
+      const battle = createBattle(quick, {
+        map,
+        wind: { fromDeg: 90, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 0 },
+        enemy: ship('ship.fluyt', 'merchant'),
+        seed: 5,
+        bearingDeg: 90,
+      });
+      battle.send({ type: 'SetAmmo', ammo: 'grape' });
+      battle.step(1);
+      expect(battle.aim('starboard')).toBe('loading');
+      battle.step(5);
+      return battle;
+    };
+    const close = at(content.combat.guns.grapeTiles - 0.5);
+    expect(close.aim('port')).toBe('no-target');
+    expect(close.aim('starboard')).toBe('ready');
+    close.send({ type: 'Fire', side: 'starboard' });
+    close.step(1);
+    expect(close.state.shots.some((s) => s.from === 'player' && s.ammo === 'grape')).toBe(true);
+    // Round-shot range, but too far for grape: the broadside says so rather than failing silently.
+    expect(at(content.combat.guns.rangeTiles - 0.5).aim('starboard')).toBe('out-of-range');
+  });
+
   it('plays matchups with the outcomes the design intends (headless runner)', () => {
     const tally = (enemy: () => Ship, n = 40) => {
       const outcomes: Record<string, number> = {};

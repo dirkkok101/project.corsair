@@ -1,12 +1,13 @@
+import { inPort } from '@corsair/core';
 import type { Nation, Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Texture, TextureSource, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import { createPennants, createSpray, createWake, createWhitecaps, createWindStreaks, windVector } from './effects';
 import { createDaylight } from './daylight';
-import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
 import { createBattleView } from './battle';
+import { sailAnim as sailAnimFor } from './sails';
 import type { BattleViewState } from './battle';
 import type { FlagNation } from './flags';
 import { createHarbour } from './harbour';
@@ -53,7 +54,6 @@ const MAX_CHUNKS = 30;
 // a new chunk rarely has to paint it on the spot (each is ~590k pixels).
 const PREFETCH_PX = 384;
 // In irons the slack canvas flaps between two frames.
-const LUFF_FRAME_MS = 180;
 
 export interface Renderer {
   canvas: HTMLCanvasElement;
@@ -223,18 +223,7 @@ export async function createRenderer(
     app.stage.addChildAt(wildlife.air, app.stage.getChildIndex(sky.weather));
   }
 
-  const sailAnim = (ship: Ship, state: WorldState, nowMs: number): string => {
-    if (ship.sails === 'furled') return 'sail_furled';
-    // Wind angle relative to the bow: positive means the wind comes over the starboard side.
-    let rel = normalizeDeg(windAt(state, ship.x, ship.y).fromDeg - ship.headingDeg);
-    if (rel > 180) rel -= 360;
-    const tack = rel >= 0 ? 's' : 'p';
-    const point = pointOfSail(content, Math.abs(rel)).id;
-    const base = `sail_${ship.sails}_${point}`;
-    if (point === 'run') return base;
-    if (point === 'irons') return `${base}_${tack}${Math.floor(nowMs / LUFF_FRAME_MS) % 2}`;
-    return `${base}_${tack}`;
-  };
+  const sailAnim = (ship: Ship, state: WorldState, nowMs: number) => sailAnimFor(content, ship, windAt(state, ship.x, ship.y), nowMs);
   let lastMs: number | undefined;
   /** Where a ship's masthead is in her current frame, when the packer recorded it. */
   const mastTop = (ship: Ship, state: WorldState, nowMs: number): [number, number] | undefined => {
@@ -303,10 +292,11 @@ export async function createRenderer(
     render(state, nowMs) {
       const dt = lastMs === undefined ? 0 : Math.min((nowMs - lastMs) / 1000, 0.1);
       lastMs = nowMs;
-      // Every ship on screen is drawn: a ship the player is watching never blinks out. (The sim's
-      // sightings only decide what the chart and minimap remember.)
-      for (const [id, sprite] of shipSprites) sprite.visible = Boolean(state.ships[id]);
-      for (const ship of Object.values(state.ships)) {
+      // Every ship at sea on screen is drawn: a ship the player is watching never blinks out. (The sim's
+      // sightings only decide what the chart and minimap remember.) A ship in port is inside the harbour.
+      const atSea = Object.values(state.ships).filter((ship) => !inPort(ship));
+      for (const [id, sprite] of shipSprites) sprite.visible = Boolean(state.ships[id]) && !inPort(state.ships[id]!);
+      for (const ship of atSea) {
         const spriteId = content.ships[ship.classId]!.sprites.world;
         const def = content.sprites[spriteId]!;
         let sprite = shipSprites.get(ship.id);
@@ -367,7 +357,7 @@ export async function createRenderer(
         world.addChild(pennants.view);
       }
       pennants.update(
-        Object.values(state.ships).map((ship) => ({
+        atSea.map((ship) => ({
           ship,
           wind: windAt(state, ship.x, ship.y),
           x: Math.round(ship.x * ts),

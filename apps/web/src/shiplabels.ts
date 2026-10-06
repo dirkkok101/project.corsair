@@ -1,3 +1,4 @@
+import { inPort } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import { shipTitle } from './hail';
 
@@ -17,7 +18,7 @@ export function createShipLabels(parent: HTMLElement, tileSize: number) {
       const me = state.ships[playerId];
       const seen = new Set<string>();
       for (const ship of Object.values(state.ships)) {
-        if (!ship.ai || !me || Math.hypot(ship.x - me.x, ship.y - me.y) > NEAR_TILES) continue;
+        if (!ship.ai || inPort(ship) || !me || Math.hypot(ship.x - me.x, ship.y - me.y) > NEAR_TILES) continue;
         seen.add(ship.id);
         let el = nodes.get(ship.id);
         if (!el) {

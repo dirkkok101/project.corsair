@@ -1,6 +1,6 @@
 import type { BattleResult } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
-import type { Ammo, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
+import type { Aim, Ammo, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
 
 // The sea battle HUD (scenes doc S3): both ships' hull, sails and crew, the ammo loaded, each
 // broadside's reload, a marker on the screen edge pointing to an enemy out of sight, the warning as
@@ -19,6 +19,14 @@ const OUTCOME: Record<BattleResult['outcome'], string> = {
   escaped: 'She draws clear and slips away over the horizon.',
   fled: 'You break off and leave her astern. She will remember your colours.',
   lost: 'You are beaten and forced to strike. They let you go, but not empty-handed.',
+};
+
+const AIM: Record<Aim, string> = {
+  ready: 'fire!',
+  loading: 'loading',
+  'no-target': 'not bearing',
+  'out-of-range': 'out of range',
+  'no-guns': 'no guns',
 };
 
 const TITLE: Record<BattleResult['outcome'], string> = {
@@ -66,12 +74,16 @@ export interface BattleHudProps {
   enemyName: string;
   enemyTitle: string;
   reloadSeconds: number;
+  /** Each broadside: ready, or why it can't fire. */
+  aim: Record<Broadside, Aim>;
   /** The battle view in CSS pixels (the player's ship is at its centre), and CSS pixels per tile. */
   view: { w: number; h: number; pxPerTile: number };
   onContinue: () => void;
 }
 
-const EDGE_PX = 34; // the off-screen marker sits this far inside the screen edge
+// How far inside each screen edge the off-screen marker sits: clear of the warning at the top and the
+// guns bar at the bottom.
+const EDGE = { side: 34, top: 70, bottom: 110 };
 
 /** An arrow at the screen edge on the line to the enemy, with how far off she is, when she is out of sight. */
 function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps['view'] }) {
@@ -79,7 +91,7 @@ function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps
   const dy = (state.ships.enemy.y - state.ships.player.y) * view.pxPerTile;
   if (Math.abs(dx) < view.w / 2 && Math.abs(dy) < view.h / 2) return null;
   // Walk from the centre toward her until the inset screen edge.
-  const t = Math.min((view.w / 2 - EDGE_PX) / Math.max(1e-6, Math.abs(dx)), (view.h / 2 - EDGE_PX) / Math.max(1e-6, Math.abs(dy)));
+  const t = Math.min((view.w / 2 - EDGE.side) / Math.max(1e-6, Math.abs(dx)), (view.h / 2 - (dy > 0 ? EDGE.bottom : EDGE.top)) / Math.max(1e-6, Math.abs(dy)));
   const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
   const tiles = Math.round(Math.hypot(dx, dy) / view.pxPerTile);
   return (
@@ -90,7 +102,7 @@ function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps
   );
 }
 
-export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, reloadSeconds, view, onContinue }: BattleHudProps) {
+export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, reloadSeconds, aim, view, onContinue }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -125,6 +137,7 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
               <span class="battle-bar-track">
                 <span class={`battle-bar-fill${reload(side) >= 1 ? ' ready' : ''}`} style={{ width: `${Math.round(reload(side) * 100)}%` }} />
               </span>
+              <span class={`battle-aim${aim[side] === 'ready' ? ' ready' : ''}`}>{AIM[aim[side]]}</span>
             </span>
           ))}
         </div>

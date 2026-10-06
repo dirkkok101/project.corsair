@@ -13,6 +13,7 @@ import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg } fro
 export type Side = 'player' | 'enemy';
 export type Ammo = 'round' | 'chain' | 'grape';
 export type Broadside = 'port' | 'starboard';
+export type Aim = 'ready' | 'loading' | 'no-target' | 'out-of-range' | 'no-guns';
 
 export interface BattleShip extends Ship {
   hull: number;
@@ -167,13 +168,22 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return c.guns.reloadSeconds * Math.max(1, needed / Math.max(1, ship.crew));
   };
 
+  /** Whether a broadside can fire now, and if not, why: the HUD shows it so a refused shot never puzzles. */
+  const aim = (side: Side, broadside: Broadside): Aim => {
+    const ship = state.ships[side];
+    const target = state.ships[side === 'player' ? 'enemy' : 'player'];
+    if (ship.guns < 2) return 'no-guns';
+    if (ship.reload[broadside] > 0) return 'loading';
+    if (bears(ship, target) !== broadside) return 'no-target';
+    if (distance() > (c.ammo[ship.ammo]!.short ? c.guns.grapeTiles : c.guns.rangeTiles)) return 'out-of-range';
+    return 'ready';
+  };
+
   const fire = (side: Side, broadside: Broadside, rng: ReturnType<typeof rngStream>) => {
     const ship = state.ships[side];
     const target = state.ships[side === 'player' ? 'enemy' : 'player'];
     const d = distance();
-    const short = c.ammo[ship.ammo]!.short;
-    if (ship.reload[broadside] > 0 || ship.guns < 2) return;
-    if (bears(ship, target) !== broadside || d > (short ? c.guns.grapeTiles : c.guns.rangeTiles)) return;
+    if (aim(side, broadside) !== 'ready') return;
     // Raking fire runs along the target's length (bow or stern on), where a ball does the most harm.
     const along = Math.abs(Math.cos(((bearing(ship, target) - target.headingDeg) * Math.PI) / 180));
     const near = 1 - Math.min(1, d / c.guns.rangeTiles);
@@ -286,6 +296,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       queue.push(cmd);
     },
     result: () => state.result,
+    /** The player's broadside: ready to fire, or why not. */
+    aim: (broadside: Broadside) => aim('player', broadside),
     /** Advance `ticks` thirtieths of a second. `autopilot` steers the player too (the headless runner). */
     step(ticks = 1, autopilot?: 'runner' | 'cautious' | 'aggressive') {
       for (let i = 0; i < ticks && !state.result; i++) {

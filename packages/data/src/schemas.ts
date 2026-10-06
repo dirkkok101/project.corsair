@@ -244,8 +244,10 @@ export const combatSchema = z.object({
   battle: z.object({
     /** Battle speed: navigation's tiles per second per speed point, scaled down so a fight is readable. */
     tilesPerSecondPerSpeedPoint: z.number().positive(),
-    /** The battle is fought on the world map itself, drawn at tileSize px a tile. */
+    /** The battle is fought on the world map itself, drawn at tileSize px a tile with the ships' world
+     * sprites (the ocean map's own zoom), or close up with their 192 px combat set. */
     tileSize: z.number().int().positive(),
+    sprites: z.enum(['world', 'combat']),
     /** How far apart the ships start, in battle tiles. */
     startApart: z.number().positive(),
     /** Hulls this close (tiles) touch: boarding. */
@@ -353,6 +355,8 @@ export const trafficSchema = z.object({
   hailTiles: z.number().positive(),
   laneCell: z.number().int().positive(),
   tackTiles: z.number().min(0),
+  /** How far to either side of the lane a ship keeps her own line, so ships on one lane don't overlap. */
+  laneSpreadTiles: z.number().min(0),
   portDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** How long a pirate lies in wait on a lane before going home. */
   lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),

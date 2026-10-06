@@ -1,5 +1,5 @@
 import { createAudio } from '@corsair/audio';
-import { contentFingerprint, createSim, dateOf, formatDate, TICKS_PER_SECOND, toSave } from '@corsair/core';
+import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
@@ -390,7 +390,7 @@ async function main() {
     let best: { s: (typeof sim.state.ships)[string]; d: number } | undefined;
     for (const s of Object.values(sim.state.ships)) {
       // Not one lying in port (no route), and not a hunter closing in: she isn't stopping to talk.
-      if (!s.ai || s.ai.chasing || (s.ai.waitUntil !== undefined && !s.ai.route.length)) continue;
+      if (!s.ai || s.ai.chasing || inPort(s)) continue;
       const d = Math.hypot(s.x - me.x, s.y - me.y);
       if (d <= content.traffic.hailTiles && (!best || d < best.d)) best = { s, d };
     }
@@ -493,6 +493,7 @@ async function main() {
           enemyName={them?.ai?.name ?? 'Enemy'}
           enemyTitle={them ? shipTitle(them) : ''}
           reloadSeconds={content.combat.guns.reloadSeconds * Math.max(1, needed / Math.max(1, bs.ships.player.crew))}
+          aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}
           view={{ w: renderer.canvas.clientWidth, h: renderer.canvas.clientHeight, pxPerTile: content.combat.battle.tileSize * scale }}
           onContinue={endBattle}
         />,

@@ -319,6 +319,26 @@ test('saves: an unreadable save is never silently replaced; it can still be save
   await page.screenshot({ path: 'test-results/start-unreadable.png' });
 });
 
+test('ships lying in port are listed in the tavern with when each sails', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // A new world's ships start in their home ports: find a port with ships in it and dock there.
+  const port = await page.evaluate(() => {
+    type S = { x: number; y: number; ai?: { from: string; waitUntil?: number; route: unknown[] } };
+    const ships = Object.values(window.__corsair.state.get('ships') as Record<string, S>).filter((s) => s.ai?.waitUntil !== undefined && !s.ai.route.length);
+    const at = ships[0]!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: at.x, y: at.y });
+    window.__corsair.sim.step(1);
+    return { id: at.ai!.from, moored: ships.filter((s) => s.ai!.from === at.ai!.from).length };
+  });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  await expect(page.locator('.harbour-ships > div:not(.age)')).toHaveCount(port.moored);
+  await expect(page.locator('.harbour-ships')).toContainText('sails');
+  await page.screenshot({ path: 'test-results/harbour-ships.png' });
+  expect(errors).toEqual([]);
+});
+
 test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // News is known at once where it happens, so a shock in the port we're at needs no waiting.
@@ -449,7 +469,7 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
       const s = window.__corsair.battle.state()!.ships;
       return Math.hypot(s.enemy.x - s.player.x, s.enemy.y - s.player.y);
     };
-    for (let i = 0; i < 30 * 60 && apart() < 13 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'runner');
+    for (let i = 0; i < 30 * 60 && apart() < 17 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'runner');
   });
   expect(await page.evaluate(() => window.__corsair.battle.result())).toBeUndefined();
   await expect(page.locator('.battle-marker')).toBeVisible();

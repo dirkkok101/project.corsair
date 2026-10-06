@@ -4,6 +4,7 @@ import type { Texture as PixiTexture } from 'pixi.js';
 import type { Wind } from '@corsair/core';
 import { createPennants } from './effects';
 import { facingIndex } from './facing';
+import { sailAnim } from './sails';
 import type { FlagNation } from './flags';
 import { paintDeepWater, paintTerrainChunk } from './water';
 
@@ -51,8 +52,10 @@ export function createBattleView(
   const terrain = new Container();
   const sprites = { player: new Sprite(), enemy: new Sprite() };
   const fx = new Graphics();
-  // Colours at the masthead at battle scale: 192 px cells over the same 3.7-unit framing.
-  const pennants = createPennants(192 / 3.7, [12, 8]);
+  // The world's ship sprites at the world's zoom, or the 192 px combat set close up (combat.json battle.sprites).
+  const combatSet = content.combat.battle.sprites === 'combat';
+  // Colours at the masthead: the cell size over the same 3.7-unit framing.
+  const pennants = combatSet ? createPennants(192 / 3.7, [12, 8]) : createPennants();
   view.addChild(water, world);
   world.addChild(terrain, sprites.enemy, sprites.player, pennants.view, fx);
   // Chunks stay cached between fights over the same world; insertion order doubles as LRU order.
@@ -89,11 +92,18 @@ export function createBattleView(
     }
   };
 
-  const place = (sprite: Sprite, ship: BattleViewShip, ts: number) => {
-    const spriteId = content.ships[ship.classId]!.sprites.combat ?? content.ships[ship.classId]!.sprites.world;
+  /** A ship's sprite, frame and mast tip in the set the battle draws. */
+  const look = (ship: BattleViewShip, wind: Wind, nowMs: number) => {
+    const sprites = content.ships[ship.classId]!.sprites;
+    const spriteId = (combatSet ? sprites.combat : undefined) ?? sprites.world;
     const def = content.sprites[spriteId]!;
-    const anim = def.anims.includes(`sail_${ship.sails}`) ? `sail_${ship.sails}` : def.anims[0]!;
-    sprite.texture = frames[`${spriteId}.${anim}`]?.[facingIndex(ship.headingDeg, def.facings)] ?? Texture.EMPTY;
+    const anim = combatSet ? (def.anims.includes(`sail_${ship.sails}`) ? `sail_${ship.sails}` : def.anims[0]!) : sailAnim(content, ship, wind, nowMs);
+    const facing = facingIndex(ship.headingDeg, def.facings);
+    return { spriteId, def, anim, facing, top: mastTops[spriteId]?.[anim]?.[facing] };
+  };
+  const place = (sprite: Sprite, ship: BattleViewShip, wind: Wind, nowMs: number, ts: number) => {
+    const { spriteId, def, anim, facing } = look(ship, wind, nowMs);
+    sprite.texture = frames[`${spriteId}.${anim}`]?.[facing] ?? Texture.EMPTY;
     sprite.anchor.set(def.pivot.x, def.pivot.y);
     sprite.position.set(Math.round(ship.x * ts), Math.round(ship.y * ts));
   };
@@ -118,14 +128,8 @@ export function createBattleView(
       ensureChunks(map, cx, cy, viewW, viewH);
       world.position.set(-cx, -cy);
       water.tilePosition.set(-cx + Math.round(nowMs / 400), -cy);
-      place(sprites.enemy, state.ships.enemy, ts);
-      place(sprites.player, state.ships.player, ts);
-      const mastOf = (s: BattleViewShip) => content.sprites[content.ships[s.classId]!.sprites.combat ?? '']?.mast;
-      const topOf = (s: BattleViewShip) => {
-        const id = content.ships[s.classId]!.sprites.combat ?? '';
-        const def = content.sprites[id];
-        return def ? mastTops[id]?.[`sail_${s.sails}`]?.[facingIndex(s.headingDeg, def.facings)] : undefined;
-      };
+      place(sprites.enemy, state.ships.enemy, state.wind, nowMs, ts);
+      place(sprites.player, state.ships.player, state.wind, nowMs, ts);
       pennants.update(
         (['player', 'enemy'] as const).map((side) => {
           const s = state.ships[side];
@@ -134,8 +138,8 @@ export function createBattleView(
             wind: state.wind,
             x: Math.round(s.x * ts),
             y: Math.round(s.y * ts),
-            mast: mastOf(s),
-            top: topOf(s),
+            mast: look(s, state.wind, nowMs).def.mast,
+            top: look(s, state.wind, nowMs).top,
             colour: 0xcf573c,
             flag: side === 'enemy' ? enemyFlag : undefined,
           };

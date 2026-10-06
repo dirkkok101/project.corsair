@@ -274,3 +274,8 @@ export interface GameEvent {
   entityIds: string[];
   payload: Record<string, unknown>;
 }
+
+/** An AI ship lying in port: waiting, with no route out yet. Inside the harbour, not on the sea map. */
+export function inPort(ship: Ship): boolean {
+  return ship.ai?.waitUntil !== undefined && !ship.ai.route.length;
+}

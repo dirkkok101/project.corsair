@@ -1134,3 +1134,22 @@ body {
   border: 1px solid #4f8fba;
   cursor: pointer;
 }
+
+/* The ships lying in port, under the tavern's recruiting line. */
+.harbour-ships {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.battle-aim {
+  width: 84px;
+  font-size: 12px;
+  color: #819796;
+}
+
+.battle-aim.ready {
+  color: #e8c170;
+}

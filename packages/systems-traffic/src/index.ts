@@ -1,4 +1,4 @@
-import { rngStream, seedRng } from '@corsair/core';
+import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, Nation, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { isLand, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
@@ -51,6 +51,13 @@ function pointAlong(route: [number, number][], along: number): { x: number; y: n
   }
   const [x, y] = route[0]!;
   return { x, y, deg: 0 };
+}
+
+/** A ship's side of the lane, from -1 to 1: fixed by her id, so it needs no state and replays hold. */
+function laneSide(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return ((h >>> 0) / 0xffffffff) * 2 - 1;
 }
 
 export function createTrafficSystem(
@@ -244,8 +251,12 @@ export function createTrafficSystem(
     const at = pointAlong(ai.route, along);
     // Right of the lane in compass terms: the lane's direction turned 90 degrees clockwise.
     const nr = (at.deg * Math.PI) / 180;
-    let x = at.x + Math.cos(nr) * offset;
-    let y = at.y + Math.sin(nr) * offset;
+    // Each ship keeps her own line a little to one side of the lane, so ships on one lane sail side by
+    // side rather than through each other. It fades in and out over the first and last tiles, so she
+    // still leaves from and arrives at the mooring.
+    const side = laneSide(ship.id) * t.laneSpreadTiles * Math.min(1, along, total - along);
+    let x = at.x + Math.cos(nr) * (offset + side);
+    let y = at.y + Math.sin(nr) * (offset + side);
     if (!water(x, y)) {
       // Touching land after all: pull in toward the lane (which is water) and stand off the other way.
       offset *= 0.5;
@@ -322,7 +333,6 @@ export function createTrafficSystem(
     return { ...ship, ai: { ...ai, chasing: false, route: [here, here], along: 0, offset: 0 } };
   };
 
-  const inPort = (s: Ship) => s.ai!.waitUntil !== undefined && !s.ai!.route.length;
 
   /** What a hunter goes after: pirates take merchants; patrols take pirates and their nation's enemies. */
   const isPrey = (state: WorldState, hunter: Ship, s: Ship) => {
@@ -439,8 +449,7 @@ export function createTrafficSystem(
         const player = state.ships[command.shipId];
         const other = state.ships[command.targetId];
         if (!player || !other?.ai) return undefined;
-        const inPort = other.ai.waitUntil !== undefined && !other.ai.route.length;
-        if (player.docked || inPort || Math.hypot(other.x - player.x, other.y - player.y) > t.hailTiles) {
+        if (player.docked || inPort(other) || Math.hypot(other.x - player.x, other.y - player.y) > t.hailTiles) {
           return { state, events: [{ type: 'AttackRefused', entityIds: [player.id, other.id], payload: {} }] };
         }
         // Firing on a nation's ship costs standing with that nation; pirates are fair game. Under a
@@ -648,9 +657,10 @@ export function createTrafficSystem(
         const hour = ((tick % tpd) / tpd) * 24;
         const sight = t.sightTiles * (hour < 6 || hour >= 19 ? t.nightSight : 1);
         const sightings: Record<string, Sighting> = {};
-        for (const [id, seen] of Object.entries(captain.sightings ?? {})) if (ships[id]) sightings[id] = seen;
+        // A ship that has gone into port is out of sight until she sails again.
+        for (const [id, seen] of Object.entries(captain.sightings ?? {})) if (ships[id] && !inPort(ships[id])) sightings[id] = seen;
         for (const s of Object.values(ships)) {
-          if (!s.ai || Math.hypot(s.x - player.x, s.y - player.y) > sight) continue;
+          if (!s.ai || inPort(s) || Math.hypot(s.x - player.x, s.y - player.y) > sight) continue;
           sightings[s.id] = { x: s.x, y: s.y, tick, classId: s.classId, nation: s.ai.nation };
         }
         captain = { ...captain, sightings };

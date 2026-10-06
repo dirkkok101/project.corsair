@@ -1,3 +1,4 @@
+import { inPort } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
@@ -15,7 +16,8 @@ import {
   sellDepth,
   tradeLean,
 } from '@corsair/systems-economy';
-import { enemiesOf, NATIONS } from '@corsair/systems-politics';
+import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
+import { shipTitle } from './hail';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -205,6 +207,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             content={content}
             state={state}
             settlements={settlements}
+            town={town.id}
             rumours={rumours}
             hear={() => send({ type: 'HearNews', shipId })}
             shipId={shipId}
@@ -317,6 +320,7 @@ interface TavernProps {
   content: ContentPack;
   state: WorldState;
   settlements: PlacedSettlement[];
+  town: string;
   rumours: import('@corsair/core').NewsItem[];
   hear: () => void;
   shipId: string;
@@ -455,14 +459,46 @@ function Shipwright({
   );
 }
 
+/** Ships lying in this port and when each sails: where she is bound is only settled when she leaves. */
+function Harbour({ content, state, town }: { content: ContentPack; state: WorldState; town: string }) {
+  const tpd = content.calendar.ticksPerDay;
+  const moored = Object.values(state.ships)
+    .filter((s) => inPort(s) && s.ai!.from === town)
+    .sort((a, b) => a.ai!.waitUntil! - b.ai!.waitUntil!);
+  return (
+    <div class="harbour-ships">
+      <span class="port-sub">In the harbour</span>
+      {moored.length ? (
+        moored.map((s) => {
+          const days = Math.ceil((s.ai!.waitUntil! - state.tick) / tpd);
+          return (
+            <div key={s.id}>
+              <i>{s.ai!.name}</i>, {shipTitle(s)}
+              {legalTarget(content, state, state.captain, s.ai!.nation) ? <span class="trend want">lawful prize</span> : null}
+              <span class="age"> {days <= 0 ? 'sails today' : days === 1 ? 'sails tomorrow' : `sails in about ${days} days`}</span>
+            </div>
+          );
+        })
+      ) : (
+        <div class="age">No other ships lie here.</div>
+      )}
+    </div>
+  );
+}
+
 /** The tavern: talk of the docks, newest first. Listening marks it heard. */
-function Tavern({ content, state, settlements, rumours, hear, shipId, send }: TavernProps) {
+function Tavern({ content, state, settlements, town, rumours, hear, shipId, send }: TavernProps) {
   // What was new when the captain walked in stays marked for this visit.
   const [fresh] = useState(() => new Set(rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).map((n) => n.id)));
   // Once per visit: the port screen renders every frame, so this must not run from render.
   useEffect(hear, []);
   const today = Math.floor(state.tick / content.calendar.ticksPerDay);
-  const recruit = <Recruit content={content} state={state} shipId={shipId} send={send} />;
+  const recruit = (
+    <>
+      <Recruit content={content} state={state} shipId={shipId} send={send} />
+      <Harbour content={content} state={state} town={town} />
+    </>
+  );
   if (!rumours.length)
     return (
       <>
