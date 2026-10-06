@@ -293,13 +293,30 @@ export const combatSchema = z.object({
     /** A fight longer than this (seconds) ends with the enemy slipping away. */
     maxSeconds: z.number().positive(),
   }),
-  /** How an aggressive captain fights: she shoots her way in and closes to grapple only once the other
-   * ship is hurt (her crew outnumbered by boardCrewRatio, or her sails below boardBelowSails percent);
-   * until then she comes in on the other's bow or stern, approachTiles off, out of her broadsides. */
+  /**
+   * How a pirate fights, in phases. She stalks: holds station off the other ship's bow or stern at
+   * standoffShare of her own round-shot reach (within stationTiles counts as on it), out of the other's
+   * broadsides, and rakes her from there. She closes to grapple only when it pays: the other's sails
+   * below boardBelowSails percent, her crew outnumbering the other's by boardCrewRatio, or (a bold
+   * captain) the moment the other's broadside facing her has just fired (more than openingReload of its
+   * reload still to go). Badly hurt (hull below fleeBelowHull, or crew below fleeBelowCrew, as shares
+   * of her start), she breaks off and runs. Each pirate captain has a temperament, drawn by share.
+   */
   tactics: z.object({
-    boardCrewRatio: z.number().positive(),
-    boardBelowSails: z.number().min(0).max(100),
-    approachTiles: z.number().positive(),
+    standoffShare: z.number().positive(),
+    stationTiles: z.number().positive(),
+    openingReload: z.number().min(0).max(1),
+    temperaments: z.record(
+      z.string(),
+      z.object({
+        share: z.number().min(0),
+        boardBelowSails: z.number().min(0).max(100),
+        boardCrewRatio: z.number().positive(),
+        seizeOpenings: z.boolean(),
+        fleeBelowHull: z.number().min(0).max(1),
+        fleeBelowCrew: z.number().min(0).max(1),
+      }),
+    ),
   }),
   guns: z.object({
     /** A broadside bears within this many degrees of the beam. */

@@ -29,6 +29,8 @@ export interface BattleShip extends Ship {
   role?: AiCaptain['role'];
   /** Her guns' reach and reload as multiples of combat.json's (bronze cannon, fine-grain powder). */
   rangeMult: number;
+  /** A pirate captain's temperament (combat.json tactics): how soon she boards and how soon she runs. */
+  temperament?: string;
   reloadMult: number;
 }
 
@@ -153,6 +155,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       break;
     }
   }
+  // A pirate captain's temperament, drawn from the battle's seed by share.
+  const temperament = (() => {
+    if (setup.enemy.ai?.role !== 'pirate') return undefined;
+    const pick = rngStream(seedRng(setup.seed, 'temperament'));
+    return pick.weighted(Object.fromEntries(Object.entries(c.tactics.temperaments).map(([k, v]) => [k, v.share])));
+  })();
   let state: BattleState = {
     tick: 0,
     parting: 0,
@@ -160,7 +168,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     wind: setup.wind,
     ships: {
       player: { ...arm(setup.player, 'player'), x: mid.x, y: mid.y },
-      enemy: { ...arm(setup.enemy, 'enemy'), ...enemyAt },
+      enemy: { ...arm(setup.enemy, 'enemy'), ...enemyAt, ...(temperament ? { temperament } : {}) },
     },
     shots: [],
     effects: [],
@@ -232,6 +240,32 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     };
   };
 
+  /**
+   * A pirate's heading, by phase (combat.json tactics): hold on once grappled; run when badly hurt; close
+   * to board when the other is crippled or out-crewed, or, if bold, the moment the other's broadside facing
+   * her has just fired; otherwise stalk from a station off the other's bow or stern and rake her.
+   */
+  const pirate = (me: BattleShip, them: BattleShip, d: number, toThem: number, ready: Broadside): number => {
+    const t = c.tactics.temperaments[me.temperament ?? 'bold'] ?? Object.values(c.tactics.temperaments)[0]!;
+    if (state.grappling > 0) return toThem;
+    if (me.hull < me.hullMax * t.fleeBelowHull || me.crew < me.crewStart * t.fleeBelowCrew) return toThem + 180;
+    // The other's broadside on my side of her: just fired, it's a while reloading.
+    const rel = ((bearing(them, me) - them.headingDeg + 540) % 360) - 180;
+    const facing: Broadside = rel > 0 ? 'starboard' : 'port';
+    const opening = t.seizeOpenings && d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload;
+    if (them.sailCondition < t.boardBelowSails || me.crew > them.crew * t.boardCrewRatio || opening) return toThem;
+    // Stalk: a station off her bow or stern (the nearer), where her broadsides can't bear.
+    const standoff = reach(me, 'round') * c.tactics.standoffShare;
+    const r = (them.headingDeg * Math.PI) / 180;
+    const ends = [1, -1].map((k) => ({ x: them.x + Math.sin(r) * k * standoff, y: them.y - Math.cos(r) * k * standoff }));
+    const station = ends.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0]!;
+    if (Math.hypot(station.x - me.x, station.y - me.y) > c.tactics.stationTiles) {
+      return normalizeDeg((Math.atan2(station.x - me.x, -(station.y - me.y)) * 180) / Math.PI);
+    }
+    // On station: turn the loaded broadside on her, raking her end on.
+    return ready === 'starboard' ? toThem - 90 : toThem + 90;
+  };
+
   /** Steering for an AI captain (the enemy, or the player under autopilot in the headless runner). */
   const steer = (side: Side, personality: 'runner' | 'cautious' | 'aggressive'): BattleCommand[] => {
     const me = state.ships[side];
@@ -241,18 +275,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const ready: Broadside = me.reload.starboard <= me.reload.port ? 'starboard' : 'port';
     let want: number;
     if (personality === 'runner') want = toThem + 180;
-    else if (
-      personality === 'aggressive' &&
-      (state.grappling > 0 || me.crew > them.crew * c.tactics.boardCrewRatio || them.sailCondition < c.tactics.boardBelowSails)
-    )
-      want = toThem; // grapples out, or she is hurt: close and hold on
-    else if (personality === 'aggressive' && d > reach(me, 'round') * 0.8) {
-      // Come in on her bow or stern, whichever is nearer, where her broadsides can't bear.
-      const r = (them.headingDeg * Math.PI) / 180;
-      const ends = [1, -1].map((k) => ({ x: them.x + Math.sin(r) * k * c.tactics.approachTiles, y: them.y - Math.cos(r) * k * c.tactics.approachTiles }));
-      const near = ends.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0]!;
-      want = normalizeDeg((Math.atan2(near.x - me.x, -(near.y - me.y)) * 180) / Math.PI);
-    } else if (d > reach(me, 'round') * 0.8) want = toThem;
+    else if (personality === 'aggressive') want = pirate(me, them, d, toThem, ready);
+    else if (d > reach(me, 'round') * 0.8) want = toThem;
     else if (personality === 'cautious' && d < reach(me, 'round') * 0.5) want = toThem + 180;
     // Put the loaded broadside to bear: the target abeam on that side.
     else want = ready === 'starboard' ? toThem - 90 : toThem + 90;

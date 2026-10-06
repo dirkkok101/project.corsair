@@ -17,9 +17,13 @@
     "maxSeconds": 600
   },
   "tactics": {
-    "boardCrewRatio": 1.2,
-    "boardBelowSails": 70,
-    "approachTiles": 4
+    "standoffShare": 0.75,
+    "stationTiles": 2,
+    "openingReload": 0.6,
+    "temperaments": {
+      "bold": { "share": 0.5, "boardBelowSails": 50, "boardCrewRatio": 1.2, "seizeOpenings": true, "fleeBelowHull": 0.25, "fleeBelowCrew": 0.35 },
+      "cautious": { "share": 0.5, "boardBelowSails": 35, "boardCrewRatio": 1.5, "seizeOpenings": false, "fleeBelowHull": 0.45, "fleeBelowCrew": 0.5 }
+    }
   },
   "guns": {
     "arcDeg": 50,
