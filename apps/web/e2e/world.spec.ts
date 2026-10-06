@@ -453,13 +453,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.locator('.port-tabs').getByRole('button', { name: 'Governor' }).click();
-  await expect(page.locator('.governor')).toContainText('at peace');
-
-  // War with Spain: the governor now sells a letter of marque.
-  await page.evaluate(() => {
-    window.__corsair.cmd.send({ type: 'SetRelation', a: 'england', b: 'spain', war: true });
-    window.__corsair.sim.step(1);
-  });
+  // 1660: Spain is at war with England beyond the line, so the governor sells a letter of marque.
   await expect(page.locator('.governor')).toContainText('at war with Spain');
   await page.locator('.governor').getByRole('button', { name: /Letter of marque/ }).click();
   await expect(page.locator('.governor')).toContainText('You hold an English letter of marque');

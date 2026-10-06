@@ -422,11 +422,17 @@ describe('the governor', () => {
   });
 
   it('sells a letter of marque at war, cheaper with standing, and refuses it at peace', () => {
+    // The Dutch open at peace with every nation: their governor has no letters to sell.
+    const willemstad = town('town.willemstad');
+    const dutch = moored(willemstad);
+    dutch.send({ type: 'Dock', shipId: 'player', settlementId: willemstad.id });
+    dutch.send({ type: 'BuyMarque', shipId: 'player' });
+    dutch.applyCommands();
+    expect(dutch.events().at(-1)!.payload.reason).toBe('at-peace');
+
     const sim = moored(portRoyal);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
-    sim.send({ type: 'BuyMarque', shipId: 'player' });
     sim.applyCommands();
-    expect(sim.events().at(-1)!.payload.reason).toBe('at-peace');
 
     const war = createSim({ ...atWarWithSpain(sim.state), captain: { ...sim.state.captain!, gold: 5000, standing: { england: 15 } } }, [
       createEconomySystem(content, settlements),

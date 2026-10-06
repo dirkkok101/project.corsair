@@ -26,9 +26,11 @@ const run = (days: number, seed = 1) => {
 };
 
 describe('nations at war', () => {
-  it('opens at peace in 1660, with pirates at war with everyone', () => {
+  it('opens in 1660 with Spain at war with England and France beyond the line, and pirates at war with everyone', () => {
     const s = world();
-    expect(atWar(content, s, 'england', 'spain')).toBe(false);
+    expect(atWar(content, s, 'england', 'spain')).toBe(true);
+    expect(atWar(content, s, 'france', 'spain')).toBe(true);
+    expect(atWar(content, s, 'england', 'france')).toBe(false);
     expect(atWar(content, s, 'pirate', 'spain')).toBe(true);
     expect(enemiesOf(content, s, 'netherlands')).toEqual(['pirate']);
   });

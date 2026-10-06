@@ -1,5 +1,5 @@
 {
-  "$comment": "PRD section 12. Each pair of nations is at war or peace, with a tension 0 to 100. Monthly: historical events fire on their dates, tension drifts toward the pair's base in peace (and wears down toward warSettle in war) with some noise, then high tension may tip peace into war and low tension war into peace. Pirates are at war with everyone and don't appear here. 1660 opens with the Treaty of the Pyrenees signed and the Anglo-Spanish war just over, but 'no peace beyond the line': Spain and England stay close to the edge. Piracy pressure rises with every merchant pirates take from a nation and decays monthly; above plague it makes news. A letter of marque costs price, less with standing, and is free at freeAt; legal attacks earn standing with the issuer. Governors pay bounties per ship (pirates scaled up by their nation's piracy pressure).",
+  "$comment": "PRD section 12. Each pair of nations is at war or peace, with a tension 0 to 100. Monthly: historical events fire on their dates, tension drifts toward the pair's base in peace (and wears down toward warSettle in war) with some noise, then high tension may tip peace into war and low tension war into peace. Pirates are at war with everyone and don't appear here. 1660 opens with Spain at war with England and France in the Caribbean: whatever was signed in Europe, there was 'no peace beyond the line'. The Treaty of Madrid (1670) brings England and Spain to terms. Piracy pressure rises with every merchant pirates take from a nation and decays monthly; above plague it makes news. A letter of marque costs price, less with standing, and is free at freeAt; legal attacks earn standing with the issuer. Governors pay bounties per ship (pirates scaled up by their nation's piracy pressure).",
   "start": {
     "england:france": {
       "war": false,
@@ -10,16 +10,16 @@
       "tension": 50
     },
     "england:spain": {
-      "war": false,
-      "tension": 65
+      "war": true,
+      "tension": 85
     },
     "france:netherlands": {
       "war": false,
       "tension": 30
     },
     "france:spain": {
-      "war": false,
-      "tension": 55
+      "war": true,
+      "tension": 80
     },
     "netherlands:spain": {
       "war": false,
