@@ -9,5 +9,5 @@ prompt: |
   
   A fort courtyard in side view: worn flagstones along the bottom third, the stone rampart across the back with cannon embrasures, a heavy timber gate at one side, a watchtower at the other, palm tops and blue sky over the wall. Keep the middle band clear for fighters. The flagpole is bare (the game flies the owner's flag).
 seed: ""
-kept: [v1]
-hand_changes: "No hand pixel pass. Kept frame is an Imagine edit of the first generation: a dotted seam was removed from the sky, and the bare flagpole was set behind the rampart so the courtyard floor stays empty."
+kept: [v2]
+hand_changes: "v1 is an Imagine edit of the first generation: a dotted seam was removed from the sky, and a bare pole was set behind the rampart. That pole had a crossbeam and read as a gallows. v2 replaces it, in pixels, with a straight flagpole: slim dark wood, a round brass finial, a thin halyard, no flag and no crossarm. Everything outside that pole is unchanged from v1."
