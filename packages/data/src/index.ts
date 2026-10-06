@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import calendarJson from '../content/calendar.json';
 import combatJson from '../content/combat.json';
+import politicsJson from '../content/politics.json';
 import economyJson from '../content/economy.json';
 import goodsJson from '../content/goods.json';
 import musicJson from '../content/music.json';
@@ -17,6 +18,7 @@ import trafficJson from '../content/traffic.json';
 import {
   calendarSchema,
   combatSchema,
+  politicsSchema,
   economySchema,
   goodsSchema,
   musicSchema,
@@ -34,6 +36,7 @@ import {
 import type {
   Calendar,
   Combat,
+  PoliticsConfig,
   Economy,
   Goods,
   Music,
@@ -67,6 +70,7 @@ export interface ContentPack {
   economy: Economy;
   traffic: Traffic;
   combat: Combat;
+  politics: PoliticsConfig;
 }
 
 /**
@@ -96,6 +100,7 @@ export function loadContent(): ContentPack {
     economy: economySchema.parse(economyJson),
     traffic: trafficSchema.parse(trafficJson),
     combat: combatSchema.parse(combatJson),
+    politics: politicsSchema.parse(politicsJson),
   };
   for (const r of Object.values(pack.traffic.roles)) {
     if (!pack.ships[r.classId]) throw new Error(`traffic: unknown class ${r.classId}`);

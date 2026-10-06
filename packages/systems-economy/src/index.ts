@@ -181,16 +181,21 @@ export function newsAt(content: ContentPack, state: WorldState, settlements: Set
 
 /** The rumour as told, from the shock kind's template. */
 const NATION_ADJECTIVE: Record<string, string> = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch', pirate: 'pirate' };
+const NATION_NAME: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands', pirate: 'the pirates' };
 
 /** The rumour as told: from a market shock's template, or a sea fight's (combat.json news). */
 export function newsText(content: ContentPack, item: NewsItem, townName: string): string {
   const good = (content.goods.find((g) => g.id === item.good)?.name ?? item.good).toLowerCase();
-  const text = content.economy.shocks.kinds[item.kind]?.news ?? content.combat.news[item.kind] ?? '{town}: {good}';
+  const text = content.economy.shocks.kinds[item.kind]?.news ?? content.combat.news[item.kind] ?? content.politics.news[item.kind] ?? '{town}: {good}';
+  // War and peace name the nations themselves ("England and Spain"); fights use the adjective ("the Spanish San Felipe").
+  const nationWords = item.kind === 'war' || item.kind === 'peace' ? NATION_NAME : NATION_ADJECTIVE;
   return text
     .replaceAll('{town}', townName)
     .replaceAll('{good}', good)
     .replaceAll('{ship}', item.ship ?? 'a ship')
-    .replaceAll('{nation}', NATION_ADJECTIVE[item.nation ?? ''] ?? '');
+    .replaceAll('{nation}', nationWords[item.nation ?? ''] ?? '')
+    .replaceAll('{other}', nationWords[item.other ?? ''] ?? '')
+    .replace(/^./, (c) => c.toUpperCase());
 }
 
 const SEAWARD_LOOK_TILES = 12;

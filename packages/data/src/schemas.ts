@@ -297,6 +297,31 @@ export const combatSchema = z.object({
   news: z.record(z.string(), z.string()),
 });
 
+const pairKey = z.string().regex(/^(england|france|netherlands|spain):(england|france|netherlands|spain)$/);
+
+export const politicsSchema = z.object({
+  start: z.record(pairKey, z.object({ war: z.boolean(), tension: z.number().min(0).max(100) })),
+  monthly: z.object({
+    drift: share,
+    noise: z.number().min(0),
+    warAbove: z.number(),
+    warChance: share,
+    peaceBelow: z.number(),
+    peaceChance: share,
+    /** At war, tension wears down toward this: wars end in exhaustion. */
+    warSettle: z.number(),
+    /** Tension set when a war breaks out. */
+    warTension: z.number(),
+  }),
+  events: z.array(
+    z.object({ year: z.number().int(), month: z.number().int().min(1).max(12), pair: pairKey, war: z.boolean(), tension: z.number().optional() }),
+  ),
+  piracy: z.object({ perTaken: z.number().min(0), decay: share, plague: z.number().min(0) }),
+  marque: z.object({ price: z.number().min(0), freeAt: z.number(), standingGain: z.number() }),
+  bounty: z.object({ merchant: z.number(), patrol: z.number(), pirate: z.number(), piracyScale: z.number().positive() }),
+  news: z.record(z.string(), z.string()),
+});
+
 export const trafficSchema = z.object({
   population: z.number().int().min(0),
   roles: z.object({
@@ -336,4 +361,5 @@ export type Goods = z.infer<typeof goodsSchema>;
 export type Economy = z.infer<typeof economySchema>;
 export type Traffic = z.infer<typeof trafficSchema>;
 export type Combat = z.infer<typeof combatSchema>;
+export type PoliticsConfig = z.infer<typeof politicsSchema>;
 export type Tune = Music['tunes'][number];

@@ -47,6 +47,8 @@ export interface AiCaptain {
   chasing?: boolean;
   /** No chase before this tick: a ship that just fought or lost the player leaves them be a while. */
   calmUntil?: number;
+  /** An AI ship being hunted (another AI ship; the player is hunted through `chasing`). */
+  target?: string;
 }
 
 export interface Ship {
@@ -125,6 +127,30 @@ export interface Captain {
   sightings?: Record<string, Sighting>;
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
   standing?: Partial<Record<Nation, number>>;
+  /** Nations whose letter of marque the captain holds; each covers whoever that nation is at war with now. */
+  marques?: Nation[];
+  /** Ships sunk or taken and not yet paid for by a governor (PRD section 12: bounties). */
+  deeds?: Deed[];
+}
+
+/** A ship the player sank or took, waiting for a governor's bounty. */
+export interface Deed {
+  nation: Nation;
+  role: AiCaptain['role'];
+  kind: 'sunk' | 'taken';
+  tick: number;
+}
+
+/**
+ * The nations' relations (PRD section 12): each pair at war or peace with a tension 0 to 100, and
+ * each nation's pirate pressure (how hard pirates are hitting its shipping). Pairs are keyed by the
+ * two nations in alphabetical order, as `england:spain`.
+ */
+export interface Politics {
+  relations: Record<string, { war: boolean; tension: number }>;
+  piracy: Partial<Record<Nation, number>>;
+  /** The month the politics tick last ran, as months since the career's start date. */
+  month: number;
 }
 
 /** How a sea battle ended, and what each side came out of it with (PRD section 9.1). */
@@ -171,6 +197,8 @@ export interface NewsItem {
   /** News of a fight: the ship it was about, and her flag. */
   ship?: string;
   nation?: Nation;
+  /** News of war or peace, or of a fight between ships: the other nation. */
+  other?: Nation;
 }
 
 export interface WorldState {
@@ -191,6 +219,7 @@ export interface WorldState {
   nextNewsId?: number;
   /** Counter for AI ship ids. */
   nextShipId?: number;
+  politics?: Politics;
 }
 
 export type Command =
@@ -214,6 +243,9 @@ export type Command =
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
   | { type: 'Repair'; shipId: string }
+  /** At a governor: buy a letter of marque from his nation, or collect bounties owed for deeds. */
+  | { type: 'BuyMarque'; shipId: string }
+  | { type: 'CollectBounties'; shipId: string }
   /** Speak an AI ship within hailing range: learn who it is and hear its news. */
   | { type: 'Hail'; shipId: string; targetId: string }
   /** Debug: start an AI ship of a role at a port, bound for another. */
