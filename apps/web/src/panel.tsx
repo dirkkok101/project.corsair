@@ -1,13 +1,26 @@
-// The ship panel (bottom left, at sea and in battle): the ship drawn with her state on her, a row of
-// cannon per broadside lit as they are loaded (after Pirates!' cannon status), and the modes to click.
-// The drawing and icons are placeholders in SVG until the painted panel art (art/sources/grok/README.md).
+// The ship panel (bottom left, at sea and in battle): the ship's portrait, her hull, sails and crew, a row
+// of cannon per broadside lit as they are loaded (after Pirates!' cannon status), and the modes to click.
+// The art is the painted UI kit (art/sources/paintings/README.md, imported by tools/art/import_ui.ts).
 
 import type { SailSetting } from '@corsair/core';
+
+const ART = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../../../art/game/ui/*.png', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
+    path.split('/').pop()!.replace(/\.png$/, ''),
+    url,
+  ]),
+);
+/** A UI kit image, drawn pixel for pixel. */
+function Art({ id, class: cls, title }: { id: string; class?: string; title?: string }) {
+  return <img class={`ui-art${cls ? ` ${cls}` : ''}`} src={ART[id]} alt="" title={title} draggable={false} />;
+}
 
 export type Shot = 'round' | 'chain' | 'grape';
 
 export interface ShipPanelProps {
   name: string;
+  /** Her class (ship.brig), for the portrait. */
+  classId: string;
   hull: number;
   hullMax: number;
   /** Sail condition, 0 to 100. */
@@ -30,45 +43,11 @@ const SHOTS: { id: Shot; name: string; key: string }[] = [
   { id: 'grape', name: 'Grape', key: '3' },
 ];
 
-function ShotIcon({ shot }: { shot: Shot }) {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-      {shot === 'round' ? <circle cx="8" cy="8" r="5" fill="currentColor" /> : null}
-      {shot === 'chain' ? (
-        <>
-          <circle cx="4" cy="8" r="3" fill="currentColor" />
-          <circle cx="12" cy="8" r="3" fill="currentColor" />
-          <path d="M6 8h4" stroke="currentColor" stroke-width="1.5" />
-        </>
-      ) : null}
-      {shot === 'grape' ? [5, 11].flatMap((x) => [5, 11].map((y) => <circle key={`${x}${y}`} cx={x} cy={y} r="2.5" fill="currentColor" />)) : null}
-    </svg>
-  );
-}
-
-/** Side view of a ship: hull, two masts, and sails drawn by how they're set (and how torn). */
-function ShipDrawing({ sailSetting, sails }: { sailSetting: SailSetting; sails: number }) {
-  const height = sailSetting === 'full' ? 1 : sailSetting === 'half' ? 0.55 : 0.12;
-  const sail = (x: number) => {
-    const h = 26 * height;
-    return <rect x={x - 9} y={34 - h} width="18" height={h} rx="2" fill="#e7d5b3" opacity={0.5 + (0.5 * sails) / 100} />;
-  };
-  return (
-    <svg class="panel-ship" viewBox="0 0 96 56" width="96" height="56" aria-hidden="true">
-      <path d="M30 6v32M62 4v34" stroke="#4d2b32" stroke-width="2" />
-      {sail(30)}
-      {sail(62)}
-      <path d="M6 38h84l-10 12H16z" fill="#7a4841" stroke="#3e222a" />
-      <path d="M12 42h72" stroke="#c09473" stroke-width="1" />
-    </svg>
-  );
-}
-
-function Bar({ label, value, max }: { label: string; value: number; max: number }) {
+function Bar({ label, icon, value, max }: { label: string; icon: string; value: number; max: number }) {
   const share = Math.max(0, Math.min(1, value / Math.max(1, max)));
   return (
-    <div class="panel-bar">
-      <span class="panel-bar-label">{label}</span>
+    <div class="panel-bar" title={label}>
+      <Art id={icon} class="panel-icon" />
       <span class="battle-bar-track">
         <span class={`battle-bar-fill${share < 0.3 ? ' low' : ''}`} style={{ width: `${Math.round(share * 100)}%` }} />
       </span>
@@ -85,7 +64,7 @@ function Battery({ label, loaded, of }: { label: string; loaded: number; of: num
     <div class="panel-battery" title={`${label}: ${loaded} of ${of} guns loaded`}>
       <span class="panel-bar-label">{label}</span>
       {Array.from({ length: of }, (_, i) => (
-        <span key={i} class={`panel-gun${i < loaded ? ' loaded' : ''}`} />
+        <Art key={i} id={i < loaded ? 'ui.icon.cannon_loaded' : 'ui.icon.cannon_empty'} class="panel-gun" />
       ))}
     </div>
   );
@@ -93,21 +72,21 @@ function Battery({ label, loaded, of }: { label: string; loaded: number; of: num
 
 export function ShipPanel(p: ShipPanelProps) {
   return (
-    <div class="ship-panel">
+    <div class="ship-panel" style={{ borderImageSource: `url(${ART['ui.panel.frame']})` }}>
       <div class="panel-top">
-        <ShipDrawing sailSetting={p.sailSetting} sails={p.sails} />
+        <Art id={`ui.ship.${p.classId.replace(/^ship\./, '')}`} class="panel-ship" />
         <div class="panel-name">{p.name}</div>
       </div>
-      <Bar label="Hull" value={p.hull} max={p.hullMax} />
-      <Bar label="Sails" value={p.sails} max={100} />
-      <Bar label="Crew" value={p.crew} max={p.berths} />
+      <Bar label="Hull" icon="ui.icon.hull" value={p.hull} max={p.hullMax} />
+      <Bar label="Sails" icon="ui.icon.full_sail" value={p.sails} max={100} />
+      <Bar label="Crew" icon="ui.icon.crew" value={p.crew} max={p.berths} />
       <Battery label="Port" {...p.guns.port} />
       <Battery label="Stbd" {...p.guns.starboard} />
       {p.shot ? (
         <div class="panel-modes">
           {SHOTS.map((s) => (
             <button key={s.id} class={p.shot!.loaded === s.id ? 'active' : ''} title={`${s.name} shot (${s.key}, Tab cycles)`} onClick={() => p.shot!.choose(s.id)}>
-              <ShotIcon shot={s.id} /> {s.name}
+              <Art id={`ui.icon.${s.id}_shot`} class="panel-icon" /> {s.name}
             </button>
           ))}
         </div>
@@ -115,7 +94,7 @@ export function ShipPanel(p: ShipPanelProps) {
       <div class="panel-modes">
         {(['full', 'half'] as const).map((s) => (
           <button key={s} class={p.sailSetting === s ? 'active' : ''} title={s === 'full' ? 'Full sail (W)' : 'Half sail, tighter turns (S)'} onClick={() => p.setSails(s)}>
-            {s === 'full' ? 'Full sail' : 'Half sail'}
+            <Art id={s === 'full' ? 'ui.icon.full_sail' : 'ui.icon.half_sail'} class="panel-icon" /> {s === 'full' ? 'Full sail' : 'Half sail'}
           </button>
         ))}
       </div>

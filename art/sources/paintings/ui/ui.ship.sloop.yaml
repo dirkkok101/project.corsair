@@ -1,0 +1,15 @@
+id: ui.ship.sloop
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art game sprite, a single object centred on a perfectly flat solid magenta background (#FF00FF) that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold, iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. Bold, simple shapes that read at small size. No text, no letters, no numbers, no logos, no watermark, no frame.
+
+  A ship portrait, 3:2. The ship in side view facing right, filling about 80% of the width, sails set full, no sea under her, no flag on any mast.
+
+  A single-masted gaff-rigged sloop of the 1660s, side view: low dark hull with a few gun ports, one big fore-and-aft mainsail and a jib, a long bowsprit.
+seed: ""
+kept: [v2]
+hand_changes: "No hand pixel pass. v1 has a black flag at the masthead. v2 is an Imagine edit of v1 with the flag removed and the mast left bare."

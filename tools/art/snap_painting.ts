@@ -54,6 +54,38 @@ function oklab(r: number, g: number, b: number): [number, number, number] {
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
+/** The two palette colours nearest a colour in OKLab, colour (a, b) weighted `chroma` times lightness. */
+function nearestTwo(labs: [number, number, number][], lab: [number, number, number], chroma: number) {
+  let best = 0;
+  let second = 0;
+  let d1 = Infinity;
+  let d2 = Infinity;
+  for (let p = 0; p < labs.length; p++) {
+    const q = labs[p]!;
+    const d = (lab[0] - q[0]) ** 2 + chroma * ((lab[1] - q[1]) ** 2 + (lab[2] - q[2]) ** 2);
+    if (d < d1) {
+      d2 = d1;
+      second = best;
+      d1 = d;
+      best = p;
+    } else if (d < d2) {
+      d2 = d;
+      second = p;
+    }
+  }
+  return { best, second, d1, d2 };
+}
+
+/** A colour to its nearest palette colour, matched as `snap` matches (without dithering). */
+export function paletteMatcher(opts: SnapOptions = DEFAULT_SNAP): (r: number, g: number, b: number) => [number, number, number] {
+  const palette = readPalette();
+  const labs = palette.map(([r, g, b]) => oklab(r, g, b));
+  return (r, g, b) => {
+    const raw = oklab(r, g, b);
+    return palette[nearestTwo(labs, [raw[0], raw[1] * opts.saturate, raw[2] * opts.saturate], opts.chroma).best]!;
+  };
+}
+
 /** Returns 960x540 RGBA, opaque, every pixel a palette colour. */
 export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP): Uint8Array {
   const palette = readPalette();
@@ -89,25 +121,9 @@ export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP): Uint8Array
       const ex = (x - SCENE_W / 2) / (SCENE_W / 2);
       const ey = (y - SCENE_H / 2) / (SCENE_H / 2);
       const calm = (opts.calmCentre ?? 0) * Math.max(0, 1 - Math.hypot(ex, ey));
-      const lab = [raw[0] * (1 - calm), raw[1] * opts.saturate * (1 - calm), raw[2] * opts.saturate * (1 - calm)];
+      const lab: [number, number, number] = [raw[0] * (1 - calm), raw[1] * opts.saturate * (1 - calm), raw[2] * opts.saturate * (1 - calm)];
       // The two nearest palette colours; dithering picks the second where the pixel sits between them.
-      let best = 0;
-      let second = 0;
-      let d1 = Infinity;
-      let d2 = Infinity;
-      for (let p = 0; p < labs.length; p++) {
-        const q = labs[p]!;
-        const d = (lab[0]! - q[0]) ** 2 + opts.chroma * ((lab[1]! - q[1]) ** 2 + (lab[2]! - q[2]) ** 2);
-        if (d < d1) {
-          d2 = d1;
-          second = best;
-          d1 = d;
-          best = p;
-        } else if (d < d2) {
-          d2 = d;
-          second = p;
-        }
-      }
+      const { best, second, d1, d2 } = nearestTwo(labs, lab, opts.chroma);
       const mix = Math.sqrt(d1) / (Math.sqrt(d1) + Math.sqrt(d2) || 1);
       const threshold = (BAYER[(y % 4) * 4 + (x % 4)]! + 0.5) / 16;
       const pick = opts.dither > 0 && mix * 2 * opts.dither > threshold ? second : best;

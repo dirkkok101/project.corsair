@@ -1,4 +1,6 @@
-# Grok Imagine brief: harbours, service interiors, title art
+# Grok Imagine brief: harbours, service interiors, title art, UI kit
+
+`art/sources/paintings/` holds every painted source, whichever tool made it; each prompt record names the tool.
 
 Prompts for painting Corsair's still scenes with Grok Imagine (Image 2.0). The Blender renders in
 `art/game/harbours/` stay in the game until a painted scene is imported to replace them.
@@ -20,8 +22,8 @@ Don't generate night or dusk versions. The game's palette shader makes them from
 
 | What | Path | Example |
 |---|---|---|
-| Raw Grok output you keep | `art/sources/grok/{group}/{id}.v{n}.png` | `art/sources/grok/harbours/harbour.england.large.v1.png` |
-| Prompt record, one per asset, next to its image | `art/sources/grok/{group}/{id}.yaml` | `art/sources/grok/harbours/harbour.england.large.yaml` |
+| Raw Grok output you keep | `art/sources/paintings/{group}/{id}.v{n}.png` | `art/sources/paintings/harbours/harbour.england.large.v1.png` |
+| Prompt record, one per asset, next to its image | `art/sources/paintings/{group}/{id}.yaml` | `art/sources/paintings/harbours/harbour.england.large.yaml` |
 | Layout references (made for you) | `art/sources/references/harbours/{id}.png` | `art/sources/references/harbours/harbour.england.large.png` |
 
 Groups: `harbours`, `interiors`, `title`, `ui` (the ship panel), and for scenes not built yet `duels`, `dance`, `fates`. Keep the file name exactly as the id in each section,
@@ -163,7 +165,7 @@ governor's mansion and a big fort keep.
 These go behind the service panels. The panel covers the middle of the picture, so keep the centre
 calm and fairly dark and put the detail at the left and right edges. Use the style block with its first
 sentence replaced by: *"Pixel art game background, 16:9, an interior scene in the Caribbean in the
-1660s."* Save as `art/sources/grok/interiors/{id}.v{n}.png`.
+1660s."* Save as `art/sources/paintings/interiors/{id}.v{n}.png`.
 
 **`interior.tavern`**
 > A colonial harbour tavern: low smoke-dark timber beams, lanterns and candlelight, a long bar with
@@ -193,7 +195,7 @@ sentence replaced by: *"Pixel art game background, 16:9, an interior scene in th
 
 ## Title art
 
-**`title.main`** (save as `art/sources/grok/title/title.main.v{n}.png`)
+**`title.main`** (save as `art/sources/paintings/title/title.main.v{n}.png`)
 > Pixel art game title background, 16:9: a two-masted brig under full sail on a deep blue Caribbean sea
 > at golden late afternoon, a green island with palms and a distant port on the right, gulls, big
 > white clouds. Keep the top third mostly open sky for the game's title. No text, no letters, no logo.
@@ -203,7 +205,7 @@ sentence replaced by: *"Pixel art game background, 16:9, an interior scene in th
 Backgrounds for scenes that are planned but not built yet (`docs/project-corsair-scenes.md`). Paint
 them ahead so the art is ready when the scene is. Same style block as above, with its first sentence
 replaced as each group says. None has a layout reference yet, so each prompt spells out where the game
-will draw on top of it. Save as `art/sources/grok/{group}/{id}.v{n}.png` with a prompt record beside
+will draw on top of it. Save as `art/sources/paintings/{group}/{id}.v{n}.png` with a prompt record beside
 it, as before.
 
 ### Boarding duel decks (scene S5): group `duels`
@@ -291,10 +293,11 @@ Same rules as the service interiors above: calm, dark centre; detail at the edge
 ## Ship panel art (UI): group `ui`
 
 The ship panel (bottom left, at sea and in battle) shows the player's ship with her state, a row of cannon
-per broadside, and clickable mode buttons. It uses SVG placeholders in `apps/web/src/panel.tsx` until
-these are painted. Grok can't give a transparent background, so every UI prompt asks for a flat
-magenta one: the import step (to be written when the art arrives) keys it out and snaps the rest to
-the game palette.
+per broadside, and clickable mode buttons. Grok can't give a transparent background, so every UI prompt
+asks for a flat magenta one. **Import:** `node tools/art/import_ui.ts` reads each record's kept version,
+keys out the background (its colour and tolerance taken from the image's own corners, since it comes
+back a wobbling hot pink rather than exact #FF00FF), crops to the object, shrinks it (portraits and the
+frame to fit 96×64, icons 24×24) and snaps it to the palette, writing `art/game/ui/{id}.png`.
 
 **UI style block** (paste first for every UI prompt, in place of the scene style block):
 

@@ -676,6 +676,7 @@ async function main() {
             const loaded = (side: 'port' | 'starboard') => (p.reload[side] <= 0 ? each : Math.floor(each * (1 - p.reload[side] / gunnery.reloadSeconds)));
             return {
               name: 'Your ship',
+              classId: me.classId,
               hull: p.hull,
               hullMax: p.hullMax,
               sails: p.sailCondition,
@@ -709,6 +710,7 @@ async function main() {
         me.docked ? null : (
           <ShipPanel
             name={me.classId.replace(/^ship\./, '').replace(/^./, (c) => c.toUpperCase())}
+            classId={me.classId}
             hull={me.hull ?? stats.hullMax}
             hullMax={stats.hullMax}
             sails={me.sailCondition ?? 100}

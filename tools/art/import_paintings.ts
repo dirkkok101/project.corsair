@@ -1,5 +1,5 @@
-// Imports the painted scenes: for every prompt record in art/sources/grok/{group}/*.yaml, snaps the kept raw
-// image (art/sources/grok/{group}/{id}.{kept}.png) to art/game/scenes/{id}.png, plus
+// Imports the painted scenes: for every prompt record in art/sources/paintings/{group}/*.yaml, snaps the kept raw
+// image (art/sources/paintings/{group}/{id}.{kept}.png) to art/game/scenes/{id}.png, plus
 // {id}.sea.f00..f03.png shimmer frames for each harbour.
 //
 //   node tools/art/import_paintings.ts [--review <dir>]
@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { DEFAULT_SNAP, SCENE_H, SCENE_W, snap, writeScene } from './snap_painting.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..');
-const SOURCES = join(ROOT, 'art', 'sources', 'grok');
+const SOURCES = join(ROOT, 'art', 'sources', 'paintings');
 const OUT = join(ROOT, 'art', 'game', 'scenes');
 // Id prefix to the folder its raw output lives in. Duel, dance and fate backgrounds are painted ahead of
 // their scenes (see the brief's "Next scenes").

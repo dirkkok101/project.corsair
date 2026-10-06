@@ -1,0 +1,15 @@
+id: ui.ship.brig
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art game sprite, a single object centred on a perfectly flat solid magenta background (#FF00FF) that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold, iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. Bold, simple shapes that read at small size. No text, no letters, no numbers, no logos, no watermark, no frame.
+
+  A ship portrait, 3:2. The ship in side view facing right, bow and bowsprit to the right, filling about 80% of the width, sails set full, no sea under her, no flag on any mast. Exactly two masts, a foremast and a mainmast, and no third mast.
+
+  A two-masted square-rigged brig of the 1660s, side view: black and ochre hull with a row of gun ports, square sails on both masts, a jib, a modest stern castle.
+seed: ""
+kept: [v2]
+hand_changes: "No hand pixel pass. v1 still has a third mast at the stern. v2 is an Imagine edit of v1 that removes that mast, leaving the foremast, the mainmast, the bowsprit and a small fore-and-aft sail abaft the mainmast."

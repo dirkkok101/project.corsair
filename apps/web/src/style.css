@@ -227,8 +227,8 @@ body {
 .hud-keys {
   position: absolute;
   bottom: 12px;
-  /* Clear of the ship panel in the bottom-left corner. */
-  left: 256px;
+  /* Clear of the ship panel (and its frame) in the bottom-left corner. */
+  left: 290px;
   color: #819796;
 }
 
@@ -1182,12 +1182,31 @@ body {
   left: 12px;
   bottom: 12px;
   width: 232px;
-  padding: 8px 10px;
+  padding: 2px 4px;
   color: #ebede9;
   font-size: 12px;
-  background: rgb(9 10 20 / 0.8);
-  border: 1px solid #c09473;
+  /* The painted frame (its source is set from the UI kit): 9-sliced, its navy middle as the background. */
+  border: 12px solid transparent;
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
   pointer-events: auto;
+}
+
+.ui-art {
+  image-rendering: pixelated;
+}
+
+.panel-ship {
+  width: 96px;
+  height: auto;
+}
+
+.panel-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .panel-top {
@@ -1222,14 +1241,10 @@ body {
 }
 
 .panel-gun {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #394a50;
-}
-
-.panel-gun.loaded {
-  background: #e8c170;
+  width: 16px;
+  height: 12px;
+  object-fit: contain;
+  margin-right: -2px;
 }
 
 .panel-modes {

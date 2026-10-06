@@ -1,0 +1,15 @@
+id: ui.icon.fire
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-06
+reference: ""
+prompt: |
+  Pixel art game sprite, a single object centred on a perfectly flat solid magenta background (#FF00FF) that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold, iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. Bold, simple shapes that read at small size. No text, no letters, no numbers, no logos, no watermark, no frame.
+
+  A square game icon. One object filling about 70% of the frame.
+
+  A puff of white cannon smoke with a flash of orange at its heart.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass."
