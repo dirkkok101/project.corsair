@@ -280,7 +280,13 @@ async function main() {
     fight = undefined;
   };
   let destination: PlacedSettlement | undefined;
-  const charts = createCharts(stage, map, settlements, (port) => (destination = port), {
+  // The route plotted to it, and when it was last plotted.
+  let guide: [number, number][] | undefined;
+  let lastGuide = -Infinity;
+  const charts = createCharts(stage, map, settlements, (port) => {
+    destination = port;
+    lastGuide = -Infinity;
+  }, {
     goods: content.goods,
     known: (id) => sim.state.captain?.knownPrices[id],
     lean: (id, good) => tradeLean(content, { id }, good),
@@ -363,6 +369,17 @@ async function main() {
     if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (!e.repeat) save();
+    }
+    // F: follow the route plotted to the destination (again to stop): the autopilot sails it, beating where it
+    // must and keeping off the coasts, and docks her on arrival. Steering by hand takes the helm back.
+    if (e.key.toLowerCase() === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey && !player().docked && !fight) {
+      const me = player();
+      if (me.assist?.mode === 'course') sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
+      else if (destination) {
+        const berth = lanes.berth(destination.id);
+        const route = berth ? lanes.path([me.x, me.y], berth) : undefined;
+        if (route) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: destination.x, y: destination.y, portId: destination.id, route: route.slice(1) });
+      }
     }
     // I: intercept the nearest ship in sight (again to stop), steering to meet her until the helm is used.
     if (e.key.toLowerCase() === 'i' && !e.repeat && !e.ctrlKey && !e.metaKey && !player().docked) {
@@ -792,6 +809,12 @@ async function main() {
     const intercepting = ship.assist?.mode === 'intercept' && ship.assist.targetId ? sim.state.ships[ship.assist.targetId] : undefined;
     // Autosave on arriving in port, whichever way the Dock command came in.
     if (ship.docked && !wasDocked) {
+      // Made port: the destination is reached (or another port suited better); the route goes.
+      if (destination) {
+        destination = undefined;
+        guide = undefined;
+        charts.clearDestination();
+      }
       save();
       // The merchant opens on arrival and the tavern is a click away: have their rooms ready.
       const here = settlements.find((s) => s.id === ship.docked);
@@ -869,13 +892,26 @@ async function main() {
       if (!audioFailed) console.error('audio update failed', err);
       audioFailed = true;
     }
-    let course: { name: string; distanceKm: number; bearingDeg: number; closing: number } | undefined;
-    if (destination) {
-      const dx = destination.x - ship.x;
-      const dy = destination.y - ship.y;
-      const bearingDeg = (((Math.atan2(dx, -dy) * 180) / Math.PI) + 360) % 360;
-      const closing = speedPoints(content, ship) * Math.cos(((ship.headingDeg - bearingDeg) * Math.PI) / 180);
-      course = { name: destination.name, distanceKm: Math.hypot(dx, dy) * kmPerTile, bearingDeg, closing };
+    // The route plotted to the destination picked on the chart: re-plotted about once a second from where
+    // she is (so it never runs through land), drawn on the sea, and measured for the HUD along the way.
+    if (destination && !ship.docked && now - lastGuide > REPLAN_MS) {
+      lastGuide = now;
+      const berth = lanes.berth(destination.id);
+      guide = berth ? lanes.path([ship.x, ship.y], berth)?.slice(1) : undefined;
+    }
+    renderer.guide(destination && !ship.docked ? guide : undefined);
+    let course: { name: string; distanceKm: number; bearingDeg: number; following: boolean } | undefined;
+    if (destination && guide?.length) {
+      let tiles = 0;
+      let [px, py] = [ship.x, ship.y];
+      for (const [x, y] of guide) {
+        tiles += Math.hypot(x - px, y - py);
+        [px, py] = [x, y];
+      }
+      const [nx, ny] = guide[0]!;
+      const bearingDeg = ((Math.atan2(nx - ship.x, -(ny - ship.y)) * 180) / Math.PI + 360) % 360;
+      const following = ship.assist?.mode === 'course' && ship.assist.portId === destination.id;
+      course = { name: destination.name, distanceKm: tiles * kmPerTile, bearingDeg, following };
     }
     render(
       <Hud

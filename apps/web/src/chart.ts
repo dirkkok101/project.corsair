@@ -225,6 +225,11 @@ export function createCharts(
   });
 
   return {
+    /** Forget the destination (made port): no port highlighted. */
+    clearDestination() {
+      selected = undefined;
+      for (const p of pins) p.label.classList.remove('selected');
+    },
     /** `camera` is the top-left of the view in world pixels. */
     update(
       player: Ship | undefined,

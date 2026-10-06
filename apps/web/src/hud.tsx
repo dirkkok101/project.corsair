@@ -79,7 +79,9 @@ export interface HudProps {
   time: string;
   /** Wind source note near coasts ("sea breeze", "land breeze"). */
   breeze?: string;
-  destination?: { name: string; distanceKm: number; bearingDeg: number; closing: number };
+  /** The port picked on the chart: distance along the plotted route, the bearing of its next leg, and
+   * whether the autopilot is following it. */
+  destination?: { name: string; distanceKm: number; bearingDeg: number; following: boolean };
   /** Sound status hint, shown until sound is running (or while muted). */
   sound?: string;
   /** "Enter Port Royal · E" when a port is in reach. */
@@ -151,8 +153,8 @@ export function Hud({
           <>
             <div>To</div>
             <div>
-              {destination.name} · {Math.round(destination.distanceKm)} km · {Math.round(destination.bearingDeg)}° · closing{' '}
-              {destination.closing.toFixed(1)}
+              {destination.name} · {Math.round(destination.distanceKm)} km · bear {Math.round(destination.bearingDeg)}°
+              {destination.following ? ' · following' : ' · F to follow'}
             </div>
           </>
         ) : null}
@@ -175,7 +177,7 @@ export function Hud({
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
       {saved ? <div class="hud-saved">Saved</div> : null}
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · I intercept · H hail · M chart · E port · =/- cruise · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
+      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · I intercept · H hail · M chart (pick a port) · F follow route · E port · =/- cruise · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
     </>
   );
 }

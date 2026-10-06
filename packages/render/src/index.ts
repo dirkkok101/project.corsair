@@ -71,6 +71,8 @@ export interface Renderer {
   onLightning(cb: () => void): void;
   /** Gun smoke on the water where two AI ships fought (`x`, `y` in tiles), drifting for a few seconds. */
   seaFight(x: number, y: number): void;
+  /** The plotted route to the destination (waypoints after the ship), drawn on the sea until cleared. */
+  guide(points: [number, number][] | undefined): void;
   /** Draw a sea battle instead of the world (`renderBattle` each frame while it lasts; `render` returns to the sea). */
   renderBattle(state: BattleViewState, map: TileMap, hour: number, nowMs: number, enemyFlag?: FlagNation): void;
   /** The harbour scene shown in port; `show(undefined)` returns to the sea. */
@@ -251,13 +253,18 @@ export async function createRenderer(
   // Smoke from fights between AI ships: puffs that swell and thin over SMOKE_SECONDS.
   const fightSmoke = new Graphics();
   world.addChild(fightSmoke);
-  // The player's course, when the autopilot has one: a dotted line by her waypoints to a ring at the mark.
+  // The player's course, when the autopilot has one (or the route plotted to a destination on the chart):
+  // a dotted line by her waypoints to a ring at the mark.
   const course = new Graphics();
+  let guideRoute: [number, number][] | undefined;
   world.addChild(course);
   let fights: { x: number; y: number; at: number }[] = [];
 
   return {
     canvas: app.canvas,
+    guide(points) {
+      guideRoute = points;
+    },
     seaFight(x, y) {
       fights.push({ x: x * ts, y: y * ts, at: lastMs ?? 0 });
     },
@@ -390,8 +397,9 @@ export async function createRenderer(
       const plan = player?.assist;
       const target = plan?.mode === 'course' && plan.x !== undefined && plan.y !== undefined ? ([plan.x, plan.y] as [number, number]) : undefined;
       const them = plan?.mode === 'intercept' && plan.targetId ? state.ships[plan.targetId] : undefined;
-      if (player && (target || them)) {
-        const points: [number, number][] = [[player.x, player.y], ...(target ? [...(plan!.route ?? []), target] : [[them!.x, them!.y] as [number, number]])];
+      if (player && (target || them || guideRoute?.length)) {
+        const ahead: [number, number][] = target ? [...(plan!.route ?? []), target] : them ? [[them.x, them.y]] : guideRoute!;
+        const points: [number, number][] = [[player.x, player.y], ...ahead];
         // Dots every half tile along each leg, so the line reads as a plotted course rather than a wake.
         for (let i = 1; i < points.length; i++) {
           const [x0, y0] = points[i - 1]!;

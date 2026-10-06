@@ -643,3 +643,29 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
   expect(errors).toEqual([]);
 });
 
+
+test('course line: a port picked on the chart gets a route by sea, the HUD measures it, and F follows it', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('m');
+  await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
+  await page.keyboard.press('m');
+  // The route is re-plotted about once a second; the HUD reads its length and the next leg's bearing.
+  await expect(page.locator('.hud')).toContainText(/Cartagena · \d+ km · bear \d+°/);
+  await expect(page.locator('.hud')).toContainText('F to follow');
+  await page.screenshot({ path: 'test-results/course-line.png' });
+  await page.keyboard.press('f');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  await expect(page.locator('.hud')).toContainText('following');
+  // Steering by hand takes the helm back; the route stays plotted.
+  await page.keyboard.down('a');
+  await page.evaluate(() => window.__corsair.sim.step(2));
+  await page.keyboard.up('a');
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toBeUndefined();
+  await expect(page.locator('.hud')).toContainText('F to follow');
+  expect(errors).toEqual([]);
+});
