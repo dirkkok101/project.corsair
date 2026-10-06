@@ -17,7 +17,18 @@ export interface SeaLanes {
   mooring(id: string): Point | undefined;
   /** True when a straight line between two points stays on water. */
   clear(a: Point, b: Point): boolean;
+  /**
+   * Waypoints from any point on the water to any other (the player's course): straight when the line is
+   * clear, otherwise out to open water, across it by the lanes, and in to the point. Undefined when the
+   * point can't be reached (inland, or a lake).
+   */
+  path(from: Point, to: Point): Point[] | undefined;
+  /** Where a ship sailing in docks: the nearest water within docking range of the town, in a clear line from its mooring if any. */
+  berth(id: string): Point | undefined;
 }
+
+/** How near the town a berth lies (inside the 3-tile docking range). */
+const BERTH_TILES = 2.8;
 
 const MOORING_SEARCH = 4;
 /** How far a port's way out to open water may wind, in tiles. */
@@ -246,9 +257,49 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
   };
 
   const cache = new Map<string, Point[] | undefined>();
+  const berths = new Map<string, Point | undefined>();
+  const byId = new Map(settlements.map((s) => [s.id, s]));
+  const pathBetween = (from: Point, to: Point): Point[] | undefined => {
+    if (!water(from[0], from[1]) || !water(to[0], to[1])) return undefined;
+    if (clear(from, to)) return [from, to];
+    const a = wayOut(from);
+    const b = wayOut(to);
+    const cells = a && b ? search(a.cell, b.cell) : undefined;
+    return cells && a && b ? smooth([from, ...a.path, ...cells.map(centre), ...[...b.path].reverse(), to]) : undefined;
+  };
   return {
     mooring: (id) => moorings.get(id)?.at,
     clear,
+    path: pathBetween,
+    berth(id) {
+      if (berths.has(id)) return berths.get(id);
+      const s = byId.get(id);
+      const moor = moorings.get(id)?.at;
+      // Sea all round (every neighbouring tile open water): a berth up a one-tile channel is no berth for a
+      // ship under sail, which can't hold a line that narrow.
+      const roomy = ([x, y]: Point) => {
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!seaAt(x + dx, y + dy)) return false;
+        return true;
+      };
+      let best: Point | undefined;
+      if (s && moor) {
+        // Water tiles near the town, nearest first, taking the first the mooring can reach.
+        const near: Point[] = [];
+        const r = Math.ceil(BERTH_TILES);
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            const p: Point = [Math.floor(s.x) + dx + 0.5, Math.floor(s.y) + dy + 0.5];
+            if (Math.hypot(p[0] - s.x, p[1] - s.y) <= BERTH_TILES && roomy(p)) near.push(p);
+          }
+        }
+        near.sort((p, q) => Math.hypot(p[0] - s.x, p[1] - s.y) - Math.hypot(q[0] - s.x, q[1] - s.y) || p[1] - q[1] || p[0] - q[0]);
+        // Prefer water in a clear straight line from the mooring: a winding channel the search can thread
+        // (Port Royal behind its spit) is no way in for a ship under sail.
+        best = near.find((p) => clear(moor, p)) ?? near.find((p) => pathBetween(moor, p) !== undefined) ?? moor;
+      }
+      berths.set(id, best);
+      return best;
+    },
     route(from, to) {
       const key = `${from}>${to}`;
       if (cache.has(key)) return cache.get(key);

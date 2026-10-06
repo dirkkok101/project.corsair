@@ -317,3 +317,45 @@ describe('intercept', () => {
     expect(apart()).toBeLessThan(start - 10);
   });
 });
+
+describe('course', () => {
+  const sailTo = (from: { x: number; y: number }, to: { x: number; y: number }, windFrom: number, seconds: number, portId?: string) => {
+    const world = createWorld(content.maps.placeholder);
+    const ship = { ...world.ships.player!, ...from, headingDeg: 0, speed: 0 };
+    const sim = createSim({ ...world, wind: { fromDeg: windFrom, strength: 'fresh' }, ships: { player: ship } }, [createNavigationSystem(content, map)]);
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'course', x: to.x, y: to.y, portId });
+    sim.applyCommands();
+    let blocked = 0;
+    let t = 0;
+    for (; t < seconds * TICKS_PER_SECOND && sim.state.ships.player!.assist; t++) {
+      sim.step();
+      if (sim.state.ships.player!.blocked) blocked++;
+    }
+    return { sim, seconds: t / TICKS_PER_SECOND, blocked: blocked / Math.max(1, t) };
+  };
+
+  it('sails to a clicked point around the islands in her way, and hands back the helm there', () => {
+    // From south of the island cluster to north of it, the wind on the beam.
+    const { sim, seconds, blocked } = sailTo({ x: 60, y: 62 }, { x: 60, y: 12 }, 90, 120);
+    const me = sim.state.ships.player!;
+    console.log('COURSE around the islands', seconds.toFixed(1), 's, aground', (blocked * 100).toFixed(1), '%');
+    expect(me.assist).toBeUndefined();
+    expect(Math.hypot(me.x - 60, me.y - 12)).toBeLessThan(2);
+    expect(blocked).toBeLessThan(0.05);
+    expect(sim.events().some((e) => e.type === 'CourseArrived')).toBe(true);
+  });
+
+  it('beats up to a point dead to windward', () => {
+    const { sim, seconds } = sailTo({ x: 200, y: 220 }, { x: 200, y: 180 }, 0, 120);
+    console.log('COURSE dead upwind 40 tiles', seconds.toFixed(1), 's');
+    expect(sim.state.ships.player!.assist).toBeUndefined();
+    expect(Math.hypot(sim.state.ships.player!.x - 200, sim.state.ships.player!.y - 180)).toBeLessThan(2);
+  });
+
+  it('a course to a port ends near enough to dock, naming the port', () => {
+    const { sim } = sailTo({ x: 200, y: 220 }, { x: 230, y: 220 }, 0, 60, 'town.test');
+    const arrived = sim.events().find((e) => e.type === 'CourseArrived')!;
+    expect(arrived.payload).toMatchObject({ portId: 'town.test' });
+    expect(Math.hypot(sim.state.ships.player!.x - 230, sim.state.ships.player!.y - 220)).toBeLessThan(3);
+  });
+});

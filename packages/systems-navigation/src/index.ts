@@ -87,6 +87,18 @@ export function speedPoints(content: ContentPack, ship: Ship): number {
  * Each tick a ship eases toward `targetSpeed`, turns by its helm, and moves; land stops or slides it.
  * Shallows are drawn but don't block; draft checks come with the real map.
  */
+/** A course to a point ends this near it; to a port (x, y the town, the route ending at its berth), within
+ * docking range of the town, so the game can dock her. */
+const COURSE_ARRIVE_TILES = 1.5;
+const PORT_ARRIVE_TILES = 2.9;
+/** How far ahead an assisted course looks for land to steer around. */
+const COAST_LOOK_TILES = 8;
+/** A course pressed against land this long (3 s) hands back the helm. */
+const COURSE_AGROUND_TICKS = 90;
+/** A waypoint counts as passed this near. */
+const WAYPOINT_TILES = 3;
+const LAST_WAYPOINT_TILES = 1;
+
 export function createNavigationSystem(
   content: ContentPack,
   map: TileMap,
@@ -97,6 +109,14 @@ export function createNavigationSystem(
   const upwindOf = (polarId: string) => {
     if (!bestUpwind.has(polarId)) bestUpwind.set(polarId, bestUpwindDeg(content.polars[polarId]!));
     return bestUpwind.get(polarId)!;
+  };
+
+  const bearingTo = (ship: Ship, x: number, y: number) => normalizeDeg((Math.atan2(x - ship.x, -(y - ship.y)) * 180) / Math.PI);
+  /** Water all the way along the line, sampled every half tile. */
+  const lineClear = (ship: Ship, [x, y]: [number, number]) => {
+    const n = Math.ceil(Math.hypot(x - ship.x, y - ship.y) * 2);
+    for (let i = 1; i <= n; i++) if (isLand(tileAt(map, ship.x + ((x - ship.x) * i) / n, ship.y + ((y - ship.y) * i) / n))) return false;
+    return true;
   };
 
   const sail = (ship: Ship, state: WorldState, dt: number): { ship: Ship; events: EmittedEvent[] } => {
@@ -119,6 +139,9 @@ export function createNavigationSystem(
       const off = Math.max(0, upwindOf(cls.polar) - shipStats(content, ship).upwindDeg);
       const closeHauled = (tack: Tack) => normalizeDeg(tack === 'starboard' ? wind.fromDeg - off : wind.fromDeg + off);
       let goal: number | undefined = closeHauled(assist.tack);
+      // Where an intercept or a course wants to go, and how near counts as there.
+      let want: number | undefined;
+      let left = Infinity;
       if (assist.mode === 'intercept') {
         const them = assist.targetId ? state.ships[assist.targetId] : undefined;
         if (!them || inPort(them)) {
@@ -132,17 +155,62 @@ export function createNavigationSystem(
           const r = (them.headingDeg * Math.PI) / 180;
           const ax = them.x + Math.sin(r) * them.speed * eta;
           const ay = them.y - Math.cos(r) * them.speed * eta;
-          const want = normalizeDeg((Math.atan2(ax - ship.x, -(ay - ship.y)) * 180) / Math.PI);
-          if (angleOffWind(want, wind.fromDeg) >= off) goal = want;
-          else {
-            // Upwind of us: beat, holding the tack until she lies well over on the other side of the wind (about
-            // 20 degrees past dead upwind), so a near target doesn't set her tacking back and forth.
-            const apart = (a: number) => Math.abs(((a - want + 540) % 360) - 180);
-            const other: Tack = assist.tack === 'port' ? 'starboard' : 'port';
-            const tack = apart(closeHauled(other)) + 40 < apart(closeHauled(assist.tack)) ? other : assist.tack;
-            assist = { ...assist, tack };
-            goal = closeHauled(tack);
-          }
+          want = bearingTo(ship, ax, ay);
+          left = Math.hypot(them.x - ship.x, them.y - ship.y);
+        }
+      } else if (assist.mode === 'course' && assist.x !== undefined && assist.y !== undefined) {
+        const [tx, ty, portId] = [assist.x, assist.y, assist.portId];
+        // Waypoints first: on to the next one once she's close, or as soon as she has a clear line past it.
+        let route = assist.route ?? [];
+        // The last waypoint (a port's berth) must be reached, not just neared: from there the town is in reach.
+        const passed = (n: number) => (n > 1 ? WAYPOINT_TILES : LAST_WAYPOINT_TILES);
+        while (route.length && (Math.hypot(route[0]![0] - ship.x, route[0]![1] - ship.y) <= passed(route.length) || (route.length > 1 && lineClear(ship, route[1]!)))) {
+          route = route.slice(1);
+        }
+        if (route !== assist.route) assist = { ...assist, route };
+        left = Math.hypot(tx - ship.x, ty - ship.y);
+        if (route.length) {
+          want = bearingTo(ship, route[0]![0], route[0]![1]);
+          left = Math.hypot(route[0]![0] - ship.x, route[0]![1] - ship.y) + WAYPOINT_TILES * 2;
+        } else if (left <= (portId ? PORT_ARRIVE_TILES : COURSE_ARRIVE_TILES)) {
+          // Arrived: hold this heading and hand back the helm (the game docks her if it was a port).
+          events.push({ type: 'CourseArrived', entityIds: [ship.id], payload: { x: tx, y: ty, portId } });
+          assist = undefined;
+          goal = undefined;
+        } else want = bearingTo(ship, tx, ty);
+      }
+      if (assist && want !== undefined) {
+        const aim = want;
+        // Keep her off the coast: land within `look` tiles ahead on a heading (unless the goal is right there).
+        const look = Math.min(COAST_LOOK_TILES, left - 1);
+        const clear = (h: number) => {
+          if (look < 1) return true;
+          const r = (h * Math.PI) / 180;
+          for (let k = 1; k <= look; k++) if (isLand(tileAt(map, ship.x + Math.sin(r) * k, ship.y - Math.cos(r) * k))) return false;
+          return true;
+        };
+        if (angleOffWind(aim, wind.fromDeg) >= off) goal = aim;
+        else {
+          // Upwind of us: beat, holding the tack until the way lies well over on the other side of the wind
+          // (about 20 degrees past dead upwind), so a near target doesn't set her tacking back and forth;
+          // and, as any sailor would, go about early when the coast closes in ahead and the other tack is open.
+          const apart = (h: number) => Math.abs(((h - aim + 540) % 360) - 180);
+          const other: Tack = assist.tack === 'port' ? 'starboard' : 'port';
+          // (Never onto a tack the shore already blocks: that would fight the shore rule and leave her in irons.)
+          const better = apart(closeHauled(other)) + 40 < apart(closeHauled(assist.tack)) && clear(closeHauled(other));
+          const shoreAhead = !clear(closeHauled(assist.tack)) && clear(closeHauled(other));
+          const tack = better || shoreAhead ? other : assist.tack;
+          assist = { ...assist, tack };
+          goal = closeHauled(tack);
+        }
+        if (goal !== undefined && !clear(goal)) {
+          // The nearest heading either way that is clear and that she can sail (never into irons).
+          const g = goal;
+          const sailable = (h: number) => angleOffWind(h, wind.fromDeg) >= off;
+          goal =
+            [15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 120, -120, 150, -150]
+              .map((d) => normalizeDeg(g + d))
+              .find((h) => sailable(h) && clear(h)) ?? g;
         }
       }
       if (goal !== undefined) {
@@ -161,7 +229,8 @@ export function createNavigationSystem(
       // Contact ends only once land is no longer just ahead; otherwise a ship nosing the coast
       // would flip in and out of contact every tick and repeat ShipBlocked.
       const blocked = ship.blocked && !water(ship.x + dx + Math.sin(rad) * 0.5, ship.y + dy - Math.cos(rad) * 0.5);
-      return { ship: { ...steered, x: ship.x + dx, y: ship.y + dy, headingDeg, speed, blocked }, events };
+      const free = steered.assist?.aground ? { ...steered, assist: { ...steered.assist, aground: 0 } } : steered;
+      return { ship: { ...free, x: ship.x + dx, y: ship.y + dy, headingDeg, speed, blocked }, events };
     }
 
     // Against land the ship slides along the coast on whichever axis is still water. Stopping dead
@@ -173,6 +242,16 @@ export function createNavigationSystem(
     const free = axes.find(([ax, ay]) => (ax !== 0 || ay !== 0) && water(ship.x + ax, ship.y + ay));
     const [x, y] = free ? [ship.x + free[0], ship.y + free[1]] : [ship.x, ship.y];
     if (!ship.blocked) events.push({ type: 'ShipBlocked', entityIds: [ship.id], payload: { x, y, headingDeg } });
+    // A course that can't find its way (a channel too narrow to beat up) gives up rather than grind.
+    if (steered.assist?.mode === 'course') {
+      const aground = (steered.assist.aground ?? 0) + 1;
+      if (aground > COURSE_AGROUND_TICKS) {
+        const { assist: _gone, ...rest } = steered;
+        events.push({ type: 'AssistEnded', entityIds: [ship.id], payload: { reason: 'aground' } });
+        return { ship: { ...rest, x, y, headingDeg, speed, blocked: true }, events };
+      }
+      return { ship: { ...steered, assist: { ...steered.assist, aground }, x, y, headingDeg, speed, blocked: true }, events };
+    }
     return { ship: { ...steered, x, y, headingDeg, speed, blocked: true }, events };
   };
 
@@ -201,6 +280,22 @@ export function createNavigationSystem(
           return { state: { ...state, ships: { ...state.ships, [ship.id]: rest } }, events: [] };
         }
         const current: Tack = ship.assist?.tack ?? tackOf(ship.headingDeg, windAt(state, ship.x, ship.y).fromDeg);
+        if (command.assist === 'course') {
+          if (command.x === undefined || command.y === undefined) return undefined;
+          const course = {
+            mode: 'course' as const,
+            tack: current,
+            x: command.x,
+            y: command.y,
+            ...(command.portId ? { portId: command.portId } : {}),
+            ...(command.route?.length ? { route: command.route } : {}),
+          };
+          const next = { ...rest, helm: 0 as const, assist: course };
+          return {
+            state: { ...state, ships: { ...state.ships, [ship.id]: next } },
+            events: [{ type: 'AssistSet', entityIds: [ship.id], payload: { assist: 'course', x: command.x, y: command.y, portId: command.portId } }],
+          };
+        }
         if (command.assist === 'intercept') {
           const them = command.targetId ? state.ships[command.targetId] : undefined;
           if (!them || them.id === ship.id) return undefined;

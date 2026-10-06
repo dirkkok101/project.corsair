@@ -48,6 +48,8 @@ const NATION_PENNANT: Record<Nation, number> = {
 // How fast the deep-water swatch drifts downwind, in px/s per unit of wind strength multiplier.
 const SWELL_DRIFT_PX = 9;
 // Terrain is painted lazily in square chunks around the camera; a full map is far too big for one texture.
+/** The plotted course: palette gold, so the day/night filter maps it with the rest. */
+const COURSE_COLOUR = 0xe8c170;
 const CHUNK_TILES = 32;
 const MAX_CHUNKS = 30;
 // Chunks within this many pixels beyond the view are painted ahead, one per frame, so sailing into
@@ -249,6 +251,9 @@ export async function createRenderer(
   // Smoke from fights between AI ships: puffs that swell and thin over SMOKE_SECONDS.
   const fightSmoke = new Graphics();
   world.addChild(fightSmoke);
+  // The player's course, when the autopilot has one: a dotted line by her waypoints to a ring at the mark.
+  const course = new Graphics();
+  world.addChild(course);
   let fights: { x: number; y: number; at: number }[] = [];
 
   return {
@@ -381,6 +386,24 @@ export async function createRenderer(
         fightSmoke.fill({ color: 0xc7cfcc, alpha: 1 - age });
       }
       if (fightSmoke.parent === world && world.getChildIndex(fightSmoke) !== world.children.length - 1) world.addChild(fightSmoke);
+      course.clear();
+      const plan = player?.assist;
+      const target = plan?.mode === 'course' && plan.x !== undefined && plan.y !== undefined ? ([plan.x, plan.y] as [number, number]) : undefined;
+      const them = plan?.mode === 'intercept' && plan.targetId ? state.ships[plan.targetId] : undefined;
+      if (player && (target || them)) {
+        const points: [number, number][] = [[player.x, player.y], ...(target ? [...(plan!.route ?? []), target] : [[them!.x, them!.y] as [number, number]])];
+        // Dots every half tile along each leg, so the line reads as a plotted course rather than a wake.
+        for (let i = 1; i < points.length; i++) {
+          const [x0, y0] = points[i - 1]!;
+          const [x1, y1] = points[i]!;
+          const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) * 2));
+          for (let k = 0; k < n; k++) course.rect(Math.round((x0 + ((x1 - x0) * k) / n) * ts) - 1, Math.round((y0 + ((y1 - y0) * k) / n) * ts) - 1, 2, 2);
+        }
+        course.fill({ color: COURSE_COLOUR, alpha: 0.7 });
+        const [mx, my] = points.at(-1)!;
+        course.circle(Math.round(mx * ts), Math.round(my * ts), 8).stroke({ width: 2, color: COURSE_COLOUR, alpha: 0.9 });
+      }
+      if (world.getChildIndex(course) !== world.children.length - 1) world.addChild(course);
       const tpd = content.calendar.ticksPerDay;
       daylight?.setHour(((state.tick % tpd) / tpd) * 24);
       lastState = state;

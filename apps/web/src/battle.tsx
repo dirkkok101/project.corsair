@@ -1,16 +1,12 @@
 import type { BattleResult } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
-import type { Aim, Ammo, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
+import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
+import { ShipPanel } from './panel';
+import type { ShipPanelProps } from './panel';
 
 // The sea battle HUD (scenes doc S3): both ships' hull, sails and crew, the ammo loaded, each
 // broadside's reload, a marker on the screen edge pointing to an enemy out of sight, the warning as
 // the ships draw apart, and the report when the fight is over.
-
-const AMMO: { id: Ammo; key: string; name: string; hint: string }[] = [
-  { id: 'round', key: '1', name: 'Round', hint: 'hull' },
-  { id: 'chain', key: '2', name: 'Chain', hint: 'sails' },
-  { id: 'grape', key: '3', name: 'Grape', hint: 'crew, close' },
-];
 
 const OUTCOME: Record<BattleResult['outcome'], string> = {
   sunk: 'She goes down by the head, and her cargo with her.',
@@ -70,12 +66,13 @@ function ShipCard({ ship, title, name }: { ship: BattleShip; title: string; name
 export interface BattleHudProps {
   state: BattleState;
   content: ContentPack;
-  playerTitle: string;
   enemyName: string;
   enemyTitle: string;
   reloadSeconds: number;
   /** Each broadside: ready, or why it can't fire. */
   aim: Record<Broadside, Aim>;
+  /** The player's ship panel, with its mode buttons. */
+  panel: ShipPanelProps;
   /** The battle view in CSS pixels (the player's ship is at its centre), and CSS pixels per tile. */
   view: { w: number; h: number; pxPerTile: number };
   onContinue: () => void;
@@ -102,14 +99,14 @@ function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps
   );
 }
 
-export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, reloadSeconds, aim, view, onContinue }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, view, onContinue }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
   const reload = (side: 'port' | 'starboard') => 1 - Math.min(1, me.reload[side] / reloadSeconds);
   return (
     <div class="battle">
-      <ShipCard ship={me} title={playerTitle} name="Your ship" />
+      <ShipPanel {...panel} />
       <div class="battle-card battle-enemy">
         <ShipCard ship={state.ships.enemy} title={enemyTitle} name={enemyName} />
       </div>
@@ -131,14 +128,6 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
         </div>
       ) : null}
       <div class="battle-bottom">
-        <div class="battle-ammo">
-          <span class="battle-ammo-key">Tab</span>
-          {AMMO.map((a) => (
-            <span key={a.id} class={me.ammo === a.id ? 'active' : ''} title={a.hint}>
-              {a.key} {a.name}
-            </span>
-          ))}
-        </div>
         <div class="battle-guns">
           {(['port', 'starboard'] as const).map((side) => (
             <span key={side} class="battle-gun">
@@ -150,7 +139,7 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
             </span>
           ))}
         </div>
-        <div class="battle-keys">Space fire (hold to fire as she bears) · Tab shot · A/D steer · W/S sails · board by laying her alongside</div>
+        <div class="battle-keys">Left-click: steer there · Right-click: fire (hold to fire as she bears) · Tab shot · A/D steer · board by laying her alongside</div>
       </div>
       {state.result ? (
         <div class="battle-report">

@@ -227,7 +227,8 @@ body {
 .hud-keys {
   position: absolute;
   bottom: 12px;
-  left: 12px;
+  /* Clear of the ship panel in the bottom-left corner. */
+  left: 256px;
   color: #819796;
 }
 
@@ -972,22 +973,9 @@ body {
   white-space: nowrap;
 }
 
-.battle-ammo,
 .battle-guns {
   display: flex;
   gap: 12px;
-}
-
-.battle-ammo span {
-  padding: 0 6px;
-  color: #819796;
-  border: 1px solid #394a50;
-}
-
-.battle-ammo span.active {
-  color: #090a14;
-  background: #e8c170;
-  border-color: #e8c170;
 }
 
 .battle-gun {
@@ -1197,7 +1185,108 @@ body {
   pointer-events: none;
 }
 
-.battle-ammo span.battle-ammo-key {
+/* The ship panel: bottom left, at sea and in battle. Its buttons take clicks; the sea around it doesn't. */
+.ship-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 232px;
+  padding: 8px 10px;
+  color: #ebede9;
+  font-size: 12px;
+  background: rgb(9 10 20 / 0.8);
+  border: 1px solid #c09473;
+  pointer-events: auto;
+}
+
+.panel-top {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.panel-name {
+  font-family: 'Pirata One', serif;
+  font-size: 18px;
+  color: #e8c170;
+}
+
+.panel-bar,
+.panel-battery {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.panel-bar-label {
+  width: 36px;
   color: #a8b5b2;
-  border-color: transparent;
+}
+
+.panel-bar-value {
+  width: 52px;
+  text-align: right;
+}
+
+.panel-gun {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #394a50;
+}
+
+.panel-gun.loaded {
+  background: #e8c170;
+}
+
+.panel-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.panel-modes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  font: inherit;
+  color: #a8b5b2;
+  background: transparent;
+  border: 1px solid #394a50;
+  cursor: pointer;
+}
+
+.panel-modes button.active {
+  color: #090a14;
+  background: #e8c170;
+  border-color: #e8c170;
+}
+
+.panel-modes button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Hovering a ship at sea: who she is. */
+.ship-hover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #ebede9;
+  background: rgb(9 10 20 / 0.85);
+  border: 1px solid #394a50;
+  pointer-events: none;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.in-port .ship-hover,
+.in-battle .ship-hover {
+  display: none;
 }

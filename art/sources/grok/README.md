@@ -24,7 +24,7 @@ Don't generate night or dusk versions. The game's palette shader makes them from
 | Prompt record, one per asset, next to its image | `art/sources/grok/{group}/{id}.yaml` | `art/sources/grok/harbours/harbour.england.large.yaml` |
 | Layout references (made for you) | `art/sources/references/harbours/{id}.png` | `art/sources/references/harbours/harbour.england.large.png` |
 
-Groups: `harbours`, `interiors`, `title`, and for scenes not built yet `duels`, `dance`, `fates`. Keep the file name exactly as the id in each section,
+Groups: `harbours`, `interiors`, `title`, `ui` (the ship panel), and for scenes not built yet `duels`, `dance`, `fates`. Keep the file name exactly as the id in each section,
 because the import step finds images by id. Don't edit or crop the raw output.
 
 **Import:** `node tools/art/import_paintings.ts` snaps the version each record lists first under
@@ -287,6 +287,64 @@ Same rules as the service interiors above: calm, dark centre; detail at the edge
 **`interior.surgeon`**
 > A barber-surgeon's room: a sturdy chair with straps, a table of instruments and bottles, bandages
 > drying on a line, a shuttered window letting in a bar of light, herbs hanging from a beam.
+
+## Ship panel art (UI): group `ui`
+
+The ship panel (bottom left, at sea and in battle) shows the player's ship with her state, a row of cannon
+per broadside, and clickable mode buttons. It uses SVG placeholders in `apps/web/src/panel.tsx` until
+these are painted. Grok can't give a transparent background, so every UI prompt asks for a flat
+magenta one: the import step (to be written when the art arrives) keys it out and snaps the rest to
+the game palette.
+
+**UI style block** (paste first for every UI prompt, in place of the scene style block):
+
+> Pixel art game sprite, a single object centred on a perfectly flat solid magenta background (#FF00FF)
+> that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged
+> pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no
+> gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold,
+> iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. Bold, simple
+> shapes that read at small size. No text, no letters, no numbers, no logos, no watermark, no frame.
+
+**Ship portraits** (3:2, the ship in side view facing right, filling about 80% of the width, sails set
+full, no sea under her, no flag on any mast; the game draws flags):
+
+- **`ui.ship.brig`**
+  > A two-masted square-rigged brig of the 1660s, side view: black and ochre hull with a row of gun ports,
+  > square sails on both masts, a jib, a modest stern castle.
+- **`ui.ship.sloop`**
+  > A single-masted gaff-rigged sloop of the 1660s, side view: low dark hull with a few gun ports, one
+  > big fore-and-aft mainsail and a jib, a long bowsprit.
+- **`ui.ship.fluyt`**
+  > A three-masted Dutch fluyt of the 1660s, side view: round-bellied merchant hull narrowing to a high
+  > pear-shaped stern, few gun ports, square sails.
+- **`ui.ship.frigate`**
+  > A three-masted frigate of the 1660s, side view: long hull with two rows of gun ports, tall square
+  > sails on all three masts, a carved stern.
+
+**Icons** (1:1, one icon per image, the object filling about 70% of the frame):
+
+| id | prompt |
+|---|---|
+| `ui.icon.round_shot` | A single black iron cannonball with a small highlight. |
+| `ui.icon.chain_shot` | Two small iron cannonballs joined by a short chain. |
+| `ui.icon.grape_shot` | A canvas bag of small iron balls tied with twine, a few balls showing. |
+| `ui.icon.full_sail` | A square sail fully set and bellied by the wind, on its yard. |
+| `ui.icon.half_sail` | A square sail half furled on its yard, the lower half gathered up. |
+| `ui.icon.cannon_loaded` | A small ship's cannon on its wooden carriage, side view, a wisp of slow match at the touch-hole. |
+| `ui.icon.cannon_empty` | The same small cannon on its carriage, side view, cold and dark. |
+| `ui.icon.crew` | A sailor's head in a knotted red kerchief, three-quarter view, plain features. |
+| `ui.icon.hull` | Three overlapping wooden hull planks with iron nails. |
+| `ui.icon.fire` | A puff of white cannon smoke with a flash of orange at its heart. |
+| `ui.icon.anchor` | An iron ship's anchor with a ring and a coil of rope. |
+| `ui.icon.course` | A brass compass rose with a north pointer. |
+| `ui.icon.intercept` | A brass spyglass, extended, angled up to the right. |
+
+**Panel frame** (3:2):
+
+- **`ui.panel.frame`**
+  > A rectangular frame of dark weathered ship's timber with brass corner fittings and brass nail heads
+  > along the edges, the inside a plain flat very dark navy panel with nothing on it. Plain straight edges
+  > between the corners, so the frame can be stretched.
 
 ## What not to ask for
 

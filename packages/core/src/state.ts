@@ -65,9 +65,21 @@ export interface Ship {
   sails: SailSetting;
   /**
    * Helm assist until the helm is used by hand: `beat` holds the best upwind course on a tack; `intercept`
-   * steers to meet another ship (leading her by her course and speed), beating on `tack` when she lies upwind.
+   * steers to meet another ship (leading her by her course and speed); `course` sails to a point (x, y),
+   * or to a port (`portId`) and ends there for docking. Both beat on `tack` when the way lies upwind.
    */
-  assist?: { mode: 'beat' | 'intercept'; tack: Tack; targetId?: string };
+  assist?: {
+    mode: 'beat' | 'intercept' | 'course';
+    tack: Tack;
+    targetId?: string;
+    x?: number;
+    y?: number;
+    portId?: string;
+    /** A course's waypoints still ahead (the sea lanes' way round the land), ending at (x, y). */
+    route?: [number, number][];
+    /** Ticks a course has been pressed against land; past a few seconds she gives the helm back. */
+    aground?: number;
+  };
   /** Units of each good in the hold. */
   cargo: Record<string, number>;
   /** Gold paid for the units of each good now in the hold, so the merchant can show the margin. */
@@ -263,7 +275,16 @@ export type Command =
   | { type: 'SetHelm'; shipId: string; helm: Helm }
   | { type: 'SetSails'; shipId: string; sails: SailSetting }
   /** Tacking aid: `beat` holds the best upwind course on the current tack, `tack` comes about onto the other. */
-  | { type: 'SetAssist'; shipId: string; assist: 'beat' | 'tack' | 'off' | 'intercept'; targetId?: string }
+  | {
+      type: 'SetAssist';
+      shipId: string;
+      assist: 'beat' | 'tack' | 'off' | 'intercept' | 'course';
+      targetId?: string;
+      x?: number;
+      y?: number;
+      portId?: string;
+      route?: [number, number][];
+    }
   | { type: 'SetWind'; fromDeg: number; strength: WindStrength }
   /** Debug: start a storm centred on a tile. */
   | { type: 'SpawnStorm'; x: number; y: number }

@@ -1,5 +1,6 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
+import type { Ship } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, loadContent, placeSettlements, shipStats } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
@@ -21,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { createEconomySystem, DOCK_RANGE, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { createEconomySystem, crewOf, DOCK_RANGE, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -29,6 +30,8 @@ import { createShipLabels } from './shiplabels';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
 import { Hail, shipTitle } from './hail';
+import { bindMouse } from './mouse';
+import { ShipPanel } from './panel';
 import { BattleHud } from './battle';
 import { battleMap, createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
@@ -144,6 +147,8 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
   return groups;
 }
 
+/** How often a course checks its way is still clear, and re-plots it if not. */
+const REPLAN_MS = 1000;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
 const HOLD_COAST_TILES = 3;
 const HOLD_PORT_TILES = 5;
@@ -230,6 +235,7 @@ async function main() {
   const labels = createLabels(viewport, settlements, map.tileSize);
   const shipLabels = createShipLabels(viewport, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
+  const panelRoot = stage.appendChild(document.createElement('div'));
   const portRoot = stage.appendChild(document.createElement('div'));
   const hailRoot = stage.appendChild(document.createElement('div'));
   // The ship being spoken and the news she brought; the clock stops while the captains talk.
@@ -348,16 +354,7 @@ async function main() {
     // H: hail the ship alongside, or part ways.
     if (e.key.toLowerCase() === 'h' && !e.repeat && !e.ctrlKey && !e.metaKey) {
       if (hailing) hailing = undefined;
-      else {
-        const other = shipInHail();
-        if (other) {
-          const since = sim.events().length;
-          sim.send({ type: 'Hail', shipId: player().id, targetId: other.id });
-          sim.applyCommands();
-          const reply = sim.events().slice(since).find((ev) => ev.type === 'Hailed');
-          if (reply) hailing = { targetId: other.id, news: (reply.payload.news as string[]) ?? [] };
-        }
-      }
+      else hail(shipInHail());
     }
     if (e.key === 'Escape') hailing = undefined;
     // Ctrl+S (Cmd+S on a Mac) saves the career instead of the browser's "save page".
@@ -381,6 +378,80 @@ async function main() {
     if (e.key === '=' || e.key === '+') wantedSpeed = Math.min(4, wantedSpeed * 2);
     if (e.key === '-') wantedSpeed = Math.max(1, wantedSpeed / 2);
   });
+
+  // Mouse: left-click to move, right-click to act (PRD controls). At sea a left-click sets a course (to a
+  // ship: intercept; to a port: sail in and dock; to the sea: sail there, by the lanes round any land) and
+  // holding it re-aims; a right-click hails the ship or enters the port under it, or else drops the course.
+  // In battle a left-click (or hold) steers to the point and the right button fires.
+  let courseNote: { text: string; until: number } | undefined;
+  let lastReplan = 0;
+  const setCourse = (x: number, y: number, held: boolean) => {
+    const me = player();
+    const port = held ? undefined : portAt(x, y);
+    // To a port: by the lanes to its berth, then in to the town until she's in docking range.
+    const to = port ? lanes.berth(port.id) : ([x, y] as [number, number]);
+    if (!to) return;
+    const route = lanes.path([me.x, me.y], to);
+    if (!route) {
+      if (!held) courseNote = { text: 'No way there by sea', until: performance.now() + 2500 };
+      return;
+    }
+    const [ex, ey] = port ? [port.x, port.y] : to;
+    sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: ex, y: ey, portId: port?.id, route: port ? route.slice(1) : route.slice(1, -1) });
+  };
+  bindMouse(renderer.canvas, {
+    toTile(px, py) {
+      const view = renderer.view();
+      if (fight) {
+        // The battle camera keeps the player's ship at the centre of the view.
+        const me = fight.battle.state.ships.player;
+        const ts = content.combat.battle.tileSize;
+        return { x: me.x + (px / scale - view.width / 2) / ts, y: me.y + (py / scale - view.height / 2) / ts };
+      }
+      const cam = renderer.camera();
+      return { x: (cam.x + px / scale) / map.tileSize, y: (cam.y + py / scale) / map.tileSize };
+    },
+    left(tile, held) {
+      if (fight) {
+        if (!fight.battle.result()) fight.battle.send({ type: 'SetAssist', shipId: 'player', assist: 'course', x: tile.x, y: tile.y });
+        return;
+      }
+      if (player().docked || hailing) return;
+      const ship = held ? undefined : shipAt(tile.x, tile.y);
+      if (ship) sim.send({ type: 'SetAssist', shipId: player().id, assist: 'intercept', targetId: ship.id });
+      else setCourse(tile.x, tile.y, held);
+    },
+    right(tile) {
+      if (fight) {
+        if (fight.battle.result()) return;
+        fireHeld = true;
+        fight.battle.send({ type: 'Fire' });
+        return;
+      }
+      if (player().docked) return;
+      const ship = shipAt(tile.x, tile.y);
+      const inHail = shipInHail();
+      const port = portInReach();
+      if (ship && inHail?.id === ship.id) hail(ship);
+      else if (port && (!ship || portAt(tile.x, tile.y)?.id === port.id)) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
+      else if (player().assist) sim.send({ type: 'SetAssist', shipId: player().id, assist: 'off' });
+    },
+    rightUp() {
+      fireHeld = false;
+    },
+    hover(tile, client) {
+      const ship = tile && !fight && !player().docked ? shipAt(tile.x, tile.y) : undefined;
+      hoverCard.hidden = !ship?.ai;
+      if (ship?.ai) {
+        hoverCard.textContent = `${ship.ai.name} · ${shipTitle(ship)} · ${ship.ai.role}`;
+        const r = stage.getBoundingClientRect();
+        hoverCard.style.transform = `translate(${client.x - r.left + 14}px, ${client.y - r.top + 14}px)`;
+      }
+    },
+  });
+  const hoverCard = stage.appendChild(document.createElement('div'));
+  hoverCard.className = 'ship-hover';
+  hoverCard.hidden = true;
 
   renderer.onLightning(() => audio.thunder());
   let audioFailed = false;
@@ -435,6 +506,23 @@ async function main() {
     }
     return best?.s;
   };
+
+  /** Speak a ship within hailing range: her reply opens the hail panel. */
+  const hail = (other: Ship | undefined) => {
+    if (!other) return;
+    const since = sim.events().length;
+    sim.send({ type: 'Hail', shipId: player().id, targetId: other.id });
+    sim.applyCommands();
+    const reply = sim.events().slice(since).find((ev) => ev.type === 'Hailed');
+    if (reply) hailing = { targetId: other.id, news: (reply.payload.news as string[]) ?? [] };
+  };
+  /** An AI ship at sea under a tile (within a tile and a half), nearest first. */
+  const shipAt = (x: number, y: number) =>
+    Object.values(sim.state.ships)
+      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5)
+      .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+  /** A port under a tile (its town within two and a half tiles). */
+  const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 2.5);
 
   /** The nearest port close enough to dock at, if any. */
   const portInReach = () => {
@@ -559,22 +647,68 @@ async function main() {
         <BattleHud
           state={bs}
           content={content}
-          playerTitle={me.classId.replace(/^ship\./, '')}
           enemyName={them?.ai?.name ?? 'Enemy'}
           enemyTitle={them ? shipTitle(them) : ''}
           reloadSeconds={gunnery.reloadSeconds}
           aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}
+          panel={(() => {
+            const p = bs.ships.player;
+            const each = Math.floor(p.guns / 2);
+            const loaded = (side: 'port' | 'starboard') => (p.reload[side] <= 0 ? each : Math.floor(each * (1 - p.reload[side] / gunnery.reloadSeconds)));
+            return {
+              name: 'Your ship',
+              hull: p.hull,
+              hullMax: p.hullMax,
+              sails: p.sailCondition,
+              crew: p.crew,
+              berths: shipStats(content, me).maxCrew,
+              sailSetting: p.sails,
+              guns: { port: { loaded: loaded('port'), of: each }, starboard: { loaded: loaded('starboard'), of: each } },
+              shot: { loaded: p.ammo, choose: (ammo: Ammo) => fight?.battle.send({ type: 'SetAmmo', ammo }) },
+              setSails: (sails) => fight?.battle.send({ type: 'SetSails', shipId: 'player', sails }),
+            };
+          })()}
           view={{ w: renderer.canvas.clientWidth, h: renderer.canvas.clientHeight, pxPerTile: content.combat.battle.tileSize * scale }}
           onContinue={endBattle}
         />,
         battleRoot,
       );
       stage.classList.add('in-battle');
+      // The battle HUD has its own ship panel: the sea one goes.
+      render(null, panelRoot);
       requestAnimationFrame(frame);
       return;
     }
     stage.classList.remove('in-battle');
     render(null, battleRoot);
+    {
+      // The ship panel at sea (in port the port screen has the ship; in battle the battle HUD shows it).
+      const me = player();
+      const stats = shipStats(content, me);
+      const each = Math.floor(stats.guns / 2);
+      render(
+        me.docked ? null : (
+          <ShipPanel
+            name={me.classId.replace(/^ship\./, '').replace(/^./, (c) => c.toUpperCase())}
+            hull={me.hull ?? stats.hullMax}
+            hullMax={stats.hullMax}
+            sails={me.sailCondition ?? 100}
+            crew={crewOf(content, me)}
+            berths={stats.maxCrew}
+            sailSetting={me.sails}
+            guns={{ port: { loaded: each, of: each }, starboard: { loaded: each, of: each } }}
+            setSails={(sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
+            cruise={{
+              speed: wantedSpeed,
+              choose: (n) => (wantedSpeed = n),
+              course: Boolean(me.assist),
+              stop: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }),
+            }}
+          />
+        ),
+        panelRoot,
+      );
+    }
     if (player().docked || hailing) {
       // World time stops in port (PRD section 2), and while hailing; commands still apply at once.
       sim.applyCommands();
@@ -585,12 +719,33 @@ async function main() {
       acc -= dt;
       if (player().docked) break;
     }
+    // The course's look-out: about once a second, if the way to her next waypoint isn't clear water any more
+    // (beating has carried her off the line, round the wrong side of a spit), plot a new route from where she is.
+    if (now - lastReplan > REPLAN_MS) {
+      lastReplan = now;
+      const me = player();
+      const plan = me.assist;
+      if (!me.docked && plan?.mode === 'course' && plan.x !== undefined && plan.y !== undefined) {
+        const end = plan.portId ? lanes.berth(plan.portId) : ([plan.x, plan.y] as [number, number]);
+        const next = plan.route?.[0] ?? end;
+        if (end && next && !lanes.clear([me.x, me.y], next)) {
+          const route = lanes.path([me.x, me.y], end);
+          if (route) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: plan.x, y: plan.y, portId: plan.portId, route: plan.portId ? route.slice(1) : route.slice(1, -1) });
+        }
+      }
+    }
     // A fight joined this frame (the player's Attack, or a hunter closing) starts the battle.
     const evs = sim.events();
     if (evs.length < eventsSeen) eventsSeen = 0;
     for (let i = eventsSeen; i < evs.length; i++) {
       const ev = evs[i]!;
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!);
+      // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.
+      if (ev.type === 'CourseArrived' && ev.payload.portId) {
+        const port = portInReach();
+        if (port?.id === ev.payload.portId) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
+      }
+      if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') courseNote = { text: 'Aground: no way through there. Take the helm', until: now + 3500 };
       // A fight between other ships within sight: smoke on the water and the thud of distant guns.
       if (ev.type === 'SeaFight') {
         const me = player();
@@ -750,9 +905,13 @@ async function main() {
                 ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
                 : sailHo && now < sailHo.until
                   ? `${sailHo.text} · I intercept`
-                  : intercepting?.ai
-                    ? `Intercepting the ${intercepting.ai.name} · I to stop`
-                    : undefined
+                  : courseNote && now < courseNote.until
+                    ? courseNote.text
+                    : intercepting?.ai
+                      ? `Intercepting the ${intercepting.ai.name} · right-click to stop`
+                      : ship.assist?.mode === 'course'
+                        ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · right-click to stop`
+                        : undefined
         }
         timeScale={cruise.held ? cruise.held : speedNow > 1 ? speedNow : undefined}
         saved={now - savedAt < 2000}
