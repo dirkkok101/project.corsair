@@ -2,7 +2,7 @@ import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, loadContent, placeSettlements } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
-import type { HarbourScene, WildlifeDefs } from '@corsair/render';
+import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
   createBreezeField,
@@ -25,6 +25,7 @@ import { createEconomySystem, DOCK_RANGE, newsText, tradeLean, withEconomy } fro
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
+import { createShipLabels } from './shiplabels';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
 import { Hail, shipTitle } from './hail';
@@ -37,6 +38,8 @@ import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/syste
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
 // named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
 // that and sorting gives f00..fNN.
+// Each ship atlas frame's mast tip (tools/art/pack_ships.ts), so colours fly from the real masthead.
+const mastTopFiles = import.meta.glob('../../../art/game/ships/*.tops.json', { eager: true, import: 'default' });
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id.
 const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
   eager: true,
@@ -194,6 +197,9 @@ async function main() {
   const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
   const renderer = await createRenderer(content, map, { ...groupFrames(townFrames), ...groupFrames(wildlifeFrames) }, {
     atlases: Object.fromEntries(Object.entries(shipAtlases).map(([p, url]) => [p.split('/').pop()!.replace(/\.png$/, ''), url])),
+    mastTops: Object.fromEntries(
+      Object.entries(mastTopFiles).map(([p, tops]) => [p.split('/').pop()!.replace(/\.tops\.json$/, ''), tops as MastTops[string]]),
+    ),
     settlements,
     windAt,
     palettes: [palette('corsair.gpl'), palette('corsair-dusk.gpl'), palette('corsair-night.gpl')],
@@ -208,6 +214,7 @@ async function main() {
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
   const labels = createLabels(viewport, settlements, map.tileSize);
+  const shipLabels = createShipLabels(viewport, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
   const portRoot = stage.appendChild(document.createElement('div'));
   const hailRoot = stage.appendChild(document.createElement('div'));
@@ -471,7 +478,7 @@ async function main() {
         if (!audioFailed) console.error('battle audio failed', err);
         audioFailed = true;
       }
-      renderer.renderBattle(bs, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now);
+      renderer.renderBattle(bs, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, sim.state.ships[fight.targetId]?.ai?.nation);
       const them = sim.state.ships[fight.targetId];
       const me = player();
       const needed = (content.ships[me.classId]!.guns * content.combat.guns.crewPerGun) / 2;
@@ -510,6 +517,7 @@ async function main() {
     eventsSeen = evs.length;
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
+    shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
     charts.update(sim.state.ships[def.start.shipId], renderer.camera(), renderer.view(), {
       sightings: sim.state.captain?.sightings ?? {},
       tick: sim.state.tick,

@@ -8,6 +8,7 @@ import { normalizeDeg, pointOfSail } from '@corsair/systems-navigation';
 import { facingIndex } from './facing';
 import { createBattleView } from './battle';
 import type { BattleViewState } from './battle';
+import type { FlagNation } from './flags';
 import { createHarbour } from './harbour';
 import type { HarbourScene } from './harbour';
 import { createSky } from './sky';
@@ -21,10 +22,14 @@ import { MIN_VIEW_HEIGHT, MIN_VIEW_WIDTH } from './view';
 
 export * from './view';
 export type { WildlifeDefs, WildlifeSound } from './wildlife';
-export type { FlagNation, HarbourScene } from './harbour';
+export type { HarbourScene } from './harbour';
+export type { FlagNation } from './flags';
 export type { BattleViewShip, BattleViewState } from './battle';
 export { HARBOUR_HEIGHT, HARBOUR_WIDTH } from './harbour';
 export { parseGpl, rowsAt } from './daylight';
+
+/** Mast tips per frame, from the atlas packer: sprite id, then anim, then facing, as [x, y] from the pivot. */
+export type MastTops = Record<string, Record<string, [number, number][]>>;
 
 // Pennants fly the ship's colours: the player's red, and each nation's for AI ships (palette colours).
 const PLAYER_PENNANT = 0xcf573c;
@@ -60,7 +65,7 @@ export interface Renderer {
   /** Called at each lightning flash, so the app can roll thunder. */
   onLightning(cb: () => void): void;
   /** Draw a sea battle instead of the world (`renderBattle` each frame while it lasts; `render` returns to the sea). */
-  renderBattle(state: BattleViewState, map: TileMap, hour: number, nowMs: number): void;
+  renderBattle(state: BattleViewState, map: TileMap, hour: number, nowMs: number, enemyFlag?: FlagNation): void;
   /** The harbour scene shown in port; `show(undefined)` returns to the sea. */
   harbour: {
     show(scene: HarbourScene | undefined): Promise<void>;
@@ -85,6 +90,8 @@ export async function createRenderer(
     windAt?: (state: WorldState, x: number, y: number) => Wind;
     /** Ship sprite atlases by sprite id (tools/art/pack_ships.ts). */
     atlases?: Record<string, string>;
+    /** Each atlas frame's mast tip, by sprite id then anim then facing (pixels from the pivot). */
+    mastTops?: MastTops;
     /** Day, dusk and night palette rows (same indices) for the day/night swap; omit for always-day. */
     palettes?: [number, number, number][][];
     /** Sea life sprites and the sound hook it calls; omit for no wildlife. */
@@ -224,6 +231,12 @@ export async function createRenderer(
     return `${base}_${tack}`;
   };
   let lastMs: number | undefined;
+  /** Where a ship's masthead is in her current frame, when the packer recorded it. */
+  const mastTop = (ship: Ship, state: WorldState, nowMs: number): [number, number] | undefined => {
+    const spriteId = content.ships[ship.classId]!.sprites.world;
+    const def = content.sprites[spriteId]!;
+    return options.mastTops?.[spriteId]?.[sailAnim(ship, state, nowMs)]?.[facingIndex(ship.headingDeg, def.facings)];
+  };
   let swellX = 0;
   let swellY = 0;
 
@@ -236,13 +249,13 @@ export async function createRenderer(
   });
   app.stage.addChild(harbour.view);
   let lastState: WorldState | undefined;
-  const battle = createBattleView(content, frames);
+  const battle = createBattleView(content, frames, options.mastTops);
   app.stage.addChild(battle.view);
 
   return {
     canvas: app.canvas,
-    renderBattle(state, battleMap, hour, nowMs) {
-      battle.update(state, battleMap, viewW, viewH, nowMs);
+    renderBattle(state, battleMap, hour, nowMs, enemyFlag) {
+      battle.update(state, battleMap, viewW, viewH, nowMs, enemyFlag);
       for (const child of app.stage.children) if (child !== battle.view) child.visible = false;
       daylight?.setHour(hour);
       app.render();
@@ -347,7 +360,9 @@ export async function createRenderer(
           x: Math.round(ship.x * ts),
           y: Math.round(ship.y * ts) + Math.round(Math.sin(nowMs / 650 + ship.x) * 0.9),
           mast: content.sprites[content.ships[ship.classId]!.sprites.world]?.mast,
+          top: mastTop(ship, state, nowMs),
           colour: ship.ai ? NATION_PENNANT[ship.ai.nation] : PLAYER_PENNANT,
+          flag: ship.ai?.nation,
         })),
         nowMs / 1000,
       );

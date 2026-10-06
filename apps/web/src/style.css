@@ -1051,3 +1051,17 @@ body {
 .shipwright {
   min-height: 120px;
 }
+
+/* Ship labels: smaller and quieter than town names, but in the nation's colour. */
+.ship-label {
+  font-size: 11px;
+  padding: 0 5px;
+  background: rgb(9 10 20 / 0.55);
+  text-transform: capitalize;
+}
+
+.ship-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}

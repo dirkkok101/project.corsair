@@ -2,6 +2,8 @@ import type { Ship, Wind, WindStrength } from '@corsair/core';
 import { isLand, Tile, tileAt } from '@corsair/data';
 import type { TileMap } from '@corsair/data';
 import { Graphics } from 'pixi.js';
+import { flagColours } from './flags';
+import type { FlagNation } from './flags';
 
 // Visual-only tuning. These never feed the sim, so they live with the renderer, not in content.
 const STREAKS: Record<WindStrength, { count: number; speedPx: number; length: number; colour: number }> = {
@@ -190,22 +192,61 @@ export function createSpray(map: TileMap) {
 const MAST = { forward: 0.42, up: 1.62, pxPerUnit: 96 / 3.7, foreshorten: Math.SQRT1_2 };
 const PENNANT_PX: Record<WindStrength, number> = { calm: 3, light: 5, fresh: 7, strong: 9, gale: 11 };
 
-/** A long, thin pennant streaming downwind from the masthead, so the ship itself shows the wind; its colour is the ship's flag. */
-export function createPennants() {
+const FLAG_SHADOW = 0x241527;
+
+/**
+ * What streams from the masthead downwind, so the ship itself shows the wind: a long thin pennant
+ * (the player's), or the national flag of an AI ship so her colours read at a glance.
+ */
+export function createPennants(pxPerUnit = MAST.pxPerUnit, flagSize: [number, number] = [9, 6]) {
   const g = new Graphics();
+  const [fw, fh] = flagSize;
+  const flags = new Map<FlagNation, Map<number, [number, number][]>>();
   return {
     view: g,
     update(
-      ships: { ship: Ship; wind: Wind; x: number; y: number; mast?: { forward: number; up: number }; colour: number }[],
+      ships: {
+        ship: Ship;
+        wind: Wind;
+        x: number;
+        y: number;
+        mast?: { forward: number; up: number };
+        /** The frame's real mast tip, in pixels from the ship's pivot (from the atlas packer), when known. */
+        top?: [number, number];
+        colour: number;
+        flag?: FlagNation;
+      }[],
       timeS: number,
     ) {
       g.clear();
-      for (const { ship, wind, x, y, mast = MAST, colour } of ships) {
+      for (const { ship, wind, x, y, mast = MAST, top, colour, flag } of ships) {
         const rad = (ship.headingDeg * Math.PI) / 180;
-        const k = MAST.pxPerUnit;
-        const topX = x + Math.sin(rad) * mast.forward * k;
-        const topY = y - Math.cos(rad) * mast.forward * k * MAST.foreshorten - mast.up * k * MAST.foreshorten;
+        const k = pxPerUnit;
+        const topX = top ? x + top[0] : x + Math.sin(rad) * mast.forward * k;
+        const topY = top ? y + top[1] : y - Math.cos(rad) * mast.forward * k * MAST.foreshorten - mast.up * k * MAST.foreshorten;
         const [vx, vy] = windVector(wind);
+        if (flag) {
+          // The flag flies from the masthead downwind, its fly rippling more than its hoist; a dark
+          // shadow a pixel down and right keeps it readable against white canvas.
+          if (!flags.has(flag)) flags.set(flag, flagColours(flag, fw, fh));
+          const at = (i: number, j: number) => {
+            const wave = Math.sin(timeS * 7 - i * 0.9) * (i / fw) * 1.2;
+            return [Math.round(topX + vx * (i + 1) - vy * wave), Math.round(topY + vy * (i + 1) * MAST.foreshorten + vx * wave) + j - 1] as const;
+          };
+          for (let i = 0; i < fw; i++) for (let j = 0; j < fh; j++) {
+            const [px, py] = at(i, j);
+            g.rect(px + 1, py + 1, 1, 1);
+          }
+          g.fill(FLAG_SHADOW);
+          for (const [c, pixels] of flags.get(flag)!) {
+            for (const [i, j] of pixels) {
+              const [px, py] = at(i, j);
+              g.rect(px, py, 1, 1);
+            }
+            g.fill(c);
+          }
+          continue;
+        }
         const len = PENNANT_PX[wind.strength];
         for (let i = 1; i <= len; i++) {
           // A ripple that grows toward the tip, like cloth flicking in the wind.

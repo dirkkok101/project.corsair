@@ -1,7 +1,10 @@
 import type { ContentPack, TileMap } from '@corsair/data';
 import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
+import type { Wind } from '@corsair/core';
+import { createPennants } from './effects';
 import { facingIndex } from './facing';
+import type { FlagNation } from './flags';
 import { paintDeepWater, paintTerrainChunk } from './water';
 
 // The sea battle view (scenes doc S3): the local map at battle scale, the two ships from their
@@ -17,6 +20,7 @@ export interface BattleViewShip {
 }
 export interface BattleViewState {
   tick: number;
+  wind: Wind;
   ships: { player: BattleViewShip; enemy: BattleViewShip };
   shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number }[];
   effects: { kind: 'smoke' | 'splash' | 'hit' | 'sail'; x: number; y: number; at: number }[];
@@ -30,7 +34,11 @@ const SPLINTER = 0xde9e41;
 const CANVAS = 0xe7d5b3;
 const BALL = 0x090a14;
 
-export function createBattleView(content: ContentPack, frames: Record<string, PixiTexture[]>) {
+export function createBattleView(
+  content: ContentPack,
+  frames: Record<string, PixiTexture[]>,
+  mastTops: Record<string, Record<string, [number, number][]>> = {},
+) {
   const view = new Container();
   view.visible = false;
   const water = new TilingSprite({ texture: Texture.from(paintDeepWater()), width: 1, height: 1 });
@@ -38,8 +46,10 @@ export function createBattleView(content: ContentPack, frames: Record<string, Pi
   const terrain = new Sprite();
   const sprites = { player: new Sprite(), enemy: new Sprite() };
   const fx = new Graphics();
+  // Colours at the masthead at battle scale: 192 px cells over the same 3.7-unit framing.
+  const pennants = createPennants(192 / 3.7, [12, 8]);
   view.addChild(water, world);
-  world.addChild(terrain, sprites.enemy, sprites.player, fx);
+  world.addChild(terrain, sprites.enemy, sprites.player, pennants.view, fx);
   let painted: TileMap | undefined;
 
   const place = (sprite: Sprite, ship: BattleViewShip, ts: number) => {
@@ -59,7 +69,7 @@ export function createBattleView(content: ContentPack, frames: Record<string, Pi
     hide() {
       view.visible = false;
     },
-    update(state: BattleViewState, map: TileMap, viewW: number, viewH: number, nowMs: number) {
+    update(state: BattleViewState, map: TileMap, viewW: number, viewH: number, nowMs: number, enemyFlag?: FlagNation) {
       const ts = map.tileSize;
       if (painted !== map) {
         // The battle map is painted once, whole: it is a screen or two across.
@@ -78,6 +88,28 @@ export function createBattleView(content: ContentPack, frames: Record<string, Pi
       water.tilePosition.set(-cx + Math.round(nowMs / 400), -cy);
       place(sprites.enemy, state.ships.enemy, ts);
       place(sprites.player, state.ships.player, ts);
+      const mastOf = (s: BattleViewShip) => content.sprites[content.ships[s.classId]!.sprites.combat ?? '']?.mast;
+      const topOf = (s: BattleViewShip) => {
+        const id = content.ships[s.classId]!.sprites.combat ?? '';
+        const def = content.sprites[id];
+        return def ? mastTops[id]?.[`sail_${s.sails}`]?.[facingIndex(s.headingDeg, def.facings)] : undefined;
+      };
+      pennants.update(
+        (['player', 'enemy'] as const).map((side) => {
+          const s = state.ships[side];
+          return {
+            ship: { ...s, id: side, speed: 0, helm: 0, blocked: false, cargo: {} },
+            wind: state.wind,
+            x: Math.round(s.x * ts),
+            y: Math.round(s.y * ts),
+            mast: mastOf(s),
+            top: topOf(s),
+            colour: 0xcf573c,
+            flag: side === 'enemy' ? enemyFlag : undefined,
+          };
+        }),
+        nowMs / 1000,
+      );
 
       fx.clear();
       const now = state.tick / 30;

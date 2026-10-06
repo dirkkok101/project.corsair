@@ -1,5 +1,7 @@
 import { Assets, Container, Graphics, Sprite } from 'pixi.js';
 import type { Texture } from 'pixi.js';
+import { flagPixel } from './flags';
+import type { FlagNation } from './flags';
 
 // The harbour scene behind the port screen (scenes doc: harbour). Layers are 960x540 Blender
 // renders stacked back to front; the sea animates; the game adds the nation's flag on the
@@ -11,8 +13,6 @@ const SEA_FRAME_MS = 400;
 const FLAG_W = 14;
 const FLAG_H = 9;
 
-export type FlagNation = 'spain' | 'england' | 'france' | 'netherlands' | 'pirate';
-
 export interface HarbourScene {
   /** Back to front; a layer with several URLs animates through them. */
   layers: string[][];
@@ -20,34 +20,6 @@ export interface HarbourScene {
   flag?: [number, number];
   anchor?: [number, number];
   nation: FlagNation;
-}
-
-// Palette colours only, so the day/night filter maps them like the rest of the scene.
-const WHITE = 0xebede9;
-const RED = 0xa53030;
-const BLUE = 0x253a5e;
-const GOLD = 0xe8c170;
-const BLACK = 0x090a14;
-
-/** Colour of flag pixel (x, y) on a FLAG_W x FLAG_H cloth. */
-function flagPixel(nation: FlagNation, x: number, y: number): number {
-  const cx = Math.floor(FLAG_W / 2);
-  const cy = Math.floor(FLAG_H / 2);
-  switch (nation) {
-    case 'england': // St George's cross
-      return x === cx || x === cx - 1 || y === cy ? RED : WHITE;
-    case 'spain': {
-      // Cross of Burgundy: a ragged red saltire on white
-      const d = (x / (FLAG_W - 1)) * (FLAG_H - 1);
-      return Math.abs(y - d) < 1 || Math.abs(FLAG_H - 1 - y - d) < 1 ? RED : WHITE;
-    }
-    case 'france': // Bourbon white, a few gold lilies
-      return (x % 5 === 2 && y % 4 === 2) ? GOLD : WHITE;
-    case 'netherlands': // red, white and blue bands
-      return y < 3 ? RED : y < 6 ? WHITE : BLUE;
-    case 'pirate': // black with a white mark
-      return (x >= 5 && x <= 7 && y >= 2 && y <= 4) || (y === 6 && (x === 4 || x === 8)) ? WHITE : BLACK;
-  }
 }
 
 export function createHarbour(shipFrame: () => Texture | undefined) {
@@ -73,7 +45,7 @@ export function createHarbour(shipFrame: () => Texture | undefined) {
     scene.scale.set(s);
     scene.position.set(Math.round((viewW - HARBOUR_WIDTH * s) / 2), Math.round((viewH - HARBOUR_HEIGHT * s) / 2));
     const horizon = scene.position.y + 250 * s;
-    backdrop.clear().rect(0, 0, viewW, horizon).fill(0x4f8fba).rect(0, horizon, viewW, viewH - horizon).fill(BLUE);
+    backdrop.clear().rect(0, 0, viewW, horizon).fill(0x4f8fba).rect(0, horizon, viewW, viewH - horizon).fill(0x253a5e);
   };
 
   return {
@@ -132,7 +104,7 @@ export function createHarbour(shipFrame: () => Texture | undefined) {
       const [fx, fy] = shown.flag;
       for (let x = 0; x < FLAG_W; x++) {
         const lift = Math.round(Math.sin(nowMs / 260 - x * 0.7) * (x / FLAG_W) * 1.5);
-        for (let y = 0; y < FLAG_H; y++) flag.rect(fx + 1 + x, fy + y + lift, 1, 1).fill(flagPixel(shown.nation, x, y));
+        for (let y = 0; y < FLAG_H; y++) flag.rect(fx + 1 + x, fy + y + lift, 1, 1).fill(flagPixel(shown.nation, x, y, FLAG_W, FLAG_H));
       }
     },
   };
