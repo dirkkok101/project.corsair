@@ -240,6 +240,12 @@ async function main() {
   let eventsSeen = 0;
   // Fights are sailed on the world map itself, drawn at battle scale.
   const battleSea = battleMap(content, map);
+  // Space held in battle: fire each broadside as it bears. Released (or the window loses focus), it stops.
+  let fireHeld = false;
+  window.addEventListener('keyup', (e) => {
+    if (e.key === ' ') fireHeld = false;
+  });
+  window.addEventListener('blur', () => (fireHeld = false));
   /** Seat the ships as they lay where they met. */
   const startBattle = (targetId: string) => {
     const me = player();
@@ -310,12 +316,21 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
     if (e.key.toLowerCase() === 'n' && !e.repeat) audio.toggleMusic();
-    // In battle: Q and E fire the port and starboard broadsides, 1 to 3 load round, chain or grape;
-    // when it is over, Enter (or Space) carries on. Steering keys go to the battle through bindInput.
+    // In battle: Space fires whichever broadside bears (held, it fires each one as she comes into its arc),
+    // Tab cycles the shot and 1 to 3 pick it; Q and E still fire a side by hand. When it is over, Enter (or
+    // Space) carries on. Steering keys go to the battle through bindInput.
     if (fight) {
       const k = e.key.toLowerCase();
+      if (k === ' ' || k === 'tab') e.preventDefault();
       if (fight.battle.result()) {
         if ((k === 'enter' || k === ' ') && !e.repeat) endBattle();
+      } else if (k === ' ') {
+        fireHeld = true;
+        fight.battle.send({ type: 'Fire' });
+      } else if (k === 'tab' && !e.repeat) {
+        const order: Ammo[] = ['round', 'chain', 'grape'];
+        const now = fight.battle.state.ships.player.ammo;
+        fight.battle.send({ type: 'SetAmmo', ammo: order[(order.indexOf(now) + 1) % order.length]! });
       } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
       else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
@@ -500,6 +515,8 @@ async function main() {
     if (fight) {
       // The battle runs in real time (no acceleration) while the world waits.
       if (!loop.paused && !fight.battle.result()) {
+        // Fire held: each broadside goes off as soon as she bears and it is loaded.
+        if (fireHeld) fight.battle.send({ type: 'Fire' });
         fight.acc = Math.min(fight.acc + elapsed, 0.25);
         while (fight.acc >= dt) {
           fight.battle.step();

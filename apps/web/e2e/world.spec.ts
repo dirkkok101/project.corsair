@@ -475,6 +475,26 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   await expect(page.locator('.battle-card').first()).toContainText('Hull');
+  // Tab switches shot at once (no reload); Space fires only a broadside that bears, so nothing yet.
+  // Commands land on the next step (the test holds the clock).
+  await page.keyboard.press('Tab');
+  await page.evaluate(() => window.__corsair.battle.step(1));
+  expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('chain');
+  expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.reload)).toEqual({ port: 0, starboard: 0 });
+  await expect(page.locator('.battle-ammo .active')).toContainText('Chain');
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('Tab');
+    await page.evaluate(() => window.__corsair.battle.step(1));
+  }
+  expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('round');
+  const bearing = await page.evaluate(() => window.__corsair.battle.state()!.ships.player.reload);
+  await page.keyboard.press(' ');
+  await page.evaluate(() => window.__corsair.battle.step(1));
+  if (bearing.port === 0 && bearing.starboard === 0) {
+    const fired = await page.evaluate(() => window.__corsair.battle.state()!.shots.filter((s) => s.from === 'player').length);
+    // Seated 24 tiles off: out of range, so Space fires nothing.
+    expect(fired).toBe(0);
+  }
   // With the clock running the battle advances on its own, and both ship cards sit inside the view.
   const startTick = await page.evaluate(() => window.__corsair.battle.state()!.tick);
   await page.evaluate(() => window.__corsair.sim.resume());

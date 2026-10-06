@@ -70,7 +70,8 @@ export interface BattleState {
 
 export type BattleCommand =
   | Extract<Command, { type: 'SetHelm' | 'SetSails' | 'SetAssist' }>
-  | { type: 'Fire'; side: Broadside }
+  /** Fire a broadside; with no side, whichever bears and is loaded (one fire key for the player). */
+  | { type: 'Fire'; side?: Broadside }
   | { type: 'SetAmmo'; ammo: Ammo };
 
 export interface BattleSetup {
@@ -288,14 +289,20 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return cmds;
   };
 
-  const apply = (side: Side, cmd: BattleCommand, rng: ReturnType<typeof rngStream>) => {
-    if (cmd.type === 'Fire') return fire(side, cmd.side, rng);
+  /** `byAi`: the command came from an AI captain's steering (the enemy, or the headless autopilot). */
+  const apply = (side: Side, cmd: BattleCommand, rng: ReturnType<typeof rngStream>, byAi = false) => {
+    if (cmd.type === 'Fire') {
+      const broadside = cmd.side ?? (['port', 'starboard'] as const).find((b) => aim(side, b) === 'ready');
+      return broadside ? fire(side, broadside, rng) : undefined;
+    }
     if (cmd.type === 'SetAmmo') {
+      // For the player, switching shot is instant: loaded guns take the new shot at once (choosing it is
+      // the fun part). AI gun crews still draw the loads, a reload on both broadsides, so a pirate can't
+      // pour in chain then grape without a pause and board before the fight has begun.
       const ship = state.ships[side];
       if (ship.ammo === cmd.ammo) return;
-      // Drawing the loads costs a reload on both broadsides.
-      const r = reloadSeconds(ship);
-      state = { ...state, ships: { ...state.ships, [side]: { ...ship, ammo: cmd.ammo, reload: { port: r, starboard: r } } } };
+      const reload = byAi ? { port: reloadSeconds(ship), starboard: reloadSeconds(ship) } : ship.reload;
+      state = { ...state, ships: { ...state.ships, [side]: { ...ship, ammo: cmd.ammo, reload } } };
       return;
     }
     const world = { tick: state.tick, wind: state.wind, ships: state.ships } as unknown as WorldState;
@@ -332,8 +339,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         for (const cmd of queue.splice(0)) apply('player', cmd, rng);
         if (state.tick % AI_THINK_TICKS === 0) {
           const enemyRole = state.ships.enemy.role ?? 'merchant';
-          for (const cmd of steer('enemy', c.personality[enemyRole])) apply('enemy', cmd, rng);
-          if (autopilot) for (const cmd of steer('player', autopilot)) apply('player', cmd, rng);
+          for (const cmd of steer('enemy', c.personality[enemyRole])) apply('enemy', cmd, rng, true);
+          if (autopilot) for (const cmd of steer('player', autopilot)) apply('player', cmd, rng, true);
         }
 
         // Sail: the world's navigation at battle pace.

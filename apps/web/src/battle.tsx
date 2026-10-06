@@ -132,6 +132,7 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
       ) : null}
       <div class="battle-bottom">
         <div class="battle-ammo">
+          <span class="battle-ammo-key">Tab</span>
           {AMMO.map((a) => (
             <span key={a.id} class={me.ammo === a.id ? 'active' : ''} title={a.hint}>
               {a.key} {a.name}
@@ -141,7 +142,7 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
         <div class="battle-guns">
           {(['port', 'starboard'] as const).map((side) => (
             <span key={side} class="battle-gun">
-              {side === 'port' ? 'Q port' : 'E starboard'}
+              {side === 'port' ? 'Port' : 'Starboard'}
               <span class="battle-bar-track">
                 <span class={`battle-bar-fill${reload(side) >= 1 ? ' ready' : ''}`} style={{ width: `${Math.round(reload(side) * 100)}%` }} />
               </span>
@@ -149,7 +150,7 @@ export function BattleHud({ state, content, playerTitle, enemyName, enemyTitle, 
             </span>
           ))}
         </div>
-        <div class="battle-keys">A/D steer · W/S sails · Q/E fire · 1–3 ammo · board by laying her alongside</div>
+        <div class="battle-keys">Space fire (hold to fire as she bears) · Tab shot · A/D steer · W/S sails · board by laying her alongside</div>
       </div>
       {state.result ? (
         <div class="battle-report">

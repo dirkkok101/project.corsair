@@ -1196,3 +1196,8 @@ body {
   height: 100%;
   pointer-events: none;
 }
+
+.battle-ammo span.battle-ammo-key {
+  color: #a8b5b2;
+  border-color: transparent;
+}
