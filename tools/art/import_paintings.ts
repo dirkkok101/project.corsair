@@ -13,7 +13,16 @@ import { DEFAULT_SNAP, SCENE_H, SCENE_W, snap, writeScene } from './snap_paintin
 const ROOT = join(import.meta.dirname, '..', '..');
 const SOURCES = join(ROOT, 'art', 'sources', 'grok');
 const OUT = join(ROOT, 'art', 'game', 'scenes');
-const GROUPS: Record<string, string> = { harbour: 'harbours', interior: 'interiors', title: 'title' };
+// Id prefix to the folder its raw output lives in. Duel, dance and fate backgrounds are painted ahead of
+// their scenes (see the brief's "Next scenes").
+const GROUPS: Record<string, string> = {
+  harbour: 'harbours',
+  interior: 'interiors',
+  title: 'title',
+  duel: 'duels',
+  dance: 'dance',
+  fate: 'fates',
+};
 
 const args = process.argv.slice(2);
 const reviewDir = args.includes('--review') ? args[args.indexOf('--review') + 1] : undefined;

@@ -24,7 +24,7 @@ Don't generate night or dusk versions. The game's palette shader makes them from
 | Prompt record, one per asset, next to its image | `art/sources/grok/{group}/{id}.yaml` | `art/sources/grok/harbours/harbour.england.large.yaml` |
 | Layout references (made for you) | `art/sources/references/harbours/{id}.png` | `art/sources/references/harbours/harbour.england.large.png` |
 
-Groups: `harbours`, `interiors`, `title`. Keep the file name exactly as the id in each section,
+Groups: `harbours`, `interiors`, `title`, and for scenes not built yet `duels`, `dance`, `fates`. Keep the file name exactly as the id in each section,
 because the import step finds images by id. Don't edit or crop the raw output.
 
 **Import:** `node tools/art/import_paintings.ts` snaps the version each record lists first under
@@ -197,6 +197,96 @@ sentence replaced by: *"Pixel art game background, 16:9, an interior scene in th
 > Pixel art game title background, 16:9: a two-masted brig under full sail on a deep blue Caribbean sea
 > at golden late afternoon, a green island with palms and a distant port on the right, gulls, big
 > white clouds. Keep the top third mostly open sky for the game's title. No text, no letters, no logo.
+
+## Next scenes (not built yet)
+
+Backgrounds for scenes that are planned but not built yet (`docs/project-corsair-scenes.md`). Paint
+them ahead so the art is ready when the scene is. Same style block as above, with its first sentence
+replaced as each group says. None has a layout reference yet, so each prompt spells out where the game
+will draw on top of it. Save as `art/sources/grok/{group}/{id}.v{n}.png` with a prompt record beside
+it, as before.
+
+### Boarding duel decks (scene S5): group `duels`
+
+The captains fence across the deck in side view; crews brawl behind them. First sentence: *"Pixel art
+game background, 16:9, a side view across the deck of a 1660s sailing ship at sea."* Then this layout
+block, then the deck prompt:
+
+> Side view, the camera level with the deck, looking across it to the far rail and the open sea. The
+> deck planks run the full width along the bottom third; keep the middle band of the picture (from the
+> planks up to about two-thirds of the height) clear of anything taller than a barrel, because two
+> fighters and their crews will stand there. The near rail runs along the very bottom edge. A mast
+> rises at the left or right edge, not in the middle. Sky and sea above the far rail. Midday light.
+
+**`duel.bg.sloop`**
+> A small, low single-masted sloop: a short deck, the boom swung out overhead, coiled lines, a few
+> small guns, a tiller at the stern, the rail low to the water.
+
+**`duel.bg.merchant`**
+> A broad-beamed merchant fluyt: a wide deck with cargo hatches, barrels and crates lashed down, a ship's
+> boat on the skids, the high rounded stern rising at one edge.
+
+**`duel.bg.brig`**
+> A two-masted brig: a clean flush deck, guns run out along the far rail, the mainmast and its shrouds
+> at one edge, a capstan, a hatch grating.
+
+**`duel.bg.heavy`**
+> A great warship, frigate or galleon: a broad deck with a double row of guns, tall masts and heavy
+> rigging, a raised quarterdeck with a carved rail at one edge, an ensign staff.
+
+### Commander duel courtyard (scene S7): group `duels`
+
+**`duel.bg.courtyard`** (first sentence: *"Pixel art game background, 16:9, a side view inside a
+colonial Caribbean fort in the 1660s."*)
+> A fort courtyard in side view: worn flagstones along the bottom third, the stone rampart across the
+> back with cannon embrasures, a heavy timber gate at one side, a watchtower at the other, palm tops and
+> blue sky over the wall. Keep the middle band clear for fighters. The flagpole is bare (the game flies
+> the owner's flag).
+
+### Ballroom (scene S11): group `dance`
+
+**`dance.bg.ballroom`** (first sentence: *"Pixel art game background, 16:9, the ballroom of a
+colonial governor's mansion in the 1660s, evening."*)
+> A candlelit ballroom: a polished wooden or tiled floor across the lower half, a great chandelier, tall
+> windows onto a dark garden and palms, a small band of musicians on a dais at the back, guests in
+> period dress standing along the walls in small groups. Keep the centre of the floor empty and well
+> lit: the player and partner dance there. Warm candle colours against cool night blues.
+
+### Retirement fate cards (scene S14): group `fates`
+
+Small 4:3 vignettes (the game shows them at 240×180 beside the captain's portrait), so keep each to one
+clear subject and few details. Generate them at 4:3. The import step only makes 960×540 frames today;
+it will learn the 240×180 card size when the retirement scene is built, so save and record them but
+don't import them yet. First sentence: *"Pixel art vignette, 4:3, a simple scene in a 1660s
+Caribbean port."* No people in them: the portrait stands beside the card.
+
+**`fate.beggar`**
+> A shabby street corner: a crumbling plaster wall, a broken barrel, a tin cup on the cobbles, a
+> torn awning, evening shadow.
+
+**`fate.captain`**
+> A ship's rail at sea: the polished rail, a brass telescope resting on it, coiled rope, the open
+> sea and a horizon at golden hour.
+
+**`fate.merchant`**
+> A warehouse door on a busy quay: a stout timber door with iron hinges, sacks and barrels stacked
+> beside it, a hanging lantern, a ledger on a crate.
+
+**`fate.governor`**
+> The door of a fine colonial mansion: carved stone doorway, a coat of arms above it without any
+> letters, potted palms, marble steps, warm light from within.
+
+### More port services (planned): group `interiors`
+
+Same rules as the service interiors above: calm, dark centre; detail at the edges.
+
+**`interior.bank`**
+> A money-lender's counting room: a heavy iron-bound strongbox and a scale for coin on a long table,
+> ledgers on shelves, a barred window, a guard's halberd leaning in the corner, candlelight.
+
+**`interior.surgeon`**
+> A barber-surgeon's room: a sturdy chair with straps, a table of instruments and bottles, bandages
+> drying on a line, a shuttered window letting in a bar of light, herbs hanging from a beam.
 
 ## What not to ask for
 
