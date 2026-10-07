@@ -15,5 +15,6 @@ export function Art({ id, class: cls, title }: { id: string; class?: string; tit
 
 /** A good's icon (its id in goods.json), sized to sit in a line of text. */
 export function GoodIcon({ id }: { id: string }) {
-  return <Art id={`ui.icon.good.${id}`} class="inline-icon" />;
+  // A good not yet painted shows no icon rather than a broken image.
+  return ART[`ui.icon.good.${id}`] ? <Art id={`ui.icon.good.${id}`} class="inline-icon" /> : null;
 }

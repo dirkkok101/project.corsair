@@ -230,9 +230,6 @@ export const economySchema = z.object({
   consumerStock: z.number().positive(),
   /** A port is known for exporting or wanting a good only at this profile rate or more. */
   notableLean: z.number().min(0).max(1),
-  /** Share of the gap to its usual stock a market closes each week. */
-  weeklyRecovery: z.number().min(0).max(1),
-  harvest: z.tuple([z.number().min(0), z.number().min(0)]),
   /** Stock is capped at this multiple of the usual stock. */
   maxStock: z.number().positive(),
   shocks: z.object({
@@ -260,6 +257,25 @@ export const economySchema = z.object({
   }),
   profiles: z.record(z.string(), z.object({ produces: goodRates, consumes: goodRates })),
   settlementProfiles: z.record(z.string(), z.array(z.string()).min(1)),
+  /** Goods made from another, unit for unit, only from what is in store: product -> input. */
+  chains: z.record(z.string(), z.string()),
+  /** Ports that live: people, their daily making and eating, growth, the merchant's purse, coasting craft. */
+  towns: z.object({
+    people: z.record(z.string(), z.number().positive()),
+    capitalPeople: z.number().positive(),
+    pull: z.number().min(0).max(1),
+    netShare: z.number().min(0),
+    growth: z.object({
+      satisfied: z.number().min(0).max(1),
+      starved: z.number().min(0).max(1),
+      up: z.number().min(0),
+      down: z.number().min(0),
+      min: z.number().positive(),
+      max: z.number().positive(),
+    }),
+    purse: z.object({ perPerson: z.number().min(0), refill: z.number().min(0).max(1) }),
+    coasters: z.object({ tiles: z.number().min(0), share: z.number().min(0).max(1), max: z.number().min(0) }),
+  }),
 });
 
 const nation = z.enum(['spain', 'england', 'france', 'netherlands', 'pirate']);

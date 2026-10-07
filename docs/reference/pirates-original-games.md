@@ -1,6 +1,6 @@
 # Reference: Pirates! (1987) and Sid Meier's Pirates! (2004)
 
-How the two games handle the aftermath of a ship battle and the crew. Use this before designing Corsair's equivalents. The two games are described separately, and every fact cites a source. **Unverified** marks anything no source confirmed.
+How the two games handle the aftermath of a ship battle, the crew, and trade (with Anno for contrast). Use this before designing Corsair's equivalents. The two games are described separately, and every fact cites a source. **Unverified** marks anything no source confirmed.
 
 Researched October 2026.
 
@@ -13,6 +13,11 @@ Researched October 2026.
 | **[WIKI]** | sidmeierspirates.fandom.com. The HTML pages return HTTP 402 to fetch tools; read them through the MediaWiki API instead: `https://sidmeierspirates.fandom.com/api.php?action=parse&page=<Page>&format=json&prop=wikitext&formatversion=2&redirects=1` | Measured mechanics and numbers (bounty amounts, the 8-ship limit, crew caps, 1987 captured-captain prompt). Fan-written; some numbers conflict with the manual. |
 | **[SW]** | StrategyWiki 2004 walkthrough: https://strategywiki.org/wiki/Sid_Meier's_Pirates!_(2004)/Walkthrough (also blocks direct fetch; use `https://strategywiki.org/w/api.php?action=parse&page=...`) | Strategy experience: the real cost of jail or being lost at sea, gold-per-crew rules of thumb. |
 | [WP] | https://en.wikipedia.org/wiki/Pirates!_Gold | Pirates! Gold (1993) differences. *Computer Gaming World* called it "not a significantly revised game". No source describes post-battle or crew changes, so treat Gold as 1987 (**unverified** in detail). |
+| **[CI]** | Cutlass Isle fan forum (2004): http://www.hookedonpirates.com/forums//viewtopic.php?t=6784 | Players' buy and sell price thresholds and linked prices. Anecdotal. |
+| **[1602]** | Anno 1602 fan FAQ (Tim Howgego and others): https://anno-capsu.netlify.app/1602/ (cited by page name), the 1998 German strategy guide on archive.org (`de-anno-1602-das-strategie-handbuch-1998`), and the Sunflowers product flyer (https://archive.org/details/kultflyers_21, cited as "flyer") | 1602 tiers, taxes, chains, free trader, disasters. No original manual was found, so all of it is secondary. |
+| **[1404]** | anno1404.fandom.com, read through `https://anno1404.fandom.com/api.php?action=parse&page=<Page>&format=json&prop=wikitext&formatversion=2` (cited by page name) | 1404 needs, taxation, datamined rates, NPC traders, disasters. |
+| **[1800]** | anno1800.fandom.com, same API (cited by page name) | 1800 needs, neutral traders, the Statistics screen, incidents. |
+| **[AU]** | Anno Union devblog "Your own trading empire": https://www.anno-union.com/devblog-your-own-trading-empire/ | 1800 designer intent for trade routes. |
 
 ## 2. After a ship battle
 
@@ -202,7 +207,76 @@ Smuggler and immigrant ships often carry one; barmaids point them out [WIKI Spec
 - Let dividing the plunder close one voyage and reset the next: the crew's reaction sets the next crew's starting morale. The months it takes age the captain.
 - Use specialists as the main way to soften crew upkeep (cook, cooper, quartermaster), and get them only by capture.
 
-## 5. How Corsair maps to this
+## 5. Trade and the economy
+
+Goods, prices and towns in the two Pirates! games, then Anno for contrast. Only Anno's supply and trading ideas carry over.
+
+### 5.1 Pirates!: goods and prices
+
+| Topic | 1987 | 2004 |
+|---|---|---|
+| Goods | Food, goods, cannon, and one export crop per era: hides, then tobacco, then sugar [87 Trading with Merchants; WIKI Cargo]. | Six cargoes, cheapest to dearest: cannon, food, sugar, goods, spice, luxuries. Typical prices run from 0–2 gold for cannon to 10–30 for luxuries [WIKI Cargo]. Luxuries are "all imported from Europe" [04 p.110]. |
+| What sets a price | Merchant strength is "proportional to the town's economic strength and population". Rich towns have more stock, cash and higher prices [87 Local Merchants]. Towns also have "special markets and needs" that push single goods very high or low [87]. | City type crosses size, wealth and defence (Capital = large, rich, strong; Outpost = small, poor, weak) [04 p.47]. Wealth mainly drives prices [WIKI City]. The gazetteer gives each town a specialty: "Sugar is often quite plentiful here"; Curaçao wants "spices and sugar" [04 pp.116–118]. Players find goods and luxuries priced high together, and sugar with spice [CI]. |
+| Stock and cash | Each merchant has finite cash and finite stock of each good [WIKI City]. His cash "replenishes every once in a while" and tracks wealth [WIKI City]. | Stock and cash depend on wealth, population and the town's fixed traits. Both "only reset after several weeks away from the Port" [WIKI City]. |
+| Your trades move the price | **Unverified.** No source says a unit sold lowers the next unit's price. | **Unverified**, as for 1987. |
+| How long a price lasts | "All these effects are transitory, but while some patterns only last days or weeks, others can last for years" [87 Local Merchants]. | Prices drift by small random amounts and jump with events (5.2) [WIKI City]. |
+| Who may trade | Spanish law bans foreign trade. Struggling towns trade with almost anyone, Surviving towns with decent reputations, Prosperous towns only with captains "of high repute", and Wealthy towns almost always obey the law [87 Spanish Trade Restrictions]. | Big Spanish ports deal "only with reputable Spanish traders" [04 p.116]. Rank helps: a Colonel gets "more goods available", a Marquis "many more" [04 p.72]. |
+| Finding prices | Tavern travellers sell a town's population, economy and defences [87 The Tavern]. | The Mysterious Traveller gives other towns' prices, population, prosperity and garrison for free [WIKI Tavern]. Wealth shows on the town's map caption [WIKI City]. |
+
+### 5.2 Pirates!: towns that grow and shrink
+
+| Topic | 1987 | 2004 |
+|---|---|---|
+| Town stats | Population, wealth, loot gold and merchant cash [WIKI City]. Towns of more than 600 people have a governor [87 The Governor]. Wealth runs Struggling, Surviving, Prosperous, Wealthy [87]. | The same four stats. Wealth runs Poor, Modest, Prosperous, Wealthy [WIKI City]. |
+| Default trend | Towns "slowly prosper and grow". Wealth draws people, and wealth brings troops and forts [87 The Rise & Fall of Colonies]. | Small random drift, plus the ships below [WIKI City]. |
+| What moves a town | Random economic events, "several… every month", each hitting a random town [WIKI City]. Traders and smugglers help growth; taking ships near a town hurts it [87]. | Ships with a role move the numbers when they arrive [WIKI Ship_Role]: immigrant ships raise population; new-governor and sugar-plant ships raise wealth; a successful pirate raid lowers wealth; native war canoes lower population; troop and payroll ships add soldiers. An ordinary trader's arrival has "no discernible effect". A smuggler restocks the merchant with luxuries or spice [WIKI City]. Stop the ship and you stop the change. |
+| Raids and sacking | A raid "takes whatever gold the pirates can find" and "damages the economy" [87]. Afterwards the town is "cleaned out" but its garrison is reinforced [87 Memoirs]. | Looting drops wealth "drastically", so a second raid yields nothing until wealth recovers [WIKI Raid]. A war raider's bombardment cuts wealth one level [WIKI City]. |
+| Events | Native attacks cut the garrison only. Malaria and disease cut garrison and citizens and stall growth. A gold mine gives "a one-time upswing" and a boom town [87]. | No plague or famine events found. They appear only in the era histories [04 pp.84, 90]. **Unverified** that none exist. |
+| Trade can backfire | Not documented. | Smuggling to poor Spanish towns "is self-limiting… your very success in trading will make these settlements rich, and thus more likely to follow Spanish trade laws and shut you out!" [04 p.86]. |
+
+### 5.3 Pirates!: fleets, convoys and war
+
+| Topic | 1987 | 2004 |
+|---|---|---|
+| Merchant traffic | Ships exist only when an encounter is rolled: trader, pirate raider or pirate hunter [WIKI Ship_Role]. | Every ship sails a real route. Traders sail only to ports of nations not at war with their owner; smugglers sail to enemy ports. Treasure ships ("at least 1000" gold) come from rich, populous ports [WIKI City]. |
+| Treasure Fleet and Silver Train | They follow a printed itinerary, town by town and month by month [87 Treasure Fleets & Silver Trains]. A raid on a town that hosts either of them yields "a massive increase in looted Gold" [WIKI Raid]. | Treasure-fleet galleons enter at the map edge and sail to a fixed Spanish port. They cannot be taken by raiding a town [WIKI Ship_Role; WIKI Raid]. |
+| Response to attacks | Not documented. | Ports whose shipping was attacked add escorts, sized by wealth and hostility. After enough sinkings a port sends a new warship [WIKI City]. |
+| War and trade | War, peace and alliance are public, but the end of an alliance is not [87]. Forts of hostile nations fire on you [87 The Governor]. | Treaty and ultimatum ships end or start wars when they arrive. Raiders and invasion ships sail against enemy ports [WIKI Ship_Role]. War reroutes trade: traders stop going to enemy ports and smugglers go instead [WIKI City]. |
+
+### 5.4 Pirates!: was trading worth it?
+
+- **1987.** Peaceful trade gets you into small Spanish ports, but "profits from peaceful trade are modest" [87 Famous Expeditions]. Still, a Dutch trader "buys low, transports it, and sells high", keeps a small crew and banks his profit [87 Memoirs].
+- **2004.** "Peaceful trading may not be as profitable as privateering, but it's a safer business" [04 p.90]. The Dutch Trader start trades between rich and new colonies with a small crew [04 pp.86, 92]. Players mostly "will not bother buying low and selling high – but only selling high" [WIKI Cargo].
+
+### 5.5 Anno 1602, 1404 and 1800
+
+No 1602 manual was found; 1602 rules come from a fan FAQ and a strategy guide.
+
+| Topic | 1602 | 1404 | 1800 |
+|---|---|---|---|
+| Tiers and needs | Five tiers, from Pioneers (food only) to Aristocrats (six goods). Partial supply caps the tax rate; for example Citizens accept 38% fully supplied but 20% with 2 of 4 goods [1602 Colony Management]. Unmet demands block upgrades, while starvation makes people unhappy and they leave [1602 Essential Concepts]. | Four Western tiers and two Eastern. Needs are food, drink, clothing, property, plus four buildings. Thresholds rise with population [1404 Needs]. A house ascends only when full, euphoric, well supplied and holding building materials [1404 Population]. | Basic needs add residents and gate upgrades. Luxury needs add happiness and income but are optional [1800 Needs]. |
+| Taxes | Each tier has a highest tax it will accept [1602]. | One slider sets tax and mood: Euphoria and Happiness draw people in, Calm holds, Irritation and Rage drive them out [1404 Taxation]. | No slider. Income per need = base × fulfilment; Royal Taxes take 9–40% from large tiers [1800 Royal Taxes]. |
+| Chains | Tools: ore mine → smelter (ore + wood) → toolmaker. Food: 4 grain farms → 2 windmills → bakery [1602 Production Efficiency]. | Bread: 2 crop farms → mill → bakery; one chain feeds 727 Patricians. [1404 Production and consumption rates]. | Bread: 2 grain farms → mill → 2 bakeries; each building needs workers of a set tier [1800 Bakery; 1800 Workforce]. |
+| Fertility and deposits | Northern islands grow tobacco, vines and sugar; southern islands grow cocoa, cotton and spice. Ore runs out (80 or 240 t); gold never does [1602 Resources]. | Northern islands are fertile grassland; southern desert needs norias. [1404 Fertilities]. | Fertilities are "randomly assigned" per island and region; New World crops need New World islands [1800 Fertilities and resources]. |
+| NPC traders | The free trader resells only what some player produces, except ore and tools, which he has without limit until someone makes tools [1602 Trade and Diplomacy; 1602 Resources]. AI rivals trade at fixed prices, buying at about 1.5× their selling price [1602 AI Trade Prices]. | Lord Northburgh sells only Western goods, Grand Vizier Al Zahir only Eastern ones; Giacomo Garibaldi comes with the Venice add-on. Each has fixed per-good preferences and a purse and tonnage cap per visit, raised with honour [1404 Trade; 1404 Trade Bias]. Prices are fixed; the wiki gives the passive price as 2.5× the active one [1404 Advanced Economics]. Whether NPC stock is finite is **unverified**. | Five traders, each with a range of goods and a premium buy (Blake pays extra for coal). Each good restocks at a set rate up to about 150 t, from a pool shared by every player, and goods you sell join that pool. Buying costs 2.5× the selling price [1800 Neutral Traders; 1800 Trade]. |
+| Your own warehouse | Per good: buy or sell, price slider and stock limit [1602 Trade and Diplomacy]. | Per good: a stock floor ("only sell… if there are more than 20") and a price slider. [1404 Warehouse; 1404 Trade]. | Buy, sell, or both around a target stock, per island [1800 Trade]. |
+| Economy UI | One status screen, with trade averaged over 10 cycles, so the numbers lag [1602 Essential Concepts]. Busy buildings animate, as when windmill sails turn, "instead of dry statistics" [1602 flyer]. | One income and expense statement; need bars per house [1404 Taxation; 1404 Needs]. A per-good balance screen is **unverified**. | Statistics screen (patch 6.0): production against consumption per good, stock over time and trade history [1800 Statistics]. |
+| Disasters | Plague, fire and drought (drought kills crops). [1602 Colony Development]. | Plague lowers population and downgrades houses, and "foreigners will not trade with the island". Sandstorms stop norias [1404 Disasters]. | Fire, explosions, riots ("stop working and paying taxes") and illness that "can jump to other islands by ships" [1800 City incidents]. |
+
+**Design intent.** In 1602, "hardly any island can be self-sufficient", so the player must trade [1602 flyer]. The 1800 trade routes favour "the freedom of the player" and bring back "room for error and mismanagement" [AU].
+
+### 5.6 Lessons from the economies
+
+- **A price is a reading of a town's state.** Both Pirates! games derive prices from wealth and size, plus a short list of per-town specialties. That keeps prices readable and lets the world move them.
+- **Change the world through ships you can intercept.** 2004 moves population and wealth only when ships arrive, so the player can stop a change or cause one. Ordinary trade traffic is mostly scenery.
+- **Make trade money finite and slow to return.** Finite merchant cash, stock that resets after weeks, and raided towns push the player around the map.
+- **Make success change the rules.** Rich Spanish towns close their markets, rank opens more stock, and attacked ports add escorts.
+- **Grow slowly, fall fast.** Growth is steady; raids and disease are sudden shocks with visible causes.
+- **Show the economy in the world.** Pirates! puts wealth on the town label and sells distant prices through travellers; Anno uses animation, need bars and, later, a balance screen.
+- **Give NPC traders an identity.** Anno's traders have a range, premium buys, a purse cap and stock that restocks, which players learn and plan around.
+- **Make shortages travel.** In Anno, plague closes an island to trade and illness spreads by ship, so a local event touches the routes.
+
+## 6. How Corsair maps to this
 
 | Topic | 1987 | 2004 | Corsair (built / planned) |
 |---|---|---|---|
@@ -223,3 +297,11 @@ Smuggler and immigrant ships often carry one; barmaids point them out [WIKI Spec
 | Dividing the plunder | Crew disperses; keep flagship | About 6 months; sets next crew's morale | Built: in a tavern; the crew stays; morale set by each man's share |
 | Recruiting | Tavern once per visit; reputation | Tavern pool by town and rank; volunteers | Built: tavern sign-on at 10 gold a man up to the berths; volunteers from prizes and the water |
 | Specialists | — | 8 types, from captures only | Not planned yet |
+| Prices | Set by town wealth and size, plus local specialties | Wealth, city type and specialties; finite merchant cash | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
+| Supply response | Finite stock and cash; per-unit effect **unverified** | Stock and cash reset after weeks away; per-unit effect **unverified** | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
+| Town growth | Slow growth; random monthly events; raids and nearby captures hurt | Moved by arriving immigrant, governor, raider and canoe ships | Planned (economy slices) |
+| Production chains | — | — | Planned (economy slices) |
+| NPC traders | Encounter-only traders | Traders, smugglers, grain and treasure ships on real routes | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
+| Wars and trade | Public wars; hostile forts fire; Spanish towns refuse trade | Traders avoid enemy ports, smugglers use them; escorts after attacks | Planned (economy slices) |
+| Events | Disease, native attacks, gold rushes | Role ships; no plague or famine found | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
+| Economy UI | Travellers sell town news | Wealth on the map caption; traveller lists prices | Planned (economy slices) |

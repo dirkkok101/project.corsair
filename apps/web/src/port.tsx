@@ -28,6 +28,7 @@ import {
   sellsGuns,
   sellsUpgrade,
   shipValue,
+  townOf,
   tradeLean,
   tradePreview,
 } from '@corsair/systems-economy';
@@ -84,6 +85,12 @@ function Takes({ depth }: { depth: number }) {
 const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
+/** A port's people and trend, in a few words ("12,600 people, growing"). */
+function townLine(content: ContentPack, state: WorldState, town: PlacedSettlement) {
+  const t = townOf(content, state, town);
+  return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}`;
+}
+
 /**
  * The merchant (PRD section 6), made to explain itself: each good's price here and why (its stock against
  * the usual, and the news behind a shock), what you hold and what you paid, what selling now would make or
@@ -106,6 +113,7 @@ function Merchant({
 }) {
   const [preview, setPreview] = useState<string>();
   const market = state.markets?.[town.id] ?? {};
+  const purse = townOf(content, state, town).cash;
   const gold = state.captain?.gold ?? 0;
   const capacity = fleetHold(content, state, ship);
   const used = cargoUsed(ship);
@@ -140,6 +148,8 @@ function Merchant({
                   : `About its usual price here.`,
               ...(story.news ? [story.news] : []),
               side === 'exports' ? `${town.name} makes ${name}: it is cheap to buy here.` : side === 'wants' ? `${town.name} needs ${name}: it sells well here.` : '',
+              story.makes > 0 ? `It makes about ${Math.round(story.makes)} a day.` : '',
+              story.eats > 0 ? `It eats about ${Math.round(story.eats)} a day: ${story.days! >= 1 ? `${Math.floor(story.days!)} days in store` : 'none in store'}.` : '',
               'Each unit you buy raises the price; each you sell lowers it.',
             ].filter(Boolean);
             const cost = held > 0 && ship.paid?.[g.id] !== undefined ? ship.paid[g.id]! / held : undefined;
@@ -148,8 +158,11 @@ function Merchant({
             const margin = best && best.sell - q.buy;
             const room = capacity - used;
             const say = (side: 'Buy' | 'Sell', qty: number) => {
-              const t = tradePreview(content, town, g.id, stock, side, qty, { gold, room, held });
-              if (!t.units) return side === 'Buy' ? (room < 1 ? 'Your hold is full.' : stock < 1 ? `The merchant has no ${name} left.` : `Not enough gold for one ${name}.`) : `You have no ${name} to sell.`;
+              const t = tradePreview(content, town, g.id, stock, side, qty, { gold, room, held, cash: purse });
+              if (!t.units) {
+                if (side === 'Buy') return room < 1 ? 'Your hold is full.' : stock < 1 ? `The merchant has no ${name} left.` : `Not enough gold for one ${name}.`;
+                return held < 1 ? `You have no ${name} to sell.` : `The merchant is out of gold (${purse} left): his purse fills again day by day, or sell elsewhere.`;
+              }
               if (side === 'Buy') {
                 return `Buy ${t.units} ${name} for ${t.total.toLocaleString()} gold (${Math.round(t.total / t.units)} each); the price here rises to ${t.after}.${
                   best && best.sell > t.total / t.units ? ` At ${best.name} they'd fetch about ${best.sell} each.` : ''
@@ -159,6 +172,8 @@ function Merchant({
               const fromPlunder = Math.min(plunder, t.units);
               const gain = cost !== undefined && !plunder ? Math.round(t.total - cost * t.units) : undefined;
               return `Sell ${t.units} ${name} for ${t.total.toLocaleString()} gold; the price here falls to ${t.after}.${
+                t.units < Math.min(qty, held) ? ` His purse covers only ${t.units}.` : ''
+              }${
                 gain !== undefined ? ` ${gain >= 0 ? `${gain} more than` : `${-gain} less than`} you paid.` : ''
               }${
                 gain !== undefined && gain < 0
@@ -232,10 +247,10 @@ function Merchant({
                   <button {...hover('Buy', ALL)} onClick={() => trade('Buy', g.id, ALL)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
                     Max
                   </button>
-                  <button {...hover('Sell', 1)} onClick={() => trade('Sell', g.id, 1)} disabled={held < 1}>
+                  <button {...hover('Sell', 1)} onClick={() => trade('Sell', g.id, 1)} disabled={held < 1 || purse < q.sell}>
                     Sell 1
                   </button>
-                  <button {...hover('Sell', ALL)} onClick={() => trade('Sell', g.id, ALL)} disabled={held < 1}>
+                  <button {...hover('Sell', ALL)} onClick={() => trade('Sell', g.id, ALL)} disabled={held < 1 || purse < q.sell}>
                     All
                   </button>
                 </td>
@@ -244,6 +259,10 @@ function Merchant({
           })}
         </tbody>
       </table>
+      <div class="merchant-purse">
+        <Art id="ui.icon.gold" class="inline-icon" /> The merchant has {purse.toLocaleString()} gold to buy with: he pays for your goods only as far as it goes, and it
+        fills again as the town trades.
+      </div>
       <div class="merchant-preview">
         {preview ??
           'Point at a button to see what the trade comes to. Point at a price to see why it is what it is: every unit you buy raises it, every unit you sell lowers it.'}
@@ -342,7 +361,8 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           <div>
             <div class="port-name">{town.name}</div>
             <div class="port-sub">
-              {NATION[town.nation]} {town.type === 'haven' ? 'pirate haven' : town.type === 'capital' ? 'capital' : town.size}
+              {NATION[town.nation]} {town.type === 'haven' ? 'pirate haven' : town.type === 'capital' ? 'capital' : town.size} ·{' '}
+              {townLine(content, state, town)}
             </div>
             <div class="port-lean">
               {lean.exports.length ? (

@@ -183,6 +183,13 @@ export interface FleetShip {
   upgrades?: string[];
 }
 
+/** A port that lives (PRD section 6): its people, the gold its merchant has to buy with, and its trend. */
+export interface TownState {
+  people: number;
+  cash: number;
+  trend: -1 | 0 | 1;
+}
+
 export interface Captain {
   gold: number;
   /** Prices the captain last saw in each port, so routes can be planned from memory. */
@@ -304,6 +311,8 @@ export interface WorldState {
   rng?: Record<string, RngState>;
   /** Stock of each good in each settlement's market (PRD section 6). */
   markets?: Record<string, Record<string, number>>;
+  /** Each port's people, its merchant's purse, and whether it is growing (+1), steady (0) or shrinking (-1). */
+  towns?: Record<string, TownState>;
   captain?: Captain;
   /** Market shocks in force; saves from before shocks existed have none. */
   shocks?: Shock[];

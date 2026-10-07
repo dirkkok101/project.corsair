@@ -1,5 +1,5 @@
 {
-  "$comment": "PRD section 6 price model. Price = base * (reference / max(stock, 1)) ^ elasticity, clamped, with a buy/sell spread by settlement type. The reference is the same demand level for every town of a size; what differs is the stock each town drifts back to: producers hold more (cheap), consumers less (dear). That gap is what makes trade routes pay. Each week stock closes part of the gap to its usual level, shaken by a seeded harvest.",
+  "$comment": "PRD section 6 price model. Price = base * (reference / max(stock, 1)) ^ elasticity, clamped, with a buy/sell spread by settlement type. The reference is the same demand level for every town of a size; what differs is the stock each town drifts back to: producers hold more (cheap), consumers less (dear). That gap is what makes trade routes pay. Ports live (towns): each has people (by size, more at a capital) whose fields and workshops make goods and whose households eat them every day, as a port's profile says; chains turn one good into another unit for unit (rum from sugar, cloth from cotton) only from what is in store. The wider world (the hinterland, smugglers, ships from Europe) closes 'pull' of the gap to the usual stock each day, so a port that makes or eats 'netShare' x pull x its usual stock a day sits half that again above or below it when no merchant calls. People grow 'up' a week while their needs are 'satisfied' (stock against usual) and fall 'down' a week when 'starved', within min..max of their size's people. The merchant's purse is perPerson gold a head, refilling 'refill' of the gap a day: he buys only what it covers. Coasting craft between ports within 'tiles' at peace move 'share' of their stock gap (up to 'max' units a good a day).",
   "startingGold": 1000,
   "daysPerWeek": 7,
   "priceClamp": [
@@ -25,16 +25,13 @@
     "hides": 60,
     "cotton": 70,
     "luxuries": 25,
-    "silver": 10
+    "silver": 10,
+    "rum": 40,
+    "cloth": 40
   },
   "producerStock": 2.5,
   "consumerStock": 0.4,
   "notableLean": 0.5,
-  "weeklyRecovery": 0.25,
-  "harvest": [
-    0.8,
-    1.2
-  ],
   "maxStock": 3,
   "shocks": {
     "$comment": "Market shocks (PRD section 6): each moves one good at one town. 'on' picks a good the town exports or wants (a notable lean). 'stock' multiplies its usual stock while the shock lasts, and the market jumps 'jolt' of the way there at once so it shows on the next visit. About 'perWeek' shocks start each week across the map; storms add 'storm' shocks to every export of a town their eye passes over. Shocks last at least 4 weeks so news of one can still be acted on after crossing the map.",
@@ -100,7 +97,8 @@
       "consumes": {
         "food": 1.0,
         "luxuries": 0.6,
-        "cotton": 0.3
+        "cotton": 0.3,
+        "cloth": 0.5
       }
     },
     "tobacco_coast": {
@@ -110,7 +108,8 @@
       },
       "consumes": {
         "luxuries": 0.5,
-        "cotton": 0.3
+        "cotton": 0.3,
+        "cloth": 0.3
       }
     },
     "cattle_coast": {
@@ -120,7 +119,8 @@
       },
       "consumes": {
         "luxuries": 0.4,
-        "sugar": 0.3
+        "sugar": 0.3,
+        "rum": 0.4
       }
     },
     "cotton_coast": {
@@ -140,7 +140,9 @@
       "consumes": {
         "food": 0.8,
         "luxuries": 0.8,
-        "cotton": 0.4
+        "cotton": 0.4,
+        "rum": 0.6,
+        "cloth": 0.5
       }
     },
     "farmland": {
@@ -149,7 +151,8 @@
       },
       "consumes": {
         "luxuries": 0.3,
-        "sugar": 0.3
+        "sugar": 0.3,
+        "cloth": 0.4
       }
     },
     "entrepot": {
@@ -160,7 +163,8 @@
         "food": 0.6,
         "sugar": 0.6,
         "tobacco": 0.6,
-        "hides": 0.5
+        "hides": 0.5,
+        "rum": 0.4
       }
     },
     "haven": {
@@ -170,7 +174,25 @@
       "consumes": {
         "food": 1.0,
         "luxuries": 1.0,
-        "tobacco": 0.6
+        "tobacco": 0.6,
+        "rum": 1.0,
+        "cloth": 0.4
+      }
+    },
+    "distillery": {
+      "produces": {
+        "rum": 1.0
+      },
+      "consumes": {
+        "sugar": 0.8
+      }
+    },
+    "weavers": {
+      "produces": {
+        "cloth": 1.0
+      },
+      "consumes": {
+        "cotton": 0.8
       }
     }
   },
@@ -192,7 +214,8 @@
       "entrepot"
     ],
     "town.campeche": [
-      "cotton_coast"
+      "cotton_coast",
+      "weavers"
     ],
     "town.san_juan": [
       "farmland",
@@ -205,7 +228,8 @@
       "silver_port"
     ],
     "town.santa_marta": [
-      "cotton_coast"
+      "cotton_coast",
+      "weavers"
     ],
     "town.rio_de_la_hacha": [
       "cattle_coast"
@@ -236,10 +260,12 @@
     ],
     "town.port_royal": [
       "farmland",
-      "entrepot"
+      "entrepot",
+      "distillery"
     ],
     "town.bridgetown": [
-      "sugar_isle"
+      "sugar_isle",
+      "distillery"
     ],
     "town.old_road": [
       "sugar_isle",
@@ -259,7 +285,8 @@
       "entrepot"
     ],
     "town.saint_pierre": [
-      "sugar_isle"
+      "sugar_isle",
+      "distillery"
     ],
     "town.basse_terre_guadeloupe": [
       "sugar_isle"
@@ -272,7 +299,8 @@
       "sugar_isle"
     ],
     "town.willemstad": [
-      "entrepot"
+      "entrepot",
+      "weavers"
     ],
     "town.oranjestad_statia": [
       "entrepot"
@@ -326,5 +354,36 @@
     "town.st_martin": [
       "sugar_isle"
     ]
+  },
+  "chains": {
+    "rum": "sugar",
+    "cloth": "cotton"
+  },
+  "towns": {
+    "people": {
+      "hamlet": 800,
+      "town": 3000,
+      "city": 9000
+    },
+    "capitalPeople": 1.4,
+    "pull": 0.04,
+    "netShare": 0.5,
+    "growth": {
+      "satisfied": 0.9,
+      "starved": 0.35,
+      "up": 0.004,
+      "down": 0.02,
+      "min": 0.5,
+      "max": 2
+    },
+    "purse": {
+      "perPerson": 0.4,
+      "refill": 0.12
+    },
+    "coasters": {
+      "tiles": 30,
+      "share": 0.08,
+      "max": 4
+    }
   }
 }

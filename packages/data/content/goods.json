@@ -33,6 +33,18 @@
       "elasticity": 0.5
     },
     {
+      "id": "rum",
+      "name": "Rum",
+      "basePrice": 45,
+      "elasticity": 0.5
+    },
+    {
+      "id": "cloth",
+      "name": "Cloth",
+      "basePrice": 40,
+      "elasticity": 0.5
+    },
+    {
       "id": "luxuries",
       "name": "Luxuries",
       "basePrice": 80,

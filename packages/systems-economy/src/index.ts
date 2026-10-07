@@ -1,5 +1,5 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, Deed, EmittedEvent, FleetShip, KnownPrices, NewsItem, Ship, System, Wind, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, FleetShip, KnownPrices, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, polarAt } from '@corsair/systems-navigation';
@@ -61,6 +61,47 @@ export function normalStock(content: ContentPack, s: Settlement, good: string): 
   return referenceStock(content, s, good) * (1 + (full - 1) * (l?.rate ?? 0));
 }
 
+/** A port's people when it is neither growing nor shrinking: by its size, more at a capital. */
+export function basePeople(content: ContentPack, s: Pick<Settlement, 'size' | 'type'>): number {
+  const t = content.economy.towns;
+  return Math.round((t.people[s.size] ?? t.people.town!) * (s.type === 'capital' ? t.capitalPeople : 1));
+}
+
+/** The gold a port's merchant has to buy with when his purse is full: so much a head. */
+export function purseFull(content: ContentPack, people: number): number {
+  return Math.round(people * content.economy.towns.purse.perPerson);
+}
+
+/** A port's people, purse and trend (a world from before ports lived reads as a steady port of its size). */
+export function townOf(content: ContentPack, state: WorldState, s: Pick<Settlement, 'id' | 'size' | 'type'>): TownState {
+  const people = basePeople(content, s);
+  return state.towns?.[s.id] ?? { people, cash: purseFull(content, people), trend: 0 };
+}
+
+/**
+ * What a port makes and eats of a good a day, by its people and profile: a port that makes a good adds
+ * netShare x pull x its usual stock a day (so with no merchant calling it sits that share above its usual);
+ * one that needs it eats as much. A chained good (rum, cloth) is made only from its input in store.
+ */
+export function dailyFlow(content: ContentPack, state: WorldState, s: Settlement, good: string): { makes: number; eats: number } {
+  const t = content.economy.towns;
+  const l = lean(content, s, good);
+  if (!l) return { makes: 0, eats: 0 };
+  const per = l.rate * t.netShare * t.pull * usualStock(content, state, s, good);
+  return l.side === 'exports' ? { makes: per, eats: 0 } : { makes: 0, eats: per };
+}
+
+/** The stock a market drifts back to today: its usual for a port of its size, scaled by its people, moved by a shock. */
+export function usualStock(content: ContentPack, state: WorldState, s: Settlement, good: string): number {
+  const scale = townOf(content, state, s).people / basePeople(content, s);
+  return normalStock(content, s, good) * scale * shockFactor(content, state, s.id, good);
+}
+
+/** The most a market holds: maxStock times its usual stock for a port of its size, scaled by its people. */
+export function stockCap(content: ContentPack, state: WorldState, s: Settlement, good: string): number {
+  return normalStock(content, s, good) * content.economy.maxStock * (townOf(content, state, s).people / basePeople(content, s));
+}
+
 /** Local mid price for one unit at a stock level, before the buy/sell spread. */
 export function midPrice(content: ContentPack, s: Settlement, good: string, stock: number): number {
   const g = content.goods.find((x) => x.id === good)!;
@@ -90,7 +131,7 @@ export function tradePreview(
   stock: number,
   side: 'Buy' | 'Sell',
   qty: number,
-  limits: { gold: number; room: number; held: number },
+  limits: { gold: number; room: number; held: number; cash?: number },
 ): { units: number; total: number; after: number } {
   let units = 0;
   let total = 0;
@@ -101,7 +142,8 @@ export function tradePreview(
       total += q.buy;
       stock--;
     } else {
-      if (units >= limits.held) break;
+      // The merchant buys only what his purse covers.
+      if (units >= limits.held || (limits.cash !== undefined && limits.cash - total < q.sell)) break;
       total += q.sell;
       stock++;
     }
@@ -116,7 +158,7 @@ export function tradePreview(
  */
 export function priceStory(content: ContentPack, state: WorldState, s: Settlement & { name?: string }, good: string) {
   const stock = state.markets?.[s.id]?.[good] ?? 0;
-  const usualStock = normalStock(content, s, good);
+  const usualStock = normalStock(content, s, good) * (townOf(content, state, s).people / basePeople(content, s));
   const now = quote(content, s, good, stock);
   const usual = quote(content, s, good, usualStock);
   const ratio = (now.buy + now.sell) / Math.max(1, usual.buy + usual.sell);
@@ -124,7 +166,10 @@ export function priceStory(content: ContentPack, state: WorldState, s: Settlemen
   const shock = activeShock(state, s.id, good);
   const name = content.goods.find((g) => g.id === good)?.name.toLowerCase() ?? good;
   const news = shock ? content.economy.shocks.kinds[shock.kind]?.news.replaceAll('{good}', name).replaceAll('{town}', s.name ?? s.id) : undefined;
-  return { stock: Math.round(stock), usualStock: Math.round(usualStock), level, usual, news };
+  // What the port makes and eats of it a day, and the days its stock would last at that rate.
+  const flow = dailyFlow(content, state, s, good);
+  const days = flow.eats > 0 ? stock / flow.eats : undefined;
+  return { stock: Math.round(stock), usualStock: Math.round(usualStock), level, usual, news, makes: flow.makes, eats: flow.eats, days };
 }
 
 const DEPTH_CAP = 999;
@@ -307,7 +352,13 @@ export function withEconomy(world: WorldState, content: ContentPack, settlements
   const ships = Object.fromEntries(
     Object.entries(world.ships).map(([id, s]) => [id, s.ai || s.cargo.food ? s : { ...s, cargo: { ...s.cargo, food: content.crew.startFood } }]),
   );
-  return { ...world, ships, markets, captain, rng: { ...world.rng, economy: rng.state() } };
+  const towns = Object.fromEntries(
+    settlements.map((s) => {
+      const people = basePeople(content, s);
+      return [s.id, { people, cash: purseFull(content, people), trend: 0 as const }];
+    }),
+  );
+  return { ...world, ships, markets, towns, captain, rng: { ...world.rng, economy: rng.state() } };
 }
 
 const activeShock = (state: WorldState, settlementId: string, good: string) =>
@@ -479,6 +530,96 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       },
       events,
     };
+  };
+
+  // Ports near enough for coasting craft, at peace or not decided day by day.
+  const neighbours = settlements.flatMap((a, i) =>
+    settlements.slice(i + 1).filter((b) => Math.hypot(a.x - b.x, a.y - b.y) <= e.towns.coasters.tiles).map((b) => [a, b] as const),
+  );
+
+  /**
+   * A day in the life of the ports (PRD section 6): people make and eat goods, chained goods are made from
+   * their inputs in store, the wider world closes `pull` of each gap to the usual stock, coasting craft
+   * between neighbours at peace even out their stock, and each merchant's purse refills.
+   */
+  const liveDay = (state: WorldState): WorldState => {
+    if (!state.markets) return state;
+    const t = e.towns;
+    const markets: Record<string, Record<string, number>> = {};
+    const usual: Record<string, Record<string, number>> = {};
+    for (const s of settlements) {
+      const market = { ...state.markets[s.id] };
+      usual[s.id] = {};
+      // Chained goods first, from the store as the day begins: today's distilling uses yesterday's sugar.
+      const goods = [...content.goods].sort((x, y) => Number(Boolean(e.chains[y.id])) - Number(Boolean(e.chains[x.id])));
+      for (const g of goods) {
+        const u = usualStock(content, state, s, g.id);
+        usual[s.id]![g.id] = u;
+        const flow = dailyFlow(content, state, s, g.id);
+        let makes = flow.makes;
+        const input = e.chains[g.id];
+        if (input && makes > 0) {
+          makes = Math.min(makes, market[input] ?? 0);
+          market[input] = (market[input] ?? 0) - makes;
+        }
+        const stock = market[g.id] ?? 0;
+        const after = stock + makes - Math.min(stock, flow.eats) + t.pull * (u - stock);
+        market[g.id] = Math.max(0, Math.min(stockCap(content, state, s, g.id), after));
+      }
+      markets[s.id] = market;
+    }
+    for (const [a, b] of neighbours) {
+      if (atWar(content, state, a.nation, b.nation)) continue;
+      // The nearer, the busier the craft: two towns on one island trade almost as one market.
+      const near = t.coasters.tiles / Math.max(3, Math.hypot(a.x - b.x, a.y - b.y));
+      const share = Math.min(0.9, t.coasters.share * near);
+      const cap = t.coasters.max * near;
+      for (const g of content.goods) {
+        // Carried from where it is cheap to where it is dear: stock against each town's demand, which sets the price.
+        const ua = referenceStock(content, a, g.id);
+        const ub = referenceStock(content, b, g.id);
+        const ra = markets[a.id]![g.id]! / Math.max(1, ua);
+        const rb = markets[b.id]![g.id]! / Math.max(1, ub);
+        const raw = (share * (ra - rb) * Math.min(ua, ub)) / 2;
+        const move = Math.sign(raw) * Math.min(cap, Math.abs(raw));
+        if (Math.abs(move) < 0.01) continue;
+        const [from, to] = move > 0 ? [a, b] : [b, a];
+        // No more than she has, nor than the other has room for.
+        const n = Math.max(0, Math.min(Math.abs(move), markets[from.id]![g.id]!, stockCap(content, state, to, g.id) - markets[to.id]![g.id]!));
+        markets[from.id]![g.id]! -= n;
+        markets[to.id]![g.id]! += n;
+      }
+    }
+    const towns: Record<string, TownState> = {};
+    for (const s of settlements) {
+      const town = townOf(content, state, s);
+      const full = purseFull(content, town.people);
+      towns[s.id] = { ...town, cash: Math.round(town.cash + (full - town.cash) * t.purse.refill) };
+    }
+    return { ...state, markets, towns };
+  };
+
+  /** Weekly growth: needs met (stock against usual, food counting double) let a port grow slowly; starved, it shrinks fast. */
+  const grow = (state: WorldState): Record<string, TownState> => {
+    const g = e.towns.growth;
+    const towns: Record<string, TownState> = {};
+    for (const s of settlements) {
+      const town = townOf(content, state, s);
+      let met = 0;
+      let weight = 0;
+      for (const good of content.goods) {
+        if (dailyFlow(content, state, s, good.id).eats <= 0) continue;
+        const w = good.staple ? 2 : 1;
+        met += w * Math.min(1, (state.markets?.[s.id]?.[good.id] ?? 0) / Math.max(1, usualStock(content, state, s, good.id)));
+        weight += w;
+      }
+      const share = weight ? met / weight : 1;
+      const base = basePeople(content, s);
+      const trend: TownState['trend'] = share >= g.satisfied ? 1 : share < g.starved ? -1 : 0;
+      const people = Math.round(Math.max(base * g.min, Math.min(base * g.max, town.people * (trend > 0 ? 1 + g.up : trend < 0 ? 1 - g.down : 1))));
+      towns[s.id] = { ...town, people, trend: people === town.people && trend > 0 ? 0 : trend };
+    }
+    return towns;
   };
 
   return {
@@ -760,6 +901,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!(qty > 0)) return refuse(state, ship, 'bad-quantity');
         let stock = state.markets[s.id]![command.good] ?? 0;
         let gold = state.captain.gold;
+        const town = townOf(content, state, s);
+        // The merchant's purse: what he pays out for the player's goods, filled by what she buys from him.
+        let cash = town.cash;
         let held = ship.cargo[command.good] ?? 0;
         let used = cargoUsed(ship);
         let done = 0;
@@ -774,11 +918,13 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             if (stock < 1 || gold < q.buy || used >= capacity(state, ship)) break;
             stock--;
             gold -= q.buy;
+            cash += q.buy;
             held++;
             used++;
             total += q.buy;
           } else {
-            if (held < 1) break;
+            if (held < 1 || cash < q.sell) break;
+            cash -= q.sell;
             stock++;
             if (done < plunderHeld) chestGain += q.sell;
             else gold += q.sell;
@@ -789,7 +935,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         }
         if (done === 0) {
           const reason =
-            command.type === 'Sell' ? 'none-in-hold' : stock < 1 ? 'sold-out' : used >= capacity(state, ship) ? 'hold-full' : 'not-enough-gold';
+            command.type === 'Sell' ? (held < 1 ? 'none-in-hold' : 'merchant-out-of-gold') : stock < 1 ? 'sold-out' : used >= capacity(state, ship) ? 'hold-full' : 'not-enough-gold';
           return refuse(state, ship, reason, { good: command.good });
         }
         const market = { ...state.markets[s.id]!, [command.good]: stock };
@@ -810,6 +956,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const next = {
           ...state,
           markets: { ...state.markets, [s.id]: market },
+          towns: { ...state.towns, [s.id]: { ...town, cash: Math.round(cash) } },
           ships: { ...state.ships, [ship.id]: { ...ship, cargo, paid, ...(ship.plunder ? { plunder } : {}) } },
         };
         // The rest of the captain (standing, marques, deeds, news heard, the crew's side) stays as it was.
@@ -841,6 +988,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const fed = messDay(next, tick);
         next = fed.state;
         events.push(...fed.events);
+        next = liveDay(next);
       }
       const shock = (s: Settlement, good: string, kind: string) => {
         const r = startShock(content, next, s, good, kind, tick, rng);
@@ -854,7 +1002,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         for (const s of settlements) {
           if (Math.hypot(storm.x - s.x, storm.y - s.y) > storm.radius) continue;
           for (const g of content.goods) {
-            if (tradeLean(content, s, g.id) === 'exports' && !activeShock(next, s.id, g.id)) shock(s, g.id, 'storm');
+            // The crops in the fields, not what the distilleries and looms make of them.
+            if (tradeLean(content, s, g.id) === 'exports' && !e.chains[g.id] && !activeShock(next, s.id, g.id)) shock(s, g.id, 'storm');
           }
         }
       }
@@ -878,21 +1027,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           const goods = content.goods.filter((g) => tradeLean(content, s, g.id) === e.shocks.kinds[kind]!.on && !activeShock(next, s.id, g.id));
           if (goods.length) shock(s, goods[Math.floor(rng.float() * goods.length)]!.id, kind);
         }
-        // Weekly market turn: each market closes part of the gap to its usual stock (production refills
-        // what was bought, consumption eats what was dumped), shaken by a harvest. A shock moves the
-        // usual stock, not the cap, so a glut can't ratchet stock upward week after week.
-        const markets: Record<string, Record<string, number>> = {};
-        for (const s of settlements) {
-          const market = { ...next.markets![s.id] };
-          for (const g of content.goods) {
-            const usual = normalStock(content, s, g.id) * shockFactor(content, next, s.id, g.id) * rng.range(e.harvest[0], e.harvest[1]);
-            const stock = market[g.id] ?? 0;
-            const moved = stock + (usual - stock) * e.weeklyRecovery;
-            market[g.id] = Math.round(Math.max(0, Math.min(normalStock(content, s, g.id) * e.maxStock, moved)));
-          }
-          markets[s.id] = market;
-        }
-        next = { ...next, markets };
+        // Weekly, towns grow or shrink by how well their needs were met: slowly up, fast down.
+        next = { ...next, towns: grow(next) };
         events.push({ type: 'MarketsTurned', entityIds: [], payload: { week: tick / ticksPerWeek } });
       }
       return { state: { ...next, rng: { ...next.rng, economy: rng.state() } }, events };

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
 import type { BattleResult, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
-import { createEconomySystem, normalStock, withEconomy } from '@corsair/systems-economy';
+import { createEconomySystem, normalStock, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -66,7 +66,7 @@ describe('ships at sea', () => {
     expect(arrived.some((e) => Object.keys(e.payload.cargo as object).length > 0)).toBe(true);
     for (const s of settlements) {
       for (const g of content.goods) {
-        expect(a.state.markets![s.id]![g.id]!).toBeLessThanOrEqual(Math.round(normalStock(content, s, g.id) * content.economy.maxStock));
+        expect(a.state.markets![s.id]![g.id]!).toBeLessThanOrEqual(Math.ceil(stockCap(content, a.state, s, g.id)));
         expect(a.state.markets![s.id]![g.id]!).toBeGreaterThanOrEqual(0);
       }
     }

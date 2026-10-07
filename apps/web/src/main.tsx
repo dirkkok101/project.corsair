@@ -22,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, fleetBerths, fleetHold, fleetMinCrew, fleetOf, foodDays, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, fleetBerths, fleetHold, fleetMinCrew, fleetOf, foodDays, townOf, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -162,8 +162,13 @@ const ESCORT_GAP_TILES = 2.5;
 /** How far the flagship moves before her track gets a new point, and how many points it keeps. */
 const TRACK_STEP_TILES = 0.25;
 const TRACK_POINTS = 400;
-/** How often a course checks its way is still clear, and re-plots it if not. */
+/** How often the plotted line to a destination on the chart is redrawn (display only). */
 const REPLAN_MS = 1000;
+/**
+ * How often a course checks its way is still clear, and re-plots it if not: by the game's clock, not the
+ * screen's, so a voyage sails the same way however busy the machine (once a second at 1x).
+ */
+const REPLAN_TICKS = TICKS_PER_SECOND;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
 const HOLD_COAST_TILES = 3;
 const HOLD_PORT_TILES = 5;
@@ -460,6 +465,11 @@ async function main() {
       return undefined;
     },
     plan: () => voyagePlan(),
+    people: (id) => {
+      const s = settlements.find((x) => x.id === id)!;
+      const t = townOf(content, sim.state, s);
+      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}`;
+    },
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {
@@ -570,7 +580,7 @@ async function main() {
   let courseNote: { text: string; until: number } | undefined;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: string | undefined;
-  let lastReplan = 0;
+  let lastReplanTick = -Infinity;
   const setCourse = (x: number, y: number, held: boolean) => {
     const me = player();
     const port = held ? undefined : portAt(x, y);
@@ -1005,8 +1015,8 @@ async function main() {
     }
     // The course's look-out: about once a second, if the way to her next waypoint isn't clear water any more
     // (beating has carried her off the line, round the wrong side of a spit), plot a new route from where she is.
-    if (now - lastReplan > REPLAN_MS) {
-      lastReplan = now;
+    if (sim.state.tick - lastReplanTick >= REPLAN_TICKS) {
+      lastReplanTick = sim.state.tick;
       const me = player();
       const plan = me.assist;
       if (!me.docked && plan?.mode === 'course' && plan.x !== undefined && plan.y !== undefined) {

@@ -27,6 +27,8 @@ import {
   sellDepth,
   shipValue,
   shockFactor,
+  stockCap,
+  usualStock,
   tradeLean,
   tradePreview,
   withEconomy,
@@ -136,10 +138,11 @@ describe('docking and trading', () => {
   });
 
   it('knows what every port exports and wants, from its profiles', () => {
-    expect(portTrade(content, bridgetown).exports).toEqual(['sugar']);
+    // Bridgetown grows sugar and distils some of it into rum.
+    expect(portTrade(content, bridgetown).exports).toEqual(['sugar', 'rum']);
     // Bridgetown uses a little cotton (rate 0.3): too little to be known as a cotton market. Food is a
     // staple: needed, but never worth carrying for profit, so it is not tagged at all.
-    expect(portTrade(content, bridgetown).wants).toEqual(['luxuries']);
+    expect(portTrade(content, bridgetown).wants).toEqual(['cloth', 'luxuries']);
     expect(tradeLean(content, portRoyal, 'food')).toBeUndefined();
     expect(tradeLean(content, portRoyal, 'sugar')).toBe('wants');
     expect(tradeLean(content, bridgetown, 'silver')).toBeUndefined();
@@ -206,7 +209,7 @@ describe('docking and trading', () => {
 });
 
 describe('weekly markets', () => {
-  it('turns once a week: producers gain stock, everything stays within bounds, and it replays', () => {
+  it('lives day by day and turns once a week: everything stays within bounds, and it replays', () => {
     const run = () => {
       const sim = moored(portRoyal, 9);
       sim.step(7 * day * 4);
@@ -218,7 +221,7 @@ describe('weekly markets', () => {
       for (const g of content.goods) {
         const stock = a.state.markets![s.id]![g.id]!;
         expect(stock).toBeGreaterThanOrEqual(0);
-        expect(stock).toBeLessThanOrEqual(normalStock(content, s, g.id) * content.economy.maxStock);
+        expect(stock).toBeLessThanOrEqual(stockCap(content, a.state, s, g.id));
       }
     }
     expect(run().hash()).toBe(a.hash());
@@ -343,7 +346,7 @@ describe('market shocks and news', () => {
     expect(started.length).toBeLessThan(50);
     for (const s of settlements) {
       for (const g of content.goods) {
-        expect(a.state.markets![s.id]![g.id]!).toBeLessThanOrEqual(normalStock(content, s, g.id) * content.economy.maxStock);
+        expect(a.state.markets![s.id]![g.id]!).toBeLessThanOrEqual(stockCap(content, a.state, s, g.id));
       }
     }
     // Old news is forgotten after ten weeks.
@@ -591,6 +594,92 @@ describe('explaining prices', () => {
     expect(priceStory(content, at(usual * 3), portRoyal, 'sugar').level).toBe('cheap');
     const shocked = { ...at(usual * 0.3), shocks: [{ id: 's', kind: 'shortage', settlementId: portRoyal.id, good: 'sugar', startTick: 0, endTick: 1e9 }] };
     expect(priceStory(content, shocked, { ...portRoyal, name: 'Port Royal' }, 'sugar').news).toContain('Port Royal');
+  });
+});
+
+describe('ports that live', () => {
+  const at = (sim: ReturnType<typeof moored>, id: string, good: string) => sim.state.markets![id]![good]!;
+  /** The economy alone (no merchants) from a world with every market at its usual stock. */
+  const still = () => {
+    const sim = moored();
+    const markets = Object.fromEntries(settlements.map((s) => [s.id, Object.fromEntries(content.goods.map((g) => [g.id, usualStock(content, sim.state, s, g.id)]))]));
+    return createSim({ ...sim.state, markets }, [createEconomySystem(content, settlements)]);
+  };
+
+  it('with no merchant calling, a port that needs a good runs below its usual stock, and one that makes it above', () => {
+    const sim = still();
+    sim.step(day * 60);
+    // Port Royal needs sugar; Bridgetown grows it (and distils some of it, so its glut is smaller).
+    expect(at(sim, portRoyal.id, 'sugar')).toBeLessThan(usualStock(content, sim.state, portRoyal, 'sugar') * 0.8);
+    expect(at(sim, bridgetown.id, 'sugar')).toBeGreaterThan(usualStock(content, sim.state, bridgetown, 'sugar') * 1.1);
+  });
+
+  it('rum is distilled only from the sugar in store, and uses it up', () => {
+    const run = (sugar: number) => {
+      const sim = still();
+      const markets = { ...sim.state.markets, [bridgetown.id]: { ...sim.state.markets![bridgetown.id], sugar, rum: 0 } };
+      const live = createSim({ ...sim.state, markets }, [createEconomySystem(content, settlements)]);
+      live.step(day);
+      return live;
+    };
+    const dry = run(0);
+    const full = run(500);
+    expect(at(full, bridgetown.id, 'rum')).toBeGreaterThan(at(dry, bridgetown.id, 'rum'));
+    expect(at(full, bridgetown.id, 'sugar')).toBeLessThan(500);
+  });
+
+  it("the merchant buys only what his purse covers, and it fills again day by day", () => {
+    const sim = moored();
+    const s = sim.state;
+    const poor = createSim(
+      { ...s, towns: { ...s.towns, [portRoyal.id]: { ...s.towns![portRoyal.id]!, cash: 200 } }, ships: { player: { ...player(s), cargo: { sugar: 60 } } } },
+      [createEconomySystem(content, settlements)],
+    );
+    poor.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    poor.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 60 });
+    poor.applyCommands();
+    const sold = poor.events().find((e) => e.type === 'Sold')!.payload;
+    expect(sold.gold as number).toBeLessThanOrEqual(200);
+    expect(player(poor.state).cargo.sugar).toBeGreaterThan(0);
+    poor.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 60 });
+    poor.applyCommands();
+    expect(poor.events().at(-1)!.payload.reason).toBe('merchant-out-of-gold');
+    // A port is in no hurry while she lies there, but out at sea the days pass and his purse fills.
+    poor.send({ type: 'Undock', shipId: 'player' });
+    poor.applyCommands();
+    poor.step(day * 5);
+    expect(poor.state.towns![portRoyal.id]!.cash).toBeGreaterThan(200);
+  });
+
+  it('coasting craft make two towns on one island one market: the St Kitts gap closes', () => {
+    const sim = moored();
+    const live = createSim(sim.state, [createEconomySystem(content, settlements)]);
+    const basseTerre = town('town.basse_terre_st_kitts');
+    const oldRoad = town('town.old_road');
+    const gap = () =>
+      quote(content, oldRoad, 'luxuries', live.state.markets![oldRoad.id]!.luxuries!).sell - quote(content, basseTerre, 'luxuries', live.state.markets![basseTerre.id]!.luxuries!).buy;
+    expect(gap()).toBeGreaterThan(30);
+    live.step(day * 30);
+    expect(gap()).toBeLessThan(5);
+  });
+
+  it('a port whose needs are met grows slowly; a starved one shrinks fast', () => {
+    const sim = still();
+    const s = sim.state;
+    const fed = Object.fromEntries(content.goods.map((g) => [g.id, stockCap(content, s, portRoyal, g.id)]));
+    const starved = Object.fromEntries(content.goods.map((g) => [g.id, 0]));
+    const run = (market: Record<string, number>) => {
+      const live = createSim({ ...s, markets: { ...s.markets, [portRoyal.id]: market } }, [createEconomySystem(content, settlements)]);
+      live.step(day * 7);
+      return live.state.towns![portRoyal.id]!;
+    };
+    const base = s.towns![portRoyal.id]!.people;
+    const up = run(fed);
+    const down = run(starved);
+    expect(up).toMatchObject({ trend: 1 });
+    expect(up.people).toBeGreaterThan(base);
+    expect(down).toMatchObject({ trend: -1 });
+    expect(base - down.people).toBeGreaterThan((up.people - base) * 3);
   });
 });
 

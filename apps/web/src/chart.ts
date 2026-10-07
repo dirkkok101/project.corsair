@@ -113,6 +113,8 @@ export interface ChartMarket {
   pirateRangeTiles: number;
   /** Whether a port would deal with the captain, in a line (or nothing when it simply would). */
   welcome: (settlementId: string) => string | undefined;
+  /** A port's people and trend, in a few words. */
+  people: (settlementId: string) => string;
   /** The voyages worth sailing from where the captain is: trades priced from what she has seen, and leads. */
   plan: () => VoyagePlan;
 }
@@ -217,7 +219,7 @@ export function createCharts(
     const needs = market.goods.filter((g) => market.lean(s.id, g.id) === 'wants').map((g) => g.name);
     const welcome = market.welcome(s.id);
     const head =
-      `<div class="chart-prices-name">${s.name}</div><div class="chart-prices-age">${kind}</div>` +
+      `<div class="chart-prices-name">${s.name}</div><div class="chart-prices-age">${kind} · ${market.people(s.id)}</div>` +
       (makes.length ? `<div class="chart-prices-trade"><span class="lean-exports">▲ makes</span> ${makes.join(', ')}</div>` : '') +
       (needs.length ? `<div class="chart-prices-trade"><span class="lean-wants">▼ needs</span> ${needs.join(', ')}</div>` : '') +
       (welcome ? `<div class="chart-prices-warn">${welcome}</div>` : '');
