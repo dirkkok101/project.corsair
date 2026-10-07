@@ -26,6 +26,7 @@ import {
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 import { shipTitle } from './hail';
+import { Art, GoodIcon } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -142,7 +143,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         {spots}
         <div class="port-bar">
           <span class="port-name">{town.name}</span>
-          <span>{gold.toLocaleString()} gold</span>
+          <span>
+            <Art id="ui.icon.gold" class="inline-icon" /> {gold.toLocaleString()} gold
+          </span>
           <button class="leave" onClick={() => setOpen('merchant')}>
             Merchant
           </button>
@@ -180,7 +183,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             </div>
           </div>
           <div class="port-purse">
-            <div>{gold.toLocaleString()} gold</div>
+            <div>
+              <Art id="ui.icon.gold" class="inline-icon" /> {gold.toLocaleString()} gold
+            </div>
             <div>
               Hold {used} / {capacity}
             </div>
@@ -252,7 +257,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
                 return (
                   <tr key={g.id}>
                     <td>
-                      {g.name} {tag ? <span class={`trend ${side === 'exports' ? 'export' : 'want'}`}>{tag}</span> : null}
+                      <GoodIcon id={g.id} /> {g.name} {tag ? <span class={`trend ${side === 'exports' ? 'export' : 'want'}`}>{tag}</span> : null}
                       {scarce ? <span class="trend scarce">scarce</span> : null}
                     </td>
                     <td class="num">{q.buy}</td>
@@ -376,7 +381,8 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
   return (
     <div class="recruit crew-pay">
       <span>
-        {moraleWord(content, morale)} ({Math.round(morale)}) · chest {Math.round(share.chest)} · unpaid {days} days
+        <Art id="ui.icon.morale" class="inline-icon" /> {moraleWord(content, morale)} ({Math.round(morale)}) ·{' '}
+        <Art id="ui.icon.chest" class="inline-icon" /> chest {Math.round(share.chest)} · unpaid {days} days
       </span>
       <button disabled={share.chest <= 0} onClick={() => send({ type: 'DividePlunder', shipId })}>
         Divide the plunder{share.chest > 0 ? ` · you take ${share.captain}, each man ${Math.round(share.perHead)}` : ''}

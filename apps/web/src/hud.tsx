@@ -4,6 +4,7 @@ import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
 import { crewOf, foodDays, moraleOf, moraleWord } from '@corsair/systems-economy';
+import { Art } from './ui-art';
 
 const ROSE = { size: 120, inner: 8, outer: 46 };
 
@@ -174,8 +175,9 @@ export function Hud({
         </div>
         <div>Crew</div>
         <div>
-          {crewOf(content, ship)}/{stats.maxCrew} · {moraleWord(content, moraleOf(content, state))} ({Math.round(moraleOf(content, state))}) · food{' '}
-          {Math.floor(foodDays(content, ship))} days · chest {Math.round(state.captain?.chest ?? 0)}
+          {crewOf(content, ship)}/{stats.maxCrew} · <Art id="ui.icon.morale" class="inline-icon" /> {moraleWord(content, moraleOf(content, state))} (
+          {Math.round(moraleOf(content, state))}) · <Art id="ui.icon.food" class="inline-icon" /> {Math.floor(foodDays(content, ship))} days ·{' '}
+          <Art id="ui.icon.chest" class="inline-icon" /> chest {Math.round(state.captain?.chest ?? 0)}
         </div>
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />

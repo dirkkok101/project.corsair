@@ -1,19 +1,9 @@
 // The ship panel (bottom left, at sea and in battle): the ship's portrait, her hull, sails and crew, a row
 // of cannon per broadside lit as they are loaded (after Pirates!' cannon status), and the modes to click.
-// The art is the painted UI kit (art/sources/paintings/README.md, imported by tools/art/import_ui.ts).
+// The art is the painted UI kit (./ui-art).
 
 import type { SailSetting } from '@corsair/core';
-
-const ART = Object.fromEntries(
-  Object.entries(import.meta.glob<string>('../../../art/game/ui/*.png', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
-    path.split('/').pop()!.replace(/\.png$/, ''),
-    url,
-  ]),
-);
-/** A UI kit image, drawn pixel for pixel. */
-function Art({ id, class: cls, title }: { id: string; class?: string; title?: string }) {
-  return <img class={`ui-art${cls ? ` ${cls}` : ''}`} src={ART[id]} alt="" title={title} draggable={false} />;
-}
+import { ART, Art } from './ui-art';
 
 export type Shot = 'round' | 'chain' | 'grape';
 
@@ -84,12 +74,20 @@ export function ShipPanel(p: ShipPanelProps) {
       <Bar label="Sails" icon="ui.icon.full_sail" value={p.sails} max={100} />
       <Bar label="Crew" icon="ui.icon.crew" value={p.crew} max={p.berths} />
       {p.morale ? (
-        <div class="panel-bar" title="Morale">
-          <span class="panel-bar-label">{p.morale.word}</span>
+        <div class="panel-bar" title={`Morale: ${p.morale.word} (${Math.round(p.morale.value)})`}>
+          <Art id="ui.icon.morale" class="panel-icon" />
           <span class="battle-bar-track">
             <span class={`battle-bar-fill${p.morale.value < 40 ? ' low' : ''}`} style={{ width: `${Math.round(p.morale.value)}%` }} />
           </span>
-          {p.foodDays !== undefined ? <span class={`panel-bar-value${p.foodDays <= 3 ? ' low' : ''}`}>{Math.floor(p.foodDays)}d food</span> : null}
+          <span class={`panel-bar-value${p.morale.value < 40 ? ' low' : ''}`}>{p.morale.word}</span>
+        </div>
+      ) : null}
+      {p.foodDays !== undefined ? (
+        <div class="panel-bar" title="Food aboard, in days for this crew">
+          <Art id="ui.icon.food" class="panel-icon" />
+          <span class={p.foodDays <= 3 ? 'low' : ''}>
+            {Math.floor(p.foodDays)} {Math.floor(p.foodDays) === 1 ? 'day' : 'days'} of food
+          </span>
         </div>
       ) : null}
       <Battery label="Port" {...p.guns.port} />

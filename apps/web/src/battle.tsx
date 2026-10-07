@@ -3,6 +3,7 @@ import type { BattleResult, Command } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
 import { ShipPanel } from './panel';
+import { GoodIcon } from './ui-art';
 import type { ShipPanelProps } from './panel';
 
 // The sea battle HUD (scenes doc S3): both ships' hull, sails and crew, the ammo loaded, each
@@ -121,7 +122,9 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
         <tbody>
           {Object.entries(offer.theirs).map(([g, n]) => (
             <tr key={g} class="plunder-take">
-              <td>{name(g)}</td>
+              <td>
+                <GoodIcon id={g} /> {name(g)}
+              </td>
               <td>her {n}</td>
               <td>
                 <button onClick={() => setTake({ ...take, [g]: Math.max(0, (take[g] ?? 0) - step(n)) })}>−</button>
@@ -132,7 +135,9 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
           ))}
           {Object.entries(offer.mine).map(([g, n]) => (
             <tr key={`mine-${g}`} class="plunder-throw">
-              <td>{name(g)}</td>
+              <td>
+                <GoodIcon id={g} /> {name(g)}
+              </td>
               <td>yours {n}</td>
               <td>
                 <button onClick={() => setJettison({ ...jettison, [g]: Math.max(0, (jettison[g] ?? 0) - step(n)) })}>−</button>

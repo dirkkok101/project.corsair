@@ -1282,6 +1282,18 @@ body {
   object-fit: contain;
 }
 
+/* A kit icon in a line of text: a good, the purse, the chest, the crew's mood and food. */
+.inline-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: -3px;
+}
+
+.panel-bar .low {
+  color: #cf573c;
+}
+
 .panel-top {
   display: flex;
   align-items: flex-end;
