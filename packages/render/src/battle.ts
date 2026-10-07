@@ -28,6 +28,8 @@ export interface BattleViewState {
   /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
    * whether each broadside can fire now (as the battle's aim reports it). */
   arcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
+  /** She has gone down: barrels and men in the water where she sank. */
+  wreck?: { barrels: { x: number; y: number }[]; survivors: { x: number; y: number; men: number }[] };
 }
 
 const EFFECT_SECONDS = 0.6;
@@ -44,6 +46,8 @@ const CANVAS = 0xe7d5b3;
 const BALL = 0x090a14;
 const GOLD = 0xe8c170;
 const PALE = 0xebede9;
+const BARREL = 0x884b2b;
+const HOOP = 0x4d2b32;
 
 export function createBattleView(
   content: ContentPack,
@@ -135,9 +139,11 @@ export function createBattleView(
       world.position.set(-cx, -cy);
       water.tilePosition.set(-cx + Math.round(nowMs / 400), -cy);
       place(sprites.enemy, state.ships.enemy, state.wind, nowMs, ts);
+      // Sunk: her sprite and colours are gone, and the wreckage floats where she went down.
+      sprites.enemy.visible = !state.wreck;
       place(sprites.player, state.ships.player, state.wind, nowMs, ts);
       pennants.update(
-        (['player', 'enemy'] as const).map((side) => {
+        (state.wreck ? (['player'] as const) : (['player', 'enemy'] as const)).map((side) => {
           const s = state.ships[side];
           return {
             ship: { ...s, id: side, speed: 0, helm: 0, blocked: false, cargo: {} },
@@ -201,6 +207,27 @@ export function createBattleView(
         fx.rect(Math.round((s.x + (s.tx - s.x) * k) * ts) - 1, Math.round((s.y + (s.ty - s.y) * k) * ts) - 1, 3, 3);
       }
       if (state.shots.length) fx.fill(BALL);
+      if (state.wreck) {
+        // Barrels bob as small staved squares; the men in the water are heads among a little white water.
+        const bob = (x: number) => Math.round(Math.sin(nowMs / 500 + x) * 1.5);
+        for (const b of state.wreck.barrels) {
+          const x = Math.round(b.x * ts);
+          const y = Math.round(b.y * ts) + bob(b.x);
+          fx.rect(x - 4, y - 3, 8, 6).fill(BARREL);
+          fx.rect(x - 4, y - 1, 8, 1).fill(HOOP);
+        }
+        for (const g of state.wreck.survivors) {
+          const x = Math.round(g.x * ts);
+          const y = Math.round(g.y * ts);
+          for (let k = 0; k < Math.min(6, g.men); k++) {
+            const a = k * 2.4;
+            const hx = x + Math.round(Math.cos(a) * (3 + k));
+            const hy = y + Math.round(Math.sin(a) * (2 + k)) + bob(g.x + k);
+            fx.rect(hx - 2, hy, 5, 2).fill({ color: SPLASH, alpha: 0.8 });
+            fx.rect(hx - 1, hy - 2, 3, 3).fill(SPLINTER);
+          }
+        }
+      }
     },
   };
 }

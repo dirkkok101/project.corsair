@@ -1,4 +1,5 @@
-import type { BattleResult } from '@corsair/core';
+import { useEffect, useState } from 'preact/hooks';
+import type { BattleResult, Command } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
 import { ShipPanel } from './panel';
@@ -10,12 +11,152 @@ import type { ShipPanelProps } from './panel';
 
 const OUTCOME: Record<BattleResult['outcome'], string> = {
   sunk: 'She goes down by the head, and her cargo with her.',
-  struck: 'She strikes her colours! Her purse and what cargo your hold can take are yours.',
-  boarded: 'Your men carry her deck. She is your prize: her purse and what cargo your hold can take are yours.',
+  struck: 'She strikes her colours! Her purse is yours; choose what to take from her hold.',
+  boarded: 'Your men carry her deck. She is your prize: her purse is yours; choose what to take from her hold.',
   escaped: 'She draws clear and slips away over the horizon.',
   fled: 'You break off and leave her astern. She will remember your colours.',
   lost: 'You are beaten and forced to strike. They let you go, but not empty-handed.',
 };
+
+const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands', pirate: 'the pirates' };
+
+/** What the fight changed (the world's BattleOver event): the after-action report reads it line by line. */
+export interface BattleReport {
+  outcome: BattleResult['outcome'];
+  nation: string;
+  role: string;
+  purse: number;
+  salvageGold: number;
+  rescued: number;
+  menLost: number;
+  volunteers: number;
+  moraleBefore: number;
+  morale: number;
+  standing: Record<string, number>;
+  lost: { gold: number; chest: number; cargo: Record<string, number> };
+}
+
+/** A prize waiting on the plunder screen: her hold, the men who would sign on, and the player's own hold. */
+export interface PlunderOffer {
+  theirs: Record<string, number>;
+  volunteers: number;
+  mine: Record<string, number>;
+  capacity: number;
+}
+
+export type PlunderChoice = Omit<Extract<Command, { type: 'TakePlunder' }>, 'type' | 'shipId'>;
+
+const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+const goodsText = (content: ContentPack, goods: Record<string, number>) =>
+  Object.entries(goods)
+    .filter(([, n]) => n > 0)
+    .map(([g, n]) => `${n} ${content.goods.find((x) => x.id === g)?.name.toLowerCase() ?? g}`)
+    .join(', ');
+
+/** The report's lines: what was won, what was lost, and what the world thinks of it. */
+function reportLines(content: ContentPack, r: BattleReport, attacked: boolean): string[] {
+  const lines: string[] = [];
+  if (r.purse) lines.push(`Her purse: ${r.purse} gold into the plunder chest.`);
+  if (r.salvageGold || r.rescued) {
+    const bits = [r.salvageGold ? `${r.salvageGold} gold from the barrels` : '', r.rescued ? `${r.rescued} men out of the water join you` : ''].filter(Boolean);
+    lines.push(`From the wreck: ${bits.join('; ')}.`);
+  }
+  if (r.lost.chest) lines.push(`The pirates took the plunder chest: ${r.lost.chest} gold.`);
+  if (goodsText(content, r.lost.cargo)) lines.push(`They emptied your hold: ${goodsText(content, r.lost.cargo)}.`);
+  if (r.lost.gold) lines.push(`Her captain fined you ${r.lost.gold} gold.`);
+  if (r.menLost) lines.push(`Men lost: ${r.menLost}.`);
+  if (r.morale !== r.moraleBefore) lines.push(`Crew morale ${r.moraleBefore} to ${r.morale}.`);
+  const standing = Object.entries(r.standing).map(([n, d]) => `${COUNTRY[n] ?? n} ${signed(d)}`);
+  if (attacked && r.nation !== 'pirate') standing.unshift(`${COUNTRY[r.nation]} ${signed(content.combat.standing.attack)} for the attack`);
+  if (standing.length) lines.push(`Standing: ${standing.join(', ')}.`);
+  if (r.outcome === 'sunk' || r.outcome === 'struck' || r.outcome === 'boarded') {
+    lines.push(r.nation === 'pirate' ? 'Any governor pays a bounty for her.' : `Governors at war with ${COUNTRY[r.nation]} pay a bounty for her.`);
+  }
+  return lines;
+}
+
+/** Her hold the most valuable first, as much as the room allows: the plunder screen's starting choice. */
+function bestTake(content: ContentPack, theirs: Record<string, number>, room: number) {
+  const take: Record<string, number> = {};
+  const value = (g: string) => content.goods.find((x) => x.id === g)?.basePrice ?? 0;
+  for (const g of Object.keys(theirs).sort((a, b) => value(b) - value(a))) {
+    const n = Math.min(theirs[g]!, room);
+    if (n > 0) take[g] = n;
+    room -= n;
+  }
+  return take;
+}
+
+/**
+ * The plunder screen (Pirates! 2004): pick what comes aboard from her hold, throw your own over the side to
+ * make room, sign the volunteers on or put them ashore, then sink her (Enter) or let her go (L).
+ */
+function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: PlunderOffer; onPlunder: (choice: PlunderChoice) => void }) {
+  const used = Object.values(offer.mine).reduce((a, b) => a + b, 0);
+  const [take, setTake] = useState(() => bestTake(content, offer.theirs, offer.capacity - used));
+  const [jettison, setJettison] = useState<Record<string, number>>({});
+  const [volunteers, setVolunteers] = useState(offer.volunteers > 0);
+  const thrown = Object.values(jettison).reduce((a, b) => a + b, 0);
+  const taking = Object.values(take).reduce((a, b) => a + b, 0);
+  const room = offer.capacity - used + thrown - taking;
+  const choose = (release: boolean) => onPlunder({ take, jettison, volunteers, release });
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.key === 'Enter') choose(false);
+      else if (e.key.toLowerCase() === 'l') choose(true);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
+  const name = (g: string) => content.goods.find((x) => x.id === g)?.name ?? g;
+  const step = (n: number) => Math.max(1, Math.ceil(n / 4));
+  return (
+    <div class="plunder">
+      <div class="plunder-hold">
+        Your hold {used - thrown + taking} / {offer.capacity}
+      </div>
+      {Object.keys(offer.theirs).length ? null : <div>Her hold is empty.</div>}
+      <table>
+        <tbody>
+          {Object.entries(offer.theirs).map(([g, n]) => (
+            <tr key={g} class="plunder-take">
+              <td>{name(g)}</td>
+              <td>her {n}</td>
+              <td>
+                <button onClick={() => setTake({ ...take, [g]: Math.max(0, (take[g] ?? 0) - step(n)) })}>−</button>
+                <span class="plunder-n">take {take[g] ?? 0}</span>
+                <button onClick={() => setTake({ ...take, [g]: Math.min(n, (take[g] ?? 0) + Math.min(step(n), room)) })}>+</button>
+              </td>
+            </tr>
+          ))}
+          {Object.entries(offer.mine).map(([g, n]) => (
+            <tr key={`mine-${g}`} class="plunder-throw">
+              <td>{name(g)}</td>
+              <td>yours {n}</td>
+              <td>
+                <button onClick={() => setJettison({ ...jettison, [g]: Math.max(0, (jettison[g] ?? 0) - step(n)) })}>−</button>
+                <span class="plunder-n">over the side {jettison[g] ?? 0}</span>
+                <button onClick={() => setJettison({ ...jettison, [g]: Math.min(n, (jettison[g] ?? 0) + step(n)) })}>+</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {offer.volunteers > 0 ? (
+        <label class="plunder-volunteers">
+          <input type="checkbox" checked={volunteers} onChange={() => setVolunteers(!volunteers)} /> {offer.volunteers} of her men will sign on (more mouths, thinner shares)
+        </label>
+      ) : null}
+      <div class="plunder-actions">
+        <button class="leave" onClick={() => choose(false)}>
+          Take it and sink her · Enter
+        </button>
+        <button onClick={() => choose(true)}>Take it and let her go · L</button>
+      </div>
+    </div>
+  );
+}
 
 const AIM: Record<Aim, string> = {
   ready: 'fire!',
@@ -75,6 +216,15 @@ export interface BattleHudProps {
   panel: ShipPanelProps;
   /** The battle view in CSS pixels (the player's ship is at its centre), and CSS pixels per tile. */
   view: { w: number; h: number; pxPerTile: number };
+  /** She may strike any moment now. */
+  wavering: boolean;
+  /** The after-action report, once the fight's result has reached the world. */
+  report?: BattleReport;
+  /** The player started the fight (an attack on a nation's ship costs standing with it). */
+  attacked: boolean;
+  /** A prize waiting on the plunder screen. */
+  offer?: PlunderOffer;
+  onPlunder: (choice: PlunderChoice) => void;
   onContinue: () => void;
 }
 
@@ -99,7 +249,7 @@ function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps
   );
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, view, onContinue }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, view, wavering, report, attacked, offer, onPlunder, onContinue }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -110,8 +260,20 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
       <div class="battle-card battle-enemy">
         <ShipCard ship={state.ships.enemy} title={enemyTitle} name={enemyName} />
       </div>
-      {state.result ? null : <EnemyMarker state={state} view={view} />}
-      {!state.result && apart > b.warnTiles ? (
+      {state.result || state.wreck ? null : <EnemyMarker state={state} view={view} />}
+      {wavering ? <div class="battle-parting battle-waver">She's wavering: keep at her and she'll strike</div> : null}
+      {state.wreck && !state.result ? (
+        <div class="battle-parting battle-wreck">
+          <span>
+            She's gone down. Sail over the barrels and the men in the water ({state.wreck.gold} gold, {state.wreck.men} men so far) · Enter to leave the
+            wreck
+          </span>
+          <span class="battle-bar-track">
+            <span class="battle-bar-fill" style={{ width: `${Math.round(Math.max(0, (state.wreck.until - state.tick / 30) / content.combat.salvage.seconds) * 100)}%` }} />
+          </span>
+        </div>
+      ) : null}
+      {!state.result && !state.wreck && apart > b.warnTiles ? (
         <div class="battle-parting">
           <span>{apart > b.escapeTiles ? 'Drawing apart: close in or she is gone' : 'Drawing apart'}</span>
           <span class="battle-bar-track">
@@ -145,12 +307,23 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
         <div class="battle-report">
           <div class="port-name">{TITLE[state.result.outcome]}</div>
           <p>{OUTCOME[state.result.outcome]}</p>
+          {report ? (
+            <ul class="battle-ledger">
+              {reportLines(content, report, attacked).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
           <p class="port-sub">
             Your crew: {state.result.player.crew}. Hull {state.result.player.hull}, sails {state.result.player.sailCondition}%.
           </p>
-          <button class="leave" onClick={onContinue}>
-            Continue · Enter
-          </button>
+          {offer ? (
+            <Plunder content={content} offer={offer} onPlunder={onPlunder} />
+          ) : (
+            <button class="leave" onClick={onContinue}>
+              Continue · Enter
+            </button>
+          )}
         </div>
       ) : null}
     </div>

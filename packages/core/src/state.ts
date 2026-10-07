@@ -216,6 +216,8 @@ export interface BattleResult {
   /** Each side's state at the end. The fight is virtual: both ships stay where they met on the world map. */
   player: BattleEnd;
   enemy: BattleEnd;
+  /** After a sinking: the gold from barrels and the men out of the water the player picked up. */
+  salvage?: { gold: number; men: number };
 }
 
 export interface BattleEnd {
@@ -281,6 +283,11 @@ export interface WorldState {
   /** Counter for AI ship ids. */
   nextShipId?: number;
   politics?: Politics;
+  /**
+   * A ship just taken, waiting on the captain's word (TakePlunder): her cargo to choose from, the men
+   * who would sign on, and whether she was carried by boarding or struck.
+   */
+  prize?: { ship: Ship; volunteers: number };
 }
 
 export type Command =
@@ -310,6 +317,18 @@ export type Command =
   | { type: 'Attack'; shipId: string; targetId: string }
   /** A sea battle is over: its result (from the battle minigame) applied to the world. */
   | { type: 'BattleEnded'; shipId: string; targetId: string; result: BattleResult }
+  /**
+   * The plunder screen's word on the prize: goods to take from her, the player's own goods to throw over
+   * to make room, whether the volunteers sign on, and whether she is let go (else she is sunk).
+   */
+  | {
+      type: 'TakePlunder';
+      shipId: string;
+      take: Record<string, number>;
+      jettison?: Record<string, number>;
+      volunteers: boolean;
+      release: boolean;
+    }
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
   | { type: 'Repair'; shipId: string }

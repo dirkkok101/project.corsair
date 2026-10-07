@@ -10,5 +10,6 @@ Canonical home for the product requirements and art / sprite planning. Art notes
 | `corsair-pixel-art-research.md` | Targeted research: 16-dir ships, RotSprite, autotiles, licensing, **free-first tool stack** |
 | `ai-game-sprites-research.md` | Broad AI sprite research (YT / tools) |
 | `ai-game-sprites-SKILL.md` | Reusable skill for AI sprite production |
+| `reference/pirates-original-games.md` | How Pirates! (1987) and Sid Meier's Pirates! (2004) handled battle aftermath and crew, with manual and wiki sources: check it before designing an equivalent |
 
 Vault notes under DirkVault `00-System/Skills/` for these titles are stubs pointing here.

@@ -1,6 +1,6 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
-import type { Ship } from '@corsair/core';
+import type { Nation, Ship } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, loadContent, placeSettlements, shipStats } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
@@ -33,6 +33,7 @@ import { Hail, shipTitle } from './hail';
 import { bindMouse } from './mouse';
 import { ShipPanel } from './panel';
 import { BattleHud } from './battle';
+import type { BattleReport, PlunderChoice } from './battle';
 import { battleMap, createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
 import type { TileMap } from '@corsair/data';
@@ -149,20 +150,6 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
 
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
-/**
- * A save from before the crew slice: the crew's side starts as a new career's (morale, an empty chest, paid
- * up to now) and the ship gets a little food, so an old career doesn't open on a starving crew.
- */
-function withCrew(state: import('@corsair/core').WorldState): import('@corsair/core').WorldState {
-  if (!state.captain || state.captain.morale !== undefined) return state;
-  const content = loadContent();
-  const ships = Object.fromEntries(
-    Object.entries(state.ships).map(([id, s]) => [id, s.ai ? s : { ...s, cargo: { ...s.cargo, food: (s.cargo.food ?? 0) + OLD_SAVE_FOOD } }]),
-  );
-  return { ...state, ships, captain: { ...state.captain, chest: 0, morale: content.crew.morale.start, paidTick: state.tick, mess: 0 } };
-}
-/** Food given to the ship in a save from before the crew slice. */
-const OLD_SAVE_FOOD = 10;
 /** How often a course checks its way is still clear, and re-plots it if not. */
 const REPLAN_MS = 1000;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
@@ -207,7 +194,7 @@ async function main() {
   // A restored state already carries its markets, weather and RNG streams; seeding them again would reset them.
   // A save from before ships sailed gets its population topped up a ship a day.
   const world =
-    (resumed && withCrew(resumed.state)) ??
+    resumed?.state ??
     withTraffic(
       withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed),
       content,
@@ -258,7 +245,23 @@ async function main() {
   let hailing: { targetId: string; news: string[] } | undefined;
   const battleRoot = stage.appendChild(document.createElement('div'));
   // A sea battle in progress (PRD section 9.1): world time stands still until its result is applied.
-  let fight: { battle: Battle; map: TileMap; targetId: string; acc: number; heardAt: number } | undefined;
+  let fight:
+    | {
+        battle: Battle;
+        map: TileMap;
+        targetId: string;
+        acc: number;
+        heardAt: number;
+        /** Who she is, kept from the start: a ship taken or sunk is gone from the world by the report. */
+        name: string;
+        title: string;
+        nation?: Nation;
+        /** The player attacked her (rather than being run down). */
+        attacked: boolean;
+        /** What the fight changed, once its result has reached the world. */
+        report?: BattleReport;
+      }
+    | undefined;
   let eventsSeen = 0;
   // Fights are sailed on the world map itself, drawn at battle scale.
   const battleSea = battleMap(content, map);
@@ -269,7 +272,7 @@ async function main() {
   });
   window.addEventListener('blur', () => (fireHeld = false));
   /** Seat the ships as they lay where they met. */
-  const startBattle = (targetId: string) => {
+  const startBattle = (targetId: string, attacked: boolean) => {
     const me = player();
     const them = sim.state.ships[targetId];
     if (!them || fight) return;
@@ -284,13 +287,27 @@ async function main() {
       playerMorale: moraleOf(content, sim.state),
     });
     hailing = undefined;
-    fight = { battle, map: battleSea, targetId, acc: 0, heardAt: -1 };
+    fight = { battle, map: battleSea, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: shipTitle(them), nation: them.ai?.nation, attacked };
   };
-  /** The result goes into the world as a command, so replays and saves see the fight's outcome. */
-  const endBattle = () => {
+  /**
+   * The result goes into the world as a command the moment the fight ends (so replays and saves see it),
+   * and the after-action report reads what it changed from the world's BattleOver event.
+   */
+  const settleBattle = () => {
     const result = fight?.battle.result();
-    if (!fight || !result) return;
+    if (!fight || !result || fight.report) return;
     sim.send({ type: 'BattleEnded', shipId: player().id, targetId: fight.targetId, result });
+    sim.applyCommands();
+    fight.report = sim.events().filter((e) => e.type === 'BattleOver').at(-1)?.payload as unknown as BattleReport;
+  };
+  /** Back to the sea; a prize must first be settled on the plunder screen. */
+  const endBattle = () => {
+    settleBattle();
+    if (!fight?.report || sim.state.prize) return;
+    fight = undefined;
+  };
+  const takePlunder = (choice: PlunderChoice) => {
+    sim.send({ type: 'TakePlunder', shipId: player().id, ...choice });
     sim.applyCommands();
     fight = undefined;
   };
@@ -352,7 +369,10 @@ async function main() {
       const k = e.key.toLowerCase();
       if (k === ' ' || k === 'tab') e.preventDefault();
       if (fight.battle.result()) {
-        if ((k === 'enter' || k === ' ') && !e.repeat) endBattle();
+        // With a prize waiting, the plunder screen takes Enter.
+        if ((k === 'enter' || k === ' ') && !e.repeat && !sim.state.prize) endBattle();
+      } else if (k === 'enter' && fight.battle.state.wreck && !e.repeat) {
+        fight.battle.send({ type: 'LeaveWreck' });
       } else if (k === ' ') {
         fireHeld = true;
         fight.battle.send({ type: 'Fire' });
@@ -647,6 +667,7 @@ async function main() {
           fight.acc -= dt;
         }
       }
+      if (fight.battle.result()) settleBattle();
       const bs = fight.battle.state;
       // Sound for what just happened: placed left or right of the player's ship, fainter further off.
       try {
@@ -676,15 +697,20 @@ async function main() {
             port: fight.battle.aim('port'),
             starboard: fight.battle.aim('starboard'),
           };
-      renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, sim.state.ships[fight.targetId]?.ai?.nation);
-      const them = sim.state.ships[fight.targetId];
+      renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, fight.nation);
       const me = player();
+      const prize = sim.state.prize;
       render(
         <BattleHud
           state={bs}
           content={content}
-          enemyName={them?.ai?.name ?? 'Enemy'}
-          enemyTitle={them ? shipTitle(them) : ''}
+          enemyName={fight.name}
+          enemyTitle={fight.title}
+          wavering={fight.battle.wavering()}
+          report={fight.report}
+          attacked={fight.attacked}
+          offer={prize ? { theirs: prize.ship.cargo, volunteers: prize.volunteers, mine: me.cargo, capacity: content.ships[me.classId]!.cargo } : undefined}
+          onPlunder={takePlunder}
           reloadSeconds={gunnery.reloadSeconds}
           aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}
           panel={(() => {
@@ -780,7 +806,7 @@ async function main() {
     if (evs.length < eventsSeen) eventsSeen = 0;
     for (let i = eventsSeen; i < evs.length; i++) {
       const ev = evs[i]!;
-      if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!);
+      if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
       if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
       if (ev.type === 'Undocked') portNotice = undefined;
       // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.

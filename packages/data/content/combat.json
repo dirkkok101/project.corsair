@@ -58,7 +58,18 @@
   "strike": {
     "hull": 0.25,
     "crew": 0.3,
-    "chance": 0.15
+    "chance": 0.15,
+    "merchantSails": 0.25,
+    "odds": 3,
+    "oddsTiles": 6
+  },
+  "salvage": {
+    "seconds": 25,
+    "barrels": 5,
+    "barrelGold": 50,
+    "survivors": 0.2,
+    "spreadTiles": 2.5,
+    "pickupTiles": 1
   },
   "boarding": {
     "player": 1.2,
@@ -117,7 +128,9 @@
     "attack": -20,
     "pirate": 3,
     "hostile": -30,
-    "refused": -50
+    "refused": -50,
+    "enemyWin": 5,
+    "warshipTaken": 2
   },
   "port": {
     "recruitGold": 10,

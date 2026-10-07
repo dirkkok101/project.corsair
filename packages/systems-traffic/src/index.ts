@@ -4,7 +4,7 @@ import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, moraleOf, newsAt, normalStock, quote } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
-import { atWar, legalTarget, raisePiracy } from '@corsair/systems-politics';
+import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import type { SeaLanes } from './lanes';
 
 export { createSeaLanes } from './lanes';
@@ -478,25 +478,37 @@ export function createTrafficSystem(
         const player = state.ships[command.shipId];
         const other = state.ships[command.targetId];
         if (!player || !other?.ai || !state.captain) return undefined;
-        const { outcome, player: mine, enemy: theirs } = command.result;
+        const { outcome, player: mine, enemy: theirs, salvage } = command.result;
         const cls = content.ships[player.classId]!;
-        let captain = state.captain;
+        const nation = other.ai.nation;
+        const taken = outcome === 'struck' || outcome === 'boarded';
+        const won = taken || outcome === 'sunk';
+        const beaten = outcome === 'lost';
+        const before = state.captain;
+        let captain = before;
         let cargo = player.cargo;
         const ships = { ...state.ships };
-        const events: EmittedEvent[] = [{ type: 'BattleOver', entityIds: [player.id, other.id], payload: { outcome } }];
-        // Beaten, the player is let go afloat: a pirate takes the cargo and half the gold (and of the plunder
-        // chest), a patrol fines half.
-        const beaten = outcome === 'lost';
+        // Beaten, the player is let go afloat. A pirate takes the plunder chest and the hold; the captain's
+        // own purse is safe (as gold already divided is in Pirates! 2004). A nation's captain fines half the purse.
+        const lost = { gold: 0, chest: 0, cargo: {} as Record<string, number> };
         if (beaten) {
-          if (other.ai.role === 'pirate') cargo = {};
-          captain = { ...captain, gold: Math.floor(captain.gold / 2), chest: Math.floor((captain.chest ?? 0) / 2) };
+          if (other.ai.role === 'pirate') {
+            lost.chest = before.chest ?? 0;
+            lost.cargo = { ...player.cargo };
+            cargo = {};
+            captain = { ...captain, chest: 0 };
+          } else {
+            lost.gold = Math.floor(before.gold / 2);
+            captain = { ...captain, gold: before.gold - lost.gold };
+          }
         }
         // The crew's spirits: a prize lifts them, a loss of men or the fight sinks them (crew.json morale).
         const cm = content.crew.morale;
         const crewBefore = crewOf(content, player);
-        const lost = Math.max(0, crewBefore - mine.crew);
-        const won = outcome === 'struck' || outcome === 'boarded' ? cm.taken : outcome === 'sunk' ? cm.sunk : beaten ? -cm.taken : 0;
-        const morale = Math.max(0, Math.min(100, moraleOf(content, state) + won - (cm.lossFactor * lost) / Math.max(1, crewBefore)));
+        const menLost = Math.max(0, crewBefore - mine.crew);
+        const cheer = taken ? cm.taken : outcome === 'sunk' ? cm.sunk : beaten ? -cm.taken : 0;
+        const moraleBefore = moraleOf(content, state);
+        const morale = Math.max(0, Math.min(100, moraleBefore + cheer - (cm.lossFactor * menLost) / Math.max(1, crewBefore)));
         captain = { ...captain, morale };
         // The fight was virtual: each ship stays where they met. Guns knocked out stay lost.
         ships[player.id] = {
@@ -509,45 +521,76 @@ export function createTrafficSystem(
           sailCondition: Math.max(beaten ? 20 : 0, mine.sailCondition),
           crew: Math.max(beaten ? Math.ceil(cls.minCrew / 2) : 1, mine.crew),
         };
-        if (outcome === 'escaped' || outcome === 'fled' || beaten) {
+        // Picked from the wreck: the barrels' gold is plunder, the men out of the water sign on (berths allowing).
+        let rescued = 0;
+        if (salvage) {
+          captain = { ...captain, chest: (captain.chest ?? 0) + salvage.gold };
+          rescued = Math.max(0, Math.min(salvage.men, shipStats(content, player).maxCrew - ships[player.id]!.crew!));
+          ships[player.id] = { ...ships[player.id]!, crew: ships[player.id]!.crew! + rescued };
+        }
+        let prize: WorldState['prize'];
+        let purse = 0;
+        if (!won) {
           // She sails on, mauled, and leaves the player be a while.
           const calmUntil = state.tick + Math.round(cb.chase.calmDays * tpd);
           ships[other.id] = { ...other, ...theirs, ai: { ...other.ai, chasing: false, calmUntil } };
         } else {
-          // Sunk or taken: she's gone from the sea. A prize's gold and cargo (what the hold can take) come aboard.
+          // Sunk or taken: she's off the sea. Taken, her gold is plunder at once (it weighs nothing); her
+          // cargo and the men who would sign on wait for the captain's word on the plunder screen (TakePlunder).
           delete ships[other.id];
-          if (outcome !== 'sunk') {
-            // Her gold is plunder: into the chest the crew sails for. Her cargo too, once sold.
-            captain = { ...captain, chest: (captain.chest ?? 0) + (other.ai.purse ?? 0) };
-            const room = () => cls.cargo - Object.values(cargo).reduce((a, b) => a + b, 0);
-            cargo = { ...cargo };
-            const plunder = { ...player.plunder };
-            for (const [good, units] of Object.entries(other.cargo)) {
-              const take = Math.min(units, room());
-              if (take <= 0) continue;
-              cargo[good] = (cargo[good] ?? 0) + take;
-              plunder[good] = (plunder[good] ?? 0) + take;
-            }
-            // Some of her men sign on (pirates readily), as many as there are berths for.
+          if (taken) {
+            purse = other.ai.purse ?? 0;
+            captain = { ...captain, chest: (captain.chest ?? 0) + purse };
             const share = other.ai.role === 'pirate' ? content.crew.volunteers.pirate : content.crew.volunteers.other;
             const berths = shipStats(content, player).maxCrew - ships[player.id]!.crew!;
-            const join = Math.max(0, Math.min(berths, Math.round(theirs.crew * share)));
-            if (join > 0) events.push({ type: 'Volunteers', entityIds: [player.id, other.id], payload: { count: join } });
-            ships[player.id] = { ...ships[player.id]!, cargo, plunder, crew: ships[player.id]!.crew! + join };
+            const volunteers = Math.max(0, Math.min(berths, Math.round(theirs.crew * share)));
+            prize = { ship: { ...other, ...theirs, ai: { ...other.ai, purse: 0, chasing: false, target: undefined } }, volunteers };
           }
-          if (other.ai.nation === 'pirate') {
-            const standing = { ...captain.standing };
-            for (const n of ['spain', 'england', 'france', 'netherlands'] as const) standing[n] = Math.min(100, (standing[n] ?? 0) + cb.standing.pirate);
-            captain = { ...captain, standing };
+          const standing = { ...captain.standing };
+          if (nation === 'pirate') {
+            // Everyone thinks the better of a pirate hunter.
+            for (const n of NATIONS) standing[n] = Math.min(100, (standing[n] ?? 0) + cb.standing.pirate);
+          } else {
+            // Her nation's enemies approve (Pirates! 2004: twice over for a warship carried, not sunk).
+            const gain = cb.standing.enemyWin * (taken && other.ai.role === 'patrol' ? cb.standing.warshipTaken : 1);
+            for (const n of NATIONS) if (n !== nation && atWar(content, state, n, nation)) standing[n] = Math.min(100, (standing[n] ?? 0) + gain);
           }
+          captain = { ...captain, standing };
           // A deed for a governor's bounty: any governor pays for pirates; enemies of his nation, too.
-          const deed = { nation: other.ai.nation, role: other.ai.role, kind: outcome === 'sunk' ? ('sunk' as const) : ('taken' as const), tick: state.tick };
+          const deed = { nation, role: other.ai.role, kind: outcome === 'sunk' ? ('sunk' as const) : ('taken' as const), tick: state.tick };
           captain = { ...captain, deeds: [...(captain.deeds ?? []), deed] };
         }
+        // The after-action report: everything the fight changed, for the battle's last screen.
+        const standingChange: Record<string, number> = {};
+        for (const n of NATIONS) {
+          const d = (captain.standing?.[n] ?? 0) - (before.standing?.[n] ?? 0);
+          if (d) standingChange[n] = d;
+        }
+        const events: EmittedEvent[] = [
+          {
+            type: 'BattleOver',
+            entityIds: [player.id, other.id],
+            payload: {
+              outcome,
+              ship: other.ai.name,
+              nation,
+              role: other.ai.role,
+              purse,
+              salvageGold: salvage?.gold ?? 0,
+              rescued,
+              menLost,
+              volunteers: prize?.volunteers ?? 0,
+              moraleBefore: Math.round(moraleBefore),
+              morale: Math.round(morale),
+              standing: standingChange,
+              lost,
+            },
+          },
+        ];
         // The fight is news, starting from the nearest port.
-        let next: WorldState = { ...state, ships, captain };
-        if (outcome === 'sunk' || outcome === 'struck' || outcome === 'boarded') {
-          const kind = other.ai.nation === 'pirate' && outcome === 'sunk' ? 'pirateSunk' : outcome === 'sunk' ? 'sunk' : 'taken';
+        let next: WorldState = { ...state, ships, captain, prize };
+        if (won) {
+          const kind = nation === 'pirate' && outcome === 'sunk' ? 'pirateSunk' : outcome === 'sunk' ? 'sunk' : 'taken';
           const rng = rngStream(state.rng?.traffic ?? seedRng(0, 'traffic'));
           const n = state.nextNewsId ?? 0;
           const item = {
@@ -558,11 +601,63 @@ export function createTrafficSystem(
             good: '',
             delayDays: Math.floor(rng.range(content.economy.news.delayDays[0], content.economy.news.delayDays[1] + 1)),
             ship: other.ai.name,
-            nation: other.ai.nation,
+            nation,
           };
           next = { ...next, news: [...(next.news ?? []), item], nextNewsId: n + 1, rng: { ...next.rng, traffic: rng.state() } };
         }
         return { state: next, events };
+      }
+      if (command.type === 'TakePlunder') {
+        // The plunder screen's word (Pirates! 2004): her goods the hold can take, the player's own thrown
+        // over to make room, the volunteers signed on or put ashore, and the prize let go or sunk.
+        const player = state.ships[command.shipId];
+        const prize = state.prize;
+        if (!player || !prize) return undefined;
+        const cargo: Record<string, number> = { ...player.cargo };
+        const plunder: Record<string, number> = { ...player.plunder };
+        const paid: Record<string, number> = { ...player.paid };
+        const jettisoned: Record<string, number> = {};
+        for (const [good, n] of Object.entries(command.jettison ?? {})) {
+          const held = cargo[good] ?? 0;
+          const out = Math.max(0, Math.min(held, Math.floor(n)));
+          if (!out) continue;
+          jettisoned[good] = out;
+          // What's left keeps its share of what it cost; plunder marks can't outnumber what's aboard.
+          if (paid[good]) paid[good] = Math.round(paid[good] * ((held - out) / held));
+          cargo[good] = held - out;
+          if (plunder[good]) plunder[good] = Math.min(plunder[good], cargo[good]);
+          if (!cargo[good]) {
+            delete cargo[good];
+            delete paid[good];
+          }
+          if (!plunder[good]) delete plunder[good];
+        }
+        const capacity = content.ships[player.classId]!.cargo;
+        const room = () => capacity - Object.values(cargo).reduce((a, b) => a + b, 0);
+        const theirs: Record<string, number> = { ...prize.ship.cargo };
+        const took: Record<string, number> = {};
+        for (const [good, n] of Object.entries(command.take)) {
+          const take = Math.max(0, Math.min(Math.floor(n), theirs[good] ?? 0, room()));
+          if (!take) continue;
+          took[good] = take;
+          cargo[good] = (cargo[good] ?? 0) + take;
+          plunder[good] = (plunder[good] ?? 0) + take;
+          theirs[good]! -= take;
+          if (!theirs[good]) delete theirs[good];
+        }
+        const crew = crewOf(content, player);
+        const join = command.volunteers ? Math.max(0, Math.min(prize.volunteers, shipStats(content, player).maxCrew - crew)) : 0;
+        const ships = { ...state.ships, [player.id]: { ...player, cargo, plunder, paid, crew: crew + join } };
+        if (command.release) {
+          // Let go with what's left in her hold; she keeps clear of the player a while.
+          const calmUntil = state.tick + Math.round(cb.chase.calmDays * tpd);
+          const left = prize.ship;
+          ships[left.id] = { ...left, cargo: theirs, crew: Math.max(1, (left.crew ?? 0) - join), ai: { ...left.ai!, calmUntil } };
+        }
+        return {
+          state: { ...state, ships, prize: undefined },
+          events: [{ type: 'PlunderTaken', entityIds: [player.id, prize.ship.id], payload: { took, jettisoned, volunteers: join, released: command.release } }],
+        };
       }
       if (command.type === 'SpawnShip') {
         const from = byId.get(command.from);

@@ -153,7 +153,7 @@ describe('fights at sea', () => {
     expect(chase.state.ships[id]!.ai!.chasing).toBe(false);
   });
 
-  it("taking a merchant costs standing with her nation, and brings her gold and cargo aboard", () => {
+  it("taking a merchant costs standing with her nation; her gold is plunder at once, and the plunder screen settles the rest", () => {
     const sim = world(6);
     const { id, near } = spawnAlongside(sim, 'merchant', 'town.port_royal', 'town.cartagena');
     const prize = { ...near.ships[id]!, cargo: { sugar: 12 }, ai: { ...near.ships[id]!.ai!, purse: 300 } };
@@ -166,18 +166,47 @@ describe('fights at sea', () => {
     fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('struck') });
     fight.applyCommands();
     expect(fight.state.ships[id]).toBeUndefined();
-    // Her gold is plunder, for the crew's chest; her cargo comes aboard marked as plunder too.
+    // Her gold is plunder at once, for the crew's chest; her cargo and her volunteers wait on the plunder screen.
     expect(fight.state.captain!.gold).toBe(gold);
     expect(fight.state.captain!.chest).toBe(300);
-    expect(fight.state.ships.player!.cargo.sugar).toBe(12);
-    expect(fight.state.ships.player!.plunder).toEqual({ sugar: 12 });
-    // A tenth of her surviving crew (9) volunteers; and a prize lifts the crew's spirits.
-    expect(fight.state.ships.player!.crew).toBe(50 + Math.round(9 * content.crew.volunteers.other));
+    expect(fight.state.ships.player!.cargo.sugar).toBeUndefined();
+    const volunteers = Math.round(9 * content.crew.volunteers.other);
+    expect(fight.state.prize).toMatchObject({ ship: { id, cargo: { sugar: 12 } }, volunteers });
+    // The after-action report: her purse, a prize's cheer, and Spain (at war with England in 1660) approving.
+    const report = fight.events().find((e) => e.type === 'BattleOver')!.payload;
+    expect(report).toMatchObject({ outcome: 'struck', purse: 300, nation: 'england', volunteers, standing: { spain: content.combat.standing.enemyWin } });
+    expect(fight.state.captain!.standing!.spain).toBe(content.combat.standing.enemyWin);
     expect(fight.state.captain!.morale).toBeGreaterThan(content.crew.morale.start - 20);
     expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'taken', ship: prize.ai.name, nation: 'england' });
+
+    // Take 8 of her 12 sugar and the volunteers, and let her go with the rest.
+    fight.send({ type: 'TakePlunder', shipId: 'player', take: { sugar: 8 }, volunteers: true, release: true });
+    fight.applyCommands();
+    expect(fight.state.prize).toBeUndefined();
+    expect(fight.state.ships.player!.cargo.sugar).toBe(8);
+    expect(fight.state.ships.player!.plunder).toEqual({ sugar: 8 });
+    expect(fight.state.ships.player!.crew).toBe(50 + volunteers);
+    expect(fight.state.ships[id]!.cargo).toEqual({ sugar: 4 });
+    expect(fight.state.ships[id]!.ai!.calmUntil).toBeGreaterThan(fight.state.tick);
   });
 
-  it('sinking a pirate raises standing everywhere; losing to one costs the cargo and half the gold', () => {
+  it('the plunder screen: over the side to make room, the hold limits what comes aboard, and a sunk prize is gone', () => {
+    const sim = world(6);
+    const { id, near } = spawnAlongside(sim, 'merchant', 'town.port_royal', 'town.cartagena');
+    const hold = content.ships[near.ships.player!.classId]!.cargo;
+    const full = { ...near.ships.player!, cargo: { hides: hold }, paid: { hides: hold * 10 } };
+    const fight = createSim({ ...near, ships: { ...near.ships, player: full, [id]: { ...near.ships[id]!, cargo: { luxuries: 30 } } } }, [traffic()]);
+    fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('boarded') });
+    fight.applyCommands();
+    fight.send({ type: 'TakePlunder', shipId: 'player', take: { luxuries: 30 }, jettison: { hides: 20 }, volunteers: false, release: false });
+    fight.applyCommands();
+    expect(fight.state.ships.player!.cargo).toEqual({ hides: hold - 20, luxuries: 20 });
+    expect(fight.state.ships.player!.paid!.hides).toBe((hold - 20) * 10);
+    expect(fight.state.ships.player!.crew).toBe(50);
+    expect(fight.state.ships[id]).toBeUndefined();
+  });
+
+  it('sinking a pirate raises standing everywhere; losing to one costs the hold and the chest, never the purse', () => {
     const sim = world(8);
     const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
     const win = createSim(near, [traffic()]);
@@ -185,13 +214,15 @@ describe('fights at sea', () => {
     win.applyCommands();
     expect(win.state.captain!.standing).toMatchObject({ spain: 3, england: 3, france: 3, netherlands: 3 });
 
-    const laden = { ...near, ships: { ...near.ships, player: { ...near.ships.player!, cargo: { luxuries: 20 } } } };
+    const laden = { ...near, captain: { ...near.captain!, chest: 400 }, ships: { ...near.ships, player: { ...near.ships.player!, cargo: { luxuries: 20 } } } };
     const lose = createSim(laden, [traffic()]);
     const gold = lose.state.captain!.gold;
     lose.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('lost') });
     lose.applyCommands();
     expect(lose.state.ships.player!.cargo).toEqual({});
-    expect(lose.state.captain!.gold).toBe(Math.floor(gold / 2));
+    expect(lose.state.captain!.chest).toBe(0);
+    expect(lose.state.captain!.gold).toBe(gold);
+    expect(lose.events().find((e) => e.type === 'BattleOver')!.payload.lost).toEqual({ gold: 0, chest: 400, cargo: { luxuries: 20 } });
     expect(lose.state.ships[id]).toBeDefined();
   });
 

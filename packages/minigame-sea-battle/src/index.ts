@@ -69,14 +69,29 @@ export interface BattleState {
   shots: Shot[];
   effects: BattleEffect[];
   rng: RngState;
+  /**
+   * She has gone down: barrels of her purse and her men in the water, to sail over and pick up until
+   * `until` (battle seconds), or until the player leaves the wreck. What's picked up so far is kept here.
+   */
+  wreck?: Wreck;
   result?: BattleResult;
+}
+
+export interface Wreck {
+  until: number;
+  barrels: { x: number; y: number }[];
+  survivors: { x: number; y: number; men: number }[];
+  gold: number;
+  men: number;
 }
 
 export type BattleCommand =
   | Extract<Command, { type: 'SetHelm' | 'SetSails' | 'SetAssist' }>
   /** Fire a broadside; with no side, whichever bears and is loaded (one fire key for the player). */
   | { type: 'Fire'; side?: Broadside }
-  | { type: 'SetAmmo'; ammo: Ammo };
+  | { type: 'SetAmmo'; ammo: Ammo }
+  /** Done picking over the wreck: the fight ends now. */
+  | { type: 'LeaveWreck' };
 
 export interface BattleSetup {
   map: TileMap;
@@ -327,6 +342,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
 
   /** `byAi`: the command came from an AI captain's steering (the enemy, or the headless autopilot). */
   const apply = (side: Side, cmd: BattleCommand, rng: ReturnType<typeof rngStream>, byAi = false) => {
+    if (cmd.type === 'LeaveWreck') {
+      if (state.wreck) end('sunk');
+      return;
+    }
     if (cmd.type === 'Fire') {
       const broadside = cmd.side ?? (['port', 'starboard'] as const).find((b) => aim(side, b) === 'ready');
       return broadside ? fire(side, broadside, rng) : undefined;
@@ -353,7 +372,52 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       crew: Math.max(0, Math.round(s.crew)),
       guns: s.guns,
     });
-    state = { ...state, result: { outcome, player: strip(state.ships.player), enemy: strip(state.ships.enemy) } };
+    const salvage = state.wreck ? { salvage: { gold: state.wreck.gold, men: state.wreck.men } } : {};
+    state = { ...state, result: { outcome, player: strip(state.ships.player), enemy: strip(state.ships.enemy), ...salvage } };
+  };
+
+  /** Beaten enough that she may strike: each second, at strike.chance. */
+  const beaten = (e: BattleShip) => e.hull < e.hullMax * c.strike.hull || e.crew < e.crewStart * c.strike.crew;
+  /**
+   * A merchant gives up outright: her sails shot away (she can't run), or outmanned odds to one with the
+   * player close enough to board (Pirates! 2004: a demasted ship strikes, and merchants give up sooner).
+   */
+  const yields = (e: BattleShip, p: BattleShip) =>
+    (e.role ?? 'merchant') === 'merchant' && (e.sailCondition < 100 * c.strike.merchantSails || (p.crew >= e.crew * c.strike.odds && distance() <= c.strike.oddsTiles));
+
+  /** She goes down: her purse floats off in barrels and her men take to the water around the wreck. */
+  const sink = (e: BattleShip, rng: ReturnType<typeof rngStream>) => {
+    const s = c.salvage;
+    const around = () => {
+      const a = rng.float() * Math.PI * 2;
+      const r = s.spreadTiles * (0.4 + 0.6 * rng.float());
+      return { x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r };
+    };
+    const barrels = Array.from({ length: s.barrels }, around).filter((b) => water(b.x, b.y));
+    const men = Math.round(e.crew * s.survivors);
+    const groups = men >= 2 ? [Math.ceil(men / 2), Math.floor(men / 2)] : men ? [men] : [];
+    const survivors = groups.map((m) => ({ ...around(), men: m })).filter((g) => water(g.x, g.y));
+    state = {
+      ...state,
+      grappling: 0,
+      parting: 0,
+      ships: { ...state.ships, enemy: { ...e, hull: 0, speed: 0, sails: 'furled' } },
+      wreck: { until: seconds() + s.seconds, barrels, survivors, gold: 0, men: 0 },
+    };
+  };
+  /** Sailing over the wreckage: a barrel is her gold, a knot of men in the water are hands. */
+  const salvage = (w: Wreck, p: BattleShip): Wreck => {
+    const near = (o: { x: number; y: number }) => Math.hypot(o.x - p.x, o.y - p.y) <= c.salvage.pickupTiles;
+    const gotBarrels = w.barrels.filter(near).length;
+    const gotMen = w.survivors.filter(near).reduce((n, g) => n + g.men, 0);
+    if (!gotBarrels && !gotMen) return w;
+    return {
+      ...w,
+      barrels: w.barrels.filter((b) => !near(b)),
+      survivors: w.survivors.filter((g) => !near(g)),
+      gold: w.gold + gotBarrels * c.salvage.barrelGold,
+      men: w.men + gotMen,
+    };
   };
 
   return {
@@ -364,6 +428,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       queue.push(cmd);
     },
     result: () => state.result,
+    /** She may strike any moment now (shown to the player, so a surrender can be worked for). */
+    wavering: () => !state.result && !state.wreck && (beaten(state.ships.enemy) || yields(state.ships.enemy, state.ships.player)),
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
     /** The player's guns now: a broadside's reload, and how far the shot loaded reaches. */
@@ -373,9 +439,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       for (let i = 0; i < ticks && !state.result; i++) {
         const rng = rngStream(state.rng);
         for (const cmd of queue.splice(0)) apply('player', cmd, rng);
+        if (state.result) break;
         if (state.tick % AI_THINK_TICKS === 0) {
           const enemyRole = state.ships.enemy.role ?? 'merchant';
-          for (const cmd of steer('enemy', c.personality[enemyRole])) apply('enemy', cmd, rng, true);
+          if (!state.wreck) for (const cmd of steer('enemy', c.personality[enemyRole])) apply('enemy', cmd, rng, true);
           if (autopilot) for (const cmd of steer('player', autopilot)) apply('player', cmd, rng, true);
         }
 
@@ -442,7 +509,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
 
         const p = state.ships.player;
         const e = state.ships.enemy;
-        if (e.hull <= 0) end('sunk');
+        if (state.wreck) {
+          // Picking over the wreck: nothing more to fight, until the time is up or nothing is left.
+          const wreck = salvage(state.wreck, p);
+          state = { ...state, wreck, grappling: 0, parting: 0 };
+          if (seconds() >= wreck.until || (!wreck.barrels.length && !wreck.survivors.length)) end('sunk');
+        } else if (e.hull <= 0) sink(e, rng);
         else if (p.hull <= 0) end('lost');
         else if (state.grappling >= c.battle.grappleSeconds) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
@@ -460,9 +532,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           end(p.speed * toward < 0 ? 'fled' : 'escaped');
         } else if (seconds() >= c.battle.maxSeconds) end('escaped');
         else if (state.tick % TPS === 0) {
-          // Once a second a beaten enemy may haul down her colours.
-          const beaten = e.hull < e.hullMax * c.strike.hull || e.crew < e.crewStart * c.strike.crew;
-          if (beaten && rng.float() < c.strike.chance) end('struck');
+          // Once a second: a merchant that can't run or can't fight gives up; a beaten enemy may haul down
+          // her colours.
+          if (yields(e, p)) end('struck');
+          else if (beaten(e) && rng.float() < c.strike.chance) end('struck');
         }
         state = { ...state, rng: rng.state() };
       }

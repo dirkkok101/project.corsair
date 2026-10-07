@@ -204,6 +204,58 @@ describe('sea battle', () => {
     expect(cut.state.grappling).toBe(0);
   });
 
+  it('a merchant with her sails shot away, or outmanned three to one alongside, strikes; the HUD sees her waver', () => {
+    const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } };
+    const meet = (enemy: Ship, crew?: number) =>
+      createBattle(quick, { map, wind: { fromDeg: 0, strength: 'fresh' }, player: { ...ship('ship.brig'), crew }, enemy, seed: 2, bearingDeg: 90 });
+    const demasted = meet({ ...ship('ship.fluyt', 'merchant'), sailCondition: 20 });
+    expect(demasted.wavering()).toBe(true);
+    demasted.step(30);
+    expect(demasted.result()!.outcome).toBe('struck');
+    // Three to one and close: she gives up. A pirate outmanned the same way fights on.
+    const outmanned = meet({ ...ship('ship.fluyt', 'merchant'), crew: 20 }, 60);
+    outmanned.step(30);
+    expect(outmanned.result()!.outcome).toBe('struck');
+    const pirate = meet({ ...ship('ship.sloop', 'pirate'), crew: 20 }, 60);
+    expect(pirate.wavering()).toBe(false);
+    pirate.step(30);
+    expect(pirate.result()).toBeUndefined();
+  });
+
+  it('sunk, she leaves barrels and men in the water: sailing over them is gold and hands, and Leave ends it', () => {
+    const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } };
+    const sinking = () =>
+      createBattle(quick, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 0 },
+        enemy: { ...ship('ship.sloop', 'pirate'), hull: 0, crew: 40 },
+        seed: 4,
+        bearingDeg: 90,
+      });
+    const b = sinking();
+    b.step(1);
+    // She's gone down: no result yet, the wreck lies there to be picked over.
+    expect(b.result()).toBeUndefined();
+    const wreck = b.state.wreck!;
+    expect(wreck.barrels.length).toBeGreaterThan(0);
+    expect(wreck.survivors.reduce((n, g) => n + g.men, 0)).toBe(Math.round(40 * content.combat.salvage.survivors));
+    expect(b.wavering()).toBe(false);
+    // Put the brig on a barrel and a knot of men: they come aboard.
+    const at = wreck.barrels[0]!;
+    b.state.ships.player.x = at.x;
+    b.state.ships.player.y = at.y;
+    b.step(1);
+    expect(b.state.wreck!.gold).toBeGreaterThanOrEqual(content.combat.salvage.barrelGold);
+    b.send({ type: 'LeaveWreck' });
+    b.step(1);
+    expect(b.result()).toMatchObject({ outcome: 'sunk', salvage: { gold: b.state.wreck!.gold, men: b.state.wreck!.men } });
+    // Left alone, the wreck runs out of time.
+    const idle = sinking();
+    idle.step(30 * (content.combat.salvage.seconds + 2));
+    expect(idle.result()!.outcome).toBe('sunk');
+  });
+
   it('the more hands at the guns, the faster she reloads, up to full manning', () => {
     // A brig's 18 guns at 4 men a gun want 36 hands for a broadside.
     const reload = (crew: number) =>

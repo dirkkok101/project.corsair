@@ -1053,6 +1053,70 @@ body {
   pointer-events: auto;
 }
 
+.battle-ledger {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.battle-ledger li {
+  margin: 2px 0;
+}
+
+.plunder {
+  margin-top: 8px;
+  text-align: left;
+}
+
+.plunder table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.plunder td {
+  padding: 1px 4px;
+}
+
+.plunder-throw td {
+  color: #c7cfcc;
+}
+
+.plunder-n {
+  display: inline-block;
+  min-width: 108px;
+  text-align: center;
+}
+
+.plunder-hold {
+  margin-bottom: 4px;
+  color: #e8c170;
+}
+
+.plunder-volunteers {
+  display: block;
+  margin: 6px 0;
+}
+
+.plunder-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.battle-waver {
+  top: 92px;
+  color: #e8c170;
+  border-color: #e8c170;
+}
+
+.battle-wreck {
+  max-width: 90vw;
+  white-space: normal;
+  border-color: #4f8fba;
+}
+
 .hail-actions button.attack {
   color: #ebede9;
   background: #752438;

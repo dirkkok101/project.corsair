@@ -340,7 +340,24 @@ export const combatSchema = z.object({
   /** Chance a round-shot hit dismounts a gun. */
   gunLoss: share,
   /** A ship strikes when her hull or crew falls below these shares, rolled each second at strikeChance. */
-  strike: z.object({ hull: share, crew: share, chance: share }),
+  strike: z.object({
+    hull: share,
+    crew: share,
+    chance: share,
+    /** A merchant strikes outright with her sails below this share, or outmanned this many to one within oddsTiles. */
+    merchantSails: share,
+    odds: z.number().positive(),
+    oddsTiles: z.number().positive(),
+  }),
+  /** After a sinking: barrels of her purse and men in the water to pick up within pickupTiles, for `seconds`. */
+  salvage: z.object({
+    seconds: z.number().positive(),
+    barrels: z.number().int().nonnegative(),
+    barrelGold: z.number().int().nonnegative(),
+    survivors: share,
+    spreadTiles: z.number().positive(),
+    pickupTiles: z.number().positive(),
+  }),
   /** Boarding: each side's strength is crew x this factor; the player's uses `player`. */
   boarding: z.object({ player: z.number().positive(), merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
   /** A fight between two AI ships: strength is crew x (1 + guns / 10) x the role's factor; the winner loses `losses` of her crew. */
@@ -365,7 +382,15 @@ export const combatSchema = z.object({
     harbourTiles: z.record(z.string(), z.number().min(0)),
   }),
   /** Standing: attacking a nation's ship costs `attack`; sinking or taking a pirate earns `pirate` with every nation. */
-  standing: z.object({ attack: z.number(), pirate: z.number(), hostile: z.number(), refused: z.number() }),
+  standing: z.object({
+    attack: z.number(),
+    pirate: z.number(),
+    hostile: z.number(),
+    refused: z.number(),
+    /** Nations at war with a ship's nation approve when the player beats her; twice for a warship taken. */
+    enemyWin: z.number(),
+    warshipTaken: z.number().positive(),
+  }),
   /** Tavern and shipwright prices. */
   /** Shipwright and tavern prices: a man signed on, a hull point and a sail percent made good, and a
    * cannon bought (gunGold) or sold back (gunSellGold). */
