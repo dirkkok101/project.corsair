@@ -1,6 +1,7 @@
 import type { KnownPrices, Ship, Sighting } from '@corsair/core';
 import { Tile } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
+import { ART } from './ui-art';
 
 // The map at one pixel per tile, palette colours shaded by elevation. The minimap crops it and
 // the sea chart (PRD S2) shows it whole; neither needs new art.
@@ -17,6 +18,14 @@ const RELIEF_PER_BAND = 14; // brightness change per elevation band of slope, li
 const MINIMAP_TILES = { w: 240, h: 135 };
 /** How long a sighted ship's marker lingers on the chart, in game days. */
 const SIGHTING_DAYS = 3;
+
+const NATION_NAME: Record<PlacedSettlement['nation'], string> = {
+  spain: 'Spanish',
+  england: 'English',
+  france: 'French',
+  netherlands: 'Dutch',
+  pirate: 'pirate',
+};
 
 const NATION_COLOURS: Record<PlacedSettlement['nation'], string> = {
   spain: '#e8c170',
@@ -35,7 +44,7 @@ const PLACEMENTS = ['right', 'left', 'above', 'below'] as const;
  * no earlier label and no other port's dot. A town or hamlet name that fits nowhere is hidden;
  * its dot still shows it on hover.
  */
-function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTMLElement }[]) {
+function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTMLElement }[], sheet: DOMRect) {
   const rank = (s: PlacedSettlement) => (s.type === 'capital' ? RANK.capital : RANK[s.size]);
   // Dots are obstacles too, so a name never hides another port.
   const dots = new Map(pins.map((p) => [p.s.id, p.dot.getBoundingClientRect()]));
@@ -43,7 +52,9 @@ function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTML
   const hit = (r: DOMRect, o: DOMRect) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top;
   for (const { s, label } of [...pins].sort((a, b) => rank(a.s) - rank(b.s))) {
     label.hidden = false;
-    const clear = (r: DOMRect) => !labels.some((o) => hit(r, o)) && ![...dots].some(([id, o]) => id !== s.id && hit(r, o));
+    // A name stays on the chart: one that would run off its edge (under the planner) tries another side.
+    const inside = (r: DOMRect) => r.left >= sheet.left && r.right <= sheet.right && r.top >= sheet.top && r.bottom <= sheet.bottom;
+    const clear = (r: DOMRect) => inside(r) && !labels.some((o) => hit(r, o)) && ![...dots].some(([id, o]) => id !== s.id && hit(r, o));
     const spot = PLACEMENTS.find((where) => {
       label.dataset.place = where;
       return clear(label.getBoundingClientRect());
@@ -53,7 +64,13 @@ function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTML
       label.hidden = true;
       continue;
     }
-    if (!spot) label.dataset.place = 'right';
+    // Crowded out: take a side that at least stays on the chart.
+    if (!spot) {
+      label.dataset.place = PLACEMENTS.find((where) => {
+        label.dataset.place = where;
+        return inside(label.getBoundingClientRect());
+      }) ?? 'right';
+    }
     labels.push(label.getBoundingClientRect());
   }
 }
@@ -94,7 +111,35 @@ export interface ChartMarket {
   wars: () => [string, string][];
   /** Pirates' interest in a port halves this far from their haven: the chart shades pirate waters by it. */
   pirateRangeTiles: number;
+  /** Whether a port would deal with the captain, in a line (or nothing when it simply would). */
+  welcome: (settlementId: string) => string | undefined;
+  /** The voyages worth sailing from where the captain is: trades priced from what she has seen, and leads. */
+  plan: () => VoyagePlan;
 }
+
+/** A trade from what the captain has seen: buy at `from`, sell at `to`. */
+export interface PlannedTrade {
+  good: string;
+  from: PlacedSettlement;
+  to: PlacedSettlement;
+  buy: number;
+  sell: number;
+  /** About what a full hold makes, the price falling as she sells. */
+  profit: number;
+  /** Days to sail there from here, then on to sell. */
+  daysToStart: number;
+  days: number;
+  /** Pirate waters along the way. */
+  risk: 'low' | 'some' | 'high';
+}
+export interface VoyagePlan {
+  trades: PlannedTrade[];
+  /** Made at `from` and needed at `to`, but prices not yet seen at one end or the other. */
+  leads: Omit<PlannedTrade, 'buy' | 'sell' | 'profit'>[];
+}
+
+/** A port's chart mark: its painted town by size, a haven's stockade for the pirates. */
+const markFor = (s: PlacedSettlement) => ART[s.nation === 'pirate' ? 'ui.chart.haven' : `ui.chart.${s.size === 'hamlet' ? 'hamlet' : s.size === 'town' ? 'town' : 'city'}`];
 
 /** `onSelect` gets the port clicked on the chart, or undefined when the chosen port is clicked again. */
 export function createCharts(
@@ -134,9 +179,14 @@ export function createCharts(
   }
   // Every port gets a dot; its name is placed later by layoutLabels, which needs the chart visible.
   const pins = settlements.map((s) => {
-    const dot = sheet.appendChild(document.createElement('div'));
-    dot.className = `chart-dot label-${s.nation}`;
+    const dot = sheet.appendChild(document.createElement('img'));
+    dot.className = `chart-dot chart-mark label-${s.nation}`;
+    dot.src = markFor(s) ?? '';
+    dot.alt = '';
+    dot.draggable = false;
     dot.title = s.name;
+    // Where marks overlap, the bigger port lies on top (a hamlet's never hides a capital or a haven).
+    dot.style.zIndex = String(4 - (s.type === 'capital' ? RANK.capital : s.nation === 'pirate' ? RANK.city : RANK[s.size]));
     const label = sheet.appendChild(document.createElement('div'));
     label.className = `chart-port label-${s.nation}`;
     label.textContent = s.name;
@@ -165,7 +215,15 @@ export function createCharts(
     const known = market.known(s.id);
     const age = known && market.today() - known.day;
     const when = age === undefined ? '' : age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`;
-    const head = `<div class="chart-prices-name">${s.name}</div>`;
+    const kind = s.nation === 'pirate' ? 'pirate haven' : `${NATION_NAME[s.nation]} ${s.type === 'capital' ? 'capital' : s.size}`;
+    const makes = market.goods.filter((g) => market.lean(s.id, g.id) === 'exports').map((g) => g.name);
+    const needs = market.goods.filter((g) => market.lean(s.id, g.id) === 'wants').map((g) => g.name);
+    const welcome = market.welcome(s.id);
+    const head =
+      `<div class="chart-prices-name">${s.name}</div><div class="chart-prices-age">${kind}</div>` +
+      (makes.length ? `<div class="chart-prices-trade"><span class="lean-exports">▲ makes</span> ${makes.join(', ')}</div>` : '') +
+      (needs.length ? `<div class="chart-prices-trade"><span class="lean-wants">▼ needs</span> ${needs.join(', ')}</div>` : '') +
+      (welcome ? `<div class="chart-prices-warn">${welcome}</div>` : '');
     prices.innerHTML = known
       ? `${head}<div class="chart-prices-age">Prices seen ${when}</div><table><tr><th></th><th>Buy</th><th>Sell</th><th title="Units it took before its sell price fell a quarter">Takes</th></tr>${market.goods
           .map((g) => {
@@ -187,8 +245,16 @@ export function createCharts(
   // Ships the lookouts have seen, fading as the sighting ages (PRD section 3: last-known markers).
   const sighted = sheet.appendChild(document.createElement('div'));
   sighted.className = 'chart-ships';
-  const marker = sheet.appendChild(document.createElement('div'));
+  const marker = sheet.appendChild(document.createElement('img'));
   marker.className = 'chart-player';
+  marker.src = ART['ui.chart.you'] ?? '';
+  marker.alt = '';
+  marker.title = 'You';
+  // A compass rose in the corner, as on any chart.
+  const rose = sheet.appendChild(document.createElement('img'));
+  rose.className = 'chart-rose';
+  rose.src = ART['ui.chart.compass'] ?? '';
+  rose.alt = '';
   const hint = chart.appendChild(document.createElement('div'));
   hint.className = 'chart-hint';
   hint.textContent = 'Sea chart · time stands still while you study it · click a port to set your destination · M to close';
@@ -201,12 +267,48 @@ export function createCharts(
     ['france', 'France'],
     ['netherlands', 'the Netherlands'],
   ];
+  // The voyage planner: the trades worth sailing from here, best gold for the days first, and leads to
+  // look into. Choosing one sets the course to where the buying is.
+  const planner = chart.appendChild(document.createElement('div'));
+  planner.className = 'chart-plan';
+  const choosePort = (id: string) => {
+    const pin = pins.find((p) => p.s.id === id);
+    if (!pin) return;
+    selected = pin.s;
+    for (const p of pins) p.label.classList.toggle('selected', p.s.id === selected.id);
+    onSelect(selected);
+  };
+  const goodName = (id: string) => market.goods.find((g) => g.id === id)?.name ?? id;
+  const days = (d: number) => (d < 1 ? 'under a day' : `${Math.round(d)} ${Math.round(d) === 1 ? 'day' : 'days'}`);
+  const showPlan = () => {
+    const plan = market.plan();
+    const rows = plan.trades
+      .map(
+        (t) =>
+          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}"><img class="chart-key-mark" src="${ART[`ui.icon.good.${t.good}`]}" alt=""><span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span></span></button>`,
+      )
+      .join('');
+    const leads = plan.leads
+      .map(
+        (t) =>
+          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}"><img class="chart-key-mark" src="${ART[`ui.icon.good.${t.good}`]}" alt=""><span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span> · call to learn the prices</span></button>`,
+      )
+      .join('');
+    planner.innerHTML =
+      '<div class="chart-plan-head">Voyages from here</div>' +
+      (rows || '<div class="chart-plan-empty">No trade you know of pays yet: call at more ports to learn their prices.</div>') +
+      (leads ? `<div class="chart-plan-head">Worth a look</div>${leads}` : '') +
+      '<div class="chart-plan-foot">Click one to set your course to where you buy; F follows it.</div>';
+    for (const b of planner.querySelectorAll<HTMLButtonElement>('[data-port]')) b.addEventListener('click', () => choosePort(b.dataset.port!));
+  };
   const showKey = () => {
     const wars = market.wars();
     key.innerHTML =
+      '<span class="chart-key-item">underlined by nation:</span>' +
       NATION_KEY.map(([id, name]) => `<span class="chart-key-item"><span class="chart-key-dot label-${id}"></span>${name}</span>`).join('') +
-      '<span class="chart-key-item"><span class="chart-key-dot label-pirate"></span>pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>' +
-      '<span class="chart-key-item"><span class="chart-key-you"></span>you</span>' +
+      `<span class="chart-key-item"><img class="chart-key-mark" src="${ART['ui.chart.hamlet']}" alt="">hamlet <img class="chart-key-mark" src="${ART['ui.chart.town']}" alt="">town <img class="chart-key-mark" src="${ART['ui.chart.city']}" alt="">city</span>` +
+      `<span class="chart-key-item"><img class="chart-key-mark" src="${ART['ui.chart.haven']}" alt="">pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>` +
+      `<span class="chart-key-item"><img class="chart-key-mark" src="${ART['ui.chart.you']}" alt="">you</span>` +
       '<span class="chart-key-item"><span class="chart-key-ship"></span>a ship seen (fades over days)</span>' +
       `<div class="chart-key-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a} and ${b}`).join(' · ')}` : 'All nations at peace'} · pirates are at war with everyone</div>`;
   };
@@ -244,7 +346,7 @@ export function createCharts(
       label.classList.toggle('lean-wants', lean === 'wants');
       label.classList.toggle('faded', Boolean(good) && !lean);
     }
-    layoutLabels(pins);
+    layoutLabels(pins, sheet.getBoundingClientRect());
   };
 
   window.addEventListener('keydown', (e) => {
@@ -256,6 +358,7 @@ export function createCharts(
       if (!chart.hidden) {
         showGood();
         showKey();
+        showPlan();
       }
     }
     if (e.key === 'Escape') chart.hidden = true;
@@ -314,10 +417,11 @@ export function createCharts(
       if (!chart.hidden) {
         marker.style.left = `${(player.x / map.width) * 100}%`;
         marker.style.top = `${(player.y / map.height) * 100}%`;
+        marker.style.transform = `translate(-50%, -50%) rotate(${player.headingDeg}deg)`;
         sighted.innerHTML = marks
           .map(
             ({ s, fade }) =>
-              `<div class="chart-ship label-${s.nation}" style="left:${(s.x / map.width) * 100}%;top:${(s.y / map.height) * 100}%;opacity:${fade.toFixed(2)}"></div>`,
+              `<div class="chart-ship label-${s.nation}" title="A ${s.nation === 'pirate' ? 'pirate' : s.nation} ship, seen ${Math.max(0, Math.floor((seen!.tick - s.tick) / seen!.ticksPerDay))} days ago" style="left:${(s.x / map.width) * 100}%;top:${(s.y / map.height) * 100}%;opacity:${fade.toFixed(2)}"></div>`,
           )
           .join('');
       }

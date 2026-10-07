@@ -316,6 +316,86 @@ async function main() {
     fight = undefined;
   };
   /**
+   * The voyage planner's trades, from what the captain has seen (PRD section 6): for each good, buying where
+   * she last saw it cheapest and selling where it fetched most, about what a full hold makes (the sale price
+   * sagging as she sells, by that market's depth), the days at sea along the lanes at her speed, and how close
+   * the way runs to a pirate haven. Leads are goods one port makes and another needs, prices not yet seen.
+   */
+  const voyagePlan = () => {
+    const me = player();
+    const known = sim.state.captain?.knownPrices ?? {};
+    const gold = sim.state.captain?.gold ?? 0;
+    const room = Math.max(1, content.ships[me.classId]!.cargo - (me.cargo.food ?? 0));
+    // Tiles a day at a fair average of her best speed (beating and reaching together).
+    const perDay = content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
+    const laneLength = (a: string, b: string) => {
+      const r = lanes.route(a, b);
+      return r ? r.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - r[i]![0], p[1] - r[i]![1]), 0) : undefined;
+    };
+    const havens = settlements.filter((s) => s.nation === 'pirate');
+    const reach = content.traffic.pirateRangeTiles;
+    const risk = (a: string, b: string): 'low' | 'some' | 'high' => {
+      const r = lanes.route(a, b) ?? [];
+      const near = Math.min(...r.map((p) => Math.min(...havens.map((h) => Math.hypot(h.x - p[0], h.y - p[1])))));
+      return near < reach * 0.35 ? 'high' : near < reach * 0.7 ? 'some' : 'low';
+    };
+    const toStart = (s: PlacedSettlement) => (me.docked === s.id ? 0 : Math.hypot(s.x - me.x, s.y - me.y) / perDay);
+    // Candidates are ranked on the straight-line distance first; only the best few have their lanes found
+    // (finding a lane is the slow part), then they are ranked again on the real days at sea.
+    const straight = (a: PlacedSettlement, b: PlacedSettlement) => Math.hypot(a.x - b.x, a.y - b.y) / perDay;
+    type Candidate = { good: string; from: PlacedSettlement; to: PlacedSettlement; buy?: number; sell?: number; profit?: number; score: number };
+    const priced: Candidate[] = [];
+    const unpriced: Candidate[] = [];
+    const worth = (id: string) => content.goods.find((x) => x.id === id)?.basePrice ?? 0;
+    for (const g of content.goods.filter((x) => !x.staple)) {
+      for (const from of settlements) {
+        for (const to of settlements) {
+          if (from === to) continue;
+          const buy = known[from.id]?.prices[g.id]?.buy;
+          const seen = known[to.id]?.prices[g.id];
+          const days = Math.max(0.5, toStart(from) + straight(from, to));
+          if (buy !== undefined && seen?.sell !== undefined) {
+            const units = Math.min(room, Math.floor(gold / buy));
+            if (units < 1 || seen.sell <= buy) continue;
+            const sag = 0.125 * Math.min(1, units / Math.max(1, seen.depth ?? 99));
+            const profit = Math.round((units * (seen.sell * (1 - sag) - buy)) / 10) * 10;
+            if (profit > 0) priced.push({ good: g.id, from, to, buy, sell: seen.sell, profit, score: profit / days });
+          } else if (
+            // Leads (prices unseen) only within a few days' sail, so the list stays near enough to act on.
+            straight(from, to) * perDay <= 360 &&
+            tradeLean(content, from, g.id) === 'exports' &&
+            tradeLean(content, to, g.id) === 'wants'
+          ) {
+            unpriced.push({ good: g.id, from, to, score: worth(g.id) / days });
+          }
+        }
+      }
+    }
+    const perTrip = (t: { daysToStart: number; days: number }) => Math.max(0.5, t.daysToStart + t.days);
+    const sail = (c: Candidate) => {
+      const length = laneLength(c.from.id, c.to.id);
+      return length === undefined ? undefined : { good: c.good, from: c.from, to: c.to, daysToStart: toStart(c.from), days: length / perDay, risk: risk(c.from.id, c.to.id) };
+    };
+    const trades = priced
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12)
+      .flatMap((c) => {
+        const t = sail(c);
+        return t ? [{ ...t, buy: c.buy!, sell: c.sell!, profit: c.profit! }] : [];
+      })
+      .sort((a, b) => b.profit / perTrip(b) - a.profit / perTrip(a));
+    // One lead a good, so the leads are worth reading.
+    const leads = unpriced
+      .sort((a, b) => b.score - a.score)
+      .filter((c, i, all) => all.findIndex((o) => o.good === c.good) === i)
+      .slice(0, 4)
+      .flatMap((c) => {
+        const t = sail(c);
+        return t ? [t] : [];
+      });
+    return { trades: trades.slice(0, 5), leads };
+  };
+  /**
    * After a fight that left her hurt: the nearest port that will have her and has a shipwright (not a
    * hamlet), and how far, so the report can say where to go next.
    */
@@ -365,6 +445,15 @@ async function main() {
       return pairs;
     },
     pirateRangeTiles: content.traffic.pirateRangeTiles,
+    welcome: (id) => {
+      const s = settlements.find((x) => x.id === id);
+      if (!s || s.nation === 'pirate') return undefined;
+      const standing = sim.state.captain?.standing?.[s.nation] ?? 0;
+      if (standing <= content.combat.standing.refused) return `They would not let you in: your standing with them is ${standing}.`;
+      if (standing <= content.combat.standing.hostile) return `Their patrols hunt you (standing ${standing}); the town still trades.`;
+      return undefined;
+    },
+    plan: () => voyagePlan(),
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {

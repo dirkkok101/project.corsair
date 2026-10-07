@@ -273,7 +273,8 @@ test('sea chart: hovering a port shows the prices last seen there, or that none 
   await boot(page);
   await page.keyboard.press('m');
   // The career began in Port Royal, so its prices are known; a port never visited shows none.
-  await page.locator('.chart-port', { hasText: 'Tortuga' }).hover();
+  // A crowded name may be hidden; the port's mark always shows, and hovering it does the same.
+  await page.locator('.chart-dot[title="Tortuga"]').hover();
   await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
 
   await page.keyboard.press('m');
@@ -686,6 +687,28 @@ test('course line: a port picked on the chart gets a route by sea, the HUD measu
   expect(errors).toEqual([]);
 });
 
+test('chart planner: the trades worth sailing from here, from prices seen, and a click sets the course', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // Call at Bridgetown to learn its prices (Port Royal's are known from the start).
+  await page.evaluate(() => {
+    const bt = window.__corsair.ports().find((p) => p.name === 'Bridgetown')!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: bt.x + 1, y: bt.y + 2 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-plan')).toContainText('Voyages from here');
+  const trade = page.locator('.chart-plan-row:not(.lead)').first();
+  await expect(trade).toContainText(/buy at .*, sell at .*about \+[\d,]+ gold a hold/);
+  await page.screenshot({ path: 'test-results/chart-planner.png' });
+  await trade.click();
+  await expect(page.locator('.chart-port.selected')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
 test('crew: the food goes day by day at sea, and the tavern pays the wages owed', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   const food = () => page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).food ?? 0);
@@ -769,15 +792,15 @@ test('a course to a port takes her in when she comes within reach, without press
   await page.keyboard.press('m');
   await page.keyboard.press('f');
   // A couple of ticks a frame, as in play: the game docks her on the frame after she arrives.
-  await expect
-    .poll(
-      async () => {
-        await page.evaluate(() => window.__corsair.sim.step(2));
-        return page.evaluate(() => Boolean(window.__corsair.state.get('ships.player.docked')));
-      },
-      { timeout: 60_000, intervals: [0] },
-    )
-    .toBe(true);
+  const docked = await page.evaluate(async () => {
+    for (let i = 0; i < 1500; i++) {
+      window.__corsair.sim.step(2);
+      await new Promise((r) => requestAnimationFrame(r));
+      if (window.__corsair.state.get('ships.player.docked')) return true;
+    }
+    return false;
+  });
+  expect(docked).toBe(true);
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
   // The course ended with it: setting sail doesn't put her straight back in.
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toBeUndefined();

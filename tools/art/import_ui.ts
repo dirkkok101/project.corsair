@@ -1,4 +1,4 @@
-// Imports the painted UI kit (the ship panel's portraits, icons and frame): for every prompt record in
+// Imports the painted UI kit (the ship panel's portraits, icons and frame, and the chart's marks): for every prompt record in
 // art/sources/paintings/ui/*.yaml, keys out the flat background of the kept raw image, crops to what's
 // left, shrinks it to its game size and snaps it to the palette, writing art/game/ui/{id}.png.
 //
@@ -21,6 +21,9 @@ const OUT = join(ROOT, 'art', 'game', 'ui');
 const SIZES: [prefix: string, w: number, h: number][] = [
   ['ui.ship.', 96, 64],
   ['ui.icon.', 24, 24],
+  // The sea chart's marks: ports by size, havens, you, a ship seen; the compass rose larger.
+  ['ui.chart.compass', 64, 64],
+  ['ui.chart.', 20, 20],
   ['ui.panel.', 96, 64],
 ];
 /** Corner patches the key colour is read from, in source pixels. */

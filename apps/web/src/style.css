@@ -80,9 +80,11 @@ body {
 
 .chart-sheet {
   position: relative;
-  /* As big as the screen allows: room above for the hint and the key, below for the goods filter. */
-  margin-top: 46px;
-  width: min(98vw, calc((100vh - 130px) * 1600 / 1100));
+  /* As big as the screen allows: room above for the hint and the key, below for the goods filter, and to
+     the right for the voyage planner. */
+  margin-top: 62px;
+  margin-right: 316px;
+  width: min(calc(98vw - 316px), calc((100vh - 130px) * 1600 / 1100));
   border: 2px solid #c09473;
 }
 
@@ -162,14 +164,116 @@ body {
   display: none;
 }
 
+/* A port's painted mark (its town by size, a haven's stockade), underlined in its nation's colour. */
+.chart-dot.chart-mark {
+  width: clamp(16px, 1.5vw, 28px);
+  height: auto;
+  padding: 0 0 1px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid currentColor;
+  image-rendering: pixelated;
+}
+
+/* You: your ship, turned to her heading (set inline). */
 .chart-player {
   position: absolute;
-  width: clamp(10px, 1vw, 18px);
-  height: clamp(10px, 1vw, 18px);
+  width: clamp(12px, 1.1vw, 20px);
+  height: auto;
   transform: translate(-50%, -50%);
-  background: #e8c170;
-  border: 2px solid #090a14;
-  border-radius: 50%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 2px #090a14);
+  pointer-events: auto;
+}
+
+.chart-rose {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: clamp(48px, 5vw, 96px);
+  image-rendering: pixelated;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.chart-key-mark {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+  image-rendering: pixelated;
+}
+
+.chart-prices-trade {
+  font-size: 12px;
+}
+
+.chart-prices-warn {
+  font-size: 12px;
+  color: #df84a5;
+}
+
+/* The voyage planner, down the chart's right side. */
+.chart-plan {
+  position: absolute;
+  right: 12px;
+  top: 96px;
+  bottom: 52px;
+  width: 296px;
+  overflow: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #ebede9;
+  background: rgb(21 29 40 / 0.94);
+  border: 2px solid #c09473;
+}
+
+.chart-plan-head {
+  margin: 4px 0 6px;
+  font-family: 'Pirata One', serif;
+  font-size: 18px;
+  color: #e8c170;
+}
+
+.chart-plan-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 6px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: #151d28;
+  border: 1px solid #394a50;
+  cursor: pointer;
+}
+
+.chart-plan-row:hover {
+  border-color: #e8c170;
+}
+
+.chart-plan-row.lead {
+  color: #c7cfcc;
+}
+
+.chart-plan-empty,
+.chart-plan-foot {
+  margin: 6px 0;
+  color: #a8b5b2;
+}
+
+.risk-low {
+  color: #a8ca58;
+}
+
+.risk-some {
+  color: #e8c170;
+}
+
+.risk-high {
+  color: #df84a5;
 }
 
 .chart-hint {
