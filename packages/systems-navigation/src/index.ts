@@ -179,9 +179,15 @@ export function createNavigationSystem(
         }
         if (route !== assist.route) assist = { ...assist, route };
         left = Math.hypot(tx - ship.x, ty - ship.y);
+        // Bound for a port, she has arrived the moment it's in reach, whatever waypoints are left: beating up
+        // to a berth to windward she may pass it on every board without ever touching it.
+        if (portId && left <= PORT_ARRIVE_TILES) route = [];
         if (route.length) {
           want = bearingTo(ship, route[0]![0], route[0]![1]);
-          left = Math.hypot(route[0]![0] - ship.x, route[0]![1] - ship.y) + WAYPOINT_TILES * 2;
+          // Past a waypoint lies more sea, so the coast watch looks a little beyond it; past a port's berth
+          // lies the town, which isn't a coast to steer off.
+          const beyond = portId && route.length === 1 ? 0 : WAYPOINT_TILES * 2;
+          left = Math.hypot(route[0]![0] - ship.x, route[0]![1] - ship.y) + beyond;
         } else if (left <= (portId ? PORT_ARRIVE_TILES : COURSE_ARRIVE_TILES)) {
           // Arrived: hold this heading and hand back the helm (the game docks her if it was a port).
           events.push({ type: 'CourseArrived', entityIds: [ship.id], payload: { x: tx, y: ty, portId } });

@@ -26,7 +26,7 @@ Don't generate night or dusk versions. The game's palette shader makes them from
 | Prompt record, one per asset, next to its image | `art/sources/paintings/{group}/{id}.yaml` | `art/sources/paintings/harbours/harbour.england.large.yaml` |
 | Layout references (made for you) | `art/sources/references/harbours/{id}.png` | `art/sources/references/harbours/harbour.england.large.png` |
 
-Groups: `harbours`, `interiors`, `title`, `ui` (the ship panel), and for scenes not built yet `duels`, `dance`, `fates`. Keep the file name exactly as the id in each section,
+Groups: `harbours`, `interiors`, `title`, `ui` (the ship panel and icons), and for scenes not built yet `duels`, `dance`, `fates`, `outcomes`. Keep the file name exactly as the id in each section,
 because the import step finds images by id. Don't edit or crop the raw output.
 
 **Import:** `node tools/art/import_paintings.ts` snaps the version each record lists first under
@@ -278,6 +278,29 @@ Caribbean port."* No people in them: the portrait stands beside the card.
 > The door of a fine colonial mansion: carved stone doorway, a coat of arms above it without any
 > letters, potted palms, marble steps, warm light from within.
 
+### Battle outcomes (the after-action report): group `outcomes`
+
+Small 4:3 vignettes for the report at the end of a sea fight, one per kind of ending. Like the fate cards,
+generate them at 4:3 and don't import them yet: the import step only makes 960×540 frames today. First
+sentence: *"Pixel art vignette, 4:3, a simple scene at sea in the Caribbean in the 1660s."* Then the
+scene, then *"Open water only, no land and no shore."* (Grok puts a coast or a harbour behind the action
+otherwise.) No people in close-up.
+
+**`outcome.taken`**
+> A merchant ship with her sails let fly and a plain white flag at the masthead, a ship's boat rowing
+> across to her.
+
+**`outcome.sunk`**
+> Floating wreckage, spars, barrels and planks, a torn sail on the water, smoke drifting.
+
+**`outcome.lost`**
+> The deck of a beaten ship seen from the stern: an empty open hold, scattered rope, a broken mast, the
+> victor bearing away on the horizon.
+
+**`outcome.escaped`**
+> Dusk. A small distant sailing ship sits on the horizon with her sails set, and a long empty stretch of
+> sea fills everything between the viewer and that ship.
+
 ### More port services (planned): group `interiors`
 
 Same rules as the service interiors above: calm, dark centre; detail at the edges.
@@ -341,6 +364,23 @@ full, no sea under her, no flag on any mast; the game draws flags):
 | `ui.icon.anchor` | An iron ship's anchor with a ring and a coil of rope. |
 | `ui.icon.course` | A brass compass rose with a north pointer. |
 | `ui.icon.intercept` | A brass spyglass, extended, angled up to the right. |
+
+**Crew and goods icons** (1:1, as above; for the ship panel's morale bar, the HUD's food and chest, and the
+merchant and plunder screens' goods). Each good's id is `ui.icon.good.{id}`, the id in `goods.json`:
+
+| id | prompt |
+|---|---|
+| `ui.icon.morale` | A sailor's tin mug of grog raised in a toast, a splash over the rim. (Say *amber* grog if it comes back blue.) |
+| `ui.icon.food` | A wooden ship's barrel of salt pork beside a ship's biscuit. |
+| `ui.icon.chest` | A small iron-bound wooden treasure chest, lid open, gold coins heaped inside. |
+| `ui.icon.gold` | A short stack of gold doubloons with one coin leaning against it. |
+| `ui.icon.good.sugar` | A sacking bag of sugar tied at the neck, a little spilled in front. |
+| `ui.icon.good.tobacco` | A bundle of dried brown tobacco leaves tied with twine. |
+| `ui.icon.good.hides` | A folded cattle hide, tan with a darker edge. |
+| `ui.icon.good.cotton` | A bale of white cotton bound with rope bands. |
+| `ui.icon.good.luxuries` | A small carved wooden casket with a silk cloth and a glass bottle of wine beside it. |
+| `ui.icon.good.silver` | Three stacked silver ingots with a pale grey metallic shine. |
+| `ui.icon.good.food` | A wooden crate, a cheese and a cask. |
 
 **Panel frame** (3:2):
 

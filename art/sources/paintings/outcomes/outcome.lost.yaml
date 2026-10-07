@@ -1,0 +1,13 @@
+id: outcome.lost
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-07
+reference: ""
+prompt: |
+  Pixel art vignette, 4:3, a simple scene at sea in the Caribbean in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up.
+
+  The deck of a beaten ship seen from the stern: an empty open hold, scattered rope, a broken mast, the victor bearing away on the horizon.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass. Kept frame is an Imagine edit of the first generation: the island, beach and houses were replaced with open sea, and the flag was taken off the ship on the horizon."

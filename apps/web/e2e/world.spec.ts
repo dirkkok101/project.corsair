@@ -744,3 +744,38 @@ test('a pirate falls on a merchant within sight: they heave to and fight it out,
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'SeaFight' }).length)).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
+
+test('a course to a port takes her in when she comes within reach, without pressing E', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // Out to sea a little way off Port Royal.
+  await page.evaluate(() => {
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    for (const [dx, dy] of [[0, 8], [2, 8], [-2, 8], [0, 10], [4, 6], [-4, 6]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + dx!, y: pr.y + dy! });
+      window.__corsair.sim.step(1);
+      const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(p.x - pr.x - dx!, p.y - pr.y - dy!) < 0.5) break;
+    }
+  });
+  await page.keyboard.press('m');
+  await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
+  await page.keyboard.press('m');
+  await page.keyboard.press('f');
+  // A couple of ticks a frame, as in play: the game docks her on the frame after she arrives.
+  await expect
+    .poll(
+      async () => {
+        await page.evaluate(() => window.__corsair.sim.step(2));
+        return page.evaluate(() => Boolean(window.__corsair.state.get('ships.player.docked')));
+      },
+      { timeout: 60_000, intervals: [0] },
+    )
+    .toBe(true);
+  await expect(page.locator('.port-name')).toHaveText('Port Royal');
+  // The course ended with it: setting sail doesn't put her straight back in.
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toBeUndefined();
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(30));
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.docked'))).toBeFalsy();
+  expect(errors).toEqual([]);
+});

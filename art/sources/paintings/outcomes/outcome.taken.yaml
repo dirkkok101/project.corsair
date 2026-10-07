@@ -1,0 +1,13 @@
+id: outcome.taken
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-07
+reference: ""
+prompt: |
+  Pixel art vignette, 4:3, a simple scene at sea in the Caribbean in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no gradients across large areas, no film grain, no bloom. A limited palette of about 40 colours: deep navy and teal sea blues, jungle and palm greens, sand and ochre, terracotta and brick reds, weathered wood browns, warm greys for stone, pale cream for plaster. Soft even midday light from the upper left, gentle shadows. Calm, inviting, adventurous mood. Painterly detail in the buildings and foliage, readable at small size. No text, no letters, no signs with writing, no logos, no watermark, no UI, no frame or border, no people in close-up.
+
+  A merchant ship with her sails let fly and a plain white flag at the masthead, a ship's boat rowing across to her.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass."
