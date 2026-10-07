@@ -3,8 +3,6 @@ import { shipStats } from '@corsair/data';
 import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
-import { crewOf, foodDays, moraleOf, moraleWord } from '@corsair/systems-economy';
-import { Art } from './ui-art';
 
 const ROSE = { size: 120, inner: 8, outer: 46 };
 
@@ -167,17 +165,6 @@ export function Hud({
         <div>
           {speedPoints(content, ship).toFixed(1)} → {toSpeedPoints(content, targetSpeed(content, ship, wind)).toFixed(1)}
           {ship.blocked ? ' · aground' : ''}
-        </div>
-        <div>Ship</div>
-        <div>
-          guns {stats.guns}/{stats.maxGuns} · hull {Math.round(ship.hull ?? stats.hullMax)}/{stats.hullMax}
-          {(ship.sailCondition ?? 100) < 100 ? ` · sails ${Math.round(ship.sailCondition ?? 100)}%` : ''}
-        </div>
-        <div>Crew</div>
-        <div>
-          {crewOf(content, ship)}/{stats.maxCrew} · <Art id="ui.icon.morale" class="inline-icon" /> {moraleWord(content, moraleOf(content, state))} (
-          {Math.round(moraleOf(content, state))}) · <Art id="ui.icon.food" class="inline-icon" /> {Math.floor(foodDays(content, ship))} days ·{' '}
-          <Art id="ui.icon.chest" class="inline-icon" /> chest {Math.round(state.captain?.chest ?? 0)}
         </div>
       </div>
       <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />

@@ -14,6 +14,7 @@ import {
   quote,
   referenceStock,
   daysUnpaid,
+  foodDays,
   moraleOf,
   moraleWord,
   plunderShares,
@@ -43,6 +44,8 @@ export interface PortProps {
   onOpen: (service: Service | undefined) => void;
   /** Said once on arrival: men who deserted as she made port. */
   notice?: string;
+  /** Today's date: the clock stands still in port. */
+  date: string;
 }
 
 export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
@@ -76,7 +79,7 @@ const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
-export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice }: PortProps) {
+export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date }: PortProps) {
   // The market opens on arrival; closing it leaves the harbour to look at.
   const [open, setOpen] = useState<Service | undefined>('merchant');
   useEffect(() => onOpen(open), [open]);
@@ -143,9 +146,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         {spots}
         <div class="port-bar">
           <span class="port-name">{town.name}</span>
-          <span>
-            <Art id="ui.icon.gold" class="inline-icon" /> {gold.toLocaleString()} gold
-          </span>
+          <span class="port-sub">{date}</span>
           <button class="leave" onClick={() => setOpen('merchant')}>
             Merchant
           </button>
@@ -183,16 +184,12 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             </div>
           </div>
           <div class="port-purse">
-            <div>
-              <Art id="ui.icon.gold" class="inline-icon" /> {gold.toLocaleString()} gold
-            </div>
-            <div>
-              Hold {used} / {capacity}
-            </div>
-            <div class="port-sub">
-              Crew {crewOf(content, ship)} · Hull {Math.round(ship.hull ?? content.ships[ship.classId]!.hull)}
-              {town.nation !== 'pirate' ? ` · ${NATION[town.nation]} standing ${state.captain?.standing?.[town.nation] ?? 0}` : ''}
-            </div>
+            <div class="port-sub">{date}</div>
+            {town.nation !== 'pirate' ? (
+              <div class="port-sub">
+                Standing with the {NATION[town.nation]}: {state.captain?.standing?.[town.nation] ?? 0}
+              </div>
+            ) : null}
           </div>
         </header>
         {notice ? <div class="port-notice">{notice}</div> : null}
@@ -267,6 +264,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
                     </td>
                     <td class="num hold">
                       {held || ''}
+                      {g.id === 'food' && held ? <span class="paid" title="How long it lasts this crew">{` · ${Math.floor(foodDays(content, ship))} days`}</span> : null}
                       {cost !== undefined ? (
                         <span class="paid" title="What you paid per unit">
                           {' '}
@@ -363,6 +361,12 @@ function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' |
       <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
         Fill the berths · {room * price} gold
       </button>
+      {room > 0 ? (
+        <span class="port-sub">
+          Each 10 more men: food lasts {Math.floor(foodDays(content, { ...ship, crew: crew + 10 }))} days instead of {Math.floor(foodDays(content, ship))}, and wages
+          rise {10 * content.crew.wagesPerManDay} gold a day
+        </span>
+      ) : null}
     </div>
   );
 }

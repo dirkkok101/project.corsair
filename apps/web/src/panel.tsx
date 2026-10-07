@@ -1,5 +1,6 @@
-// The ship panel (bottom left, at sea and in battle): the ship's portrait, her hull, sails and crew, a row
-// of cannon per broadside lit as they are loaded (after Pirates!' cannon status), and the modes to click.
+// The ship card (bottom left, at sea, in port and in battle): the one place the ship and her crew are shown.
+// Her portrait, hull, sails and crew, the crew's morale and food, the purse, the chest and the hold, a row of
+// cannon per broadside lit as they are loaded (after Pirates!' cannon status), and the modes to click.
 // The art is the painted UI kit (./ui-art).
 
 import type { SailSetting } from '@corsair/core';
@@ -20,12 +21,17 @@ export interface ShipPanelProps {
   /** The crew's morale (0 to 100) and its word, and the days the food will last (at sea). */
   morale?: { value: number; word: string };
   foodDays?: number;
+  /** Gold in the captain's purse, the plunder chest, and the hold (at sea and in port). */
+  purse?: { gold: number; chest: number; hold: number; capacity: number };
+  /** Guns mounted against the most she can carry (at sea and in port). */
+  mounted?: { guns: number; of: number };
   sailSetting: SailSetting;
   /** Guns per broadside, and how many of them are loaded now (all of them at sea). */
   guns: { port: { loaded: number; of: number }; starboard: { loaded: number; of: number } };
   /** In battle: the shot loaded, and choosing another. */
   shot?: { loaded: Shot; choose: (shot: Shot) => void };
-  setSails: (sails: SailSetting) => void;
+  /** Setting sail (at sea and in battle; in port there's nothing to set). */
+  setSails?: (sails: SailSetting) => void;
   /** At sea: the cruise speed, and stopping a course. */
   cruise?: { speed: number; choose: (speed: number) => void; course: boolean; stop: () => void };
 }
@@ -36,13 +42,14 @@ const SHOTS: { id: Shot; name: string; key: string }[] = [
   { id: 'grape', name: 'Grape', key: '3' },
 ];
 
-function Bar({ label, icon, value, max }: { label: string; icon: string; value: number; max: number }) {
+/** A bar of value against max; `lowIsBad` marks it red under 30% (not for the hold: empty is fine). */
+function Bar({ label, icon, value, max, lowIsBad = true }: { label: string; icon: string; value: number; max: number; lowIsBad?: boolean }) {
   const share = Math.max(0, Math.min(1, value / Math.max(1, max)));
   return (
     <div class="panel-bar" title={label}>
       <Art id={icon} class="panel-icon" />
       <span class="battle-bar-track">
-        <span class={`battle-bar-fill${share < 0.3 ? ' low' : ''}`} style={{ width: `${Math.round(share * 100)}%` }} />
+        <span class={`battle-bar-fill${lowIsBad && share < 0.3 ? ' low' : ''}`} style={{ width: `${Math.round(share * 100)}%` }} />
       </span>
       <span class="panel-bar-value">
         {Math.max(0, Math.round(value))}/{Math.round(max)}
@@ -68,7 +75,10 @@ export function ShipPanel(p: ShipPanelProps) {
     <div class="ship-panel" style={{ borderImageSource: `url(${ART['ui.panel.frame']})` }}>
       <div class="panel-top">
         <Art id={`ui.ship.${p.classId.replace(/^ship\./, '')}`} class="panel-ship" />
-        <div class="panel-name">{p.name}</div>
+        <div class="panel-name">
+          {p.name}
+          {p.mounted ? <div class="panel-sub">{`${p.mounted.guns} of ${p.mounted.of} guns`}</div> : null}
+        </div>
       </div>
       <Bar label="Hull" icon="ui.icon.hull" value={p.hull} max={p.hullMax} />
       <Bar label="Sails" icon="ui.icon.full_sail" value={p.sails} max={100} />
@@ -90,6 +100,17 @@ export function ShipPanel(p: ShipPanelProps) {
           </span>
         </div>
       ) : null}
+      {p.purse ? (
+        <>
+          <div class="panel-bar panel-purse" title="Your purse, and the plunder chest the crew sails for">
+            <Art id="ui.icon.gold" class="panel-icon" />
+            <span>{p.purse.gold.toLocaleString()}</span>
+            <Art id="ui.icon.chest" class="panel-icon" />
+            <span>{p.purse.chest.toLocaleString()}</span>
+          </div>
+          <Bar label="Hold" icon="ui.icon.good.food" value={p.purse.hold} max={p.purse.capacity} lowIsBad={false} />
+        </>
+      ) : null}
       <Battery label="Port" {...p.guns.port} />
       <Battery label="Stbd" {...p.guns.starboard} />
       {p.shot ? (
@@ -101,13 +122,15 @@ export function ShipPanel(p: ShipPanelProps) {
           ))}
         </div>
       ) : null}
-      <div class="panel-modes">
-        {(['full', 'half'] as const).map((s) => (
-          <button key={s} class={p.sailSetting === s ? 'active' : ''} title={s === 'full' ? 'Full sail (W)' : 'Half sail, tighter turns (S)'} onClick={() => p.setSails(s)}>
-            <Art id={s === 'full' ? 'ui.icon.full_sail' : 'ui.icon.half_sail'} class="panel-icon" /> {s === 'full' ? 'Full sail' : 'Half sail'}
-          </button>
-        ))}
-      </div>
+      {p.setSails ? (
+        <div class="panel-modes">
+          {(['full', 'half'] as const).map((s) => (
+            <button key={s} class={p.sailSetting === s ? 'active' : ''} title={s === 'full' ? 'Full sail (W)' : 'Half sail, tighter turns (S)'} onClick={() => p.setSails!(s)}>
+              <Art id={s === 'full' ? 'ui.icon.full_sail' : 'ui.icon.half_sail'} class="panel-icon" /> {s === 'full' ? 'Full sail' : 'Half sail'}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {p.cruise ? (
         <div class="panel-modes">
           {[1, 2, 4].map((n) => (

@@ -683,7 +683,7 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   const errors = await boot(page, '/?seed=3');
   const food = () => page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).food ?? 0);
   const before = await food();
-  await expect(page.locator('.hud')).toContainText('Crew');
+  await expect(page.locator('.ship-panel')).toContainText('days of food');
   // Three days hove to off Port Royal, under its guns where pirates don't come (the clock stops in port).
   await page.evaluate(() => {
     const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;

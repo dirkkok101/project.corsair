@@ -22,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { createEconomySystem, crewOf, DOCK_RANGE, foodDays, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, foodDays, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -755,13 +755,12 @@ async function main() {
     stage.classList.remove('in-battle');
     render(null, battleRoot);
     {
-      // The ship panel at sea (in port the port screen has the ship; in battle the battle HUD shows it).
+      // The ship card at sea and in port (in battle the battle HUD has its own).
       const me = player();
       const stats = shipStats(content, me);
       const each = Math.floor(stats.guns / 2);
       render(
-        me.docked ? null : (
-          <ShipPanel
+        <ShipPanel
             name={me.classId.replace(/^ship\./, '').replace(/^./, (c) => c.toUpperCase())}
             classId={me.classId}
             hull={me.hull ?? stats.hullMax}
@@ -773,15 +772,20 @@ async function main() {
             guns={{ port: { loaded: each, of: each }, starboard: { loaded: each, of: each } }}
             morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
             foodDays={foodDays(content, me)}
-            setSails={(sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
-            cruise={{
-              speed: wantedSpeed,
-              choose: (n) => (wantedSpeed = n),
-              course: Boolean(me.assist),
-              stop: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }),
-            }}
-          />
-        ),
+            purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: content.ships[me.classId]!.cargo }}
+            mounted={{ guns: stats.guns, of: stats.maxGuns }}
+            setSails={me.docked ? undefined : (sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
+            cruise={
+              me.docked
+                ? undefined
+                : {
+                    speed: wantedSpeed,
+                    choose: (n) => (wantedSpeed = n),
+                    course: Boolean(me.assist),
+                    stop: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }),
+                  }
+            }
+          />,
         panelRoot,
       );
     }
@@ -951,6 +955,7 @@ async function main() {
           hotspots={harbour ? hotspotsOnScreen(harbour.hotspots) : {}}
           onOpen={(s) => (service = s)}
           notice={portNotice}
+          date={formatDate(dateOf(def.startDate, Math.floor(sim.state.tick / content.calendar.ticksPerDay)))}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();
