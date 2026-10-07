@@ -293,8 +293,11 @@ test('sea chart: hovering a port shows the prices last seen there, or that none 
 
   // The goods filter marks makers and buyers everywhere, with prices only where the captain has been.
   await page.locator('.chart-goods').getByRole('button', { name: 'Sugar' }).click();
-  await expect(page.locator('.chart-port.lean-exports', { hasText: 'Bridgetown' })).toHaveText('Bridgetown');
-  await expect(page.locator('.chart-port.lean-wants', { hasText: 'Port Royal' })).toHaveText(/^Port Royal \d+$/);
+  await expect(page.locator('.chart-port.lean-exports', { hasText: 'Bridgetown' })).toHaveText('▲ Bridgetown');
+  await expect(page.locator('.chart-port.lean-wants', { hasText: 'Port Royal' })).toHaveText(/^▼ Port Royal \d+$/);
+  // The key says what the marks are, and who is at war in 1660.
+  await expect(page.locator('.chart-key')).toContainText('pirate haven');
+  await expect(page.locator('.chart-key-wars')).toContainText('England and Spain');
   await page.screenshot({ path: 'test-results/chart-sugar.png' });
 });
 

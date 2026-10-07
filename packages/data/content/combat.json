@@ -126,6 +126,7 @@
   },
   "hunt": {
     "playerValue": 400,
+    "nerve": [0.6, 1.2],
     "patrolOdds": 0.6,
     "rescueBonus": 3,
     "skirmishHours": 18,

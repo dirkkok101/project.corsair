@@ -5,7 +5,7 @@ import { voyageProbe } from './probe';
 // dangerous in the starting brig, a brig with her full battery and berths filled is let be, the Leewards
 // are quiet, and the piracy moves prices without drying up the trade.
 describe('voyages', () => {
-  it('Port Royal to Tortuga: about one pirate every two or three voyages in the starting brig, none fully armed', () => {
+  it('Port Royal to Tortuga: about one pirate every two or three voyages in the starting brig, a few fully armed', () => {
     const run = (outfit = {}) => {
       let voyages = 0;
       let attacks = 0;
@@ -21,7 +21,9 @@ describe('voyages', () => {
     console.log('VOYAGES attacks per voyage, Port Royal-Tortuga: starting brig', start.toFixed(2), 'fully armed', armed.toFixed(2));
     expect(start).toBeGreaterThan(0.2);
     expect(start).toBeLessThan(0.7);
+    // Fully armed she is let be most of the time, but a pirate with nerve, or in a bigger ship, still comes.
     expect(armed).toBeLessThan(start / 2);
+    expect(armed).toBeGreaterThan(0);
   }, 300_000);
 
   it('the Leewards are quiet, and the trade keeps its margin', () => {

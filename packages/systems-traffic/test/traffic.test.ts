@@ -268,7 +268,7 @@ describe('choosing a target at sea', () => {
     };
     // An AI ship sails where her `along` puts her on her route: all of them share the pirate's lane here.
     const on = (ship: Ship, k: number): Ship => ({ ...ship, ...along(k), ai: { ...ship.ai!, route: pirate0.ai!.route, along: 30 + k, offset: 0, waitUntil: undefined } });
-    const pirate = (temperament = 'bold'): Ship => ({ ...on(pirate0, 0), crew: 64, ai: { ...on(pirate0, 0).ai!, temperament } });
+    const pirate = (temperament = 'bold', nerve = 1): Ship => ({ ...on(pirate0, 0), crew: 64, ai: { ...on(pirate0, 0).ai!, temperament, nerve } });
     const merchant = (k: number, cargo: Record<string, number> = { sugar: 20 }): Ship => ({ ...on(merchant0, k), cargo });
     const patrol = (k: number): Ship => on(patrol0, k);
     const player = (k: number, outfit: Partial<Ship> = {}): Ship => ({ ...sim.state.ships.player!, ...along(k), guns: 10, crew: 75, docked: undefined, ...outfit });
@@ -277,16 +277,20 @@ describe('choosing a target at sea', () => {
   };
   const ARMED = { guns: 18, crew: 150 };
 
-  it('a bold pirate comes for the starting brig; a cautious one, or any facing a full battery, lets her be', () => {
+  it('a bold pirate comes for the starting brig; a cautious one, or any facing a full battery, lets her be; nerve tips it', () => {
     const t = setting();
-    const chased = (temperament: string, outfit = {}) => {
-      const sim = t.alone([t.pirate(temperament), t.player(8, outfit)]);
+    const chased = (temperament: string, outfit = {}, nerve = 1) => {
+      const sim = t.alone([t.pirate(temperament, nerve), t.player(8, outfit)]);
       sim.step(30);
       return Boolean(Object.values(sim.state.ships).find((x) => x.ai)!.ai!.chasing);
     };
     expect(chased('bold')).toBe(true);
     expect(chased('cautious')).toBe(false);
     expect(chased('bold', ARMED)).toBe(false);
+    // A sloop is 0.77 the starting brig's strength: a cautious pirate of high nerve (0.6 x 0.9 = 0.54) comes.
+    expect(chased('cautious', {}, 0.6)).toBe(true);
+    expect(chased('bold', { crew: 110 }, 1)).toBe(false);
+    expect(chased('bold', { crew: 110 }, 0.6)).toBe(true);
   });
 
   it('she sights merchants as far off as the player, and with the player too strong goes for a laden one', () => {

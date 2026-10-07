@@ -80,8 +80,9 @@ body {
 
 .chart-sheet {
   position: relative;
-  /* Leaves room above for the hint and below for the goods filter. */
-  width: min(96vw, calc(86vh * 1600 / 1100));
+  /* Leaves room above for the hint and the key, and below for the goods filter. */
+  margin-top: 40px;
+  width: min(96vw, calc(78vh * 1600 / 1100));
   border: 2px solid #c09473;
 }
 
@@ -782,7 +783,101 @@ body {
 }
 
 .lean-wants {
+  color: #df84a5;
+}
+
+.chart-waters-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Pirate waters: a faint red about each haven, gone where pirates' interest has halved. */
+.chart-waters {
+  position: absolute;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(165 48 48 / 0.32), rgb(165 48 48 / 0.12) 60%, rgb(165 48 48 / 0));
+  pointer-events: none;
+}
+
+/* The chart's key, under the hint: nations, havens, you, ships seen, and the wars. */
+.chart-key {
+  position: absolute;
+  top: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  max-width: 96vw;
+  font-size: 12px;
+  color: #a8b5b2;
+}
+
+.chart-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.chart-key-dot {
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+  border: 1px solid #090a14;
+}
+
+.chart-key-dot.label-spain {
+  color: #e8c170;
+}
+
+.chart-key-dot.label-england {
+  color: #cf573c;
+}
+
+.chart-key-dot.label-france {
+  color: #73bed3;
+}
+
+.chart-key-dot.label-netherlands {
   color: #de9e41;
+}
+
+.chart-key-dot.label-pirate {
+  color: #a8b5b2;
+}
+
+.chart-key-waters {
+  display: inline-block;
+  width: 14px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgb(165 48 48 / 0.6);
+}
+
+.chart-key-you {
+  width: 9px;
+  height: 9px;
+  background: #e8c170;
+  border: 2px solid #090a14;
+  border-radius: 50%;
+}
+
+.chart-key-ship {
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: #ebede9;
+  border: 1px solid #090a14;
+}
+
+.chart-key-wars {
+  flex-basis: 100%;
+  text-align: center;
+  color: #cf573c;
 }
 
 .chart-port.faded {

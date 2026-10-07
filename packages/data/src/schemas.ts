@@ -392,6 +392,8 @@ export const combatSchema = z.object({
    */
   hunt: z.object({
     playerValue: z.number().min(0),
+    /** Each pirate's nerve, drawn at spawn: her temperament's attackOdds is multiplied by it (low: bolder). */
+    nerve: z.tuple([z.number().positive(), z.number().positive()]),
     patrolOdds: z.number().positive(),
     rescueBonus: z.number().positive(),
     skirmishHours: z.number().positive(),
@@ -472,6 +474,11 @@ export const trafficSchema = z.object({
   lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** Pirates' interest in a port halves this far (in tiles) from their haven. */
   pirateRangeTiles: z.number().positive(),
+  /**
+   * Bigger pirates as the player grows: a new pirate sails `classId` instead of her role's class with a
+   * chance rising from 0 at the player's strength `from` to `maxShare` at `full` (crew x (1 + guns / 10)).
+   */
+  biggerPirates: z.object({ classId: z.string(), maxShare: z.number().min(0).max(1), from: z.number().min(0), full: z.number().positive() }),
   names: z.record(nation, z.array(z.string()).min(1)),
 });
 

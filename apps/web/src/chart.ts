@@ -90,6 +90,10 @@ export interface ChartMarket {
   /** Rumours the captain has heard about a port, as text with their age. */
   rumours: (settlementId: string) => string[];
   today: () => number;
+  /** The wars between nations now, as pairs of names ("England", "Spain"). */
+  wars: () => [string, string][];
+  /** Pirates' interest in a port halves this far from their haven: the chart shades pirate waters by it. */
+  pirateRangeTiles: number;
 }
 
 /** `onSelect` gets the port clicked on the chart, or undefined when the chosen port is clicked again. */
@@ -117,6 +121,17 @@ export function createCharts(
   sheet.className = 'chart-sheet';
   sheet.style.aspectRatio = `${map.width} / ${map.height}`;
   sheet.appendChild(overview);
+  // Pirate waters: a faint red about each haven, fading out where pirates' interest has halved (in a
+  // layer of their own, clipped to the sheet).
+  const watersLayer = sheet.appendChild(document.createElement('div'));
+  watersLayer.className = 'chart-waters-layer';
+  for (const h of settlements.filter((s) => s.nation === 'pirate')) {
+    const waters = watersLayer.appendChild(document.createElement('div'));
+    waters.className = 'chart-waters';
+    waters.style.left = `${(h.x / map.width) * 100}%`;
+    waters.style.top = `${(h.y / map.height) * 100}%`;
+    waters.style.width = `${((2 * market.pirateRangeTiles) / map.width) * 100}%`;
+  }
   // Every port gets a dot; its name is placed later by layoutLabels, which needs the chart visible.
   const pins = settlements.map((s) => {
     const dot = sheet.appendChild(document.createElement('div'));
@@ -177,6 +192,24 @@ export function createCharts(
   const hint = chart.appendChild(document.createElement('div'));
   hint.className = 'chart-hint';
   hint.textContent = 'Sea chart · click a port to set your destination · M to close';
+  // The key: what every mark on the chart means, and who is at war (it decides who trades with you and who hunts you).
+  const key = chart.appendChild(document.createElement('div'));
+  key.className = 'chart-key';
+  const NATION_KEY: [string, string][] = [
+    ['spain', 'Spain'],
+    ['england', 'England'],
+    ['france', 'France'],
+    ['netherlands', 'the Netherlands'],
+  ];
+  const showKey = () => {
+    const wars = market.wars();
+    key.innerHTML =
+      NATION_KEY.map(([id, name]) => `<span class="chart-key-item"><span class="chart-key-dot label-${id}"></span>${name}</span>`).join('') +
+      '<span class="chart-key-item"><span class="chart-key-dot label-pirate"></span>pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>' +
+      '<span class="chart-key-item"><span class="chart-key-you"></span>you</span>' +
+      '<span class="chart-key-item"><span class="chart-key-ship"></span>a ship seen (fades over days)</span>' +
+      `<div class="chart-key-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a} and ${b}`).join(' · ')}` : 'All nations at peace'} · pirates are at war with everyone</div>`;
+  };
 
   // Goods filter: pick a good and every port shows whether it makes or needs it (common knowledge)
   // and, where the captain has called, the price that matters there: what you'd pay where it's
@@ -197,7 +230,7 @@ export function createCharts(
   const legend = filter.appendChild(document.createElement('span'));
   legend.className = 'chart-legend';
   legend.innerHTML =
-    '<span class="lean-exports">green</span>: made there, price to buy · <span class="lean-wants">amber</span>: needed there, price to sell';
+    '<span class="lean-exports">▲ green</span>: made there, the price to buy · <span class="lean-wants">▼ pink</span>: needed there, the price to sell';
   const showGood = () => {
     for (const { id, b } of goodButtons) b.classList.toggle('active', id === good);
     legend.hidden = !good;
@@ -205,7 +238,8 @@ export function createCharts(
       const lean = good ? market.lean(s.id, good) : undefined;
       const seen = good ? market.known(s.id)?.prices[good] : undefined;
       const price = seen && (lean === 'exports' ? seen.buy : seen.sell);
-      label.textContent = price !== undefined ? `${s.name} ${price}` : s.name;
+      const mark = lean === 'exports' ? '▲ ' : lean === 'wants' ? '▼ ' : '';
+      label.textContent = `${mark}${s.name}${price !== undefined ? ` ${price}` : ''}`;
       label.classList.toggle('lean-exports', lean === 'exports');
       label.classList.toggle('lean-wants', lean === 'wants');
       label.classList.toggle('faded', Boolean(good) && !lean);
@@ -219,7 +253,10 @@ export function createCharts(
       // A card left from the last look would show stale prices until the pointer moved.
       prices.hidden = true;
       // Prices may have been learned since the chart was last open.
-      if (!chart.hidden) showGood();
+      if (!chart.hidden) {
+        showGood();
+        showKey();
+      }
     }
     if (e.key === 'Escape') chart.hidden = true;
   });

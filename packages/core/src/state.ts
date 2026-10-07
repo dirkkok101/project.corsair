@@ -51,6 +51,8 @@ export interface AiCaptain {
   target?: string;
   /** A pirate's temperament (combat.json tactics): how long the odds she takes, and how she fights. */
   temperament?: string;
+  /** A pirate's nerve: her temperament's attack odds times this (below 1, she chances stronger ships). */
+  nerve?: number;
   /**
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.

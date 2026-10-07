@@ -84,5 +84,11 @@
     2,
     5
   ],
-  "pirateRangeTiles": 140
+  "pirateRangeTiles": 140,
+  "biggerPirates": {
+    "classId": "ship.brig",
+    "maxShare": 0.35,
+    "from": 150,
+    "full": 420
+  }
 }

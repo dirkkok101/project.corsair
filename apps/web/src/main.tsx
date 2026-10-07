@@ -38,7 +38,7 @@ import { battleMap, createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
 import type { TileMap } from '@corsair/data';
 import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
-import { createPoliticsSystem, legalTarget } from '@corsair/systems-politics';
+import { atWar, createPoliticsSystem, legalTarget, NATIONS } from '@corsair/systems-politics';
 
 // Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
 // named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
@@ -340,6 +340,13 @@ async function main() {
         .map((n) => `${newsText(content, n, name)} (${today - Math.floor(n.tick / content.calendar.ticksPerDay)} days ago)`);
     },
     today: () => Math.floor(sim.state.tick / content.calendar.ticksPerDay),
+    wars: () => {
+      const name: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' };
+      const pairs: [string, string][] = [];
+      NATIONS.forEach((a, i) => NATIONS.slice(i + 1).forEach((b) => atWar(content, sim.state, a, b) && pairs.push([name[a]!, name[b]!])));
+      return pairs;
+    },
+    pirateRangeTiles: content.traffic.pirateRangeTiles,
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {

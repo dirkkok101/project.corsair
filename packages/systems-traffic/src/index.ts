@@ -374,7 +374,7 @@ export function createTrafficSystem(
    */
   const lookout = (state: WorldState, ships: Record<string, Ship>, hunter: Ship): Ship | undefined => {
     const pirate = hunter.ai!.role === 'pirate';
-    const need = pirate ? (cb.tactics.temperaments[hunter.ai!.temperament ?? 'bold']?.attackOdds ?? 1) : cb.hunt.patrolOdds;
+    const need = pirate ? (cb.tactics.temperaments[hunter.ai!.temperament ?? 'bold']?.attackOdds ?? 1) * (hunter.ai!.nerve ?? 1) : cb.hunt.patrolOdds;
     const mine = strength(hunter);
     const sight = cb.chase.chaseTiles;
     let best: { s: Ship; score: number } | undefined;
@@ -883,16 +883,23 @@ function spawn(
   const names = t.names[nation] ?? t.names.pirate!;
   const n = state.nextShipId ?? 0;
   const classId = t.roles[role].classId;
-  const cls = content.ships[classId]!;
   const [lo, hi] = content.combat.crew[role];
   const [gold0, gold1] = content.combat.purse[role];
-  // A pirate's temperament, from her own stream so drawing it moves nothing else.
+  // A pirate's temperament and nerve, and whether she sails a bigger ship (more likely the stronger the
+  // player has grown), each from her own stream so drawing them moves nothing else.
   const temperaments = content.combat.tactics.temperaments;
   const temperament =
     role === 'pirate' ? rngStream(seedRng(n, 'temperament')).weighted(Object.fromEntries(Object.entries(temperaments).map(([k, v]) => [k, v.share]))) : undefined;
+  const nerve = role === 'pirate' ? rngStream(seedRng(n, 'nerve')).range(content.combat.hunt.nerve[0], content.combat.hunt.nerve[1]) : undefined;
+  const big = t.biggerPirates;
+  const player = Object.values(state.ships).find((s) => !s.ai);
+  const grown = player ? crewOf(content, player) * (1 + shipStats(content, player).guns / 10) : 0;
+  const bigShare = big.maxShare * Math.max(0, Math.min(1, (grown - big.from) / (big.full - big.from)));
+  const shipClass = role === 'pirate' && rngStream(seedRng(n, 'bigger')).float() < bigShare ? big.classId : classId;
+  const cls = content.ships[shipClass]!;
   const ship: Ship = {
     id: `ai.${n}`,
-    classId,
+    classId: shipClass,
     x: at[0],
     y: at[1],
     headingDeg: Math.floor(rng.float() * 32) * 11.25,
@@ -918,6 +925,7 @@ function spawn(
       news: [],
       purse: Math.round(rng.range(gold0, gold1)),
       ...(temperament ? { temperament } : {}),
+      ...(nerve !== undefined ? { nerve: Math.round(nerve * 100) / 100 } : {}),
     },
   };
   return { state: { ...state, nextShipId: n + 1 }, ship };
