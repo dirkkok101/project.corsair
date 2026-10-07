@@ -150,6 +150,13 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
 
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
+/** Which way `to` lies from `from`, as one of eight points of the compass (y grows southward). */
+function pointOfCompass(from: { x: number; y: number }, to: { x: number; y: number }): string {
+  const deg = ((Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI + 360) % 360;
+  return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(deg / 45) % 8]!;
+}
+/** About how often each ship in a skirmish within sight fires a broadside. */
+const VOLLEY_MS = 2200;
 /** How often a course checks its way is still clear, and re-plots it if not. */
 const REPLAN_MS = 1000;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
@@ -263,6 +270,8 @@ async function main() {
       }
     | undefined;
   let eventsSeen = 0;
+  // When each ship in a skirmish within sight fires next.
+  const nextVolley = new Map<string, number>();
   // Fights are sailed on the world map itself, drawn at battle scale.
   const battleSea = battleMap(content, map);
   // Space held in battle: fire each broadside as it bears. Released (or the window loses focus), it stops.
@@ -828,6 +837,18 @@ async function main() {
       }
     }
     eventsSeen = evs.length;
+    // Ships hove to fighting within sight (a skirmish): broadsides back and forth until it's settled.
+    for (const s of Object.values(sim.state.ships)) {
+      const foe = s.ai?.skirmish ? sim.state.ships[s.ai.skirmish.with] : undefined;
+      if (!foe) continue;
+      const me = player();
+      const d = Math.hypot(s.x - me.x, s.y - me.y);
+      if (d > content.traffic.sightTiles || loop.paused || now < (nextVolley.get(s.id) ?? 0)) continue;
+      // Each side fires every couple of seconds, staggered so the guns answer each other.
+      nextVolley.set(s.id, now + VOLLEY_MS * (0.8 + 0.4 * Math.random()));
+      renderer.seaFight(foe.x, foe.y);
+      audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
+    }
     renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
     shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
@@ -857,6 +878,11 @@ async function main() {
     inSight.clear();
     for (const id of seen) inSight.add(id);
     const intercepting = ship.assist?.mode === 'intercept' && ship.assist.targetId ? sim.state.ships[ship.assist.targetId] : undefined;
+    // A pirate fallen on a merchant within sight: the player can sail in and take a hand.
+    const raider = Object.values(sim.state.ships).find(
+      (s) => s.ai?.role === 'pirate' && s.ai.skirmish && Math.hypot(s.x - ship.x, s.y - ship.y) <= content.traffic.sightTiles,
+    );
+    const raided = raider?.ai?.skirmish ? sim.state.ships[raider.ai.skirmish.with] : undefined;
     // The crew's needs, when they press: food running out, or a grumbling crew.
     const days = foodDays(content, ship);
     const mood = moraleOf(content, sim.state);
@@ -1003,7 +1029,9 @@ async function main() {
               ? `Enter ${reach.name} · E`
               : near
                 ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
-                : sailHo && now < sailHo.until
+                : raider && raided?.ai
+                  ? `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name} · sail in and H to take a hand`
+                  : sailHo && now < sailHo.until
                   ? `${sailHo.text} · I intercept`
                   : courseNote && now < courseNote.until
                     ? courseNote.text

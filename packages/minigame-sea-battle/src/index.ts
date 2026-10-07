@@ -175,9 +175,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       break;
     }
   }
-  // A pirate captain's temperament, drawn from the battle's seed by share.
+  // A pirate captain's temperament: the one she sails under on the map (that weighed the odds before she
+  // came on), else drawn from the battle's seed by share.
   const temperament = (() => {
     if (setup.enemy.ai?.role !== 'pirate') return undefined;
+    if (setup.enemy.ai.temperament) return setup.enemy.ai.temperament;
     const pick = rngStream(seedRng(setup.seed, 'temperament'));
     return pick.weighted(Object.fromEntries(Object.entries(c.tactics.temperaments).map(([k, v]) => [k, v.share])));
   })();

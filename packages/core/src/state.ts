@@ -49,6 +49,13 @@ export interface AiCaptain {
   calmUntil?: number;
   /** An AI ship being hunted (another AI ship; the player is hunted through `chasing`). */
   target?: string;
+  /** A pirate's temperament (combat.json tactics): how long the odds she takes, and how she fights. */
+  temperament?: string;
+  /**
+   * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
+   * or sail in and take a hand.
+   */
+  skirmish?: { with: string; until: number };
 }
 
 export interface Ship {

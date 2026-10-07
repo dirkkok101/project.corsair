@@ -315,6 +315,8 @@ export const combatSchema = z.object({
         seizeOpenings: z.boolean(),
         fleeBelowHull: z.number().min(0).max(1),
         fleeBelowCrew: z.number().min(0).max(1),
+        /** On the map she goes after a ship only at these odds or better (her strength over the other's). */
+        attackOdds: z.number().positive(),
       }),
     ),
   }),
@@ -373,13 +375,27 @@ export const combatSchema = z.object({
     giveUpTiles: z.number().positive(),
     contactTiles: z.number().positive(),
     calmDays: z.number().min(0),
-    /** Hunters sight other AI ships at this range (shorter than the player, who stands out). */
-    aiChaseTiles: z.number().positive(),
+    /** A capital's guns reach this far: pirates won't chase, fight or lie in wait within it. */
+    capitalTiles: z.number().min(0),
     /** A pirate with a prize heads home and leaves off hunting this long. */
     prizeCalmDays: z.number().min(0),
     /** Under a port's guns: within this many tiles of a port the hunter fears (by the port's size), she
      * won't chase or fight. Pirates fear every port but a haven; patrols fear their enemies' ports. */
     harbourTiles: z.record(z.string(), z.number().min(0)),
+  }),
+  /**
+   * Choosing a target at sea (every hunter sights the player and AI ships alike, within chase.chaseTiles):
+   * a pirate weighs a ship's worth (cargo at base price, purse; the player's ship counts playerValue more)
+   * against the odds; a patrol needs patrolOdds and goes first for a pirate already on someone (rescueBonus).
+   * A fight between AI ships within the player's sight lasts skirmishHours of world time; beating the pirate
+   * in it earns rescueStanding with the merchant's nation.
+   */
+  hunt: z.object({
+    playerValue: z.number().min(0),
+    patrolOdds: z.number().positive(),
+    rescueBonus: z.number().positive(),
+    skirmishHours: z.number().positive(),
+    rescueStanding: z.number(),
   }),
   /** Standing: attacking a nation's ship costs `attack`; sinking or taking a pirate earns `pirate` with every nation. */
   standing: z.object({
@@ -454,6 +470,8 @@ export const trafficSchema = z.object({
   portDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** How long a pirate lies in wait on a lane before going home. */
   lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),
+  /** Pirates' interest in a port halves this far (in tiles) from their haven. */
+  pirateRangeTiles: z.number().positive(),
   names: z.record(nation, z.array(z.string()).min(1)),
 });
 

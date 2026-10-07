@@ -710,3 +710,37 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   await page.screenshot({ path: 'test-results/crew-pay.png' });
   expect(errors).toEqual([]);
 });
+
+test('a pirate falls on a merchant within sight: they heave to and fight it out, and the HUD calls it', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // The player in open water south of Jamaica; a merchant and a pirate put down further south, the pirate
+  // beyond seeing the player but in sight of the merchant.
+  const ids = await page.evaluate(() => {
+    const last = () => Object.keys(window.__corsair.state.get('ships') as object).filter((k) => k.startsWith('ai.')).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    // Hove to, so she watches from where she is.
+    window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'furled' });
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const merchant = last();
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'pirate', from: 'town.tortuga', to: 'town.port_royal' });
+    window.__corsair.sim.step(1);
+    const pirate = last();
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: merchant, x: 880, y: 722 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: pirate, x: 880, y: 727 });
+    window.__corsair.sim.step(1);
+    return { merchant, pirate };
+  });
+  await page.evaluate(() => {
+    for (let i = 0; i < 60 && !window.__corsair.log.query({ type: 'SkirmishBegun' }).length; i++) window.__corsair.sim.step(10);
+  });
+  const skirmish = await page.evaluate((id) => (window.__corsair.state.get('ships') as Record<string, { ai?: { skirmish?: { with: string } } }>)[id]?.ai?.skirmish, ids.pirate);
+  expect(skirmish?.with).toBe(ids.merchant);
+  // Called with the way to look (the two rejoin their lanes before they meet, so wherever that falls).
+  await expect(page.locator('.hud-prompt')).toContainText(/Gunfire to the (north|south|east|west)\w*!/);
+  await page.screenshot({ path: 'test-results/skirmish.png' });
+  // Within the hour it's settled, one way or the other.
+  await page.evaluate(() => window.__corsair.sim.step(Math.round(771 / 24) + 30));
+  expect(await page.evaluate(() => window.__corsair.log.query({ type: 'SeaFight' }).length)).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});

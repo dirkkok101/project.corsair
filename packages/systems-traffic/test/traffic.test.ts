@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
-import type { BattleResult, WorldState } from '@corsair/core';
+import type { BattleResult, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
 import { createEconomySystem, normalStock, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
@@ -214,12 +214,13 @@ describe('fights at sea', () => {
     win.applyCommands();
     expect(win.state.captain!.standing).toMatchObject({ spain: 3, england: 3, france: 3, netherlands: 3 });
 
-    const laden = { ...near, captain: { ...near.captain!, chest: 400 }, ships: { ...near.ships, player: { ...near.ships.player!, cargo: { luxuries: 20 } } } };
+    const laden = { ...near, captain: { ...near.captain!, chest: 400 }, ships: { ...near.ships, player: { ...near.ships.player!, cargo: { luxuries: 20, food: 10 } } } };
     const lose = createSim(laden, [traffic()]);
     const gold = lose.state.captain!.gold;
     lose.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('lost') });
     lose.applyCommands();
-    expect(lose.state.ships.player!.cargo).toEqual({});
+    // They leave the rations.
+    expect(lose.state.ships.player!.cargo).toEqual({ food: 10 });
     expect(lose.state.captain!.chest).toBe(0);
     expect(lose.state.captain!.gold).toBe(gold);
     expect(lose.events().find((e) => e.type === 'BattleOver')!.payload.lost).toEqual({ gold: 0, chest: 400, cargo: { luxuries: 20 } });
@@ -237,6 +238,129 @@ describe('fights at sea', () => {
     expect(fled.state.ships[id]!.ai).toMatchObject({ chasing: false });
     expect(fled.state.ships[id]!.ai!.calmUntil).toBeGreaterThan(fled.state.tick);
     expect(fled.state.captain!.gold).toBe(near.captain!.gold);
+  });
+});
+
+describe('choosing a target at sea', () => {
+  const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
+  /** A pirate out of Tortuga on her lane toward Port Royal, alone at sea with whoever a test puts near her. */
+  const setting = () => {
+    const sim = world(5);
+    const spawn = (role: 'merchant' | 'pirate' | 'patrol', from: string, to: string) => {
+      sim.send({ type: 'SpawnShip', role, from, to });
+      sim.applyCommands();
+      return sim.state.ships[Object.keys(sim.state.ships).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!]!;
+    };
+    const pirate0 = spawn('pirate', 'town.tortuga', 'town.port_royal');
+    const merchant0 = spawn('merchant', 'town.port_royal', 'town.cartagena');
+    const patrol0 = spawn('patrol', 'town.port_royal', 'town.bridgetown');
+    // `k` tiles on from a spot well down her lane, clear of Tortuga's harbour: open water.
+    const along = (k: number) => {
+      const route = pirate0.ai!.route;
+      let left = 30 + k;
+      for (let i = 1; i < route.length; i++) {
+        const [[x0, y0], [x1, y1]] = [route[i - 1]!, route[i]!];
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        if (left <= len) return { x: x0 + ((x1 - x0) / len) * left, y: y0 + ((y1 - y0) / len) * left };
+        left -= len;
+      }
+      throw new Error('lane too short');
+    };
+    // An AI ship sails where her `along` puts her on her route: all of them share the pirate's lane here.
+    const on = (ship: Ship, k: number): Ship => ({ ...ship, ...along(k), ai: { ...ship.ai!, route: pirate0.ai!.route, along: 30 + k, offset: 0, waitUntil: undefined } });
+    const pirate = (temperament = 'bold'): Ship => ({ ...on(pirate0, 0), crew: 64, ai: { ...on(pirate0, 0).ai!, temperament } });
+    const merchant = (k: number, cargo: Record<string, number> = { sugar: 20 }): Ship => ({ ...on(merchant0, k), cargo });
+    const patrol = (k: number): Ship => on(patrol0, k);
+    const player = (k: number, outfit: Partial<Ship> = {}): Ship => ({ ...sim.state.ships.player!, ...along(k), guns: 10, crew: 75, docked: undefined, ...outfit });
+    const alone = (ships: Ship[]) => createSim({ ...sim.state, ships: Object.fromEntries(ships.map((x) => [x.id, x])) }, [traffic()]);
+    return { pirate, merchant, patrol, player, alone, along };
+  };
+  const ARMED = { guns: 18, crew: 150 };
+
+  it('a bold pirate comes for the starting brig; a cautious one, or any facing a full battery, lets her be', () => {
+    const t = setting();
+    const chased = (temperament: string, outfit = {}) => {
+      const sim = t.alone([t.pirate(temperament), t.player(8, outfit)]);
+      sim.step(30);
+      return Boolean(Object.values(sim.state.ships).find((x) => x.ai)!.ai!.chasing);
+    };
+    expect(chased('bold')).toBe(true);
+    expect(chased('cautious')).toBe(false);
+    expect(chased('bold', ARMED)).toBe(false);
+  });
+
+  it('she sights merchants as far off as the player, and with the player too strong goes for a laden one', () => {
+    const t = setting();
+    const m = t.merchant(12);
+    const sim = t.alone([t.pirate(), t.player(8, ARMED), m]);
+    sim.step(30);
+    const pirate = Object.values(sim.state.ships).find((x) => x.ai?.role === 'pirate')!;
+    expect(pirate.ai!.target).toBe(m.id);
+  });
+
+  it("pirates keep off a capital's guns, further out than a town's", () => {
+    const t = setting();
+    const royal = settlements.find((s) => s.id === 'town.port_royal')!;
+    const reach = content.combat.chase.capitalTiles;
+    const harbour = content.combat.chase.harbourTiles.city!;
+    expect(reach).toBeGreaterThan(harbour);
+    // The player beyond the city's harbour reach but within the capital's: let be. Just outside it: chased.
+    const chased = (off: number) => {
+      // Out to sea south of the harbour, the pirate a few tiles further out.
+      const at = { x: royal.x, y: royal.y + off };
+      const lurker = t.pirate();
+      const sim = t.alone([{ ...lurker, x: at.x, y: at.y + 4, ai: { ...lurker.ai!, route: [[at.x, at.y + 4], [at.x, at.y + 24]], along: 0 } }, { ...t.player(0), ...at }]);
+      sim.step(30);
+      return Boolean(Object.values(sim.state.ships).find((x) => x.ai)!.ai!.chasing);
+    };
+    expect(chased((harbour + reach) / 2)).toBe(false);
+    expect(chased(reach + 3)).toBe(true);
+  });
+
+  it('a patrol that sights a pirate gives chase', () => {
+    const t = setting();
+    const pat = t.patrol(12);
+    const sim = t.alone([t.pirate(), pat, t.player(0, { x: 0, y: 0 })]);
+    sim.step(30);
+    expect(sim.state.ships[pat.id]!.ai!.target).toBe(t.pirate().id);
+  });
+
+  it("a fight within the player's sight plays out: both heave to, it is settled within the hour, and out of sight at once", () => {
+    const t = setting();
+    const seen = t.alone([t.pirate(), t.merchant(1.5), t.player(14, ARMED)]);
+    seen.step(30);
+    expect(seen.events().some((e) => e.type === 'SkirmishBegun')).toBe(true);
+    expect(seen.events().some((e) => e.type === 'SeaFight')).toBe(false);
+    const pirate = t.pirate().id;
+    expect(seen.state.ships[pirate]!.ai!.skirmish).toBeDefined();
+    seen.step(Math.round(day / 24) + 30);
+    expect(seen.events().some((e) => e.type === 'SeaFight')).toBe(true);
+    expect(Object.values(seen.state.ships).some((x) => x.ai?.skirmish)).toBe(false);
+
+    const unseen = t.alone([t.pirate(), t.merchant(1.5), t.player(0, { x: 0, y: 0 })]);
+    unseen.step(30);
+    expect(unseen.events().some((e) => e.type === 'SkirmishBegun')).toBe(false);
+    expect(unseen.events().some((e) => e.type === 'SeaFight')).toBe(true);
+  });
+
+  it('the player who takes the pirate off a merchant earns her nation\'s thanks, and the merchant sails on', () => {
+    const t = setting();
+    const m = t.merchant(1.5);
+    const sim = t.alone([t.pirate(), m, t.player(14, ARMED)]);
+    sim.step(30);
+    const pirate = t.pirate().id;
+    const result: BattleResult = {
+      outcome: 'sunk',
+      player: { hull: 80, sailCondition: 90, crew: 140, guns: 18 },
+      enemy: { hull: 0, sailCondition: 50, crew: 30, guns: 8 },
+    };
+    sim.send({ type: 'BattleEnded', shipId: 'player', targetId: pirate, result });
+    sim.applyCommands();
+    const st = content.combat.standing;
+    expect(sim.state.captain!.standing!.england).toBe(st.pirate + content.combat.hunt.rescueStanding);
+    expect(sim.state.captain!.standing!.spain).toBe(st.pirate);
+    sim.step(2);
+    expect(sim.state.ships[m.id]!.ai!.skirmish).toBeUndefined();
   });
 });
 

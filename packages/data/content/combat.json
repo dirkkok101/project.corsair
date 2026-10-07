@@ -21,8 +21,8 @@
     "stationTiles": 2,
     "openingReload": 0.6,
     "temperaments": {
-      "bold": { "share": 0.5, "boardBelowSails": 50, "boardCrewRatio": 1.2, "seizeOpenings": true, "fleeBelowHull": 0.25, "fleeBelowCrew": 0.35 },
-      "cautious": { "share": 0.5, "boardBelowSails": 35, "boardCrewRatio": 1.5, "seizeOpenings": false, "fleeBelowHull": 0.45, "fleeBelowCrew": 0.5 }
+      "bold": { "share": 0.5, "boardBelowSails": 50, "boardCrewRatio": 1.2, "seizeOpenings": true, "fleeBelowHull": 0.25, "fleeBelowCrew": 0.35, "attackOdds": 0.6 },
+      "cautious": { "share": 0.5, "boardBelowSails": 35, "boardCrewRatio": 1.5, "seizeOpenings": false, "fleeBelowHull": 0.45, "fleeBelowCrew": 0.5, "attackOdds": 0.9 }
     }
   },
   "guns": {
@@ -116,13 +116,20 @@
     "giveUpTiles": 30,
     "contactTiles": 2.5,
     "calmDays": 2,
-    "aiChaseTiles": 8,
+    "capitalTiles": 14,
     "prizeCalmDays": 7,
     "harbourTiles": {
       "hamlet": 0,
       "town": 5,
       "city": 9
     }
+  },
+  "hunt": {
+    "playerValue": 400,
+    "patrolOdds": 0.6,
+    "rescueBonus": 3,
+    "skirmishHours": 1,
+    "rescueStanding": 10
   },
   "standing": {
     "attack": -20,

@@ -1,5 +1,5 @@
 {
-  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share; each role sails one class. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Every ship on screen is drawn; sightTiles (from the player's ship, times nightSight after dark) only decides what the chart and minimap remember, and covers the whole screen with a margin. Hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles; each ship keeps her own line up to laneSpreadTiles to one side of a lane, so ships sharing it sail side by side. Ships lie in port portDays before sailing on. Pirates mark ports near their haven (by size, fading with distance) and lie in wait lurkDays on the lane.",
+  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share; each role sails one class. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Every ship on screen is drawn; sightTiles (from the player's ship, times nightSight after dark) only decides what the chart and minimap remember, and covers the whole screen with a margin. Hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles; each ship keeps her own line up to laneSpreadTiles to one side of a lane, so ships sharing it sail side by side. Ships lie in port portDays before sailing on. Pirates mark ports near their haven (by size, interest halving at pirateRangeTiles) and lie in wait lurkDays on the lane.",
   "population": 34,
   "roles": {
     "merchant": {
@@ -83,5 +83,6 @@
   "lurkDays": [
     2,
     5
-  ]
+  ],
+  "pirateRangeTiles": 140
 }
