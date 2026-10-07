@@ -191,7 +191,7 @@ export function createCharts(
   marker.className = 'chart-player';
   const hint = chart.appendChild(document.createElement('div'));
   hint.className = 'chart-hint';
-  hint.textContent = 'Sea chart · click a port to set your destination · M to close';
+  hint.textContent = 'Sea chart · time stands still while you study it · click a port to set your destination · M to close';
   // The key: what every mark on the chart means, and who is at war (it decides who trades with you and who hunts you).
   const key = chart.appendChild(document.createElement('div'));
   key.className = 'chart-key';
@@ -262,6 +262,10 @@ export function createCharts(
   });
 
   return {
+    /** The chart is open: the world waits while the captain studies it. */
+    get open() {
+      return !chart.hidden;
+    },
     /** Forget the destination (made port): no port highlighted. */
     clearDestination() {
       selected = undefined;

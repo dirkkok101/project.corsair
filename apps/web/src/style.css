@@ -80,9 +80,9 @@ body {
 
 .chart-sheet {
   position: relative;
-  /* Leaves room above for the hint and the key, and below for the goods filter. */
-  margin-top: 40px;
-  width: min(96vw, calc(78vh * 1600 / 1100));
+  /* As big as the screen allows: room above for the hint and the key, below for the goods filter. */
+  margin-top: 46px;
+  width: min(98vw, calc((100vh - 130px) * 1600 / 1100));
   border: 2px solid #c09473;
 }
 
@@ -94,8 +94,9 @@ body {
 
 .chart-dot {
   position: absolute;
-  width: 7px;
-  height: 7px;
+  /* Marks and names grow with the chart, so they stay readable on a big screen. */
+  width: clamp(7px, 0.75vw, 13px);
+  height: clamp(7px, 0.75vw, 13px);
   transform: translate(-50%, -50%);
   background: currentColor;
   border: 1px solid #090a14;
@@ -127,7 +128,7 @@ body {
   position: absolute;
   transform: translate(6px, -50%);
   padding: 0 4px;
-  font-size: 11px;
+  font-size: clamp(11px, 0.85vw, 16px);
   white-space: nowrap;
   color: #ebede9;
   background: rgb(9 10 20 / 0.6);
@@ -163,8 +164,8 @@ body {
 
 .chart-player {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: clamp(10px, 1vw, 18px);
+  height: clamp(10px, 1vw, 18px);
   transform: translate(-50%, -50%);
   background: #e8c170;
   border: 2px solid #090a14;
@@ -173,7 +174,7 @@ body {
 
 .chart-hint {
   position: absolute;
-  top: 12px;
+  top: 8px;
   color: #a8b5b2;
 }
 
@@ -806,7 +807,7 @@ body {
 /* The chart's key, under the hint: nations, havens, you, ships seen, and the wars. */
 .chart-key {
   position: absolute;
-  top: 34px;
+  top: 30px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -911,8 +912,8 @@ body {
 /* A sighted ship: a small diamond in its nation's colour, fading with age. */
 .chart-ship {
   position: absolute;
-  width: 6px;
-  height: 6px;
+  width: clamp(6px, 0.6vw, 11px);
+  height: clamp(6px, 0.6vw, 11px);
   transform: translate(-50%, -50%) rotate(45deg);
   background: currentColor;
   border: 1px solid #090a14;

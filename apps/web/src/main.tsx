@@ -796,8 +796,9 @@ async function main() {
         panelRoot,
       );
     }
-    if (player().docked || hailing) {
-      // World time stops in port (PRD section 2), and while hailing; commands still apply at once.
+    if (player().docked || hailing || charts.open) {
+      // World time stops in port (PRD section 2), while hailing, and while the chart is open; commands
+      // still apply at once.
       sim.applyCommands();
       acc = 0;
     }
