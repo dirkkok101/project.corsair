@@ -13,8 +13,13 @@ import {
   portTrade,
   quote,
   referenceStock,
+  daysUnpaid,
+  moraleOf,
+  moraleWord,
+  plunderShares,
   repairCost,
   sellDepth,
+  wagesOwed,
   sellsGuns,
   sellsUpgrade,
   tradeLean,
@@ -35,6 +40,8 @@ export interface PortProps {
   hotspots: Partial<Record<Service, { left: number; top: number; width: number; height: number }>>;
   /** Told which service is open (undefined for the harbour view), so its interior can be shown. */
   onOpen: (service: Service | undefined) => void;
+  /** Said once on arrival: men who deserted as she made port. */
+  notice?: string;
 }
 
 export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
@@ -68,7 +75,7 @@ const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
-export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen }: PortProps) {
+export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice }: PortProps) {
   // The market opens on arrival; closing it leaves the harbour to look at.
   const [open, setOpen] = useState<Service | undefined>('merchant');
   useEffect(() => onOpen(open), [open]);
@@ -183,6 +190,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             </div>
           </div>
         </header>
+        {notice ? <div class="port-notice">{notice}</div> : null}
 
         <nav class="port-tabs">
           {SERVICES.map((s) =>
@@ -349,6 +357,32 @@ function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' |
       </button>
       <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
         Fill the berths · {room * price} gold
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Paying the crew (PRD section 4, two purses): divide the plunder chest (the captain takes his share, the
+ * crew the rest per head, and their morale follows the size of it), or pay wages from the captain's purse
+ * for every day since they were last paid.
+ */
+function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'>) {
+  const ship = state.ships[shipId]!;
+  const morale = moraleOf(content, state);
+  const share = plunderShares(content, state, ship);
+  const owed = wagesOwed(content, state, ship);
+  const days = daysUnpaid(content, state);
+  return (
+    <div class="recruit crew-pay">
+      <span>
+        {moraleWord(content, morale)} ({Math.round(morale)}) · chest {Math.round(share.chest)} · unpaid {days} days
+      </span>
+      <button disabled={share.chest <= 0} onClick={() => send({ type: 'DividePlunder', shipId })}>
+        Divide the plunder{share.chest > 0 ? ` · you take ${share.captain}, each man ${Math.round(share.perHead)}` : ''}
+      </button>
+      <button disabled={owed <= 0 || (state.captain?.gold ?? 0) < owed} onClick={() => send({ type: 'PayWages', shipId })}>
+        Pay wages · {owed} gold
       </button>
     </div>
   );
@@ -547,6 +581,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
   const recruit = (
     <>
       <Recruit content={content} state={state} shipId={shipId} send={send} />
+      <CrewPay content={content} state={state} shipId={shipId} send={send} />
       <Harbour content={content} state={state} town={town} />
     </>
   );

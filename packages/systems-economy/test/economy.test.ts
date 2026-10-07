@@ -10,7 +10,9 @@ import {
   cargoUsed,
   createEconomySystem,
   DOCK_RANGE,
+  foodDays,
   midPrice,
+  moraleOf,
   newsArrives,
   newsAt,
   newsText,
@@ -42,7 +44,9 @@ const day = content.calendar.ticksPerDay;
 function moored(at = portRoyal, seed = 1) {
   const world = createWorld(def);
   const ship = { ...world.ships.player!, x: at.x + 1, y: at.y + 1 };
-  return createSim(withEconomy({ ...world, ships: { player: ship } }, content, settlements, seed), [createEconomySystem(content, settlements)]);
+  // An empty hold (a new career sails with food aboard), so trades here start from nothing.
+  const state = withEconomy({ ...world, ships: { player: ship } }, content, settlements, seed);
+  return createSim({ ...state, ships: { player: { ...state.ships.player!, cargo: {} } } }, [createEconomySystem(content, settlements)]);
 }
 const player = (state: WorldState) => state.ships.player!;
 
@@ -541,15 +545,117 @@ describe('the governor', () => {
     ];
     const s = atWarWithSpain({ ...sim.state, captain: { ...sim.state.captain!, deeds } });
     const gov = createSim(s, [createEconomySystem(content, settlements)]);
-    const gold = gov.state.captain!.gold;
+    const chest = gov.state.captain!.chest ?? 0;
     gov.send({ type: 'CollectBounties', shipId: 'player' });
     gov.applyCommands();
     const b = content.politics.bounty;
-    expect(gov.state.captain!.gold - gold).toBe(Math.round(b.pirate * (1 + 50 / b.piracyScale)) + b.merchant);
+    // Bounties are plunder: they go into the crew's chest.
+    expect(gov.state.captain!.chest! - chest).toBe(Math.round(b.pirate * (1 + 50 / b.piracyScale)) + b.merchant);
     // France is at peace with England: that deed waits for a governor who will pay it.
     expect(gov.state.captain!.deeds).toEqual([deeds[2]]);
     gov.send({ type: 'CollectBounties', shipId: 'player' });
     gov.applyCommands();
     expect(gov.events().at(-1)!.payload.reason).toBe('nothing-owed');
+  });
+});
+
+describe('the crew', () => {
+  const day = content.calendar.ticksPerDay;
+  const m = content.crew.morale;
+  /** At sea off Port Royal, with this much food, chest and morale. */
+  const crewAt = (food: number, captain: Partial<import('@corsair/core').Captain> = {}, crew?: number) => {
+    const sim = moored();
+    const s = sim.state;
+    return createSim(
+      {
+        ...s,
+        ships: { player: { ...player(s), cargo: food ? { food } : {}, ...(crew !== undefined ? { crew } : {}) } },
+        captain: { ...s.captain!, ...captain },
+      },
+      [createEconomySystem(content, settlements)],
+    );
+  };
+
+  it('eats its rations day by day, carrying part-units over, and the food runs out', () => {
+    // 75 men at 20 a unit: 3.75 units a day.
+    const sim = crewAt(30);
+    sim.step(day * 4);
+    expect(player(sim.state).cargo.food).toBe(15);
+    expect(foodDays(content, player(sim.state))).toBeCloseTo(15 / 3.75);
+    sim.step(day * 4);
+    expect(player(sim.state).cargo.food).toBeUndefined();
+  });
+
+  it('starving, morale falls fast; with a full chest and pay due soon, it rises toward their mood', () => {
+    const hungry = crewAt(0);
+    hungry.step(day * 3);
+    expect(moraleOf(content, hungry.state)).toBeLessThan(m.start - m.starvingPerDay * 2);
+    expect(hungry.events().filter((e) => e.type === 'Starving').length).toBe(3);
+
+    // A chest worth 40 a head (the full mood bonus) on a fed crew lifts them.
+    const rich = crewAt(100, { chest: 75 * 40 / (1 - content.crew.captainShare) });
+    rich.step(day * 5);
+    expect(moraleOf(content, rich.state)).toBeGreaterThan(m.start);
+    // Long unpaid with nothing in the chest, they sour.
+    const sour = crewAt(200, { chest: 0, paidTick: -day * 40 });
+    sour.step(day * 5);
+    expect(moraleOf(content, sour.state)).toBeLessThan(m.start);
+  });
+
+  it('a crew too unhappy deserts in part when she makes port', () => {
+    const sim = crewAt(50, { morale: m.deserting - 1 }, 80);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    expect(player(sim.state).crew).toBe(80 - Math.round(80 * m.desertShare.deserting));
+    expect(sim.events().some((e) => e.type === 'Deserted')).toBe(true);
+    const content2 = crewAt(50, { morale: m.start }, 80);
+    content2.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    content2.applyCommands();
+    expect(player(content2.state).crew).toBe(80);
+  });
+
+  it('dividing the plunder pays the captain his share and sets morale by each man\'s; wages cost every man-day unpaid', () => {
+    const sim = crewAt(50, { chest: 1000, morale: 30, paidTick: -day * 20 }, 50);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'DividePlunder', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.gold).toBe(gold + Math.floor(1000 * content.crew.captainShare));
+    expect(sim.state.captain!.chest).toBe(0);
+    // 800 among 50 men is 16 a head: base plus 16/40 of the share bonus.
+    expect(sim.state.captain!.morale).toBe(Math.round(m.afterDivision.base + m.afterDivision.fromShare * (16 / m.mood.perHeadForFull)));
+    expect(sim.state.captain!.paidTick).toBe(sim.state.tick);
+    sim.send({ type: 'DividePlunder', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('chest-empty');
+
+    const owing = crewAt(50, { morale: 30, paidTick: -day * 10 }, 50);
+    owing.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    owing.applyCommands();
+    const before = owing.state.captain!.gold;
+    owing.send({ type: 'PayWages', shipId: 'player' });
+    owing.applyCommands();
+    expect(before - owing.state.captain!.gold).toBe(50 * 10 * content.crew.wagesPerManDay);
+    expect(owing.state.captain!.morale).toBe(m.afterWages);
+  });
+
+  it('selling prize cargo fills the chest, not the purse, and a trade keeps the rest of the captain', () => {
+    const sim = crewAt(0, { standing: { england: 12 }, marques: ['england'] });
+    const prized = createSim(
+      { ...sim.state, ships: { player: { ...player(sim.state), cargo: { sugar: 10 }, plunder: { sugar: 6 } } } },
+      [createEconomySystem(content, settlements)],
+    );
+    prized.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    prized.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 10 });
+    prized.applyCommands();
+    const sold = prized.events().find((e) => e.type === 'Sold')!.payload.gold as number;
+    const chest = prized.state.captain!.chest!;
+    expect(chest).toBeGreaterThan(0);
+    expect(prized.state.captain!.gold - 1000).toBe(sold - chest);
+    expect(player(prized.state).plunder).toEqual({});
+    // Standing and letters of marque survive the trade (a sale used to drop them).
+    expect(prized.state.captain!.standing).toEqual({ england: 12 });
+    expect(prized.state.captain!.marques).toEqual(['england']);
   });
 });

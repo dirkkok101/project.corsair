@@ -469,3 +469,53 @@ export const upgradeSchema = z.object({
 });
 export const upgradesSchema = z.object({ upgrades: z.array(upgradeSchema) });
 export type Upgrade = z.infer<typeof upgradeSchema>;
+
+const share01 = z.number().min(0).max(1);
+/** The crew: rations, morale, the two purses, manning and volunteers (crew.json's $comment explains). */
+export const crewSchema = z.object({
+  /** Men one unit of food feeds for a day. */
+  rationMenPerUnit: z.number().positive(),
+  /** Food a new career's ship starts with, in units. */
+  startFood: z.number().min(0),
+  morale: z.object({
+    start: z.number().min(0).max(100),
+    /** The mood morale heads toward: base, plus up to fromShares as the chest's gold per head reaches
+     * perHeadForFull, minus perDayUnpaid for each day past graceDays since the crew was last paid. */
+    mood: z.object({
+      base: z.number(),
+      perHeadForFull: z.number().positive(),
+      fromShares: z.number().min(0),
+      graceDays: z.number().min(0),
+      perDayUnpaid: z.number().min(0),
+    }),
+    /** Share of the gap to the mood closed each day. */
+    approachPerDay: share01,
+    starvingPerDay: z.number().min(0),
+    /** Morale for a ship taken or sunk, and for men lost (lossFactor times the share of the crew lost). */
+    taken: z.number(),
+    sunk: z.number(),
+    lossFactor: z.number().min(0),
+    grumbling: z.number(),
+    deserting: z.number(),
+    mutinous: z.number(),
+    /** Share of the crew who desert on making port, below `deserting` and below `mutinous`. */
+    desertShare: z.object({ deserting: share01, mutinous: share01 }),
+    /** Morale after dividing the plunder: base plus fromShare as the share per head reaches perHeadForFull. */
+    afterDivision: z.object({ base: z.number(), fromShare: z.number(), min: z.number(), max: z.number() }),
+    /** Morale is at least this after wages are paid. */
+    afterWages: z.number(),
+  }),
+  captainShare: share01,
+  wagesPerManDay: z.number().min(0),
+  /** Reload: manning is crew over the men a broadside needs; at fullManning it reloads reloadBonus faster. */
+  manning: z.object({ fullManning: z.number().gt(1), reloadBonus: share01 }),
+  /** Below a class's minimum crew, speed and turning scale down with the crew, to no less than this. */
+  shortHandedFloor: share01,
+  /** Boarding strength times this, from morale 0 to morale 100. */
+  boarding: z.object({ at0: z.number().positive(), at100: z.number().positive() }),
+  /** AI crews' morale in a fight, by role. */
+  enemyMorale: z.record(z.string(), z.number().min(0).max(100)),
+  /** Share of a prize's surviving crew who volunteer to join (pirates are readier to). */
+  volunteers: z.object({ pirate: share01, other: share01 }),
+});
+export type CrewConfig = z.infer<typeof crewSchema>;

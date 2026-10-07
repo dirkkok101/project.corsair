@@ -166,9 +166,14 @@ describe('fights at sea', () => {
     fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('struck') });
     fight.applyCommands();
     expect(fight.state.ships[id]).toBeUndefined();
-    expect(fight.state.captain!.gold).toBe(gold + 300);
+    // Her gold is plunder, for the crew's chest; her cargo comes aboard marked as plunder too.
+    expect(fight.state.captain!.gold).toBe(gold);
+    expect(fight.state.captain!.chest).toBe(300);
     expect(fight.state.ships.player!.cargo.sugar).toBe(12);
-    expect(fight.state.ships.player!.crew).toBe(50);
+    expect(fight.state.ships.player!.plunder).toEqual({ sugar: 12 });
+    // A tenth of her surviving crew (9) volunteers; and a prize lifts the crew's spirits.
+    expect(fight.state.ships.player!.crew).toBe(50 + Math.round(9 * content.crew.volunteers.other));
+    expect(fight.state.captain!.morale).toBeGreaterThan(content.crew.morale.start - 20);
     expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'taken', ship: prize.ai.name, nation: 'england' });
   });
 

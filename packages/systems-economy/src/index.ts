@@ -134,6 +134,58 @@ export function crewOf(content: ContentPack, ship: Ship): number {
   return ship.crew ?? Math.round(content.ships[ship.classId]!.maxCrew * content.combat.startCrew);
 }
 
+/** The crew's morale, 0 to 100 (a save from before the crew slice reads as a new career's). */
+export function moraleOf(content: ContentPack, state: WorldState): number {
+  return state.captain?.morale ?? content.crew.morale.start;
+}
+
+/** How the crew feels, in a word, from their morale. */
+export function moraleWord(content: ContentPack, morale: number): string {
+  const m = content.crew.morale;
+  return morale >= 75 ? 'Happy' : morale >= m.grumbling ? 'Content' : morale >= m.deserting ? 'Grumbling' : morale >= m.mutinous ? 'Ready to desert' : 'Mutinous';
+}
+
+/** Food the crew eats a day, in units. */
+export function rationPerDay(content: ContentPack, ship: Ship): number {
+  return crewOf(content, ship) / content.crew.rationMenPerUnit;
+}
+
+/** Days the food in the hold will last. */
+export function foodDays(content: ContentPack, ship: Ship): number {
+  const ration = rationPerDay(content, ship);
+  return ration > 0 ? (ship.cargo.food ?? 0) / ration : Infinity;
+}
+
+/** Whole days since the crew was last paid (the plunder divided, or wages). */
+export function daysUnpaid(content: ContentPack, state: WorldState): number {
+  return Math.max(0, Math.floor((state.tick - (state.captain?.paidTick ?? 0)) / content.calendar.ticksPerDay));
+}
+
+/** Wages for every man for every day since the crew was last paid. */
+export function wagesOwed(content: ContentPack, state: WorldState, ship: Ship): number {
+  return Math.ceil(crewOf(content, ship) * daysUnpaid(content, state) * content.crew.wagesPerManDay);
+}
+
+/** Dividing the plunder chest now: the captain's cut, the crew's, and each man's share. */
+export function plunderShares(content: ContentPack, state: WorldState, ship: Ship) {
+  const chest = state.captain?.chest ?? 0;
+  const captain = Math.floor(chest * content.crew.captainShare);
+  const crew = chest - captain;
+  return { chest, captain, crew, perHead: crew / Math.max(1, crewOf(content, ship)) };
+}
+
+/**
+ * The mood the crew's morale heads toward, day by day (Pirates! 1987: their eyes are on gold, and they
+ * are impatient): better the more gold per head the chest holds, worse every day past the grace since
+ * they were last paid. A small crew is easier to please, as each man's share is larger.
+ */
+export function crewMood(content: ContentPack, state: WorldState, ship: Ship): number {
+  const m = content.crew.morale.mood;
+  const fromShares = m.fromShares * Math.min(1, plunderShares(content, state, ship).perHead / m.perHeadForFull);
+  const unpaid = Math.max(0, daysUnpaid(content, state) - m.graceDays) * m.perDayUnpaid;
+  return Math.max(0, Math.min(100, m.base + fromShares - unpaid));
+}
+
 /** Repair bill: hull points and sail condition short of sound, at the shipwright's rates. */
 export function repairCost(content: ContentPack, ship: Ship): number {
   const hullMax = shipStats(content, ship).hullMax;
@@ -164,8 +216,12 @@ export function withEconomy(world: WorldState, content: ContentPack, settlements
       content.goods.map((g) => [g.id, Math.round(normalStock(content, s, g.id) * rng.range(0.7, 1.3))]),
     );
   }
-  const captain: Captain = { gold: content.economy.startingGold, knownPrices: {} };
-  return { ...world, markets, captain, rng: { ...world.rng, economy: rng.state() } };
+  const captain: Captain = { gold: content.economy.startingGold, knownPrices: {}, chest: 0, morale: content.crew.morale.start, paidTick: world.tick, mess: 0 };
+  // The player's ship sails with a few days' food aboard.
+  const ships = Object.fromEntries(
+    Object.entries(world.ships).map(([id, s]) => [id, s.ai || s.cargo.food ? s : { ...s, cargo: { ...s.cargo, food: content.crew.startFood } }]),
+  );
+  return { ...world, ships, markets, captain, rng: { ...world.rng, economy: rng.state() } };
 }
 
 const activeShock = (state: WorldState, settlementId: string, good: string) =>
@@ -305,6 +361,40 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     events: [{ type: 'TradeRefused', entityIds: [ship.id], payload: { reason, ...extra } }] as EmittedEvent[],
   });
 
+  /**
+   * A day at sea for the player's crew: they eat the day's rations from the hold (the part-units carried
+   * over in `mess`), and their morale heads toward their mood, falling fast while they starve. In port the
+   * clock stands still, so nothing here runs there.
+   */
+  const messDay = (state: WorldState, tick: number): { state: WorldState; events: EmittedEvent[] } => {
+    const ship = Object.values(state.ships).find((s) => !s.ai);
+    if (!ship || ship.docked || !state.captain) return { state, events: [] };
+    const need = rationPerDay(content, ship) + (state.captain.mess ?? 0);
+    const want = Math.floor(need);
+    const food = ship.cargo.food ?? 0;
+    const eaten = Math.min(want, food);
+    const starving = eaten < want;
+    const cargo: Record<string, number> = { ...ship.cargo, food: food - eaten };
+    if (!cargo.food) delete cargo.food;
+    // What's left of the food keeps its share of what it cost.
+    const paid = ship.paid ? { ...ship.paid } : undefined;
+    if (paid?.food && food) paid.food = Math.round(paid.food * ((food - eaten) / food));
+    if (paid && !cargo.food) delete paid.food;
+    const m = content.crew.morale;
+    const before = moraleOf(content, state);
+    const mood = crewMood(content, state, ship);
+    const morale = Math.max(0, Math.min(100, before + (mood - before) * m.approachPerDay - (starving ? m.starvingPerDay : 0)));
+    const events: EmittedEvent[] = starving ? [{ type: 'Starving', entityIds: [ship.id], payload: { tick } }] : [];
+    return {
+      state: {
+        ...state,
+        ships: { ...state.ships, [ship.id]: { ...ship, cargo, ...(paid ? { paid } : {}) } },
+        captain: { ...state.captain, morale, mess: starving ? 0 : need - want },
+      },
+      events,
+    };
+  };
+
   return {
     name: 'economy',
     command(state, command) {
@@ -321,14 +411,26 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         }
         // Drop anchor: stopped, helm and assist cleared.
         const { assist: _assist, ...rest } = ship;
-        const docked: Ship = { ...rest, docked: s.id, speed: 0, helm: 0 };
+        let docked: Ship = { ...rest, docked: s.id, speed: 0, helm: 0 };
+        const events: EmittedEvent[] = [{ type: 'Docked', entityIds: [ship.id, s.id], payload: {} }];
+        // A crew this unhappy slips ashore when she makes port, and doesn't come back.
+        const morale = moraleOf(content, state);
+        const m = content.crew.morale;
+        if (!ship.ai && morale < m.deserting) {
+          const crew = crewOf(content, ship);
+          const gone = Math.round(crew * (morale < m.mutinous ? m.desertShare.mutinous : m.desertShare.deserting));
+          if (gone > 0) {
+            docked = { ...docked, crew: crew - gone };
+            events.push({ type: 'Deserted', entityIds: [ship.id, s.id], payload: { count: gone, morale } });
+          }
+        }
         return {
           state: {
             ...state,
             ships: { ...state.ships, [ship.id]: docked },
             captain: { ...state.captain, knownPrices: seen(state, s, state.markets[s.id]!) },
           },
-          events: [{ type: 'Docked', entityIds: [ship.id, s.id], payload: {} }],
+          events,
         };
       }
       if (command.type === 'Undock') {
@@ -369,7 +471,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!pay.length) return refuse(state, ship, 'nothing-owed');
         const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + pay.length) };
         return {
-          state: { ...state, captain: { ...state.captain, gold: state.captain.gold + total, deeds: kept, standing } },
+          // Bounties are plunder: they go into the chest the crew sails for.
+          state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing } },
           events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total } }],
         };
       }
@@ -390,6 +493,35 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             captain: { ...state.captain, gold: state.captain.gold - count * price },
           },
           events: [{ type: 'Recruited', entityIds: [ship.id, ship.docked], payload: { count, gold: count * price } }],
+        };
+      }
+      if (command.type === 'DividePlunder' || command.type === 'PayWages') {
+        // The tavern, where the crew is paid: their share of the chest, or wages from the captain's purse.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const crewMorale = content.crew.morale;
+        if (command.type === 'DividePlunder') {
+          const share = plunderShares(content, state, ship);
+          if (share.chest <= 0) return refuse(state, ship, 'chest-empty');
+          const morale = Math.round(
+            Math.max(
+              crewMorale.afterDivision.min,
+              Math.min(crewMorale.afterDivision.max, crewMorale.afterDivision.base + crewMorale.afterDivision.fromShare * Math.min(1, share.perHead / crewMorale.mood.perHeadForFull)),
+            ),
+          );
+          return {
+            state: { ...state, captain: { ...state.captain, gold: state.captain.gold + share.captain, chest: 0, morale, paidTick: state.tick } },
+            events: [{ type: 'PlunderDivided', entityIds: [ship.id, ship.docked], payload: { captain: share.captain, perHead: Math.round(share.perHead), morale } }],
+          };
+        }
+        const owed = wagesOwed(content, state, ship);
+        if (owed <= 0) return refuse(state, ship, 'nothing-owed');
+        if (state.captain.gold < owed) return refuse(state, ship, 'not-enough-gold');
+        const morale = Math.max(moraleOf(content, state), crewMorale.afterWages);
+        return {
+          state: { ...state, captain: { ...state.captain, gold: state.captain.gold - owed, morale, paidTick: state.tick } },
+          events: [{ type: 'WagesPaid', entityIds: [ship.id, ship.docked], payload: { gold: owed, morale } }],
         };
       }
       if (command.type === 'Repair') {
@@ -486,6 +618,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         let used = cargoUsed(ship);
         let done = 0;
         let total = 0;
+        // Selling prize cargo fills the plunder chest, not the captain's purse: it is the crew's as much as his.
+        const plunderHeld = command.type === 'Sell' ? (ship.plunder?.[command.good] ?? 0) : 0;
+        let chestGain = 0;
         // Unit by unit: every unit moves the stock, so a big trade gets dearer (or cheaper) as it goes.
         for (; done < qty; done++) {
           const q = quote(content, s, command.good, stock);
@@ -499,7 +634,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           } else {
             if (held < 1) break;
             stock++;
-            gold += q.sell;
+            if (done < plunderHeld) chestGain += q.sell;
+            else gold += q.sell;
             held--;
             used--;
             total += q.sell;
@@ -519,13 +655,21 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const cost = command.type === 'Buy' ? before + total : heldBefore > 0 ? before * (held / heldBefore) : 0;
         const paid = { ...ship.paid, [command.good]: Math.round(cost) };
         if (held === 0) delete paid[command.good];
+        const plunder = { ...ship.plunder };
+        if (plunderHeld) {
+          const left = Math.max(0, plunderHeld - done);
+          if (left) plunder[command.good] = left;
+          else delete plunder[command.good];
+        }
         const next = {
           ...state,
           markets: { ...state.markets, [s.id]: market },
-          ships: { ...state.ships, [ship.id]: { ...ship, cargo, paid } },
+          ships: { ...state.ships, [ship.id]: { ...ship, cargo, paid, ...(ship.plunder ? { plunder } : {}) } },
         };
+        // The rest of the captain (standing, marques, deeds, news heard, the crew's side) stays as it was.
+        const captain = { ...state.captain, gold, knownPrices: seen(next, s, market), ...(chestGain ? { chest: (state.captain.chest ?? 0) + chestGain } : {}) };
         return {
-          state: { ...next, captain: { gold, knownPrices: seen(next, s, market) } },
+          state: { ...next, captain },
           events: [
             {
               type: command.type === 'Buy' ? 'Bought' : 'Sold',
@@ -542,10 +686,16 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       const tick = state.tick + 1;
       const storms = state.weather?.storms ?? [];
       const weekly = tick % ticksPerWeek === 0;
-      if (!weekly && storms.length === 0) return { state, events: [] };
+      const daily = tick % content.calendar.ticksPerDay === 0;
+      if (!weekly && !daily && storms.length === 0) return { state, events: [] };
       const rng = rngStream(state.rng?.economy ?? seedRng(0, 'economy'));
       let next = state;
       const events: EmittedEvent[] = [];
+      if (daily) {
+        const fed = messDay(next, tick);
+        next = fed.state;
+        events.push(...fed.events);
+      }
       const shock = (s: Settlement, good: string, kind: string) => {
         const r = startShock(content, next, s, good, kind, tick, rng);
         next = r.state;

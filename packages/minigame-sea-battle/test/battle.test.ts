@@ -204,6 +204,37 @@ describe('sea battle', () => {
     expect(cut.state.grappling).toBe(0);
   });
 
+  it('the more hands at the guns, the faster she reloads, up to full manning', () => {
+    // A brig's 18 guns at 4 men a gun want 36 hands for a broadside.
+    const reload = (crew: number) =>
+      createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.brig'), crew }, enemy: ship('ship.sloop', 'pirate'), seed: 1, bearingDeg: 0 }).gunnery()
+        .reloadSeconds;
+    const base = content.combat.guns.reloadSeconds;
+    expect(reload(18)).toBeCloseTo(base * 2);
+    expect(reload(36)).toBeCloseTo(base);
+    expect(reload(108)).toBeCloseTo(base * (1 - content.crew.manning.reloadBonus));
+    expect(reload(150)).toBeCloseTo(reload(108));
+  });
+
+  it('a happy crew carries the deck: boarded alongside, high morale loses fewer men', () => {
+    const b = content.combat.battle;
+    const board = (playerMorale: number) => {
+      const battle = createBattle({ ...content, combat: { ...content.combat, battle: { ...b, startApart: b.boardTiles * 0.6 } } }, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig', undefined, 0.5), headingDeg: 90 },
+        enemy: { ...ship('ship.sloop', 'pirate', 0.95), headingDeg: 90 },
+        seed: 6,
+        bearingDeg: 0,
+        playerMorale,
+      });
+      let guard = 0;
+      while (!battle.result() && guard++ < 30 * 30) battle.step(1);
+      return battle.state.ships.player.crew;
+    };
+    expect(board(100)).toBeGreaterThan(board(5));
+  });
+
   it('fires half her mounted guns a broadside, and reports the guns she has left', () => {
     const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } };
     const broadside = (guns?: number) => {

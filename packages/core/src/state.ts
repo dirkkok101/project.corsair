@@ -95,6 +95,8 @@ export interface Ship {
    * saves from before outfitting); and the shipwright's upgrades installed, by id. */
   guns?: number;
   upgrades?: string[];
+  /** Units of her cargo, by good, that were taken as prizes: selling them goes into the plunder chest. */
+  plunder?: Record<string, number>;
   /** Set on AI ships; the player's ship has none. */
   ai?: AiCaptain;
   /** Settlement id while the ship is in port; it doesn't sail until it undocks. */
@@ -171,6 +173,16 @@ export interface Captain {
   marques?: Nation[];
   /** Ships sunk or taken and not yet paid for by a governor (PRD section 12: bounties). */
   deeds?: Deed[];
+  /**
+   * The crew's side (PRD section 4): the plunder chest they sail "on account" for (gold from prizes,
+   * bounties and captured cargo sold; the captain's trade profit is `gold`), their morale 0 to 100, the
+   * tick they were last paid (divided the plunder, or wages), and the share of a day's rations already
+   * eaten. Absent on saves from before the crew slice.
+   */
+  chest?: number;
+  morale?: number;
+  paidTick?: number;
+  mess?: number;
 }
 
 /** A ship the player sank or took, waiting for a governor's bounty. */
@@ -305,6 +317,9 @@ export type Command =
   | { type: 'BuyGuns'; shipId: string; count: number }
   | { type: 'SellGuns'; shipId: string; count: number }
   | { type: 'BuyUpgrade'; shipId: string; upgradeId: string }
+  /** At the tavern: divide the plunder chest with the crew, or pay them wages from the captain's purse. */
+  | { type: 'DividePlunder'; shipId: string }
+  | { type: 'PayWages'; shipId: string }
   /** Debug: put two nations at war or at peace now. */
   | { type: 'SetRelation'; a: Nation; b: Nation; war: boolean }
   /** At a governor: buy a letter of marque from his nation, or collect bounties owed for deeds. */

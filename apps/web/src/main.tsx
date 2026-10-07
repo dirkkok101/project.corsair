@@ -22,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { createEconomySystem, crewOf, DOCK_RANGE, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { createEconomySystem, crewOf, DOCK_RANGE, foodDays, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -149,6 +149,20 @@ function groupFrames(urls: Record<string, string>): Record<string, string[]> {
 
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
+/**
+ * A save from before the crew slice: the crew's side starts as a new career's (morale, an empty chest, paid
+ * up to now) and the ship gets a little food, so an old career doesn't open on a starving crew.
+ */
+function withCrew(state: import('@corsair/core').WorldState): import('@corsair/core').WorldState {
+  if (!state.captain || state.captain.morale !== undefined) return state;
+  const content = loadContent();
+  const ships = Object.fromEntries(
+    Object.entries(state.ships).map(([id, s]) => [id, s.ai ? s : { ...s, cargo: { ...s.cargo, food: (s.cargo.food ?? 0) + OLD_SAVE_FOOD } }]),
+  );
+  return { ...state, ships, captain: { ...state.captain, chest: 0, morale: content.crew.morale.start, paidTick: state.tick, mess: 0 } };
+}
+/** Food given to the ship in a save from before the crew slice. */
+const OLD_SAVE_FOOD = 10;
 /** How often a course checks its way is still clear, and re-plots it if not. */
 const REPLAN_MS = 1000;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
@@ -193,7 +207,7 @@ async function main() {
   // A restored state already carries its markets, weather and RNG streams; seeding them again would reset them.
   // A save from before ships sailed gets its population topped up a ship a day.
   const world =
-    resumed?.state ??
+    (resumed && withCrew(resumed.state)) ??
     withTraffic(
       withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed),
       content,
@@ -267,6 +281,7 @@ async function main() {
       enemy: them,
       seed: (seed ^ Math.imul(sim.state.tick, 2654435761)) >>> 0,
       bearingDeg,
+      playerMorale: moraleOf(content, sim.state),
     });
     hailing = undefined;
     fight = { battle, map: battleSea, targetId, acc: 0, heardAt: -1 };
@@ -403,6 +418,8 @@ async function main() {
   // holding it re-aims; a right-click hails the ship or enters the port under it, or else drops the course.
   // In battle a left-click (or hold) steers to the point and the right button fires.
   let courseNote: { text: string; until: number } | undefined;
+  // Said on the port screen when men desert as she makes port; cleared when she sails.
+  let portNotice: string | undefined;
   let lastReplan = 0;
   const setCourse = (x: number, y: number, held: boolean) => {
     const me = player();
@@ -681,6 +698,7 @@ async function main() {
               hullMax: p.hullMax,
               sails: p.sailCondition,
               crew: p.crew,
+              morale: { value: p.morale, word: moraleWord(content, p.morale) },
               berths: shipStats(content, me).maxCrew,
               sailSetting: p.sails,
               guns: { port: { loaded: loaded('port'), of: each }, starboard: { loaded: loaded('starboard'), of: each } },
@@ -718,6 +736,8 @@ async function main() {
             berths={stats.maxCrew}
             sailSetting={me.sails}
             guns={{ port: { loaded: each, of: each }, starboard: { loaded: each, of: each } }}
+            morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
+            foodDays={foodDays(content, me)}
             setSails={(sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
             cruise={{
               speed: wantedSpeed,
@@ -761,6 +781,8 @@ async function main() {
     for (let i = eventsSeen; i < evs.length; i++) {
       const ev = evs[i]!;
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!);
+      if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
+      if (ev.type === 'Undocked') portNotice = undefined;
       // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.
       if (ev.type === 'CourseArrived' && ev.payload.portId) {
         const port = portInReach();
@@ -809,6 +831,18 @@ async function main() {
     inSight.clear();
     for (const id of seen) inSight.add(id);
     const intercepting = ship.assist?.mode === 'intercept' && ship.assist.targetId ? sim.state.ships[ship.assist.targetId] : undefined;
+    // The crew's needs, when they press: food running out, or a grumbling crew.
+    const days = foodDays(content, ship);
+    const mood = moraleOf(content, sim.state);
+    const crewWarning = ship.docked
+      ? undefined
+      : days < 1
+        ? 'The food is gone: the crew is starving. Make port and buy food'
+        : days <= 3
+          ? `Food for ${Math.floor(days)} days: buy food in port`
+          : mood < content.crew.morale.grumbling
+            ? `The crew is ${moraleWord(content, mood).toLowerCase()}: divide the plunder or pay wages in a tavern`
+            : undefined;
     // Autosave on arriving in port, whichever way the Dock command came in.
     if (ship.docked && !wasDocked) {
       // Made port: the destination is reached (or another port suited better); the route goes.
@@ -864,6 +898,7 @@ async function main() {
           shipId={ship.id}
           hotspots={harbour ? hotspotsOnScreen(harbour.hotspots) : {}}
           onOpen={(s) => (service = s)}
+          notice={portNotice}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();
@@ -946,7 +981,9 @@ async function main() {
                   ? `${sailHo.text} · I intercept`
                   : courseNote && now < courseNote.until
                     ? courseNote.text
-                    : intercepting?.ai
+                    : crewWarning
+                      ? crewWarning
+                      : intercepting?.ai
                       ? `Intercepting the ${intercepting.ai.name} · I to stop`
                       : ship.assist?.mode === 'course'
                         ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`

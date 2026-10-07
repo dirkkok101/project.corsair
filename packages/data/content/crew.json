@@ -1,0 +1,27 @@
+{
+  "$comment": "The crew (PRD section 4, after Pirates! 1987 and 2004). Two purses: gold from prizes, bounties and captured cargo sold goes into the plunder chest, which the crew sails 'on account' for; trade profit is the captain's. Morale (0 to 100) heads each day toward a mood set by the chest's gold per head and the days since the crew was last paid (a small crew is easier to please), and falls fast without food. Dividing the plunder gives the captain captainShare and the crew the rest, per head; paying wages instead costs wagesPerManDay for every day since the crew was last paid. Low morale costs men to desertion when the ship makes port. More hands load the guns faster, up to reloadBonus at fullManning times the men a broadside needs; below a class's minimum crew she sails and turns slower. Morale also sets boarding strength.",
+  "rationMenPerUnit": 20,
+  "startFood": 20,
+  "morale": {
+    "start": 70,
+    "mood": { "base": 60, "perHeadForFull": 40, "fromShares": 35, "graceDays": 15, "perDayUnpaid": 1.5 },
+    "approachPerDay": 0.25,
+    "starvingPerDay": 8,
+    "taken": 8,
+    "sunk": 4,
+    "lossFactor": 30,
+    "grumbling": 40,
+    "deserting": 25,
+    "mutinous": 10,
+    "desertShare": { "deserting": 0.1, "mutinous": 0.3 },
+    "afterDivision": { "base": 55, "fromShare": 40, "min": 30, "max": 95 },
+    "afterWages": 65
+  },
+  "captainShare": 0.2,
+  "wagesPerManDay": 1,
+  "manning": { "fullManning": 3, "reloadBonus": 0.25 },
+  "shortHandedFloor": 0.4,
+  "boarding": { "at0": 0.7, "at100": 1.2 },
+  "enemyMorale": { "merchant": 45, "patrol": 65, "pirate": 70 },
+  "volunteers": { "pirate": 0.25, "other": 0.1 }
+}

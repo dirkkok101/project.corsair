@@ -179,7 +179,8 @@ Turning rate uses the same inputs, plus a rig-specific turn penalty for square r
 - Morale (0 to 100) is driven by: days since last pay-off, gold per head, food, recent victories, losses and captain fame. Thresholds trigger events: grumbling, desertion, mutiny.
 - Mutiny is a scripted event: the player fights a duel with the ringleader or pays off. Losing means marooning and a restart from a small boat.
 - Pay-off (dividing the plunder) resets morale and ends the voyage. Crew may leave if their share was poor.
-- Built so far: a crew count. Grape and boarding kill men; the tavern signs men on for 10 gold each up to the berths, and the shipwright makes good hull (6 gold a point) and sails (2 a percent). Food, wages and morale wait for the crew slice.
+- Built so far: a crew count. Grape and boarding kill men; the tavern signs men on for 10 gold each up to the berths, and the shipwright makes good hull (6 gold a point) and sails (2 a percent).
+- Built (crew slice, `crew.json`): a new career sails with 20 food. The crew eats a unit per 20 men a day at sea (none in port), shown in days on the HUD and ship panel. Morale starts at 70 and drifts a quarter of the way each day toward the crew's mood: 60, plus up to 40 more by plunder waiting per head, less 1.5 a day unpaid after 15 days. They lose 8 a day starving, gain on prizes and lose on defeats and men killed. Below 25 a tenth of the crew deserts at landfall, and below 10 three tenths. Mutiny waits. More hands than a broadside needs reload faster, up to 25% at three times the need. Morale scales boarding strength from 0.7 to 1.2, and a ship below her minimum crew sails and turns slower, down to 40%. Volunteers join from prizes: a quarter of a pirate's crew, a tenth of others.
 
 ### Landfall and exploration
 
@@ -343,6 +344,7 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 
 - Gold, goods and ships captured go into the voyage pool.
 - At pay-off, the crew take a share (difficulty-based, 30% to 70%), split per head. The captain's share goes to personal wealth.
+- Built (two purses): prize gold, bounties and captured cargo, when sold, go into the plunder chest. Trade profit is the captain's own. In a tavern, "Divide the plunder" gives the captain 20% and the crew the rest per head, sets morale by each man's share (55 plus up to 40) and restarts the pay clock. The crew stays on. Wages (1 gold a man a day since last paid, from the captain's purse) are the merchant's alternative and set morale to 65. A defeat by pirates loses half the chest.
 - Crew expectation per head rises with fame. If the share per head falls below expectation, morale drops and crew leave.
 - Governors pay bounties for enemy ships and pirates by nationality at war. Rewards also come in land and titles.
 

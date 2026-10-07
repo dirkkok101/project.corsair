@@ -2,7 +2,7 @@ import { createSim, TICKS_PER_SECOND } from '@corsair/core';
 import type { Command, WorldState } from '@corsair/core';
 import { buildTileMap, isLand, loadContent, tileAt } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
-import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, polarAt, targetSpeed } from '../src';
+import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, handsFactor, polarAt, targetSpeed } from '../src';
 
 const content = loadContent();
 const map = buildTileMap(content.maps.placeholder);
@@ -244,6 +244,22 @@ describe('upgrades at sea', () => {
   it('cotton sails draw better to windward and change nothing off the wind', () => {
     expect(at(50, ['cotton_sails'])).toBeGreaterThan(at(50));
     expect(at(120, ['cotton_sails'])).toBe(at(120));
+  });
+});
+
+describe('short-handed', () => {
+  it('below her minimum crew she sails and turns slower, down to a floor', () => {
+    const min = content.ships['ship.brig']!.minCrew;
+    const hands = (crew: number | undefined) => ({ ...createWorld(content.maps.placeholder).ships.player!, classId: 'ship.brig', crew });
+    expect(handsFactor(content, hands(undefined))).toBe(1);
+    expect(handsFactor(content, hands(min))).toBe(1);
+    expect(handsFactor(content, hands(min / 2))).toBeCloseTo(0.5);
+    expect(handsFactor(content, hands(1))).toBe(content.crew.shortHandedFloor);
+    const sailing = (crew: number) => {
+      const s = openSea(90);
+      return speedAfter({ ...s, ships: { player: { ...s.ships.player!, classId: 'ship.brig', crew } } }, 20);
+    };
+    expect(sailing(min / 2)).toBeLessThan(sailing(min) * 0.6);
   });
 });
 

@@ -27,6 +27,9 @@ export interface ShipPanelProps {
   sails: number;
   crew: number;
   berths: number;
+  /** The crew's morale (0 to 100) and its word, and the days the food will last (at sea). */
+  morale?: { value: number; word: string };
+  foodDays?: number;
   sailSetting: SailSetting;
   /** Guns per broadside, and how many of them are loaded now (all of them at sea). */
   guns: { port: { loaded: number; of: number }; starboard: { loaded: number; of: number } };
@@ -80,6 +83,15 @@ export function ShipPanel(p: ShipPanelProps) {
       <Bar label="Hull" icon="ui.icon.hull" value={p.hull} max={p.hullMax} />
       <Bar label="Sails" icon="ui.icon.full_sail" value={p.sails} max={100} />
       <Bar label="Crew" icon="ui.icon.crew" value={p.crew} max={p.berths} />
+      {p.morale ? (
+        <div class="panel-bar" title="Morale">
+          <span class="panel-bar-label">{p.morale.word}</span>
+          <span class="battle-bar-track">
+            <span class={`battle-bar-fill${p.morale.value < 40 ? ' low' : ''}`} style={{ width: `${Math.round(p.morale.value)}%` }} />
+          </span>
+          {p.foodDays !== undefined ? <span class={`panel-bar-value${p.foodDays <= 3 ? ' low' : ''}`}>{Math.floor(p.foodDays)}d food</span> : null}
+        </div>
+      ) : null}
       <Battery label="Port" {...p.guns.port} />
       <Battery label="Stbd" {...p.guns.starboard} />
       {p.shot ? (

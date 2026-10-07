@@ -669,3 +669,35 @@ test('course line: a port picked on the chart gets a route by sea, the HUD measu
   await expect(page.locator('.hud')).toContainText('F to follow');
   expect(errors).toEqual([]);
 });
+
+test('crew: the food goes day by day at sea, and the tavern pays the wages owed', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  const food = () => page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).food ?? 0);
+  const before = await food();
+  await expect(page.locator('.hud')).toContainText('Crew');
+  // Three days hove to off Port Royal, under its guns where pirates don't come (the clock stops in port).
+  await page.evaluate(() => {
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+    window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'furled' });
+    window.__corsair.sim.step(771 * 3);
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+    window.__corsair.sim.step(1);
+  });
+  expect(await page.evaluate(() => window.__corsair.view())).toBe('sea');
+  expect(await food()).toBeLessThan(before);
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  // Nothing taken yet: the chest is empty, but three days' wages are owed.
+  await expect(page.locator('.crew-pay').getByRole('button', { name: /Divide the plunder/ })).toBeDisabled();
+  const pay = page.locator('.crew-pay').getByRole('button', { name: /Pay wages/ });
+  const owed = Number((await pay.textContent())!.match(/(\d+) gold/)![1]);
+  expect(owed).toBeGreaterThan(0);
+  const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
+  await pay.click();
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(gold - owed);
+  await expect(page.locator('.crew-pay')).toContainText('unpaid 0 days');
+  await page.screenshot({ path: 'test-results/crew-pay.png' });
+  expect(errors).toEqual([]);
+});

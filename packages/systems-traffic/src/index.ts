@@ -1,8 +1,8 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, Nation, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
-import { isLand, tileAt } from '@corsair/data';
+import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
-import { newsAt, normalStock, quote } from '@corsair/systems-economy';
+import { crewOf, moraleOf, newsAt, normalStock, quote } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, raisePiracy } from '@corsair/systems-politics';
 import type { SeaLanes } from './lanes';
@@ -484,18 +484,27 @@ export function createTrafficSystem(
         let cargo = player.cargo;
         const ships = { ...state.ships };
         const events: EmittedEvent[] = [{ type: 'BattleOver', entityIds: [player.id, other.id], payload: { outcome } }];
-        // Beaten, the player is let go afloat: a pirate takes the cargo and half the gold, a patrol fines half.
+        // Beaten, the player is let go afloat: a pirate takes the cargo and half the gold (and of the plunder
+        // chest), a patrol fines half.
         const beaten = outcome === 'lost';
         if (beaten) {
           if (other.ai.role === 'pirate') cargo = {};
-          captain = { ...captain, gold: Math.floor(captain.gold / 2) };
+          captain = { ...captain, gold: Math.floor(captain.gold / 2), chest: Math.floor((captain.chest ?? 0) / 2) };
         }
+        // The crew's spirits: a prize lifts them, a loss of men or the fight sinks them (crew.json morale).
+        const cm = content.crew.morale;
+        const crewBefore = crewOf(content, player);
+        const lost = Math.max(0, crewBefore - mine.crew);
+        const won = outcome === 'struck' || outcome === 'boarded' ? cm.taken : outcome === 'sunk' ? cm.sunk : beaten ? -cm.taken : 0;
+        const morale = Math.max(0, Math.min(100, moraleOf(content, state) + won - (cm.lossFactor * lost) / Math.max(1, crewBefore)));
+        captain = { ...captain, morale };
         // The fight was virtual: each ship stays where they met. Guns knocked out stay lost.
         ships[player.id] = {
           ...player,
           guns: mine.guns,
           cargo,
           paid: beaten && other.ai.role === 'pirate' ? {} : player.paid,
+          plunder: beaten && other.ai.role === 'pirate' ? {} : player.plunder,
           hull: Math.max(beaten ? Math.ceil(cls.hull * 0.1) : 1, mine.hull),
           sailCondition: Math.max(beaten ? 20 : 0, mine.sailCondition),
           crew: Math.max(beaten ? Math.ceil(cls.minCrew / 2) : 1, mine.crew),
@@ -508,14 +517,23 @@ export function createTrafficSystem(
           // Sunk or taken: she's gone from the sea. A prize's gold and cargo (what the hold can take) come aboard.
           delete ships[other.id];
           if (outcome !== 'sunk') {
-            captain = { ...captain, gold: captain.gold + (other.ai.purse ?? 0) };
+            // Her gold is plunder: into the chest the crew sails for. Her cargo too, once sold.
+            captain = { ...captain, chest: (captain.chest ?? 0) + (other.ai.purse ?? 0) };
             const room = () => cls.cargo - Object.values(cargo).reduce((a, b) => a + b, 0);
             cargo = { ...cargo };
+            const plunder = { ...player.plunder };
             for (const [good, units] of Object.entries(other.cargo)) {
               const take = Math.min(units, room());
-              if (take > 0) cargo[good] = (cargo[good] ?? 0) + take;
+              if (take <= 0) continue;
+              cargo[good] = (cargo[good] ?? 0) + take;
+              plunder[good] = (plunder[good] ?? 0) + take;
             }
-            ships[player.id] = { ...ships[player.id]!, cargo };
+            // Some of her men sign on (pirates readily), as many as there are berths for.
+            const share = other.ai.role === 'pirate' ? content.crew.volunteers.pirate : content.crew.volunteers.other;
+            const berths = shipStats(content, player).maxCrew - ships[player.id]!.crew!;
+            const join = Math.max(0, Math.min(berths, Math.round(theirs.crew * share)));
+            if (join > 0) events.push({ type: 'Volunteers', entityIds: [player.id, other.id], payload: { count: join } });
+            ships[player.id] = { ...ships[player.id]!, cargo, plunder, crew: ships[player.id]!.crew! + join };
           }
           if (other.ai.nation === 'pirate') {
             const standing = { ...captain.standing };

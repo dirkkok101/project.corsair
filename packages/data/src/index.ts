@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import calendarJson from '../content/calendar.json';
 import combatJson from '../content/combat.json';
+import crewJson from '../content/crew.json';
 import politicsJson from '../content/politics.json';
 import economyJson from '../content/economy.json';
 import goodsJson from '../content/goods.json';
@@ -19,6 +20,7 @@ import upgradesJson from '../content/upgrades.json';
 import {
   calendarSchema,
   combatSchema,
+  crewSchema,
   politicsSchema,
   economySchema,
   goodsSchema,
@@ -38,6 +40,7 @@ import {
 import type {
   Calendar,
   Combat,
+  CrewConfig,
   PoliticsConfig,
   Economy,
   Goods,
@@ -76,6 +79,7 @@ export interface ContentPack {
   combat: Combat;
   politics: PoliticsConfig;
   upgrades: Record<string, Upgrade>;
+  crew: CrewConfig;
 }
 
 /**
@@ -106,6 +110,7 @@ export function loadContent(): ContentPack {
     traffic: trafficSchema.parse(trafficJson),
     combat: combatSchema.parse(combatJson),
     politics: politicsSchema.parse(politicsJson),
+    crew: crewSchema.parse(crewJson),
     upgrades: Object.fromEntries(upgradesSchema.parse(upgradesJson).upgrades.map((u) => [u.id, u])),
   };
   for (const r of Object.values(pack.traffic.roles)) {

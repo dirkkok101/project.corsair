@@ -1077,6 +1077,15 @@ body {
   cursor: default;
 }
 
+.port-notice {
+  margin: 4px 0;
+  color: #cf573c;
+}
+
+.crew-pay {
+  flex-wrap: wrap;
+}
+
 .recruit {
   display: flex;
   align-items: center;
@@ -1231,13 +1240,17 @@ body {
 }
 
 .panel-bar-label {
-  width: 36px;
+  min-width: 36px;
   color: #a8b5b2;
 }
 
 .panel-bar-value {
   width: 52px;
   text-align: right;
+}
+
+.panel-bar-value.low {
+  color: #cf573c;
 }
 
 .panel-gun {

@@ -31,6 +31,8 @@ export interface BattleShip extends Ship {
   rangeMult: number;
   /** A pirate captain's temperament (combat.json tactics): how soon she boards and how soon she runs. */
   temperament?: string;
+  /** Her crew's spirit, 0 to 100: the player's from the career, an AI crew's by her role (crew.json). */
+  morale: number;
   reloadMult: number;
 }
 
@@ -82,6 +84,8 @@ export interface BattleSetup {
   player: Ship;
   enemy: Ship;
   seed: number;
+  /** The player's crew's morale (crew.json's start when unset). */
+  playerMorale?: number;
   /** Seat the enemy this far apart along this bearing from the player, in battle tiles. */
   bearingDeg: number;
 }
@@ -141,6 +145,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       reload: { port: 0, starboard: 0 },
       ammo: 'round',
       role: ship.ai?.role,
+      morale: side === 'player' ? (setup.playerMorale ?? content.crew.morale.start) : (content.crew.enemyMorale[ship.ai?.role ?? 'merchant'] ?? 50),
     };
   };
 
@@ -187,10 +192,17 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return undefined;
   };
   const reloadSeconds = (ship: BattleShip) => {
-    // Short-handed, every broadside takes longer: the crew is split between the guns.
+    // Manning: her crew over the men a broadside needs. Short-handed, every broadside takes longer (the crew
+    // is split between the guns); with hands to spare it goes faster, up to reloadBonus at fullManning
+    // (Pirates! 2004: more crew means faster reloads).
     const needed = (ship.guns * c.guns.crewPerGun) / 2;
-    return c.guns.reloadSeconds * ship.reloadMult * Math.max(1, needed / Math.max(1, ship.crew));
+    const manning = Math.max(1, ship.crew) / Math.max(1, needed);
+    const m = content.crew.manning;
+    const factor = manning < 1 ? 1 / manning : 1 - m.reloadBonus * Math.min(1, (manning - 1) / (m.fullManning - 1));
+    return c.guns.reloadSeconds * ship.reloadMult * factor;
   };
+  /** Boarding strength from morale: a happy crew fights like lions (crew.json boarding, at 0 and at 100). */
+  const spirit = (ship: BattleShip) => content.crew.boarding.at0 + ((content.crew.boarding.at100 - content.crew.boarding.at0) * ship.morale) / 100;
   /** How far a ship's guns reach: round and chain to rangeTiles, grape shorter, both stretched by her guns. */
   const reach = (ship: BattleShip, ammo: Ammo = ship.ammo) => (c.ammo[ammo]!.short ? c.guns.grapeTiles : c.guns.rangeTiles) * ship.rangeMult;
 
@@ -434,8 +446,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         else if (p.hull <= 0) end('lost');
         else if (state.grappling >= c.battle.grappleSeconds) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
-          const ps = p.crew * c.boarding.player;
-          const es = e.crew * c.boarding[e.role ?? 'merchant'];
+          const ps = p.crew * c.boarding.player * spirit(p);
+          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e);
           const won = rng.float() < ps / (ps + es);
           const pLoss = Math.round(p.crew * c.boarding.losses * (es / (ps + es)));
           const eLoss = Math.round(e.crew * c.boarding.losses * (ps / (ps + es)));

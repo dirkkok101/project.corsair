@@ -34,7 +34,17 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
 export function conditionFactor(content: ContentPack, ship: Ship): number {
   const sails = 0.3 + 0.7 * ((ship.sailCondition ?? 100) / 100);
   const hull = ship.hull !== undefined && ship.hull < shipStats(content, ship).hullMax * 0.3 ? 0.8 : 1;
-  return sails * hull;
+  return sails * hull * handsFactor(content, ship);
+}
+
+/**
+ * Short-handed: below her class's minimum crew a ship sails and turns slower, in proportion, down to
+ * crew.json's floor (Pirates!: fewer men than she needs, and she is slower). A ship with no count has her crew.
+ */
+export function handsFactor(content: ContentPack, ship: Ship): number {
+  const min = content.ships[ship.classId]!.minCrew;
+  if (ship.crew === undefined || ship.crew >= min) return 1;
+  return Math.max(content.crew.shortHandedFloor, ship.crew / min);
 }
 
 export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): number {
@@ -128,7 +138,7 @@ export function createNavigationSystem(
     // Way is gathered at accelPerSecond and, where set, lost more slowly: a ship carries her way.
     const rate = target < ship.speed ? (nav.decelPerSecond ?? nav.accelPerSecond) : nav.accelPerSecond;
     const speed = ship.speed + (target - ship.speed) * Math.min(1, rate * dt);
-    const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]!;
+    const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]! * handsFactor(content, ship);
     let headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);
     let assist = ship.assist;
     const events: EmittedEvent[] = [];
