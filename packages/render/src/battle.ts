@@ -2,7 +2,7 @@ import type { ContentPack, TileMap } from '@corsair/data';
 import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
 import type { Wind } from '@corsair/core';
-import { createPennants } from './effects';
+import { createPennants, createWindStreaks } from './effects';
 import { facingIndex } from './facing';
 import { sailAnim } from './sails';
 import type { FlagNation } from './flags';
@@ -18,13 +18,17 @@ export interface BattleViewShip {
   headingDeg: number;
   classId: string;
   sails: 'full' | 'half' | 'furled';
+  /** Her state, drawn: sails shot to rags show as less canvas set, a hurt hull smokes and then burns. */
+  sailCondition?: number;
+  hull?: number;
+  hullMax?: number;
 }
 export interface BattleViewState {
   tick: number;
   wind: Wind;
   ships: { player: BattleViewShip; enemy: BattleViewShip };
-  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number }[];
-  effects: { kind: 'smoke' | 'splash' | 'hit' | 'sail'; x: number; y: number; at: number }[];
+  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape' }[];
+  effects: { kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape'; x: number; y: number; at: number }[];
   /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
    * whether each broadside can fire now (as the battle's aim reports it). */
   arcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
@@ -47,6 +51,9 @@ const BALL = 0x090a14;
 const GOLD = 0xe8c170;
 const PALE = 0xebede9;
 const BARREL = 0x884b2b;
+const FIRE = 0xda863e;
+const FLAME = 0xe8c170;
+const DARK_SMOKE = 0x577277;
 const HOOP = 0x4d2b32;
 
 export function createBattleView(
@@ -102,6 +109,16 @@ export function createBattleView(
     }
   };
 
+  // Wind streaks on the battle water, as on the sea (made for the battle map when it is first drawn).
+  let streaks: ReturnType<typeof createWindStreaks> | undefined;
+  let streaksMap: TileMap | undefined;
+  let lastMs: number | undefined;
+  /** The canvas she shows: what's set, less what shot has torn away (rags at half, bare poles below a quarter). */
+  const shown = (ship: BattleViewShip): BattleViewShip => {
+    const c = ship.sailCondition ?? 100;
+    const sails = c < 25 ? 'furled' : c < 55 && ship.sails === 'full' ? 'half' : ship.sails;
+    return sails === ship.sails ? ship : { ...ship, sails };
+  };
   /** A ship's sprite, frame and mast tip in the set the battle draws. */
   const look = (ship: BattleViewShip, wind: Wind, nowMs: number) => {
     const sprites = content.ships[ship.classId]!.sprites;
@@ -138,13 +155,21 @@ export function createBattleView(
       ensureChunks(map, cx, cy, viewW, viewH);
       world.position.set(-cx, -cy);
       water.tilePosition.set(-cx + Math.round(nowMs / 400), -cy);
-      place(sprites.enemy, state.ships.enemy, state.wind, nowMs, ts);
+      if (streaksMap !== map) {
+        if (streaks) streaks.view.destroy();
+        streaks = createWindStreaks(map);
+        streaksMap = map;
+        world.addChildAt(streaks.view, world.getChildIndex(terrain) + 1);
+      }
+      streaks!.update(state.wind, Math.min(0.1, (nowMs - (lastMs ?? nowMs)) / 1000), { x: cx, y: cy, w: viewW, h: viewH });
+      lastMs = nowMs;
+      place(sprites.enemy, shown(state.ships.enemy), state.wind, nowMs, ts);
       // Sunk: her sprite and colours are gone, and the wreckage floats where she went down.
       sprites.enemy.visible = !state.wreck;
-      place(sprites.player, state.ships.player, state.wind, nowMs, ts);
+      place(sprites.player, shown(state.ships.player), state.wind, nowMs, ts);
       pennants.update(
         (state.wreck ? (['player'] as const) : (['player', 'enemy'] as const)).map((side) => {
-          const s = state.ships[side];
+          const s = shown(state.ships[side]);
           return {
             ship: { ...s, id: side, speed: 0, helm: 0, blocked: false, cargo: {} },
             wind: state.wind,
@@ -192,6 +217,14 @@ export function createBattleView(
             fx.rect(x + Math.round(Math.cos(a) * r * (0.5 + (k % 3) * 0.25)), y + Math.round(Math.sin(a) * r * 0.6), 3, 3);
           }
           fx.fill({ color: SMOKE, alpha: 1 - age });
+        } else if (e.kind === 'grape') {
+          // Small shot: a scatter of little strikes across her deck rather than one burst.
+          for (let k = 0; k < 9; k++) {
+            const a = k * 2.39 + e.at * 7;
+            const r = 2 + (k % 4) * 3 + age * 4;
+            fx.rect(x + Math.round(Math.cos(a) * r), y + Math.round(Math.sin(a) * r * 0.7), 1, 1);
+          }
+          fx.fill({ color: PALE, alpha: 1 - age });
         } else {
           const colour = e.kind === 'splash' ? SPLASH : e.kind === 'hit' ? SPLINTER : CANVAS;
           const r = Math.round(2 + age * 8);
@@ -202,11 +235,51 @@ export function createBattleView(
           fx.fill({ color: colour, alpha: 1 - age });
         }
       }
+      // Shot in flight, by what's loaded: a round ball; chain, two balls spinning on their chain; grape, a
+      // loose cluster of small shot.
       for (const s of state.shots) {
         const k = 1 - s.t / s.flight;
-        fx.rect(Math.round((s.x + (s.tx - s.x) * k) * ts) - 1, Math.round((s.y + (s.ty - s.y) * k) * ts) - 1, 3, 3);
+        const px = Math.round((s.x + (s.tx - s.x) * k) * ts);
+        const py = Math.round((s.y + (s.ty - s.y) * k) * ts);
+        if (s.ammo === 'chain') {
+          const spin = nowMs / 60 + s.flight * 10;
+          const dx = Math.round(Math.cos(spin) * 4);
+          const dy = Math.round(Math.sin(spin) * 4);
+          fx.rect(px + dx - 1, py + dy - 1, 3, 3).rect(px - dx - 1, py - dy - 1, 3, 3);
+          fx.moveTo(px + dx, py + dy).lineTo(px - dx, py - dy).stroke({ width: 1, color: BALL });
+        } else if (s.ammo === 'grape') {
+          for (let j = 0; j < 5; j++) fx.rect(px + Math.round(Math.cos(j * 1.3 + s.flight) * 3), py + Math.round(Math.sin(j * 1.9 + s.flight) * 3), 2, 2);
+        } else fx.rect(px - 1, py - 1, 3, 3);
       }
       if (state.shots.length) fx.fill(BALL);
+      // A hurt ship smokes from her hull, and below a quarter of it she is afire.
+      for (const side of ['player', 'enemy'] as const) {
+        const s = state.ships[side];
+        if (state.wreck && side === 'enemy') continue;
+        const share = s.hull !== undefined && s.hullMax ? s.hull / s.hullMax : 1;
+        if (share >= 0.5) continue;
+        const x = Math.round(s.x * ts);
+        const y = Math.round(s.y * ts);
+        // A column of puffs rising and swelling from her deck, drifting a little downwind.
+        const puffs = share < 0.25 ? 16 : 10;
+        const [wx, wy] = [Math.sin((state.wind.fromDeg * Math.PI) / 180), -Math.cos((state.wind.fromDeg * Math.PI) / 180)];
+        for (let k = 0; k < puffs; k++) {
+          const life = ((nowMs / 1000 + k * 0.29) % 2.4) / 2.4;
+          const size = 3 + Math.round(life * 5);
+          const px = x - 6 + ((k * 7) % 13) - Math.round(wx * life * 18);
+          const py = y - 8 - Math.round(life * 30) - Math.round(wy * life * 18);
+          // Dark where it leaves the hull, pale as it climbs, so it shows against the sea.
+          fx.rect(px, py, size, size).fill({ color: life < 0.3 ? DARK_SMOKE : SMOKE, alpha: 0.9 * (1 - life * 0.5) });
+        }
+        if (share < 0.25) {
+          for (let k = 0; k < 8; k++) {
+            const flick = Math.abs(Math.sin(nowMs / 90 + k * 1.7));
+            fx.rect(x - 8 + k * 2, y - 4 - Math.round(flick * 7), 3, 3 + Math.round(flick * 3));
+          }
+          fx.fill(FIRE);
+          fx.rect(x - 2, y - 7, 3, 4).rect(x + 3, y - 5, 2, 3).fill(FLAME);
+        }
+      }
       if (state.wreck) {
         // Barrels bob as small staved squares; the men in the water are heads among a little white water.
         const bob = (x: number) => Math.round(Math.sin(nowMs / 500 + x) * 1.5);

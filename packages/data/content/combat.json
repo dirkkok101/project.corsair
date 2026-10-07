@@ -138,7 +138,9 @@
     "hostile": -30,
     "refused": -50,
     "enemyWin": 5,
-    "warshipTaken": 2
+    "warshipTaken": 2,
+    "mercy": 2,
+    "scuttle": -5
   },
   "port": {
     "recruitGold": 10,

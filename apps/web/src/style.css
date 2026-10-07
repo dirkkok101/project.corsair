@@ -1159,12 +1159,143 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(460px, 92vw);
-  padding: 14px 18px;
-  text-align: center;
+  width: min(860px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 16px 20px;
+  text-align: left;
   background: rgb(21 29 40 / 0.94);
   border: 2px solid #c09473;
   pointer-events: auto;
+}
+
+.battle-report-head {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+/* The ending's painted picture: 320x240, drawn pixel for pixel. */
+.battle-report-picture {
+  flex: none;
+  width: 320px;
+  height: 240px;
+  image-rendering: pixelated;
+  border: 2px solid #4d2b32;
+}
+
+.battle-report-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.battle-report-text p {
+  margin: 4px 0 8px;
+}
+
+.battle-ledger li.good {
+  color: #a8ca58;
+}
+
+.battle-ledger li.bad {
+  color: #df84a5;
+}
+
+.battle-standing {
+  margin: 6px 0;
+  line-height: 1.9;
+}
+
+.chip {
+  margin-right: 6px;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.chip.good {
+  color: #a8ca58;
+}
+
+.chip.bad {
+  color: #df84a5;
+}
+
+.battle-advice {
+  color: #e8c170;
+}
+
+.plunder-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+
+.plunder-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.plunder-note {
+  color: #a8b5b2;
+  font-size: 12px;
+}
+
+.plunder-fate {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.plunder-fate button.active {
+  color: #090a14;
+  background: #e8c170;
+  border-color: #e8c170;
+}
+
+.plunder-toggle {
+  margin: 4px 0;
+  padding: 0;
+  color: #73bed3;
+  background: none !important;
+  border: none !important;
+  cursor: pointer;
+}
+
+.plunder-go {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 10px;
+  font-size: 15px;
+}
+
+/* The wind on the battle water: where it blows from, and her point of sail in it. */
+.battle-wind {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 13px;
+  background: rgb(9 10 20 / 0.75);
+  border: 1px solid #577277;
+}
+
+.battle-wind-arrow {
+  display: inline-block;
+  font-size: 18px;
+  color: #a4dddb;
+}
+
+.battle-board {
+  top: 132px;
+  border-color: #a8ca58;
+  color: #a8ca58;
 }
 
 .battle-ledger {

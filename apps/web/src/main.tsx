@@ -315,6 +315,24 @@ async function main() {
     if (!fight?.report || sim.state.prize) return;
     fight = undefined;
   };
+  /**
+   * After a fight that left her hurt: the nearest port that will have her and has a shipwright (not a
+   * hamlet), and how far, so the report can say where to go next.
+   */
+  const repairAdvice = (): string | undefined => {
+    const me = player();
+    const stats = shipStats(content, me);
+    const hull = (me.hull ?? stats.hullMax) / stats.hullMax;
+    const sails = (me.sailCondition ?? 100) / 100;
+    if (hull > 0.6 && sails > 0.6) return undefined;
+    const standing = sim.state.captain?.standing ?? {};
+    const port = settlements
+      .filter((s) => s.size !== 'hamlet' && (s.nation === 'pirate' || (standing[s.nation] ?? 0) > content.combat.standing.refused))
+      .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
+    if (!port) return undefined;
+    const km = Math.round((Math.hypot(port.x - me.x, port.y - me.y) * kmPerTile) / 10) * 10;
+    return `What now: she's hurt (hull ${Math.round(hull * 100)}%, sails ${Math.round(sails * 100)}%). The nearest shipwright is at ${port.name}, about ${km} km off: press M and pick it.`;
+  };
   const takePlunder = (choice: PlunderChoice) => {
     sim.send({ type: 'TakePlunder', shipId: player().id, ...choice });
     sim.applyCommands();
@@ -398,6 +416,7 @@ async function main() {
         fight.battle.send({ type: 'SetAmmo', ammo: order[(order.indexOf(now) + 1) % order.length]! });
       } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
       else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
+      else if (k === 'g' && !e.repeat) fight.battle.send({ type: 'Board' });
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
       return;
     }
@@ -725,7 +744,27 @@ async function main() {
           wavering={fight.battle.wavering()}
           report={fight.report}
           attacked={fight.attacked}
-          offer={prize ? { theirs: prize.ship.cargo, volunteers: prize.volunteers, mine: me.cargo, capacity: content.ships[me.classId]!.cargo } : undefined}
+          offer={
+            prize
+              ? {
+                  theirs: prize.ship.cargo,
+                  volunteers: prize.volunteers,
+                  mine: me.cargo,
+                  capacity: content.ships[me.classId]!.cargo,
+                  role: prize.ship.ai?.role ?? 'merchant',
+                  nation: prize.ship.ai?.nation ?? 'pirate',
+                  foodNow: foodDays(content, me),
+                  foodWith: foodDays(content, { ...me, crew: crewOf(content, me) + prize.volunteers }),
+                }
+              : undefined
+          }
+          advice={fight.report ? repairAdvice() : undefined}
+          wind={{
+            fromDeg: bs.wind.fromDeg,
+            strength: bs.wind.strength,
+            point: pointOfSail(content, angleOffWind(bs.ships.player.headingDeg, bs.wind.fromDeg)).name,
+          }}
+          board={{ odds: fight.battle.boardingOdds(), active: Boolean(bs.boarding) }}
           onPlunder={takePlunder}
           reloadSeconds={gunnery.reloadSeconds}
           aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}

@@ -14,7 +14,7 @@ const ROOT = join(import.meta.dirname, '..', '..');
 const SOURCES = join(ROOT, 'art', 'sources', 'paintings');
 const OUT = join(ROOT, 'art', 'game', 'scenes');
 // Id prefix to the folder its raw output lives in. Duel, dance and fate backgrounds are painted ahead of
-// their scenes (see the brief's "Next scenes").
+// their scenes (see the brief's "Next scenes"); outcomes are the battle report's pictures.
 const GROUPS: Record<string, string> = {
   harbour: 'harbours',
   interior: 'interiors',
@@ -22,7 +22,10 @@ const GROUPS: Record<string, string> = {
   duel: 'duels',
   dance: 'dance',
   fate: 'fates',
+  outcome: 'outcomes',
 };
+/** 4:3 cards (a battle's outcome, a retirement fate) rather than 16:9 scenes: snapped to this size. */
+const CARD: Record<string, [number, number]> = { fates: [320, 240], outcomes: [320, 240] };
 
 const args = process.argv.slice(2);
 const reviewDir = args.includes('--review') ? args[args.indexOf('--review') + 1] : undefined;
@@ -90,8 +93,9 @@ for (const file of records.sort()) {
   const raw = join(SOURCES, group, `${id}.${kept}.png`);
   if (!existsSync(raw)) throw new Error(`${file}: ${raw} is missing`);
   // Interiors sit behind the service panels, which cover the middle: calm the centre so the panel reads.
-  const rgba = snap(raw, group === 'interiors' ? { ...DEFAULT_SNAP, calmCentre: 0.45 } : DEFAULT_SNAP);
-  writeScene(join(OUT, `${id}.png`), rgba);
+  const [w, h] = CARD[group] ?? [SCENE_W, SCENE_H];
+  const rgba = snap(raw, group === 'interiors' ? { ...DEFAULT_SNAP, calmCentre: 0.45 } : DEFAULT_SNAP, w, h);
+  writeScene(join(OUT, `${id}.png`), rgba, w, h);
   const layout = harbours[id];
   const frames = layout ? writeShimmer(id, rgba) : 0;
   console.log(`${id} <- ${kept}${frames ? `, ${frames} sea frames` : ''}`);

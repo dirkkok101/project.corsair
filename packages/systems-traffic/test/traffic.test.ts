@@ -188,6 +188,8 @@ describe('fights at sea', () => {
     expect(fight.state.ships.player!.crew).toBe(50 + volunteers);
     expect(fight.state.ships[id]!.cargo).toEqual({ sugar: 4 });
     expect(fight.state.ships[id]!.ai!.calmUntil).toBeGreaterThan(fight.state.tick);
+    // Let go, she speaks well of you at home.
+    expect(fight.state.captain!.standing!.england).toBe(content.combat.standing.attack + content.combat.standing.mercy);
   });
 
   it('the plunder screen: over the side to make room, the hold limits what comes aboard, and a sunk prize is gone', () => {
@@ -204,6 +206,8 @@ describe('fights at sea', () => {
     expect(fight.state.ships.player!.paid!.hides).toBe((hold - 20) * 10);
     expect(fight.state.ships.player!.crew).toBe(50);
     expect(fight.state.ships[id]).toBeUndefined();
+    // Sunk after she struck: her nation hears of it.
+    expect(fight.state.captain!.standing!.england ?? 0).toBe(content.combat.standing.scuttle);
   });
 
   it('sinking a pirate raises standing everywhere; losing to one costs the hold and the chest, never the purse', () => {

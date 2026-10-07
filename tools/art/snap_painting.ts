@@ -86,21 +86,21 @@ export function paletteMatcher(opts: SnapOptions = DEFAULT_SNAP): (r: number, g:
   };
 }
 
-/** Returns 960x540 RGBA, opaque, every pixel a palette colour. */
-export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP): Uint8Array {
+/** Returns `w` x `h` RGBA (960x540, a scene, unless told), opaque, every pixel a palette colour. */
+export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP, w = SCENE_W, h = SCENE_H): Uint8Array {
   const palette = readPalette();
   const labs = palette.map(([r, g, b]) => oklab(r, g, b));
   const png = decode(readFileSync(file));
   const ch = png.channels;
   const src = png.data;
-  const out = new Uint8Array(SCENE_W * SCENE_H * 4);
-  for (let y = 0; y < SCENE_H; y++) {
-    for (let x = 0; x < SCENE_W; x++) {
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
       // Area average of the source pixels this output pixel covers.
-      const x0 = (x * png.width) / SCENE_W;
-      const x1 = ((x + 1) * png.width) / SCENE_W;
-      const y0 = (y * png.height) / SCENE_H;
-      const y1 = ((y + 1) * png.height) / SCENE_H;
+      const x0 = (x * png.width) / w;
+      const x1 = ((x + 1) * png.width) / w;
+      const y0 = (y * png.height) / h;
+      const y1 = ((y + 1) * png.height) / h;
       let r = 0;
       let g = 0;
       let b = 0;
@@ -108,18 +108,18 @@ export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP): Uint8Array
       for (let sy = Math.floor(y0); sy < Math.ceil(y1); sy++) {
         const wy = Math.min(sy + 1, y1) - Math.max(sy, y0);
         for (let sx = Math.floor(x0); sx < Math.ceil(x1); sx++) {
-          const w = wy * (Math.min(sx + 1, x1) - Math.max(sx, x0));
+          const cover = wy * (Math.min(sx + 1, x1) - Math.max(sx, x0));
           const i = (sy * png.width + sx) * ch;
-          r += src[i]! * w;
-          g += src[i + 1]! * w;
-          b += src[i + 2]! * w;
-          n += w;
+          r += src[i]! * cover;
+          g += src[i + 1]! * cover;
+          b += src[i + 2]! * cover;
+          n += cover;
         }
       }
       const raw = oklab(r / n, g / n, b / n);
       // Elliptical falloff: 1 at the centre, 0 at the frame's edge.
-      const ex = (x - SCENE_W / 2) / (SCENE_W / 2);
-      const ey = (y - SCENE_H / 2) / (SCENE_H / 2);
+      const ex = (x - w / 2) / (w / 2);
+      const ey = (y - h / 2) / (h / 2);
       const calm = (opts.calmCentre ?? 0) * Math.max(0, 1 - Math.hypot(ex, ey));
       const lab: [number, number, number] = [raw[0] * (1 - calm), raw[1] * opts.saturate * (1 - calm), raw[2] * opts.saturate * (1 - calm)];
       // The two nearest palette colours; dithering picks the second where the pixel sits between them.
@@ -127,14 +127,14 @@ export function snap(file: string, opts: SnapOptions = DEFAULT_SNAP): Uint8Array
       const mix = Math.sqrt(d1) / (Math.sqrt(d1) + Math.sqrt(d2) || 1);
       const threshold = (BAYER[(y % 4) * 4 + (x % 4)]! + 0.5) / 16;
       const pick = opts.dither > 0 && mix * 2 * opts.dither > threshold ? second : best;
-      out.set([...palette[pick]!, 255], (y * SCENE_W + x) * 4);
+      out.set([...palette[pick]!, 255], (y * w + x) * 4);
     }
   }
   return out;
 }
 
-export function writeScene(file: string, rgba: Uint8Array) {
-  writeFileSync(file, encode({ width: SCENE_W, height: SCENE_H, data: rgba, channels: 4 }));
+export function writeScene(file: string, rgba: Uint8Array, w = SCENE_W, h = SCENE_H) {
+  writeFileSync(file, encode({ width: w, height: h, data: rgba, channels: 4 }));
 }
 
 if (import.meta.main) {

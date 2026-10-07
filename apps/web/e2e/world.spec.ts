@@ -540,9 +540,12 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   expect(outcome).toBeDefined();
   // The after-action report says what the fight changed; a prize waits on the plunder screen.
   await expect(page.locator('.battle-report')).toBeVisible();
-  await expect(page.locator('.battle-ledger')).toContainText('England -20 for the attack');
+  await expect(page.locator('.battle-standing')).toContainText('England (for the attack) -20');
+  await expect(page.locator('.battle-report-picture')).toBeVisible();
   if (outcome === 'struck' || outcome === 'boarded') {
-    await expect(page.locator('.plunder')).toContainText('Take it and sink her');
+    // One button does the sensible thing: a merchant is let go by default, and it says what that means.
+    await expect(page.locator('.plunder-go')).toContainText(/let her go · Enter/i);
+    await expect(page.locator('.plunder')).toContainText('thinks a little better of you');
     expect(await page.evaluate(() => window.__corsair.state.get('prize'))).toBeDefined();
   }
   await page.screenshot({ path: 'test-results/battle-report.png' });
@@ -550,8 +553,9 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'BattleOver' }).length)).toBe(1);
-  // Firing on an English ship cost standing with England.
-  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing.england)).toBe(-20);
+  // Firing on an English ship cost standing with England (less the goodwill for letting a prize go).
+  const england = await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing.england);
+  expect(england).toBe(outcome === 'struck' || outcome === 'boarded' ? -20 + 2 : -20);
   expect(errors).toEqual([]);
 });
 

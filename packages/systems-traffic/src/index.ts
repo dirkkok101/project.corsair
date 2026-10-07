@@ -685,6 +685,14 @@ export function createTrafficSystem(
         const crew = crewOf(content, player);
         const join = command.volunteers ? Math.max(0, Math.min(prize.volunteers, shipStats(content, player).maxCrew - crew)) : 0;
         const ships = { ...state.ships, [player.id]: { ...player, cargo, plunder, paid, crew: crew + join } };
+        // Her fate is talked of in her home ports: a merchant let go speaks well of you, one sunk after she
+        // struck does not. A pirate let go just goes back to her trade.
+        const nation = prize.ship.ai!.nation;
+        let captain = state.captain;
+        if (captain && nation !== 'pirate') {
+          const change = command.release ? cb.standing.mercy : cb.standing.scuttle;
+          captain = { ...captain, standing: { ...captain.standing, [nation]: Math.max(-100, Math.min(100, standingWith(state, nation) + change)) } };
+        }
         if (command.release) {
           // Let go with what's left in her hold; she keeps clear of the player a while.
           const calmUntil = state.tick + Math.round(cb.chase.calmDays * tpd);
@@ -692,7 +700,7 @@ export function createTrafficSystem(
           ships[left.id] = { ...left, cargo: theirs, crew: Math.max(1, (left.crew ?? 0) - join), ai: { ...left.ai!, calmUntil } };
         }
         return {
-          state: { ...state, ships, prize: undefined },
+          state: { ...state, ships, captain, prize: undefined },
           events: [{ type: 'PlunderTaken', entityIds: [player.id, prize.ship.id], payload: { took, jettisoned, volunteers: join, released: command.release } }],
         };
       }

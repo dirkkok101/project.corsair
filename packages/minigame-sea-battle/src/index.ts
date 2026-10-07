@@ -51,7 +51,8 @@ export interface Shot {
 
 /** Something for the view to draw for a moment: smoke at the guns, a splash, splinters. */
 export interface BattleEffect {
-  kind: 'smoke' | 'splash' | 'hit' | 'sail';
+  /** hit: round shot's splinters; sail: chain shot's torn canvas; grape: a spray of small shot on her deck. */
+  kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape';
   x: number;
   y: number;
   /** Battle seconds when it happened. */
@@ -69,6 +70,8 @@ export interface BattleState {
   shots: Shot[];
   effects: BattleEffect[];
   rng: RngState;
+  /** The player has ordered "close to board": her helm runs alongside the enemy until the grapples hold. */
+  boarding?: boolean;
   /**
    * She has gone down: barrels of her purse and her men in the water, to sail over and pick up until
    * `until` (battle seconds), or until the player leaves the wreck. What's picked up so far is kept here.
@@ -91,7 +94,9 @@ export type BattleCommand =
   | { type: 'Fire'; side?: Broadside }
   | { type: 'SetAmmo'; ammo: Ammo }
   /** Done picking over the wreck: the fight ends now. */
-  | { type: 'LeaveWreck' };
+  | { type: 'LeaveWreck' }
+  /** Close to board: the helm steers alongside her and holds there for the grapples (again, or any helm, to stop). */
+  | { type: 'Board' };
 
 export interface BattleSetup {
   map: TileMap;
@@ -342,12 +347,54 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return cmds;
   };
 
+  /**
+   * "Close to board": steer for where she will be (leading her by the time it takes to get there), full sail,
+   * and once alongside match her heading so the hulls stay together while the grapples take.
+   */
+  const closeToBoard = (): BattleCommand[] => {
+    const me = state.ships.player;
+    const them = state.ships.enemy;
+    const d = distance();
+    let want: number;
+    if (d <= c.battle.boardTiles * 1.2) want = them.headingDeg;
+    else {
+      const eta = Math.min(20, d / Math.max(0.5, me.speed));
+      const r = (them.headingDeg * Math.PI) / 180;
+      want = bearing(me, { x: them.x + Math.sin(r) * them.speed * eta, y: them.y - Math.cos(r) * them.speed * eta } as BattleShip);
+    }
+    const best = bestUpwindDeg(content.polars[content.ships[me.classId]!.polar]!);
+    if (angleOffWind(want, state.wind.fromDeg) < best) {
+      const a = normalizeDeg(state.wind.fromDeg + best);
+      const b = normalizeDeg(state.wind.fromDeg - best);
+      const off = (h: number) => Math.abs(((h - want + 540) % 360) - 180);
+      want = off(a) <= off(b) ? a : b;
+    }
+    const diff = ((want - me.headingDeg + 540) % 360) - 180;
+    const cmds: BattleCommand[] = [{ type: 'SetHelm', shipId: 'player', helm: Math.abs(diff) < 6 ? 0 : diff > 0 ? 1 : -1 }];
+    if (me.sails !== 'full') cmds.push({ type: 'SetSails', shipId: 'player', sails: 'full' });
+    return cmds;
+  };
+  /** The player's chance to carry her deck if the boarders went over now (the boarding roll's odds). */
+  const boardingOdds = () => {
+    const p = state.ships.player;
+    const e = state.ships.enemy;
+    const ps = p.crew * c.boarding.player * spirit(p);
+    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e);
+    return ps / Math.max(1e-6, ps + es);
+  };
+
   /** `byAi`: the command came from an AI captain's steering (the enemy, or the headless autopilot). */
   const apply = (side: Side, cmd: BattleCommand, rng: ReturnType<typeof rngStream>, byAi = false) => {
     if (cmd.type === 'LeaveWreck') {
       if (state.wreck) end('sunk');
       return;
     }
+    if (cmd.type === 'Board') {
+      state = { ...state, boarding: !state.boarding };
+      return;
+    }
+    // Taking the helm by hand drops "close to board".
+    if (cmd.type === 'SetHelm' && side === 'player' && !byAi && state.boarding) state = { ...state, boarding: false };
     if (cmd.type === 'Fire') {
       const broadside = cmd.side ?? (['port', 'starboard'] as const).find((b) => aim(side, b) === 'ready');
       return broadside ? fire(side, broadside, rng) : undefined;
@@ -430,6 +477,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       queue.push(cmd);
     },
     result: () => state.result,
+    /** The player's chance to carry her deck if the boarders went over now. */
+    boardingOdds: () => boardingOdds(),
     /** She may strike any moment now (shown to the player, so a surrender can be worked for). */
     wavering: () => !state.result && !state.wreck && (beaten(state.ships.enemy) || yields(state.ships.enemy, state.ships.player)),
     /** The player's broadside: ready to fire, or why not. */
@@ -446,6 +495,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const enemyRole = state.ships.enemy.role ?? 'merchant';
           if (!state.wreck) for (const cmd of steer('enemy', c.personality[enemyRole])) apply('enemy', cmd, rng, true);
           if (autopilot) for (const cmd of steer('player', autopilot)) apply('player', cmd, rng, true);
+          else if (state.boarding && !state.wreck) for (const cmd of closeToBoard()) apply('player', cmd, rng, true);
         }
 
         // Sail: the world's navigation at battle pace.
@@ -505,7 +555,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
               },
             },
           };
-          effects.push({ kind: a.sails > a.hull ? 'sail' : 'hit', x: shot.tx, y: shot.ty, at: seconds() });
+          effects.push({ kind: shot.ammo === 'grape' ? 'grape' : a.sails > a.hull ? 'sail' : 'hit', x: shot.tx, y: shot.ty, at: seconds() });
         }
         state = { ...state, shots: flying, effects };
 

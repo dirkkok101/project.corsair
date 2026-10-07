@@ -256,6 +256,30 @@ describe('sea battle', () => {
     expect(idle.result()!.outcome).toBe('sunk');
   });
 
+  it('close to board (G): her helm runs her down and lays alongside until the grapples take; the helm by hand stops it', () => {
+    const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 6 } } };
+    const chase = () =>
+      // Not outmanned three to one, so she doesn't strike before the boarders get across.
+      createBattle(quick, { map, wind: { fromDeg: 0, strength: 'fresh' }, player: { ...ship('ship.brig'), crew: 100 }, enemy: { ...ship('ship.fluyt', 'merchant'), crew: 40 }, seed: 5, bearingDeg: 90 });
+    const b = chase();
+    expect(b.boardingOdds()).toBeGreaterThan(0.5);
+    b.send({ type: 'Board' });
+    let grappled = false;
+    for (let i = 0; i < 30 * 60 && !b.result(); i++) {
+      b.step(1);
+      if (b.state.grappling > 0) grappled = true;
+    }
+    expect(b.state.boarding).toBe(true);
+    expect(grappled).toBe(true);
+    // Taking the helm by hand drops the order.
+    const c = chase();
+    c.send({ type: 'Board' });
+    c.step(10);
+    c.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
+    c.step(1);
+    expect(c.state.boarding).toBe(false);
+  });
+
   it('the more hands at the guns, the faster she reloads, up to full manning', () => {
     // A brig's 18 guns at 4 men a gun want 36 hands for a broadside.
     const reload = (crew: number) =>

@@ -408,6 +408,9 @@ export const combatSchema = z.object({
     /** Nations at war with a ship's nation approve when the player beats her; twice for a warship taken. */
     enemyWin: z.number(),
     warshipTaken: z.number().positive(),
+    /** A taken merchant let go earns `mercy` with her nation; one sunk after she struck costs `scuttle`. */
+    mercy: z.number(),
+    scuttle: z.number(),
   }),
   /** Tavern and shipwright prices. */
   /** Shipwright and tavern prices: a man signed on, a hull point and a sail percent made good, and a
