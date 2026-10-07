@@ -97,6 +97,9 @@ export function usualStock(content: ContentPack, state: WorldState, s: Settlemen
   return normalStock(content, s, good) * scale * shockFactor(content, state, s.id, good);
 }
 
+/** A blockaded port gets this share of its usual supply from the wider world. */
+const BLOCKADE_PULL = 0.25;
+
 /** The most a market holds: maxStock times its usual stock for a port of its size, scaled by its people. */
 export function stockCap(content: ContentPack, state: WorldState, s: Settlement, good: string): number {
   return normalStock(content, s, good) * content.economy.maxStock * (townOf(content, state, s).people / basePeople(content, s));
@@ -547,8 +550,16 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     const t = e.towns;
     const markets: Record<string, Record<string, number>> = {};
     const usual: Record<string, Record<string, number>> = {};
+    // Blockaded: an enemy warship lies off the port. Little gets in from the wider world, and no coaster.
+    const lying = Object.values(state.ships).filter((x) => x.ai?.blockadeOf && (x.ai.waitUntil ?? 0) > state.tick);
+    const blockaded = new Set(
+      settlements
+        .filter((s) => lying.some((x) => x.ai!.blockadeOf === s.id && Math.hypot(x.x - s.x, x.y - s.y) <= content.traffic.blockade.tiles))
+        .map((s) => s.id),
+    );
     for (const s of settlements) {
       const market = { ...state.markets[s.id] };
+      const pull = t.pull * (blockaded.has(s.id) ? BLOCKADE_PULL : 1);
       usual[s.id] = {};
       // Chained goods first, from the store as the day begins: today's distilling uses yesterday's sugar.
       const goods = [...content.goods].sort((x, y) => Number(Boolean(e.chains[y.id])) - Number(Boolean(e.chains[x.id])));
@@ -563,13 +574,13 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           market[input] = (market[input] ?? 0) - makes;
         }
         const stock = market[g.id] ?? 0;
-        const after = stock + makes - Math.min(stock, flow.eats) + t.pull * (u - stock);
+        const after = stock + makes - Math.min(stock, flow.eats) + pull * (u - stock);
         market[g.id] = Math.max(0, Math.min(stockCap(content, state, s, g.id), after));
       }
       markets[s.id] = market;
     }
     for (const [a, b] of neighbours) {
-      if (atWar(content, state, a.nation, b.nation)) continue;
+      if (atWar(content, state, a.nation, b.nation) || blockaded.has(a.id) || blockaded.has(b.id)) continue;
       // The nearer, the busier the craft: two towns on one island trade almost as one market.
       const near = t.coasters.tiles / Math.max(3, Math.hypot(a.x - b.x, a.y - b.y));
       const share = Math.min(0.9, t.coasters.share * near);
@@ -594,7 +605,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     for (const s of settlements) {
       const town = townOf(content, state, s);
       const full = purseFull(content, town.people);
-      towns[s.id] = { ...town, cash: Math.round(town.cash + (full - town.cash) * t.purse.refill) };
+      const { blockaded: _was, ...rest } = town;
+      towns[s.id] = { ...rest, cash: Math.round(town.cash + (full - town.cash) * t.purse.refill), ...(blockaded.has(s.id) ? { blockaded: true } : {}) };
     }
     return { ...state, markets, towns };
   };

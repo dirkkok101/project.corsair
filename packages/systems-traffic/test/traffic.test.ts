@@ -7,6 +7,7 @@ import { createEconomySystem, normalStock, stockCap, withEconomy } from '@corsai
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
+import { atWar } from '@corsair/systems-politics';
 import { createSeaLanes, createTrafficSystem, withTraffic } from '../src';
 
 const content = loadContent();
@@ -32,6 +33,8 @@ function world(seed: number, start: WorldState = createWorld(def)) {
   ]);
 }
 const ai = (state: WorldState) => Object.values(state.ships).filter((s) => s.ai);
+/** The everyday traffic: AI ships less the convoys, which sail on a timetable of their own. */
+const traffic0 = (state: WorldState) => ai(state).filter((s) => !s.ai!.convoy);
 
 describe('ships at sea', () => {
   it('start with the full population moored at home ports, by role', () => {
@@ -71,8 +74,8 @@ describe('ships at sea', () => {
       }
     }
     // Ships lost at sea are made good one a day per role, so a fight late in the season can leave one short.
-    expect(ai(a.state).length).toBeLessThanOrEqual(content.traffic.population);
-    expect(ai(a.state).length).toBeGreaterThanOrEqual(content.traffic.population - 2);
+    expect(traffic0(a.state).length).toBeLessThanOrEqual(content.traffic.population);
+    expect(traffic0(a.state).length).toBeGreaterThanOrEqual(content.traffic.population - 2);
     expect(run().hash()).toBe(a.hash());
   }, 60_000);
 
@@ -300,6 +303,64 @@ describe('fights at sea', () => {
     won.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: { ...result('sunk'), player: { ...result('sunk').player, crew: 140 } } });
     won.applyCommands();
     expect(won.state.ships.player!.crew).toBe(190);
+  });
+});
+
+describe('ships that carry the world', () => {
+  it('the English convoy sails on her timetable: lands luxuries and settlers at Port Royal, loads sugar and rum, and goes home', () => {
+    const sim = world(2);
+    const line = content.traffic.convoys.lines.find((l) => l.id === 'english')!;
+    const royal = 'town.port_royal';
+    sim.step(line.firstDay * day);
+    const sailed = sim.events().find((e) => e.type === 'ConvoySailed' && e.payload?.line === 'english');
+    expect(sailed).toBeDefined();
+    const id = sailed!.entityIds[0]!;
+    expect(sim.state.ships[id]).toMatchObject({ cargo: line.brings, ai: { nation: 'england', convoy: { stage: 'inbound' }, to: royal } });
+    // Her coming is news at Port Royal.
+    expect(sim.state.news!.some((n) => n.kind === 'convoyDue' && n.settlementId === royal)).toBe(true);
+    const people = sim.state.towns![royal]!.people;
+    let guard = 0;
+    while (!sim.events().some((e) => e.type === 'ConvoyArrived' && e.entityIds[0] === id) && guard++ < 60) sim.step(day);
+    const arrived = sim.events().find((e) => e.type === 'ConvoyArrived' && e.entityIds[0] === id)!;
+    expect(arrived.payload.brought).toEqual(line.brings);
+    expect(Object.keys(arrived.payload.takes as object).length).toBeGreaterThan(0);
+    expect(sim.state.towns![royal]!.people).toBeGreaterThan(people);
+    expect(sim.state.ships[id]!.ai!.convoy!.stage).toBe('homeward');
+    guard = 0;
+    while (sim.state.ships[id] && guard++ < 60) sim.step(day);
+    // Gone at last: home to Europe, or taken on the way (she may win a fight or two first).
+    expect(sim.state.ships[id]).toBeUndefined();
+    const last = sim.events().filter((e) => e.entityIds.includes(id) && (e.type === 'ConvoySailedHome' || e.type === 'SeaFight')).at(-1);
+    expect(last?.type === 'ConvoySailedHome' || last?.payload.loser === 'england').toBe(true);
+  }, 120_000);
+
+  it('no merchant sails for the port of a nation at war with hers', () => {
+    const sim = world(4);
+    for (let d = 0; d < 60; d++) {
+      sim.step(day);
+      for (const s of ai(sim.state)) {
+        if (s.ai!.role !== 'merchant' || s.ai!.convoy || !s.ai!.route.length) continue;
+        const to = settlements.find((x) => x.id === s.ai!.to)!;
+        expect(atWar(content, sim.state, s.ai!.nation, to.nation), `${s.ai!.nation} merchant bound for ${to.id}`).toBe(false);
+      }
+    }
+  }, 120_000);
+
+  it('patrols go where merchants have been lost', () => {
+    const sim = world(3);
+    // At peace, so no patrol goes off to blockade; ten English merchants lost off Bridgetown lately.
+    sim.send({ type: 'SetRelation', a: 'england', b: 'spain', war: false });
+    sim.applyCommands();
+    const losses = Array.from({ length: 10 }, (_, k) => ({ id: `loss.${k}`, tick: sim.state.tick, settlementId: 'town.bridgetown', kind: 'aiTaken', good: '', delayDays: 0 }));
+    const patrols = ai(sim.state).filter((s) => s.ai!.role === 'patrol' && s.ai!.nation === 'england' && s.ai!.from !== 'town.bridgetown');
+    expect(patrols.length).toBeGreaterThan(0);
+    const ready = Object.fromEntries(patrols.map((p) => [p.id, { ...p, ai: { ...p.ai!, route: [], waitUntil: sim.state.tick + 1 } }]));
+    const next = createSim({ ...sim.state, news: [...(sim.state.news ?? []), ...losses], ships: { ...sim.state.ships, ...ready } }, [
+      createTrafficSystem(content, settlements, lanes, map, windAt),
+    ]);
+    next.step(3);
+    const bound = patrols.map((p) => next.state.ships[p.id]!.ai!.to);
+    expect(bound.filter((to) => to === 'town.bridgetown').length).toBeGreaterThan(bound.length / 2);
   });
 });
 

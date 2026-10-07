@@ -88,7 +88,7 @@ const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or 
 /** A port's people and trend, in a few words ("12,600 people, growing"). */
 function townLine(content: ContentPack, state: WorldState, town: PlacedSettlement) {
   const t = townOf(content, state, town);
-  return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}`;
+  return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded' : ''}`;
 }
 
 /**

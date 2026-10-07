@@ -468,7 +468,7 @@ async function main() {
     people: (id) => {
       const s = settlements.find((x) => x.id === id)!;
       const t = townOf(content, sim.state, s);
-      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}`;
+      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded: little gets in' : ''}`;
     },
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.

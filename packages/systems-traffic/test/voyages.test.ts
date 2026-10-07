@@ -6,10 +6,10 @@ import { voyageProbe } from './probe';
 // are quiet, and the piracy moves prices without drying up the trade.
 describe('voyages', () => {
   it('Port Royal to Tortuga: about one pirate every two or three voyages in the starting brig, a few fully armed', () => {
-    const run = (outfit = {}) => {
+    const run = (outfit = {}, seeds = [1, 2, 3]) => {
       let voyages = 0;
       let attacks = 0;
-      for (const seed of [1, 2, 3]) {
+      for (const seed of seeds) {
         const m = voyageProbe(['town.port_royal', 'town.tortuga'], { days: 40, seed, outfit });
         voyages += m.voyages;
         attacks += m.attacks;
@@ -17,7 +17,8 @@ describe('voyages', () => {
       return attacks / voyages;
     };
     const start = run();
-    const armed = run({ guns: 18, crew: 150 });
+    // Attacks on her are rare (about one in twenty voyages), so she is measured over more seeds.
+    const armed = run({ guns: 18, crew: 150 }, [1, 2, 3, 4, 5, 6, 7, 8]);
     console.log('VOYAGES attacks per voyage, Port Royal-Tortuga: starting brig', start.toFixed(2), 'fully armed', armed.toFixed(2));
     expect(start).toBeGreaterThan(0.2);
     expect(start).toBeLessThan(0.7);

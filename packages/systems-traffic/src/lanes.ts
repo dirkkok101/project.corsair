@@ -303,14 +303,18 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
     route(from, to) {
       const key = `${from}>${to}`;
       if (cache.has(key)) return cache.get(key);
-      const a = moorings.get(from);
-      const b = moorings.get(to);
+      // Always searched the same way round (the pair in order) and reversed for the other: a search either way
+      // can find a different but equally short lane, and which was asked first must not decide it, or a world
+      // reloaded mid-session (or a test after another) would sail differently.
+      const [p, q] = from < to ? [from, to] : [to, from];
+      const a = moorings.get(p);
+      const b = moorings.get(q);
       const cells = a && b ? search(a.cell, b.cell) : undefined;
       // Out of the first harbour, across open water, and in through the second.
       const lane = cells && a && b ? smooth([...a.out, ...cells.map(centre), ...[...b.out].reverse()]) : undefined;
-      cache.set(key, lane);
-      cache.set(`${to}>${from}`, lane && [...lane].reverse());
-      return lane;
+      cache.set(`${p}>${q}`, lane);
+      cache.set(`${q}>${p}`, lane && [...lane].reverse());
+      return cache.get(key);
     },
   };
 }

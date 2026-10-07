@@ -501,6 +501,33 @@ export const trafficSchema = z.object({
   lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** Pirates' interest in a port halves this far (in tiles) from their haven. */
   pirateRangeTiles: z.number().positive(),
+  /** Convoys from Europe and the treasure ship, on a timetable (PRD section 6, slice 2). */
+  convoys: z.object({
+    /** Where convoys come in from the Atlantic and go home to: a tile off the map's east edge. */
+    entry: z.tuple([z.number(), z.number()]),
+    lines: z.array(
+      z.object({
+        id: z.string(),
+        nation: z.enum(['spain', 'england', 'france', 'netherlands']),
+        /** A port to sail from instead of the Atlantic (the treasure ship loads at Portobelo). */
+        from: z.string().optional(),
+        /** The ports she calls at, one a voyage in turn. */
+        to: z.array(z.string()).min(1),
+        everyDays: z.number().int().positive(),
+        firstDay: z.number().int().min(0),
+        classId: z.string(),
+        brings: z.record(z.string(), z.number().int().min(0)),
+        takes: z.record(z.string(), z.number().int().min(0)),
+        /** Settlers: the port's people grow by this share when she arrives. */
+        people: z.number().min(0),
+        purse: z.tuple([z.number().min(0), z.number().min(0)]),
+      }),
+    ),
+  }),
+  /** A patrol at war may blockade an enemy port: this chance a voyage, lying within `tiles` of it for `days`. */
+  blockade: z.object({ chance: z.number().min(0).max(1), tiles: z.number().positive(), days: z.tuple([z.number().min(0), z.number().min(0)]) }),
+  /** Patrols favour their ports where merchants were lost in the last `days` days, `weight` more for each loss. */
+  patrolLosses: z.object({ days: z.number().positive(), weight: z.number().min(0) }),
   /**
    * Bigger pirates as the player grows: a new pirate sails `classId` instead of her role's class with a
    * chance rising from 0 at the player's strength `from` to `maxShare` at `full` (crew x (1 + guns / 10)).

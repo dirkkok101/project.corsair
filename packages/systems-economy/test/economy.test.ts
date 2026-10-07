@@ -683,6 +683,39 @@ describe('ports that live', () => {
   });
 });
 
+describe('blockades', () => {
+  it('an enemy warship lying off a port starves it of supply from the wider world', () => {
+    const sim = moored();
+    const live = (blockade: boolean) => {
+      const s = sim.state;
+      const warship = {
+        id: 'ai.blockader',
+        classId: 'ship.frigate',
+        x: portRoyal.x + 3,
+        y: portRoyal.y + 3,
+        headingDeg: 0,
+        speed: 0,
+        helm: 0 as const,
+        sails: 'furled' as const,
+        blocked: false,
+        cargo: {},
+        ai: { nation: 'spain' as const, role: 'patrol' as const, name: 'San Felipe', from: 'town.havana', to: 'town.havana', route: [[0, 0], [1, 1]] as [number, number][], along: 0, offset: 0, tackSign: 1 as const, news: [], waitUntil: 1e9, blockadeOf: portRoyal.id },
+      };
+      const run = createSim(
+        { ...s, ships: blockade ? { ...s.ships, [warship.id]: warship } : s.ships, markets: { ...s.markets, [portRoyal.id]: { ...s.markets![portRoyal.id], sugar: 0 } } },
+        [createEconomySystem(content, settlements)],
+      );
+      run.step(day * 20);
+      return run.state;
+    };
+    const open = live(false);
+    const shut = live(true);
+    expect(shut.towns![portRoyal.id]!.blockaded).toBe(true);
+    expect(open.towns![portRoyal.id]!.blockaded).toBeUndefined();
+    expect(shut.markets![portRoyal.id]!.sugar!).toBeLessThan(open.markets![portRoyal.id]!.sugar! * 0.6);
+  });
+});
+
 describe('the fleet', () => {
   const fluyt = { id: 'f1', name: 'Endeavour', classId: 'ship.fluyt', hull: 70, sailCondition: 100 };
   /** Docked at Port Royal with a fluyt in the fleet. */

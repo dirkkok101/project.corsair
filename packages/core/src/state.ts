@@ -53,6 +53,11 @@ export interface AiCaptain {
   temperament?: string;
   /** A pirate's nerve: her temperament's attack odds times this (below 1, she chances stronger ships). */
   nerve?: number;
+  /** A convoy on her line's voyage (inbound to her port, then homeward to the Atlantic, where she leaves the map). */
+  convoy?: { line: string; stage: 'inbound' | 'homeward' };
+  /** A patrol bound to blockade an enemy port; and, lying off it, the port she blockades (until `waitUntil`). */
+  blockading?: string;
+  blockadeOf?: string;
   /**
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.
@@ -188,6 +193,8 @@ export interface TownState {
   people: number;
   cash: number;
   trend: -1 | 0 | 1;
+  /** Enemy warships lie off it: little gets in. */
+  blockaded?: boolean;
 }
 
 export interface Captain {

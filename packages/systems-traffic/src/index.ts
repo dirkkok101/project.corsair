@@ -95,16 +95,26 @@ export function createTrafficSystem(
       return { to: marks.find((s) => s.id === pick), good: undefined };
     }
     if (ai.role === 'patrol') {
+      // At war, a patrol may go to blockade the nearest enemy port within reach.
+      const enemy = settlements
+        .filter((s) => s.nation !== 'pirate' && !isHaven(s) && reachable(s) && atWar(content, state, ai.nation, s.nation))
+        .sort((a, b) => Math.hypot(a.x - here.x, a.y - here.y) - Math.hypot(b.x - here.x, b.y - here.y));
+      if (enemy.length && rng.float() < t.blockade.chance) return { to: enemy[0], good: undefined, blockade: true };
+      // Otherwise to her own ports, the more merchants lost near one lately, the likelier.
       const own = settlements.filter((s) => s.nation === ai.nation && !isHaven(s) && reachable(s));
       const pool = own.length ? own : settlements.filter((s) => !isHaven(s) && reachable(s));
-      return { to: pool[Math.floor(rng.float() * pool.length)], good: undefined };
+      const since = state.tick - t.patrolLosses.days * tpd;
+      const losses = (id: string) => (state.news ?? []).filter((n) => n.tick >= since && n.settlementId === id && (n.kind === 'aiTaken' || n.kind === 'taken')).length;
+      const pick = pool.length ? rng.weighted(Object.fromEntries(pool.map((s) => [s.id, 1 + t.patrolLosses.weight * losses(s.id)]))) : undefined;
+      return { to: pool.find((s) => s.id === pick), good: undefined };
     }
     // Merchant: per-unit margin between here and each reachable port, skipping routes already busy.
     const busy = (to: string) =>
       Object.values(state.ships).filter((s) => s.ai?.role === 'merchant' && s.ai.from === here.id && s.ai.to === to && s.id !== ship.id).length;
     let best: { to: Settlement; good: string; margin: number } | undefined;
     for (const dest of settlements) {
-      if (isHaven(dest) || !reachable(dest) || busy(dest.id) >= t.maxPerRoute) continue;
+      // A merchant never calls at the port of a nation at war with hers.
+      if (isHaven(dest) || !reachable(dest) || busy(dest.id) >= t.maxPerRoute || atWar(content, state, ai.nation, dest.nation)) continue;
       for (const g of content.goods) {
         if (g.staple) continue;
         const buy = quote(content, here, g.id, state.markets?.[here.id]?.[g.id] ?? 0).buy;
@@ -114,16 +124,86 @@ export function createTrafficSystem(
     }
     if (best) return best;
     // Nothing pays: sail on in ballast to look for trade elsewhere.
-    const pool = settlements.filter((s) => !isHaven(s) && reachable(s));
+    const pool = settlements.filter((s) => !isHaven(s) && reachable(s) && !atWar(content, state, ai.nation, s.nation));
     return { to: pool[Math.floor(rng.float() * pool.length)], good: undefined };
+  };
+
+  /** A piece of news starting from a port now (a convoy due, a blockade), as a fight's news does. */
+  const newsItem = (state: WorldState, settlementId: string, kind: string, tick: number, ship: string, nation: Nation): WorldState => {
+    const n = state.nextNewsId ?? 0;
+    const item = { id: `news.${n}`, tick, settlementId, kind, good: '', delayDays: 0, ship, nation };
+    return { ...state, news: [...(state.news ?? []), item], nextNewsId: n + 1 };
+  };
+
+  /**
+   * A convoy sets out on her line's voyage: in from the Atlantic (or from her loading port, for the treasure
+   * ship) bound for `to`, with her line's cargo and a rich purse, and her coming is news at her port.
+   * Drawn from her own stream, so the timetable moves nothing else in the world.
+   */
+  const convoy = (state: WorldState, line: (typeof t.convoys.lines)[number], to: string, tick: number): { state: WorldState; ship: Ship } | undefined => {
+    const dest = byId.get(to);
+    const mooring = dest && lanes.mooring(dest.id);
+    if (!dest || !mooring) return undefined;
+    const route = line.from ? lanes.route(line.from, to) : lanes.path(t.convoys.entry, mooring);
+    if (!route) return undefined;
+    const n = state.nextShipId ?? 0;
+    const draw = rngStream(seedRng(n, 'convoy'));
+    const cls = content.ships[line.classId]!;
+    const names = t.names[line.nation] ?? t.names.pirate!;
+    const name = names[Math.floor(draw.float() * names.length)]!;
+    const [x, y] = route[0]!;
+    const ship: Ship = {
+      id: `ai.${n}`,
+      classId: line.classId,
+      x,
+      y,
+      headingDeg: 270,
+      speed: 0,
+      helm: 0,
+      sails: 'full',
+      blocked: false,
+      cargo: { ...line.brings },
+      hull: cls.hull,
+      sailCondition: 100,
+      crew: Math.round(cls.maxCrew * 0.8),
+      ai: {
+        nation: line.nation,
+        role: 'merchant',
+        name,
+        from: line.from ?? to,
+        to,
+        route,
+        along: 0,
+        offset: 0,
+        tackSign: 1,
+        news: [],
+        purse: Math.round(draw.range(line.purse[0], line.purse[1])),
+        convoy: { line: line.id, stage: 'inbound' },
+      },
+    };
+    const told = newsItem({ ...state, nextShipId: n + 1 }, line.from ?? to, line.from ? 'treasureDue' : 'convoyDue', tick, name, line.nation);
+    return { state: told, ship };
   };
 
   /** Set sail: take on news and (for a merchant) cargo, and start down the lane. */
   const depart = (state: WorldState, ship: Ship, tick: number, rng: Rng): { state: WorldState; ship: Ship; events: EmittedEvent[] } => {
     const ai = ship.ai!;
-    const { to, good } = orders(state, ship, rng);
+    const { to, good, blockade } = orders(state, ship, rng) as ReturnType<typeof orders> & { blockade?: boolean };
     if (!to) return { state, ship: { ...ship, ai: { ...ai, waitUntil: tick + tpd } }, events: [] };
     let route = lanes.route(ai.from, to.id)!;
+    if (blockade) {
+      // Lie off the enemy port, within blockade reach of it, rather than sail in.
+      const length = routeLength(route);
+      const stop = Math.max(0, length - t.blockade.tiles * 0.6);
+      const end = pointAlong(route, stop);
+      const keep: [number, number][] = [route[0]!];
+      let run = 0;
+      for (let i = 1; i < route.length && run + legLength(route[i - 1]!, route[i]!) < stop; i++) {
+        run += legLength(route[i - 1]!, route[i]!);
+        keep.push(route[i]!);
+      }
+      route = [...keep, [end.x, end.y]];
+    }
     if (ai.role === 'pirate') {
       // Out toward the mark only part way, to lurk on the lane: never under a port's guns, so a
       // spot that falls there is drawn back toward home.
@@ -164,7 +244,7 @@ export function createTrafficSystem(
       ...ship,
       cargo,
       sails: 'full',
-      ai: { ...ai, to: to.id, route, along: 0, offset: 0, waitUntil: undefined, news },
+      ai: { ...ai, to: to.id, route, along: 0, offset: 0, waitUntil: undefined, news, ...(blockade ? { blockading: to.id } : {}) },
     };
     return {
       state: next,
@@ -177,6 +257,18 @@ export function createTrafficSystem(
   const arrive = (state: WorldState, ship: Ship, tick: number, rng: Rng): { state: WorldState; ship: Ship; events: EmittedEvent[] } => {
     const ai = ship.ai!;
     const wait = tick + Math.round(rng.range(t.portDays[0], t.portDays[1]) * tpd);
+    if (ai.blockading) {
+      // Off the enemy port: lie there a while (the port is blockaded), then home the way she came.
+      const days = tick + Math.round(rng.range(t.blockade.days[0], t.blockade.days[1]) * tpd);
+      const back = [...ai.route].reverse();
+      const port = byId.get(ai.blockading)!;
+      const news = newsItem(state, port.id, 'blockade', tick, ship.ai!.name, ai.nation);
+      return {
+        state: news,
+        ship: { ...ship, speed: 0, ai: { ...ai, to: ai.from, route: back, along: 0, offset: 0, waitUntil: days, blockading: undefined, blockadeOf: ai.blockading } as AiCaptain },
+        events: [{ type: 'Blockade', entityIds: [ship.id, port.id], payload: { nation: ai.nation } }],
+      };
+    }
     if (ai.role === 'pirate' && !isHaven(byId.get(ai.to)!)) {
       // On her lurking spot: lie in wait on the lane, then head back the way she came, to her haven.
       const lurk = tick + Math.round(rng.range(t.lurkDays[0], t.lurkDays[1]) * tpd);
@@ -196,6 +288,36 @@ export function createTrafficSystem(
       next = { ...next, markets: { ...next.markets, [dest.id]: { ...next.markets?.[dest.id], [good]: Math.min(cap, stock) } } };
     }
     const [mx, my] = lanes.mooring(dest.id) ?? [ship.x, ship.y];
+    if (ai.convoy) {
+      // A convoy in from Europe (or the treasure ship): her settlers come ashore, she loads what her line
+      // takes home, as far as the market has it, and after a day turns for the Atlantic.
+      const line = t.convoys.lines.find((l) => l.id === ai.convoy!.line)!;
+      const town = next.towns?.[dest.id];
+      if (town && line.people) next = { ...next, towns: { ...next.towns, [dest.id]: { ...town, people: Math.round(town.people * (1 + line.people)) } } };
+      const market = { ...next.markets?.[dest.id] };
+      const cargo: Record<string, number> = {};
+      for (const [good, units] of Object.entries(line.takes)) {
+        const n = Math.min(units, Math.floor((market[good] ?? 0) * 0.6));
+        if (n <= 0) continue;
+        cargo[good] = n;
+        market[good] = (market[good] ?? 0) - n;
+      }
+      next = { ...next, markets: { ...next.markets, [dest.id]: market } };
+      const home = lanes.path([mx, my], t.convoys.entry) ?? [[mx, my], t.convoys.entry];
+      return {
+        state: next,
+        ship: {
+          ...ship,
+          x: mx,
+          y: my,
+          speed: 0,
+          cargo,
+          sails: 'furled',
+          ai: { ...ai, from: dest.id, route: home, along: 0, offset: 0, waitUntil: tick + tpd, convoy: { line: line.id, stage: 'homeward' } },
+        },
+        events: [{ type: 'ConvoyArrived', entityIds: [ship.id, dest.id], payload: { line: line.id, brought: ship.cargo, takes: cargo } }],
+      };
+    }
     return {
       state: next,
       ship: {
@@ -879,6 +1001,12 @@ export function createTrafficSystem(
             moved = r.ship;
             events.push(...r.events);
           }
+        } else if (ship.ai.convoy?.stage === 'homeward' && ship.ai.along >= routeLength(ship.ai.route)) {
+          // Home to Europe: she sails off the map.
+          const { [id]: _gone, ...rest } = ships;
+          ships = rest;
+          events.push({ type: 'ConvoySailedHome', entityIds: [id], payload: { line: ship.ai.convoy.line, cargo: ship.cargo } });
+          continue;
         } else if (ship.ai.along >= routeLength(ship.ai.route)) {
           const r = arrive({ ...next, ships }, ship, tick, rng);
           next = r.state;
@@ -890,10 +1018,24 @@ export function createTrafficSystem(
         ships = { ...ships, [id]: moved };
       }
 
+      // The convoys' timetable: each line sails every so many days, to its ports in turn.
+      if (tick % tpd === 0) {
+        const day = tick / tpd;
+        for (const line of t.convoys.lines) {
+          if (day < line.firstDay || (day - line.firstDay) % line.everyDays !== 0) continue;
+          const voyage = (day - line.firstDay) / line.everyDays;
+          const made = convoy({ ...next, ships }, line, line.to[voyage % line.to.length]!, tick);
+          if (!made) continue;
+          next = made.state;
+          ships = { ...ships, [made.ship.id]: made.ship };
+          events.push({ type: 'ConvoySailed', entityIds: [made.ship.id, made.ship.ai!.to], payload: { line: line.id } });
+        }
+      }
+
       // A ship a day per role tops the population up, so saves made before ships sailed fill too.
       if (tick % tpd === 0) {
         for (const role of ROLES) {
-          const have = Object.values(ships).filter((s) => s.ai?.role === role).length;
+          const have = Object.values(ships).filter((s) => s.ai?.role === role && !s.ai.convoy).length;
           if (have >= target(role)) continue;
           const home = homePorts(settlements, lanes, role);
           if (!home.length) continue;

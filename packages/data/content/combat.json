@@ -157,7 +157,10 @@
   "news": {
     "sunk": "The {nation} {ship} was sunk in a sea fight off {town}.",
     "taken": "The {nation} {ship} was taken off {town}, and her cargo with her.",
-    "pirateSunk": "A pirate, the {ship}, was sent to the bottom off {town}."
+    "pirateSunk": "A pirate, the {ship}, was sent to the bottom off {town}.",
+    "convoyDue": "The {nation} convoy {ship} is on her way from Europe to {town}, with luxuries and settlers.",
+    "treasureDue": "The {nation} treasure ship {ship} is loading silver at {town} for Havana and home.",
+    "blockade": "{nation} warships are lying off {town}: little gets in or out."
   },
   "autoResolve": {
     "merchant": 0.9,
