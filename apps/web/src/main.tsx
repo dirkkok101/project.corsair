@@ -963,7 +963,12 @@ async function main() {
         const port = portInReach();
         if (port?.id === ev.payload.portId) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
       }
-      if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') courseNote = { text: 'Aground: no way through there. Take the helm', until: now + 3500 };
+      if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') {
+        // Pressed onto the shore within reach of the port she was bound for: she goes in all the same.
+        const port = portInReach();
+        if (port && port.id === destination?.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
+        else courseNote = { text: 'Aground: no way through there. Take the helm', until: now + 3500 };
+      }
       // A fight between other ships within sight: smoke on the water and the thud of distant guns.
       if (ev.type === 'SeaFight') {
         const me = player();

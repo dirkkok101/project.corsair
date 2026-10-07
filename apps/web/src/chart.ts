@@ -179,11 +179,21 @@ export function createCharts(
   }
   // Every port gets a dot; its name is placed later by layoutLabels, which needs the chart visible.
   const pins = settlements.map((s) => {
-    const dot = sheet.appendChild(document.createElement('img'));
-    dot.className = `chart-dot chart-mark label-${s.nation}`;
-    dot.src = markFor(s) ?? '';
-    dot.alt = '';
-    dot.draggable = false;
+    // The painted mark, or the plain square in the nation's colour if the art isn't there (a missing image
+    // would leave only its underline, and the names looking adrift of their ports).
+    const mark = markFor(s);
+    const dot = sheet.appendChild(document.createElement(mark ? 'img' : 'div'));
+    dot.className = mark ? `chart-dot chart-mark label-${s.nation}` : `chart-dot label-${s.nation}`;
+    if (dot instanceof HTMLImageElement) {
+      dot.src = mark!;
+      dot.alt = '';
+      dot.draggable = false;
+      // An image that fails to load falls back to the square too.
+      dot.addEventListener('error', () => {
+        dot.removeAttribute('src');
+        dot.classList.remove('chart-mark');
+      });
+    }
     dot.title = s.name;
     // Where marks overlap, the bigger port lies on top (a hamlet's never hides a capital or a haven).
     dot.style.zIndex = String(4 - (s.type === 'capital' ? RANK.capital : s.nation === 'pirate' ? RANK.city : RANK[s.size]));
@@ -285,13 +295,13 @@ export function createCharts(
     const rows = plan.trades
       .map(
         (t) =>
-          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}"><img class="chart-key-mark" src="${ART[`ui.icon.good.${t.good}`]}" alt=""><span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span></span></button>`,
+          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span></span></button>`,
       )
       .join('');
     const leads = plan.leads
       .map(
         (t) =>
-          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}"><img class="chart-key-mark" src="${ART[`ui.icon.good.${t.good}`]}" alt=""><span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span> · call to learn the prices</span></button>`,
+          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span> · call to learn the prices</span></button>`,
       )
       .join('');
     planner.innerHTML =
@@ -301,14 +311,16 @@ export function createCharts(
       '<div class="chart-plan-foot">Click one to set your course to where you buy; F follows it.</div>';
     for (const b of planner.querySelectorAll<HTMLButtonElement>('[data-port]')) b.addEventListener('click', () => choosePort(b.dataset.port!));
   };
+  /** A painted mark in the key, or nothing if the art isn't there. */
+  const keyMark = (id: string) => (ART[id] ? `<img class="chart-key-mark" src="${ART[id]}" alt="">` : '');
   const showKey = () => {
     const wars = market.wars();
     key.innerHTML =
       '<span class="chart-key-item">underlined by nation:</span>' +
       NATION_KEY.map(([id, name]) => `<span class="chart-key-item"><span class="chart-key-dot label-${id}"></span>${name}</span>`).join('') +
-      `<span class="chart-key-item"><img class="chart-key-mark" src="${ART['ui.chart.hamlet']}" alt="">hamlet <img class="chart-key-mark" src="${ART['ui.chart.town']}" alt="">town <img class="chart-key-mark" src="${ART['ui.chart.city']}" alt="">city</span>` +
-      `<span class="chart-key-item"><img class="chart-key-mark" src="${ART['ui.chart.haven']}" alt="">pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>` +
-      `<span class="chart-key-item"><img class="chart-key-mark" src="${ART['ui.chart.you']}" alt="">you</span>` +
+      `<span class="chart-key-item">${keyMark('ui.chart.hamlet')}hamlet ${keyMark('ui.chart.town')}town ${keyMark('ui.chart.city')}city</span>` +
+      `<span class="chart-key-item">${keyMark('ui.chart.haven')}pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>` +
+      `<span class="chart-key-item">${keyMark('ui.chart.you')}you</span>` +
       '<span class="chart-key-item"><span class="chart-key-ship"></span>a ship seen (fades over days)</span>' +
       `<div class="chart-key-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a} and ${b}`).join(' · ')}` : 'All nations at peace'} · pirates are at war with everyone</div>`;
   };
