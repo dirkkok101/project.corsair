@@ -373,6 +373,41 @@ export function shockFactor(content: ContentPack, state: WorldState, settlementI
   return shock ? content.economy.shocks.kinds[shock.kind]!.stock : 1;
 }
 
+/** Whether plague has shut a port now. */
+export function plagued(state: WorldState, settlementId: string): boolean {
+  return (state.towns?.[settlementId]?.plague ?? 0) > state.tick;
+}
+
+/** A famine on now at a town (a famine shock on a staple). */
+export function famine(content: ContentPack, state: WorldState, settlementId: string): boolean {
+  return (state.shocks ?? []).some((x) => x.settlementId === settlementId && x.kind === 'famine' && x.endTick > state.tick);
+}
+
+/**
+ * Plague breaks out at a town for `weeks`: the port is shut, and the news of it starts out from there.
+ * The weekly draw, a ship that brings it, and the debug command all come through here.
+ */
+export function startPlague(content: ContentPack, state: WorldState, s: Pick<Settlement, 'id' | 'size' | 'type'>, tick: number, weeks: number): { state: WorldState; events: EmittedEvent[] } {
+  const ticksPerWeek = content.economy.daysPerWeek * content.calendar.ticksPerDay;
+  const n = state.nextNewsId ?? 0;
+  const news = { id: `news.${n}`, tick, settlementId: s.id, kind: 'plague', good: '', delayDays: 0 };
+  return {
+    state: {
+      ...state,
+      towns: { ...state.towns, [s.id]: { ...townOf(content, state, s), plague: tick + weeks * ticksPerWeek } },
+      news: [...(state.news ?? []), news],
+      nextNewsId: n + 1,
+    },
+    events: [{ type: 'Plague', entityIds: [s.id], payload: { weeks } }],
+  };
+}
+
+/** The contracts open now whose news has reached a town (or the captain has heard). */
+export function contractsAt(content: ContentPack, state: WorldState, settlements: Settlement[], townId: string) {
+  const known = new Set(newsAt(content, state, settlements, townId).map((n) => n.id));
+  return (state.contracts ?? []).filter((c) => c.endTick > state.tick && known.has(c.newsId));
+}
+
 /**
  * Starts a shock: the market jumps part of the way to its shocked stock at once, and the news of it
  * starts out from the town. The weekly draw, storm damage and the debug command all come through here.
@@ -397,10 +432,20 @@ function startShock(
   const usual = normalStock(content, s, good);
   const stock = state.markets?.[s.id]?.[good] ?? 0;
   const jolted = Math.round(Math.max(0, Math.min(usual * e.maxStock, stock + (usual * k.stock - stock) * e.shocks.jolt)));
+  const c = e.contracts;
+  const contracts = c.kinds.includes(kind)
+    ? (() => {
+        const units = Math.max(c.units[0], Math.min(c.units[1], Math.round((c.share * referenceStock(content, s, good)) / 5) * 5));
+        const base = content.goods.find((g) => g.id === good)?.basePrice ?? 0;
+        const reward = Math.round((units * Math.max(c.minPerUnit, base * c.perUnit)) / 10) * 10;
+        return [...(state.contracts ?? []), { id: `contract.${n}`, settlementId: s.id, good, units, delivered: 0, reward, endTick: shock.endTick, newsId: news.id }];
+      })()
+    : state.contracts;
   return {
     state: {
       ...state,
       shocks: [...(state.shocks ?? []), shock],
+      ...(contracts ? { contracts } : {}),
       news: [...(state.news ?? []), news],
       nextNewsId: n + 1,
       markets: { ...state.markets, [s.id]: { ...state.markets?.[s.id], [good]: jolted } },
@@ -434,7 +479,10 @@ const NATION_NAME: Record<string, string> = { spain: 'Spain', england: 'England'
 /** The rumour as told: from a market shock's template, or a sea fight's (combat.json news). */
 export function newsText(content: ContentPack, item: NewsItem, townName: string): string {
   const good = (content.goods.find((g) => g.id === item.good)?.name ?? item.good).toLowerCase();
-  const text = content.economy.shocks.kinds[item.kind]?.news ?? content.combat.news[item.kind] ?? content.politics.news[item.kind] ?? '{town}: {good}';
+  const text =
+    content.economy.shocks.kinds[item.kind]?.news ??
+    (item.kind === 'plague' ? content.economy.plague.news : undefined) ??
+    content.combat.news[item.kind] ?? content.politics.news[item.kind] ?? '{town}: {good}';
   // War and peace name the nations themselves ("England and Spain"); fights use the adjective ("the Spanish San Felipe").
   const nationWords = item.kind === 'war' || item.kind === 'peace' ? NATION_NAME : NATION_ADJECTIVE;
   return text
@@ -580,7 +628,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       markets[s.id] = market;
     }
     for (const [a, b] of neighbours) {
-      if (atWar(content, state, a.nation, b.nation) || blockaded.has(a.id) || blockaded.has(b.id)) continue;
+      if (atWar(content, state, a.nation, b.nation) || blockaded.has(a.id) || blockaded.has(b.id) || plagued(state, a.id) || plagued(state, b.id)) continue;
       // The nearer, the busier the craft: two towns on one island trade almost as one market.
       const near = t.coasters.tiles / Math.max(3, Math.hypot(a.x - b.x, a.y - b.y));
       const share = Math.min(0.9, t.coasters.share * near);
@@ -627,8 +675,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       }
       const share = weight ? met / weight : 1;
       const base = basePeople(content, s);
-      const trend: TownState['trend'] = share >= g.satisfied ? 1 : share < g.starved ? -1 : 0;
-      const people = Math.round(Math.max(base * g.min, Math.min(base * g.max, town.people * (trend > 0 ? 1 + g.up : trend < 0 ? 1 - g.down : 1))));
+      // A famine or plague thins the people whatever is in the market (a famine's usual stock is already low).
+      const sick = plagued(state, s.id);
+      const trend: TownState['trend'] = sick || famine(content, state, s.id) ? -1 : share >= g.satisfied ? 1 : share < g.starved ? -1 : 0;
+      const down = g.down + (sick ? e.plague.down : 0);
+      const people = Math.round(Math.max(base * g.min, Math.min(base * g.max, town.people * (trend > 0 ? 1 + g.up : trend < 0 ? 1 - down : 1))));
       towns[s.id] = { ...town, people, trend: people === town.people && trend > 0 ? 0 : trend };
     }
     return towns;
@@ -648,6 +699,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (s.nation !== 'pirate' && (state.captain.standing?.[s.nation] ?? 0) <= content.combat.standing.refused) {
           return refuse(state, ship, 'hostile', { settlementId: s.id, nation: s.nation });
         }
+        if (plagued(state, s.id)) return refuse(state, ship, 'plague', { settlementId: s.id });
         // Drop anchor: stopped, helm and assist cleared.
         const { assist: _assist, ...rest } = ship;
         let docked: Ship = { ...rest, docked: s.id, speed: 0, helm: 0 };
@@ -903,6 +955,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const r = startShock(content, state, s, command.good, command.kind, state.tick, rng);
         return { state: { ...r.state, rng: { ...r.state.rng, economy: rng.state() } }, events: r.events };
       }
+      if (command.type === 'SpawnPlague') {
+        const s = byId.get(command.settlementId);
+        if (!s) return undefined;
+        return startPlague(content, state, s, state.tick, e.plague.weeks[0]);
+      }
       if (command.type === 'Buy' || command.type === 'Sell') {
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
@@ -971,18 +1028,27 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           towns: { ...state.towns, [s.id]: { ...town, cash: Math.round(cash) } },
           ships: { ...state.ships, [ship.id]: { ...ship, cargo, paid, ...(ship.plunder ? { plunder } : {}) } },
         };
+        const events: EmittedEvent[] = [
+          { type: command.type === 'Buy' ? 'Bought' : 'Sold', entityIds: [ship.id, s.id], payload: { good: command.good, quantity: done, gold: total } },
+        ];
+        // A contract here for this good: what she sells counts toward it, and the last unit in earns the
+        // reward and ends the shortage (the town is supplied).
+        const deal = command.type === 'Sell' ? (state.contracts ?? []).find((c) => c.settlementId === s.id && c.good === command.good && c.endTick > state.tick) : undefined;
+        let contracts = state.contracts;
+        let shocks = state.shocks;
+        if (deal) {
+          const delivered = Math.min(deal.units, deal.delivered + done);
+          if (delivered < deal.units) contracts = contracts!.map((c) => (c === deal ? { ...c, delivered } : c));
+          else {
+            contracts = contracts!.filter((c) => c !== deal);
+            shocks = (shocks ?? []).filter((x) => !(x.settlementId === s.id && x.good === command.good));
+            gold += deal.reward;
+            events.push({ type: 'ContractFilled', entityIds: [ship.id, s.id], payload: { good: deal.good, units: deal.units, reward: deal.reward } });
+          }
+        }
         // The rest of the captain (standing, marques, deeds, news heard, the crew's side) stays as it was.
         const captain = { ...state.captain, gold, knownPrices: seen(next, s, market), ...(chestGain ? { chest: (state.captain.chest ?? 0) + chestGain } : {}) };
-        return {
-          state: { ...next, captain },
-          events: [
-            {
-              type: command.type === 'Buy' ? 'Bought' : 'Sold',
-              entityIds: [ship.id, s.id],
-              payload: { good: command.good, quantity: done, gold: total },
-            },
-          ],
-        };
+        return { state: { ...next, captain, ...(contracts ? { contracts } : {}), ...(shocks ? { shocks } : {}) }, events };
       }
       return undefined;
     },
@@ -1026,6 +1092,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         next = {
           ...next,
           shocks: (next.shocks ?? []).filter((x) => x.endTick > tick),
+          contracts: (next.contracts ?? []).filter((x) => x.endTick > tick),
           news: (next.news ?? []).filter((n) => n.tick >= keepFrom),
           // Deeds no governor has paid for lapse with the news of them.
           captain: next.captain?.deeds ? { ...next.captain, deeds: next.captain.deeds.filter((d) => d.tick >= keepFrom) } : next.captain,
@@ -1036,10 +1103,22 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           if (rng.float() >= e.shocks.perWeek / 2) continue;
           const kind = rng.weighted(kinds);
           const s = settlements[Math.floor(rng.float() * settlements.length)]!;
-          const goods = content.goods.filter((g) => tradeLean(content, s, g.id) === e.shocks.kinds[kind]!.on && !activeShock(next, s.id, g.id));
+          const on = e.shocks.kinds[kind]!.on;
+          const goods = content.goods.filter((g) => (on === 'staple' ? g.staple : tradeLean(content, s, g.id) === on) && !activeShock(next, s.id, g.id));
           if (goods.length) shock(s, goods[Math.floor(rng.float() * goods.length)]!.id, kind);
         }
+        // Plague: outbreaks somewhere in a big enough town, two draws a week at half the weekly rate each.
+        for (let i = 0; i < 2; i++) {
+          if (rng.float() >= e.plague.perWeek / 2) continue;
+          const s = settlements[Math.floor(rng.float() * settlements.length)]!;
+          const weeks = Math.floor(rng.range(e.plague.weeks[0], e.plague.weeks[1] + 1));
+          if (plagued(next, s.id) || townOf(content, next, s).people < e.plague.minPeople) continue;
+          const r = startPlague(content, next, s, tick, weeks);
+          next = r.state;
+          events.push(...r.events);
+        }
         // Weekly, towns grow or shrink by how well their needs were met: slowly up, fast down.
+
         next = { ...next, towns: grow(next) };
         events.push({ type: 'MarketsTurned', entityIds: [], payload: { week: tick / ticksPerWeek } });
       }

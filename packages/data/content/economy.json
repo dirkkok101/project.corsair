@@ -35,7 +35,7 @@
   "maxStock": 3,
   "shocks": {
     "$comment": "Market shocks (PRD section 6): each moves one good at one town. 'on' picks a good the town exports or wants (a notable lean). 'stock' multiplies its usual stock while the shock lasts, and the market jumps 'jolt' of the way there at once so it shows on the next visit. About 'perWeek' shocks start each week across the map; storms add 'storm' shocks to every export of a town their eye passes over. Shocks last at least 4 weeks so news of one can still be acted on after crossing the map.",
-    "perWeek": 0.6,
+    "perWeek": 0.9,
     "jolt": 0.8,
     "kinds": {
       "bumper": {
@@ -65,8 +65,18 @@
           4,
           7
         ],
-        "weight": 3,
+        "weight": 4,
         "news": "{town} has run short of {good}; merchants there pay handsomely."
+      },
+      "famine": {
+        "on": "staple",
+        "stock": 0.2,
+        "weeks": [
+          4,
+          7
+        ],
+        "weight": 2,
+        "news": "Famine at {town}: the harvest has failed and food is dear. The governor pays for every load landed."
       },
       "storm": {
         "on": "exports",
@@ -358,6 +368,32 @@
   "chains": {
     "rum": "sugar",
     "cloth": "cotton"
+  },
+  "contracts": {
+    "$comment": "Tavern contracts (PRD section 6): every shortage and famine is also the governor's offer for the goods it lacks, heard wherever its news has reached. 'units' is 'share' of the town's reference stock of the good, rounded to 5, within 'units'; the reward, paid when all are landed (sold to the town's merchant, on top of the sale), is units x the good's base price x 'perUnit', at least 'minPerUnit' a unit (so food, too cheap to carry for profit, pays). It lasts as long as the shortage; filling it ends the shortage.",
+    "kinds": [
+      "shortage",
+      "famine"
+    ],
+    "share": 0.5,
+    "units": [
+      10,
+      60
+    ],
+    "perUnit": 1,
+    "minPerUnit": 12
+  },
+  "plague": {
+    "$comment": "Plague (PRD section 6, events): about 'perWeek' outbreaks a week across the map, at towns of 'minPeople' or more; it lasts 'weeks', shuts the port to all shipping (the player, merchants, coasting craft) and its people fall 'down' a week on top of any hunger. A ship that sailed from a plagued port brings it to her next port at 'spread' odds.",
+    "perWeek": 0.06,
+    "minPeople": 3000,
+    "weeks": [
+      3,
+      6
+    ],
+    "down": 0.02,
+    "spread": 0.3,
+    "news": "Plague has broken out at {town}. The port is shut to shipping."
   },
   "towns": {
     "people": {

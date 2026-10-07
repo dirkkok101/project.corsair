@@ -239,7 +239,8 @@ export const economySchema = z.object({
     kinds: z.record(
       z.string(),
       z.object({
-        on: z.enum(['exports', 'wants']),
+        /** A good the town exports or wants (a notable lean), or a staple (food). */
+        on: z.enum(['exports', 'wants', 'staple']),
         /** Usual stock multiplier while the shock lasts. */
         stock: z.number().positive(),
         weeks: z.tuple([z.number().int().positive(), z.number().int().positive()]),
@@ -259,6 +260,23 @@ export const economySchema = z.object({
   settlementProfiles: z.record(z.string(), z.array(z.string()).min(1)),
   /** Goods made from another, unit for unit, only from what is in store: product -> input. */
   chains: z.record(z.string(), z.string()),
+  /** Tavern contracts: the governor's offer for the goods a shortage or famine leaves a town without. */
+  contracts: z.object({
+    kinds: z.array(z.string()),
+    share: z.number().positive(),
+    units: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+    perUnit: z.number().min(0),
+    minPerUnit: z.number().min(0),
+  }),
+  /** Plague: shuts a port to shipping and thins its people; ships from a plagued port carry it. */
+  plague: z.object({
+    perWeek: z.number().min(0),
+    minPeople: z.number().min(0),
+    weeks: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+    down: z.number().min(0).max(1),
+    spread: z.number().min(0).max(1),
+    news: z.string(),
+  }),
   /** Ports that live: people, their daily making and eating, growth, the merchant's purse, coasting craft. */
   towns: z.object({
     people: z.record(z.string(), z.number().positive()),

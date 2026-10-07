@@ -716,6 +716,67 @@ describe('blockades', () => {
   });
 });
 
+describe('famine, plague and contracts', () => {
+  const famished = () => {
+    const sim = moored();
+    sim.send({ type: 'SpawnShock', settlementId: portRoyal.id, good: 'food', kind: 'famine' });
+    sim.applyCommands();
+    return sim;
+  };
+
+  it('a famine thins the town, and is the governor\'s contract for food', () => {
+    const sim = famished();
+    const contract = sim.state.contracts!.find((c) => c.settlementId === portRoyal.id)!;
+    const c = content.economy.contracts;
+    expect(contract).toMatchObject({ good: 'food', delivered: 0 });
+    expect(contract.units).toBeGreaterThanOrEqual(c.units[0]);
+    expect(contract.units).toBeLessThanOrEqual(c.units[1]);
+    // Food is too cheap to carry for profit; the reward is what makes it worth the voyage.
+    expect(contract.reward).toBe(contract.units * c.minPerUnit);
+    const fed = moored();
+    sim.step(day * 21);
+    fed.step(day * 21);
+    expect(sim.state.towns![portRoyal.id]!.people).toBeLessThan(fed.state.towns![portRoyal.id]!.people * 0.96);
+  });
+
+  it('landing the food fills the contract: the reward on top of the sale, and the famine is over', () => {
+    const sim = famished();
+    const contract = sim.state.contracts![0]!;
+    const run = createSim({ ...sim.state, ships: { player: { ...player(sim.state), cargo: { food: contract.units } } } }, [createEconomySystem(content, settlements)]);
+    run.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    run.applyCommands();
+    run.send({ type: 'Sell', shipId: 'player', good: 'food', quantity: 10 });
+    run.applyCommands();
+    expect(run.state.contracts![0]!.delivered).toBe(10);
+    const gold = run.state.captain!.gold;
+    run.send({ type: 'Sell', shipId: 'player', good: 'food', quantity: contract.units });
+    run.applyCommands();
+    const sold = run.events().filter((e) => e.type === 'Sold').at(-1)!;
+    expect(run.state.captain!.gold).toBe(gold + (sold.payload.gold as number) + contract.reward);
+    expect(run.events().some((e) => e.type === 'ContractFilled')).toBe(true);
+    expect(run.state.contracts).toHaveLength(0);
+    expect(shockFactor(content, run.state, portRoyal.id, 'food')).toBe(1);
+  });
+
+  it('plague shuts the port and thins its people until it passes', () => {
+    const sim = moored();
+    sim.send({ type: 'SpawnPlague', settlementId: portRoyal.id });
+    sim.applyCommands();
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    expect(player(sim.state).docked).toBeUndefined();
+    expect(sim.events().some((e) => e.type === 'TradeRefused' && e.payload.reason === 'plague')).toBe(true);
+    const healthy = moored();
+    sim.step(day * 14);
+    healthy.step(day * 14);
+    expect(sim.state.towns![portRoyal.id]!.people).toBeLessThan(healthy.state.towns![portRoyal.id]!.people * 0.95);
+    sim.step(day * 7 * content.economy.plague.weeks[0]);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    expect(player(sim.state).docked).toBe(portRoyal.id);
+  });
+});
+
 describe('the fleet', () => {
   const fluyt = { id: 'f1', name: 'Endeavour', classId: 'ship.fluyt', hull: 70, sailCondition: 100 };
   /** Docked at Port Royal with a fluyt in the fleet. */

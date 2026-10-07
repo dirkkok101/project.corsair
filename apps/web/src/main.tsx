@@ -22,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, fleetBerths, fleetHold, fleetMinCrew, fleetOf, foodDays, townOf, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -404,7 +404,30 @@ async function main() {
         const t = sail(c);
         return t ? [t] : [];
       });
-    return { trades: trades.slice(0, 5), leads };
+    // Contracts she has heard of: where to buy the goods (the cheapest she knows, else the nearest port that
+    // makes them; none when her hold has them already), the days to sail there and on, and the days left.
+    const tpd = content.calendar.ticksPerDay;
+    const heard = new Set(sim.state.captain?.heard ?? []);
+    const contracts = (sim.state.contracts ?? [])
+      .filter((c) => heard.has(c.newsId) && c.endTick > sim.state.tick)
+      .flatMap((c) => {
+        const to = settlements.find((s) => s.id === c.settlementId);
+        if (!to) return [];
+        const need = c.units - c.delivered;
+        const cheapest = settlements
+          .filter((s) => s !== to && known[s.id]?.prices[c.good]?.buy !== undefined)
+          .sort((a, b) => known[a.id]!.prices[c.good]!.buy - known[b.id]!.prices[c.good]!.buy)[0];
+        const staple = content.goods.find((g) => g.id === c.good)?.staple;
+        const maker = settlements
+          .filter((s) => s !== to && (staple || tradeLean(content, s, c.good) === 'exports'))
+          .sort((a, b) => Math.hypot(a.x - to.x, a.y - to.y) - Math.hypot(b.x - to.x, b.y - to.y))[0];
+        const inHold = (me.cargo[c.good] ?? 0) >= need;
+        const from = inHold ? undefined : (cheapest ?? maker);
+        const days = from ? toStart(from) + (laneLength(from.id, to.id) ?? 0) / perDay : toStart(to);
+        return [{ good: c.good, to, from, inHold, units: c.units, delivered: c.delivered, reward: c.reward, days, daysLeft: (c.endTick - sim.state.tick) / tpd }];
+      })
+      .sort((a, b) => b.reward / Math.max(0.5, b.days) - a.reward / Math.max(0.5, a.days));
+    return { trades: trades.slice(0, 5), leads, contracts };
   };
   /**
    * After a fight that left her hurt: the nearest port that will have her and has a shipwright (not a
@@ -458,6 +481,7 @@ async function main() {
     pirateRangeTiles: content.traffic.pirateRangeTiles,
     welcome: (id) => {
       const s = settlements.find((x) => x.id === id);
+      if (s && plagued(sim.state, id)) return 'Plague: the port is shut to all shipping until it passes.';
       if (!s || s.nation === 'pirate') return undefined;
       const standing = sim.state.captain?.standing?.[s.nation] ?? 0;
       if (standing <= content.combat.standing.refused) return `They would not let you in: your standing with them is ${standing}.`;
@@ -468,7 +492,7 @@ async function main() {
     people: (id) => {
       const s = settlements.find((x) => x.id === id)!;
       const t = townOf(content, sim.state, s);
-      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded: little gets in' : ''}`;
+      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded: little gets in' : ''}${famine(content, sim.state, id) ? ', famine' : ''}${plagued(sim.state, id) ? ', plague: port shut' : ''}`;
     },
   });
   // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
@@ -1036,10 +1060,16 @@ async function main() {
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
       if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
       if (ev.type === 'Undocked') portNotice = undefined;
+      // Plague breaks out in the port she lies in: no other ship will come in until it passes.
+      if (ev.type === 'Plague' && ev.entityIds[0] === player().docked) portNotice = 'Plague has broken out here. No ship will put in until it passes, and you may not come back in once you sail.';
       // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.
       if (ev.type === 'CourseArrived' && ev.payload.portId) {
         const port = portInReach();
         if (port?.id === ev.payload.portId) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
+      }
+      if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
+        const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
+        courseNote = { text: `Plague at ${name}: the port is shut to shipping`, until: now + 4000 };
       }
       if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') {
         // Pressed onto the shore within reach of the port she was bound for: she goes in all the same.

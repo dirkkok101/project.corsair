@@ -55,6 +55,8 @@ export interface AiCaptain {
   nerve?: number;
   /** A convoy on her line's voyage (inbound to her port, then homeward to the Atlantic, where she leaves the map). */
   convoy?: { line: string; stage: 'inbound' | 'homeward' };
+  /** She sailed from a plagued port, and may bring it to her next. */
+  carries?: boolean;
   /** A patrol bound to blockade an enemy port; and, lying off it, the port she blockades (until `waitUntil`). */
   blockading?: string;
   blockadeOf?: string;
@@ -195,6 +197,24 @@ export interface TownState {
   trend: -1 | 0 | 1;
   /** Enemy warships lie off it: little gets in. */
   blockaded?: boolean;
+  /** Plague: the port is shut to shipping until this tick. */
+  plague?: number;
+}
+
+/**
+ * A governor's offer for goods his town is short of (a shortage or famine): the reward is paid, on top of
+ * the sale, when `units` have been sold to the town's merchant; it lapses with the shortage at `endTick`.
+ */
+export interface Contract {
+  id: string;
+  settlementId: string;
+  good: string;
+  units: number;
+  delivered: number;
+  reward: number;
+  endTick: number;
+  /** The news of the shortage: where it has been heard, the contract is known. */
+  newsId: string;
 }
 
 export interface Captain {
@@ -323,6 +343,7 @@ export interface WorldState {
   captain?: Captain;
   /** Market shocks in force; saves from before shocks existed have none. */
   shocks?: Shock[];
+  contracts?: Contract[];
   news?: NewsItem[];
   /** Counter for shock and news ids. */
   nextNewsId?: number;
@@ -402,7 +423,8 @@ export type Command =
   /** The captain listens in the tavern of the port the ship is docked at. */
   | { type: 'HearNews'; shipId: string }
   /** Debug: start a market shock now. */
-  | { type: 'SpawnShock'; settlementId: string; good: string; kind: string };
+  | { type: 'SpawnShock'; settlementId: string; good: string; kind: string }
+  | { type: 'SpawnPlague'; settlementId: string };
 
 export interface GameEvent {
   tick: number;

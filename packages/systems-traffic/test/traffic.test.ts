@@ -364,6 +364,41 @@ describe('ships that carry the world', () => {
   });
 });
 
+describe('plague at sea', () => {
+  it('no merchant or patrol sails for a plagued port', () => {
+    const sim = world(4);
+    const royal = 'town.port_royal';
+    sim.send({ type: 'SpawnPlague', settlementId: royal });
+    sim.applyCommands();
+    for (let d = 0; d < 20; d++) {
+      const seen = sim.events().length;
+      sim.step(day);
+      // Pirates still lurk on the lanes toward it and an enemy may lie off it in blockade; nobody puts in.
+      for (const e of sim.events().slice(seen).filter((x) => x.type === 'ShipDeparted' && x.entityIds[2] === royal)) {
+        const s = sim.state.ships[e.entityIds[0]!];
+        if (s && s.ai!.role !== 'pirate') expect(s.ai!.blockading, `${s.id} ${s.ai!.role} bound for ${royal}`).toBe(royal);
+      }
+    }
+  }, 120_000);
+
+  it('a ship from a plagued port may bring it to her next', () => {
+    const sim = world(5);
+    sim.step(day * 3);
+    const merchant = ai(sim.state).find((s) => s.ai!.role === 'merchant' && s.ai!.route.length && !sim.state.towns?.[s.ai!.to]?.plague)!;
+    const to = merchant.ai!.to;
+    const route = merchant.ai!.route;
+    const length = route.slice(1).reduce((n, q, i) => n + Math.hypot(q[0] - route[i]![0], q[1] - route[i]![1]), 0);
+    const [x, y] = route.at(-1)!;
+    const carrier = { ...merchant, x, y, ai: { ...merchant.ai!, along: length - 0.01, carries: true } };
+    const sure = { ...content, economy: { ...content.economy, plague: { ...content.economy.plague, spread: 1 } } };
+    const next = createSim({ ...sim.state, ships: { ...sim.state.ships, [carrier.id]: carrier } }, [createTrafficSystem(sure, settlements, lanes, map, windAt)]);
+    next.step(day);
+    expect(next.state.towns![to]!.plague).toBeGreaterThan(next.state.tick);
+    expect(next.events().some((e) => e.type === 'Plague' && e.entityIds[0] === to && e.payload.ship === carrier.id)).toBe(true);
+    expect(next.state.ships[carrier.id]!.ai!.carries).toBeUndefined();
+  });
+});
+
 describe('choosing a target at sea', () => {
   const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
   /** A pirate out of Tortuga on her lane toward Port Royal, alone at sea with whoever a test puts near her. */

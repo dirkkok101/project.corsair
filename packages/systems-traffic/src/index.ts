@@ -2,7 +2,7 @@ import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, Nation, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
-import { crewOf, fleetBerths, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, quote, withFleetPace } from '@corsair/systems-economy';
+import { crewOf, fleetBerths, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import type { SeaLanes } from './lanes';
@@ -101,8 +101,8 @@ export function createTrafficSystem(
         .sort((a, b) => Math.hypot(a.x - here.x, a.y - here.y) - Math.hypot(b.x - here.x, b.y - here.y));
       if (enemy.length && rng.float() < t.blockade.chance) return { to: enemy[0], good: undefined, blockade: true };
       // Otherwise to her own ports, the more merchants lost near one lately, the likelier.
-      const own = settlements.filter((s) => s.nation === ai.nation && !isHaven(s) && reachable(s));
-      const pool = own.length ? own : settlements.filter((s) => !isHaven(s) && reachable(s));
+      const own = settlements.filter((s) => s.nation === ai.nation && !isHaven(s) && reachable(s) && !plagued(state, s.id));
+      const pool = own.length ? own : settlements.filter((s) => !isHaven(s) && reachable(s) && !plagued(state, s.id));
       const since = state.tick - t.patrolLosses.days * tpd;
       const losses = (id: string) => (state.news ?? []).filter((n) => n.tick >= since && n.settlementId === id && (n.kind === 'aiTaken' || n.kind === 'taken')).length;
       const pick = pool.length ? rng.weighted(Object.fromEntries(pool.map((s) => [s.id, 1 + t.patrolLosses.weight * losses(s.id)]))) : undefined;
@@ -114,7 +114,8 @@ export function createTrafficSystem(
     let best: { to: Settlement; good: string; margin: number } | undefined;
     for (const dest of settlements) {
       // A merchant never calls at the port of a nation at war with hers.
-      if (isHaven(dest) || !reachable(dest) || busy(dest.id) >= t.maxPerRoute || atWar(content, state, ai.nation, dest.nation)) continue;
+      // Nor at one shut by plague.
+      if (isHaven(dest) || !reachable(dest) || busy(dest.id) >= t.maxPerRoute || atWar(content, state, ai.nation, dest.nation) || plagued(state, dest.id)) continue;
       for (const g of content.goods) {
         if (g.staple) continue;
         const buy = quote(content, here, g.id, state.markets?.[here.id]?.[g.id] ?? 0).buy;
@@ -124,7 +125,7 @@ export function createTrafficSystem(
     }
     if (best) return best;
     // Nothing pays: sail on in ballast to look for trade elsewhere.
-    const pool = settlements.filter((s) => !isHaven(s) && reachable(s) && !atWar(content, state, ai.nation, s.nation));
+    const pool = settlements.filter((s) => !isHaven(s) && reachable(s) && !atWar(content, state, ai.nation, s.nation) && !plagued(state, s.id));
     return { to: pool[Math.floor(rng.float() * pool.length)], good: undefined };
   };
 
@@ -143,7 +144,7 @@ export function createTrafficSystem(
   const convoy = (state: WorldState, line: (typeof t.convoys.lines)[number], to: string, tick: number): { state: WorldState; ship: Ship } | undefined => {
     const dest = byId.get(to);
     const mooring = dest && lanes.mooring(dest.id);
-    if (!dest || !mooring) return undefined;
+    if (!dest || !mooring || plagued(state, dest.id)) return undefined;
     const route = line.from ? lanes.route(line.from, to) : lanes.path(t.convoys.entry, mooring);
     if (!route) return undefined;
     const n = state.nextShipId ?? 0;
@@ -244,7 +245,7 @@ export function createTrafficSystem(
       ...ship,
       cargo,
       sails: 'full',
-      ai: { ...ai, to: to.id, route, along: 0, offset: 0, waitUntil: undefined, news, ...(blockade ? { blockading: to.id } : {}) },
+      ai: { ...ai, to: to.id, route, along: 0, offset: 0, waitUntil: undefined, news, carries: plagued(state, ai.from) || undefined, ...(blockade ? { blockading: to.id } : {}) },
     };
     return {
       state: next,
@@ -288,6 +289,17 @@ export function createTrafficSystem(
       next = { ...next, markets: { ...next.markets, [dest.id]: { ...next.markets?.[dest.id], [good]: Math.min(cap, stock) } } };
     }
     const [mx, my] = lanes.mooring(dest.id) ?? [ship.x, ship.y];
+    // From a plagued port, she may bring it ashore. Drawn from its own stream, so nothing else moves.
+    const spread: EmittedEvent[] = [];
+    if (ai.carries && !plagued(next, dest.id)) {
+      const draw = rngStream(seedRng(tick, `plague:${ship.id}`));
+      const p = content.economy.plague;
+      if (draw.float() < p.spread) {
+        const r = startPlague(content, next, dest, tick, Math.floor(draw.range(p.weeks[0], p.weeks[1] + 1)));
+        next = r.state;
+        spread.push(...r.events.map((ev) => ({ ...ev, payload: { ...ev.payload, from: ai.from, ship: ship.id } })));
+      }
+    }
     if (ai.convoy) {
       // A convoy in from Europe (or the treasure ship): her settlers come ashore, she loads what her line
       // takes home, as far as the market has it, and after a day turns for the Atlantic.
@@ -315,7 +327,7 @@ export function createTrafficSystem(
           sails: 'furled',
           ai: { ...ai, from: dest.id, route: home, along: 0, offset: 0, waitUntil: tick + tpd, convoy: { line: line.id, stage: 'homeward' } },
         },
-        events: [{ type: 'ConvoyArrived', entityIds: [ship.id, dest.id], payload: { line: line.id, brought: ship.cargo, takes: cargo } }],
+        events: [...spread, { type: 'ConvoyArrived', entityIds: [ship.id, dest.id], payload: { line: line.id, brought: ship.cargo, takes: cargo } }],
       };
     }
     return {
@@ -327,9 +339,9 @@ export function createTrafficSystem(
         speed: 0,
         cargo: {},
         sails: 'furled',
-        ai: { ...ai, from: dest.id, route: [], along: 0, offset: 0, waitUntil: wait },
+        ai: { ...ai, from: dest.id, route: [], along: 0, offset: 0, waitUntil: wait, carries: undefined },
       },
-      events: [{ type: 'ShipArrived', entityIds: [ship.id, dest.id], payload: { role: ai.role, cargo: ship.cargo } }],
+      events: [...spread, { type: 'ShipArrived', entityIds: [ship.id, dest.id], payload: { role: ai.role, cargo: ship.cargo } }],
     };
   };
 

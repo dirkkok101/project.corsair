@@ -1835,3 +1835,16 @@ body {
 .in-battle .ship-hover {
   display: none;
 }
+
+/* A governor's contract on the merchant's counter: what landing the goods here earns. */
+.merchant .contract {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-left: 3px solid #75a743;
+  background: #151d28;
+}
+
+.tavern.contracts {
+  min-height: 0;
+  margin-bottom: 8px;
+}

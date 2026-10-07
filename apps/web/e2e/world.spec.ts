@@ -382,9 +382,13 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   const tab = page.locator('.port-tabs').getByRole('button', { name: 'Tavern (1)' });
   await expect(tab).toBeVisible();
   await tab.click();
-  await expect(page.locator('.tavern li')).toHaveCount(1);
-  await expect(page.locator('.tavern')).toContainText('Port Royal has run short of sugar');
-  await expect(page.locator('.tavern .trend')).toHaveText('new');
+  const rumours = page.locator('.tavern:not(.contracts)');
+  await expect(rumours.locator('li')).toHaveCount(1);
+  await expect(rumours).toContainText('Port Royal has run short of sugar');
+  await expect(rumours.locator('.trend')).toHaveText('new');
+  // The shortage is also the governor's contract: heard here, and shown on the merchant's counter.
+  await expect(page.locator('.tavern.contracts')).toContainText('The governor of Port Royal pays');
+  await expect(page.locator('.tavern.contracts')).toContainText('sugar landed there');
   await page.screenshot({ path: 'test-results/tavern.png' });
   // Heard now: the badge goes, and the rumour is in the captain's memory.
   await expect(page.locator('.port-tabs').getByRole('button', { name: 'Tavern', exact: true })).toBeVisible();
@@ -395,6 +399,10 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await page.keyboard.press('m');
   await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
   await expect(page.locator('.chart-rumour')).toContainText('run short of sugar');
+  // The planner lists the contract she has heard of.
+  await expect(page.locator('.chart-plan')).toContainText('Contracts you have heard of');
+  await expect(page.locator('.chart-plan')).toContainText('sugar for Port Royal: buy at');
+  await page.screenshot({ path: 'test-results/contract-plan.png' });
   expect(errors).toEqual([]);
 });
 

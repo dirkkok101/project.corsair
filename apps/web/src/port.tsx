@@ -1,5 +1,5 @@
 import { inPort } from '@corsair/core';
-import type { WorldState } from '@corsair/core';
+import type { Contract, WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
@@ -24,6 +24,9 @@ import {
   plunderShares,
   repairCost,
   sellDepth,
+  contractsAt,
+  famine,
+  plagued,
   wagesOwed,
   sellsGuns,
   sellsUpgrade,
@@ -88,7 +91,16 @@ const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or 
 /** A port's people and trend, in a few words ("12,600 people, growing"). */
 function townLine(content: ContentPack, state: WorldState, town: PlacedSettlement) {
   const t = townOf(content, state, town);
-  return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded' : ''}`;
+  return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded' : ''}${famine(content, state, town.id) ? ', famine' : ''}${plagued(state, town.id) ? ', plague' : ''}`;
+}
+
+/** A contract in a line: what the governor pays, for what, and how long it has. */
+function contractLine(content: ContentPack, state: WorldState, c: Contract, townName: string) {
+  const good = (content.goods.find((g) => g.id === c.good)?.name ?? c.good).toLowerCase();
+  const days = Math.max(0, Math.ceil((c.endTick - state.tick) / content.calendar.ticksPerDay));
+  return `The governor of ${townName} pays ${c.reward.toLocaleString()} gold for ${c.units} ${good} landed there${
+    c.delivered ? ` (${c.delivered} landed so far)` : ''
+  }, on top of the sale: ${days} ${days === 1 ? 'day' : 'days'} left.`;
 }
 
 /**
@@ -117,8 +129,14 @@ function Merchant({
   const gold = state.captain?.gold ?? 0;
   const capacity = fleetHold(content, state, ship);
   const used = cargoUsed(ship);
+  const deals = (state.contracts ?? []).filter((c) => c.settlementId === town.id && c.endTick > state.tick);
   return (
     <div class="merchant">
+      {deals.map((c) => (
+        <p class="contract" key={c.id}>
+          <b>Contract:</b> {contractLine(content, state, c, town.name ?? town.id)} Sell it here to fill it.
+        </p>
+      ))}
       <table class="market">
         <thead>
           <tr>
@@ -752,16 +770,29 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
       <Harbour content={content} state={state} town={town} />
     </>
   );
+  // The governors' contracts whose news has reached this port, here or across the sea.
+  const deals = contractsAt(content, state, settlements, town);
+  const offers = deals.length ? (
+    <ul class="tavern contracts">
+      {deals.map((c) => (
+        <li key={c.id}>
+          <span class="trend export">contract</span> {contractLine(content, state, c, settlements.find((s) => s.id === c.settlementId)?.name ?? c.settlementId)}
+        </li>
+      ))}
+    </ul>
+  ) : null;
   if (!rumours.length)
     return (
       <>
         {recruit}
+        {offers}
         <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>
       </>
     );
   return (
     <>
       {recruit}
+      {offers}
       <ul class="tavern">
         {rumours.map((n) => {
           const town = settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId;

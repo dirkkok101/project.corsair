@@ -134,7 +134,23 @@ export interface PlannedTrade {
   /** Pirate waters along the way. */
   risk: 'low' | 'some' | 'high';
 }
+/** A governor's contract the captain has heard of: land `units` of a good at `to` for the reward. */
+export interface PlannedContract {
+  good: string;
+  to: PlacedSettlement;
+  /** Where to buy the goods (the cheapest she knows, else the nearest port that makes them). */
+  from?: PlacedSettlement;
+  /** Her hold has them already: sail straight there. */
+  inHold: boolean;
+  units: number;
+  delivered: number;
+  reward: number;
+  /** Days to sail (by way of `from`) to the town, and the days the offer has left. */
+  days: number;
+  daysLeft: number;
+}
 export interface VoyagePlan {
+  contracts: PlannedContract[];
   trades: PlannedTrade[];
   /** Made at `from` and needed at `to`, but prices not yet seen at one end or the other. */
   leads: Omit<PlannedTrade, 'buy' | 'sell' | 'profit'>[];
@@ -287,6 +303,13 @@ export function createCharts(
           `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span></span></button>`,
       )
       .join('');
+    const contracts = plan.contracts
+      .map((c) => {
+        const port = c.from ?? c.to;
+        const late = c.days > c.daysLeft;
+        return `<button class="chart-plan-row" data-port="${port.id}" title="Sets your course to ${port.name}">${keyMark(`ui.icon.good.${c.good}`)}<span><b>${c.units - c.delivered} ${goodName(c.good).toLowerCase()} for ${c.to.name}</b>${c.inHold ? ': in your hold' : c.from ? `: buy at ${c.from.name}` : ''}<br><span class="gain">${c.reward.toLocaleString()} gold reward</span> · ${days(c.days)} · <span class="${late ? 'risk-high' : 'risk-low'}">${days(c.daysLeft)} left${late ? ': too far' : ''}</span></span></button>`;
+      })
+      .join('');
     const leads = plan.leads
       .map(
         (t) =>
@@ -294,6 +317,7 @@ export function createCharts(
       )
       .join('');
     planner.innerHTML =
+      (contracts ? `<div class="chart-plan-head">Contracts you have heard of</div>${contracts}` : '') +
       '<div class="chart-plan-head">Voyages from here</div>' +
       (rows || '<div class="chart-plan-empty">No trade you know of pays yet: call at more ports to learn their prices.</div>') +
       (leads ? `<div class="chart-plan-head">Worth a look</div>${leads}` : '') +
