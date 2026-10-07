@@ -768,7 +768,9 @@ export function createTrafficSystem(
             continue;
           }
           let prey = ship.ai.target ? ships[ship.ai.target] : undefined;
-          if (ship.ai.target && (!prey?.ai || inPort(prey) || (prey.ai.skirmish && prey.ai.skirmish.with !== id) || sheltered(next, ship, prey.x, prey.y) || Math.hypot(prey.x - ship.x, prey.y - ship.y) > cb.chase.giveUpTiles)) {
+          // A pirate leaves a merchant another pirate has fallen on; a patrol presses on to the rescue.
+          const taken = ship.ai.role === 'pirate' && prey?.ai?.skirmish && prey.ai.skirmish.with !== id;
+          if (ship.ai.target && (!prey?.ai || inPort(prey) || taken || sheltered(next, ship, prey.x, prey.y) || Math.hypot(prey.x - ship.x, prey.y - ship.y) > cb.chase.giveUpTiles)) {
             ships = { ...ships, [id]: rejoin({ ...ship, ai: { ...ship.ai, target: undefined } }) };
             continue;
           }

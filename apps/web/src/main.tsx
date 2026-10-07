@@ -1030,7 +1030,9 @@ async function main() {
               : near
                 ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
                 : raider && raided?.ai
-                  ? `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name} · sail in and H to take a hand`
+                  ? raided.ai.role === 'patrol'
+                    ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`
+                    : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name} · sail in and H to take a hand`
                   : sailHo && now < sailHo.until
                   ? `${sailHo.text} · I intercept`
                   : courseNote && now < courseNote.until

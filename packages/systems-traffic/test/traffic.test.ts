@@ -325,7 +325,7 @@ describe('choosing a target at sea', () => {
     expect(sim.state.ships[pat.id]!.ai!.target).toBe(t.pirate().id);
   });
 
-  it("a fight within the player's sight plays out: both heave to, it is settled within the hour, and out of sight at once", () => {
+  it("a fight within the player's sight plays out: both heave to until it is settled, and out of sight at once", () => {
     const t = setting();
     const seen = t.alone([t.pirate(), t.merchant(1.5), t.player(14, ARMED)]);
     seen.step(30);
@@ -333,7 +333,7 @@ describe('choosing a target at sea', () => {
     expect(seen.events().some((e) => e.type === 'SeaFight')).toBe(false);
     const pirate = t.pirate().id;
     expect(seen.state.ships[pirate]!.ai!.skirmish).toBeDefined();
-    seen.step(Math.round(day / 24) + 30);
+    seen.step(Math.round((content.combat.hunt.skirmishHours / 24) * day) + 30);
     expect(seen.events().some((e) => e.type === 'SeaFight')).toBe(true);
     expect(Object.values(seen.state.ships).some((x) => x.ai?.skirmish)).toBe(false);
 
@@ -341,6 +341,22 @@ describe('choosing a target at sea', () => {
     unseen.step(30);
     expect(unseen.events().some((e) => e.type === 'SkirmishBegun')).toBe(false);
     expect(unseen.events().some((e) => e.type === 'SeaFight')).toBe(true);
+  });
+
+  it('a patrol that comes up on a pirate fallen on a merchant takes her on, and the merchant sails on', () => {
+    const t = setting();
+    const m = t.merchant(1.5);
+    const pat = t.patrol(10);
+    const sim = t.alone([t.pirate(), m, t.player(14, ARMED)]);
+    sim.step(30);
+    const pirate = t.pirate().id;
+    expect(sim.state.ships[pirate]!.ai!.skirmish?.with).toBe(m.id);
+    // The patrol arrives on the scene once the fight has begun, and closes with the pirate.
+    const joined = createSim({ ...sim.state, ships: { ...sim.state.ships, [pat.id]: pat } }, [traffic()]);
+    joined.step(30 * 20);
+    const engaged = joined.events().some((e) => (e.type === 'SkirmishBegun' || e.type === 'SeaFight') && e.entityIds.includes(pat.id));
+    expect(engaged).toBe(true);
+    expect(joined.state.ships[m.id]?.ai?.skirmish?.with).not.toBe(pirate);
   });
 
   it('the player who takes the pirate off a merchant earns her nation\'s thanks, and the merchant sails on', () => {

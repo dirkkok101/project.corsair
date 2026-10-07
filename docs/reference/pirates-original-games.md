@@ -213,7 +213,7 @@ Smuggler and immigrant ships often carry one; barmaids point them out [WIKI Spec
 | Surrender | Panic or one-man rule; crew-ratio check | Same, plus demasting | Built: beaten hull or crew (chance each second); a merchant strikes outright when demasted or outmanned 3 to 1 within 6 tiles; HUD shows "wavering" |
 | World opinion and bounty | Wary or hostile; war and ally graph | Same, plus city memory and bounty numbers | Built: −20 with the victim's nation for attacking; +5 from nations at war with her (×2 for a warship taken); +3 everywhere for a pirate; governors pay bounties |
 | Promotions | Governors; military ranks then nobility | Letter of Marque gate; per-nation ranks | Planned (PRD 12) |
-| Defeat | Prison or marooned; flagship lost | Jail 3–12 months or marooned; banked gold safe | Built: let go afloat. Pirates take the plunder chest and cargo, never the purse; a nation's captain fines half the purse. Prison and marooning wait for ageing |
+| Defeat | Prison or marooned; flagship lost | Jail 3–12 months or marooned; banked gold safe | Built: let go afloat. Pirates take the plunder chest and the hold (leaving the rations), never the purse; a nation's captain fines half the purse. Prison and marooning wait for ageing |
 | Retreat | May lose a ship | No penalty; draw rules | Built: no penalty; the enemy leaves you be for 2 days |
 | Pay model | Shares, captain 5–20% | Shares, captain 5–50% | Built: two purses. Plunder chest shared, captain takes 20%; optional wages from the purse |
 | Morale drivers | Gold, months, crew size | Gold, months, food, items, specialists | Built: plunder per head, days unpaid, starving, victories, men lost |

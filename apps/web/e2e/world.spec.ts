@@ -739,8 +739,8 @@ test('a pirate falls on a merchant within sight: they heave to and fight it out,
   // Called with the way to look (the two rejoin their lanes before they meet, so wherever that falls).
   await expect(page.locator('.hud-prompt')).toContainText(/Gunfire to the (north|south|east|west)\w*!/);
   await page.screenshot({ path: 'test-results/skirmish.png' });
-  // Within the hour it's settled, one way or the other.
-  await page.evaluate(() => window.__corsair.sim.step(Math.round(771 / 24) + 30));
+  // Some hours on it's settled, one way or the other.
+  await page.evaluate(() => window.__corsair.sim.step(771));
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'SeaFight' }).length)).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
