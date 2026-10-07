@@ -10,6 +10,8 @@ import {
   cargoUsed,
   createEconomySystem,
   DOCK_RANGE,
+  fleetBerths,
+  fleetHold,
   foodDays,
   midPrice,
   moraleOf,
@@ -20,12 +22,15 @@ import {
   portTrade,
   priceStory,
   quote,
+  repairCost,
   seawardHeading,
   sellDepth,
+  shipValue,
   shockFactor,
   tradeLean,
   tradePreview,
   withEconomy,
+  withFleetPace,
 } from '../src';
 
 const content = loadContent();
@@ -586,6 +591,73 @@ describe('explaining prices', () => {
     expect(priceStory(content, at(usual * 3), portRoyal, 'sugar').level).toBe('cheap');
     const shocked = { ...at(usual * 0.3), shocks: [{ id: 's', kind: 'shortage', settlementId: portRoyal.id, good: 'sugar', startTick: 0, endTick: 1e9 }] };
     expect(priceStory(content, shocked, { ...portRoyal, name: 'Port Royal' }, 'sugar').news).toContain('Port Royal');
+  });
+});
+
+describe('the fleet', () => {
+  const fluyt = { id: 'f1', name: 'Endeavour', classId: 'ship.fluyt', hull: 70, sailCondition: 100 };
+  /** Docked at Port Royal with a fluyt in the fleet. */
+  const withFluyt = (fleet = [fluyt], extra: Partial<WorldState['ships'][string]> = {}) => {
+    const sim = moored();
+    const s = sim.state;
+    const docked = createSim(
+      { ...s, ships: { player: withFleetPace(content, { ...player(s), ...extra }, fleet) }, captain: { ...s.captain!, gold: 100_000, fleet } },
+      [createEconomySystem(content, settlements)],
+    );
+    docked.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    docked.applyCommands();
+    return docked;
+  };
+
+  it("counts every ship's hold and berths, and buying fills the fleet's hold", () => {
+    const sim = withFluyt();
+    const brig = content.ships['ship.brig']!;
+    const fl = content.ships['ship.fluyt']!;
+    expect(fleetHold(content, sim.state, player(sim.state))).toBe(brig.cargo + fl.cargo);
+    expect(fleetBerths(content, sim.state, player(sim.state))).toBe(brig.maxCrew + fl.maxCrew);
+    sim.send({ type: 'Buy', shipId: 'player', good: 'cotton', quantity: 1_000_000 });
+    sim.applyCommands();
+    expect(cargoUsed(player(sim.state))).toBeGreaterThan(brig.cargo);
+  });
+
+  it('keeps the pace of its slowest ship', () => {
+    const sim = withFluyt();
+    expect(shipStats(content, player(sim.state)).speed).toBe(content.ships['ship.fluyt']!.speed);
+  });
+
+  it("sells a ship for her value, unless the rest can't carry the cargo or berth the crew", () => {
+    const sim = withFluyt();
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'SellShip', shipId: 'player', fleetId: 'f1' });
+    sim.applyCommands();
+    expect(sim.state.captain!.gold).toBe(gold + shipValue(content, fluyt));
+    expect(sim.state.captain!.fleet).toEqual([]);
+    expect(player(sim.state).fleetSpeed).toBeUndefined();
+
+    const laden = withFluyt([fluyt], { cargo: { cotton: 150 } });
+    laden.send({ type: 'SellShip', shipId: 'player', fleetId: 'f1' });
+    laden.applyCommands();
+    expect(laden.events().at(-1)!.payload.reason).toBe('cargo-wont-fit');
+  });
+
+  it('shifts the flag: she becomes the flagship, and the old one sails in the fleet', () => {
+    const sim = withFluyt();
+    sim.send({ type: 'MakeFlagship', shipId: 'player', fleetId: 'f1' });
+    sim.applyCommands();
+    expect(player(sim.state)).toMatchObject({ classId: 'ship.fluyt', name: 'Endeavour', hull: 70 });
+    expect(sim.state.captain!.fleet!.map((f) => f.classId)).toEqual(['ship.brig']);
+    // Now the brig is the faster one: the fluyt sets the pace herself.
+    expect(shipStats(content, player(sim.state)).speed).toBe(content.ships['ship.fluyt']!.speed);
+  });
+
+  it('the shipwright mends the whole fleet', () => {
+    const sim = withFluyt([{ ...fluyt, hull: 40, sailCondition: 60 }], { hull: 50 });
+    const cost = repairCost(content, player(sim.state), sim.state.captain!.fleet);
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'Repair', shipId: 'player' });
+    sim.applyCommands();
+    expect(gold - sim.state.captain!.gold).toBe(cost);
+    expect(sim.state.captain!.fleet![0]).toMatchObject({ hull: 70, sailCondition: 100 });
   });
 });
 

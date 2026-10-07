@@ -63,6 +63,10 @@ export interface AiCaptain {
 export interface Ship {
   id: string;
   classId: string;
+  /** The player's flagship's name, when she was a prize (her class's name otherwise). */
+  name?: string;
+  /** The player's flagship sailing with a fleet: the slowest of its ships' speeds, which she keeps to. */
+  fleetSpeed?: number;
   /** Position in map tiles; y grows southward. */
   x: number;
   y: number;
@@ -168,6 +172,17 @@ export interface KnownPrices {
   prices: Record<string, { buy: number; sell: number; depth?: number }>;
 }
 
+/** A ship of the player's fleet other than her flagship: her own condition; her hold and men are the fleet's. */
+export interface FleetShip {
+  id: string;
+  name: string;
+  classId: string;
+  hull: number;
+  sailCondition: number;
+  guns?: number;
+  upgrades?: string[];
+}
+
 export interface Captain {
   gold: number;
   /** Prices the captain last saw in each port, so routes can be planned from memory. */
@@ -192,6 +207,12 @@ export interface Captain {
   morale?: number;
   paidTick?: number;
   mess?: number;
+  /**
+   * The rest of her fleet (PRD section 7): ships sailing with the flagship, off the map, following her. Their
+   * holds and berths join the flagship's (cargo and crew are counted for the fleet as a whole); only the
+   * flagship fights; the fleet keeps the pace of its slowest ship (the flagship's `fleetSpeed`).
+   */
+  fleet?: FleetShip[];
 }
 
 /** A ship the player sank or took, waiting for a governor's bounty. */
@@ -337,7 +358,12 @@ export type Command =
       jettison?: Record<string, number>;
       volunteers: boolean;
       release: boolean;
+      /** Keep her: she joins the fleet (needs room in the fleet and men to sail her). */
+      keep?: boolean;
     }
+  /** At the shipwright: sell a ship of the fleet, or make one the flagship. */
+  | { type: 'SellShip'; shipId: string; fleetId: string }
+  | { type: 'MakeFlagship'; shipId: string; fleetId: string }
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
   | { type: 'Repair'; shipId: string }

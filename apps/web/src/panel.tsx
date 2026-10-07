@@ -25,6 +25,9 @@ export interface ShipPanelProps {
   purse?: { gold: number; chest: number; hold: number; capacity: number };
   /** Guns mounted against the most she can carry (at sea and in port). */
   mounted?: { guns: number; of: number };
+  /** The rest of her fleet, and the pace its slowest ship holds her to (when it does). */
+  fleet?: { name: string; classId: string; speed: number }[];
+  pace?: number;
   sailSetting: SailSetting;
   /** Guns per broadside, and how many of them are loaded now (all of them at sea). */
   guns: { port: { loaded: number; of: number }; starboard: { loaded: number; of: number } };
@@ -110,6 +113,19 @@ export function ShipPanel(p: ShipPanelProps) {
           </div>
           <Bar label="Hold" icon="ui.icon.good.food" value={p.purse.hold} max={p.purse.capacity} lowIsBad={false} />
         </>
+      ) : null}
+      {p.fleet?.length ? (
+        <div class="panel-fleet" title={p.fleet.map((f) => `${f.name} (${f.classId.replace(/^ship\./, '')})`).join(', ')}>
+          <span>Fleet:</span>
+          {p.fleet.map((f) => (
+            <Art key={f.name} id={`ui.ship.${f.classId.replace(/^ship\./, '')}`} class="panel-fleet-ship" title={`${f.name} (${f.classId.replace(/^ship\./, '')})`} />
+          ))}
+          {p.pace !== undefined ? (
+            <span class="panel-fleet-pace">
+              held to {p.pace} by the {[...p.fleet].sort((a, b) => a.speed - b.speed)[0]!.classId.replace(/^ship\./, '')}
+            </span>
+          ) : null}
+        </div>
       ) : null}
       <Battery label="Port" {...p.guns.port} />
       <Battery label="Stbd" {...p.guns.starboard} />

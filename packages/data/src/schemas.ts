@@ -19,6 +19,8 @@ export const shipClassSchema = z.object({
   /** Fewest men to sail her, and the most she berths. */
   minCrew: z.number().int().positive(),
   maxCrew: z.number().int().positive(),
+  /** What a shipwright reckons her worth when sound (she sells for less by her condition). */
+  price: z.number().positive(),
   polar: z.string(),
   sprites: z.object({ world: z.string(), combat: z.string().optional() }),
 });
@@ -390,6 +392,12 @@ export const combatSchema = z.object({
    * A fight between AI ships within the player's sight lasts skirmishHours of world time; beating the pirate
    * in it earns rescueStanding with the merchant's nation.
    */
+  /** The player's fleet (PRD section 7): at most this many ships, the flagship among them. */
+  fleet: z.object({
+    maxShips: z.number().int().positive(),
+    /** A shipwright pays this share of a ship's class price (by her condition): prizes help, they don't flood the purse. */
+    sellShare: z.number().positive().max(1),
+  }),
   hunt: z.object({
     playerValue: z.number().min(0),
     /** Each pirate's nerve, drawn at spawn: her temperament's attackOdds is multiplied by it (low: bolder). */

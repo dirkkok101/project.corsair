@@ -124,6 +124,10 @@
       "city": 9
     }
   },
+  "fleet": {
+    "maxShips": 8,
+    "sellShare": 0.35
+  },
   "hunt": {
     "playerValue": 400,
     "nerve": [0.6, 1.2],

@@ -243,6 +243,64 @@ describe('fights at sea', () => {
     expect(fled.state.ships[id]!.ai!.calmUntil).toBeGreaterThan(fled.state.tick);
     expect(fled.state.captain!.gold).toBe(near.captain!.gold);
   });
+
+  it('keeping a prize: she joins the fleet with her hold, unless the fleet is full or short of men', () => {
+    const sim = world(6);
+    const { id, near } = spawnAlongside(sim, 'merchant', 'town.port_royal', 'town.cartagena');
+    const laden = { ...near, ships: { ...near.ships, [id]: { ...near.ships[id]!, cargo: { sugar: 120 } } } };
+    const take = (state: WorldState, keep: boolean) => {
+      const fight = createSim(state, [traffic()]);
+      fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('boarded') });
+      fight.applyCommands();
+      fight.send({ type: 'TakePlunder', shipId: 'player', take: { sugar: 120 }, volunteers: false, release: false, keep });
+      fight.applyCommands();
+      return fight;
+    };
+    const kept = take(laden, true);
+    expect(kept.state.captain!.fleet).toMatchObject([{ id, classId: 'ship.fluyt', hull: 10 }]);
+    // Her hold joins the fleet's, so all 120 of her sugar comes aboard; the fleet keeps her pace.
+    expect(kept.state.ships.player!.cargo.sugar).toBe(120);
+    expect(kept.state.ships.player!.fleetSpeed).toBe(content.ships['ship.fluyt']!.speed);
+    // Not kept, the brig's hold takes what it can.
+    const aboard = Object.values(laden.ships.player!.cargo).reduce((n, u) => n + u, 0);
+    expect(take(laden, false).state.ships.player!.cargo.sugar).toBe(content.ships['ship.brig']!.cargo - aboard);
+
+    const fleetFull = { ...laden, captain: { ...laden.captain!, fleet: Array.from({ length: 7 }, (_, k) => ({ id: `f${k}`, name: `F${k}`, classId: 'ship.sloop', hull: 45, sailCondition: 100 })) } };
+    const full = take({ ...fleetFull, ships: { ...fleetFull.ships, player: { ...fleetFull.ships.player!, crew: 150 } } }, true);
+    expect(full.events().at(-1)).toMatchObject({ type: 'PlunderRefused', payload: { reason: 'fleet-full' } });
+    const few = take({ ...laden, ships: { ...laden.ships, player: { ...laden.ships.player!, crew: 20 } } }, true);
+    expect(few.events().at(-1)).toMatchObject({ type: 'PlunderRefused', payload: { reason: 'too-few-men' } });
+  });
+
+  it('a pirate who beats you takes what her hold carries, and keeps it, with the chest in her purse', () => {
+    const sim = world(8);
+    const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const room = content.ships['ship.sloop']!.cargo;
+    const laden: WorldState = {
+      ...near,
+      captain: { ...near.captain!, chest: 300 },
+      ships: { ...near.ships, [id]: { ...near.ships[id]!, cargo: {}, ai: { ...near.ships[id]!.ai!, purse: 100 } }, player: { ...near.ships.player!, cargo: { luxuries: 30, sugar: 30, food: 10 } } },
+    };
+    const lose = createSim(laden, [traffic()]);
+    lose.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('lost') });
+    lose.applyCommands();
+    // The dearest first, as far as her hold goes; the rations stay.
+    expect(lose.state.ships[id]!.cargo).toEqual({ luxuries: 30, sugar: room - 30 });
+    expect(lose.state.ships.player!.cargo).toEqual({ sugar: 60 - room, food: 10 });
+    expect(lose.state.ships[id]!.ai!.purse).toBe(400);
+  });
+
+  it('only the flagship fights: her berths of the fleet\'s men, and only they can fall', () => {
+    const sim = world(8);
+    const { id, near } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const fleet = [{ id: 'f1', name: 'Endeavour', classId: 'ship.fluyt', hull: 70, sailCondition: 100 }];
+    const big = { ...near, captain: { ...near.captain!, fleet }, ships: { ...near.ships, player: { ...near.ships.player!, crew: 200 } } };
+    const won = createSim(big, [traffic()]);
+    // The brig fought with 150 of her 200 men and came out with 140.
+    won.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: { ...result('sunk'), player: { ...result('sunk').player, crew: 140 } } });
+    won.applyCommands();
+    expect(won.state.ships.player!.crew).toBe(190);
+  });
 });
 
 describe('choosing a target at sea', () => {

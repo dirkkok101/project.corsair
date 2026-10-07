@@ -21,7 +21,7 @@ export interface ShipStats {
  * upgrade bought at the shipwright reaches sailing, the battle, repairs and recruiting alike. A ship with
  * no `guns` carries her class's full battery (AI ships, and saves from before outfitting).
  */
-export function shipStats(content: ContentPack, ship: { classId: string; guns?: number; upgrades?: string[] }): ShipStats {
+export function shipStats(content: ContentPack, ship: { classId: string; guns?: number; upgrades?: string[]; fleetSpeed?: number }): ShipStats {
   const cls = content.ships[ship.classId]!;
   const stats: ShipStats = {
     speed: cls.speed,
@@ -44,6 +44,8 @@ export function shipStats(content: ContentPack, ship: { classId: string; guns?: 
     stats.reloadMult *= m.reloadMult ?? 1;
   }
   // Whole hull points and berths, so repair bills and the crew count stay whole.
+  // With a fleet she keeps the pace of its slowest ship.
+  if (ship.fleetSpeed !== undefined) stats.speed = Math.min(stats.speed, ship.fleetSpeed);
   stats.hullMax = Math.round(stats.hullMax);
   stats.maxCrew = Math.round(stats.maxCrew);
   return stats;

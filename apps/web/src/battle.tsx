@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BattleResult, Command } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
@@ -65,6 +65,8 @@ export interface PlunderOffer {
   /** Days of food aboard now, and with the volunteers signed on. */
   foodNow: number;
   foodWith: number;
+  /** Keeping her: her hold, the men she needs and her speed, and why she can't be kept, if not. */
+  keep: { hold: number; minCrew: number; speed: number; whyNot?: string };
 }
 
 export type PlunderChoice = Omit<Extract<Command, { type: 'TakePlunder' }>, 'type' | 'shipId'>;
@@ -129,7 +131,12 @@ function bestTake(content: ContentPack, theirs: Record<string, number>, room: nu
 }
 
 /** What her fate means, in a line, for the choice on the plunder screen. */
-function fateText(content: ContentPack, offer: PlunderOffer, release: boolean) {
+function fateText(content: ContentPack, offer: PlunderOffer, release: boolean, keep: boolean) {
+  if (keep) {
+    return `She joins your fleet with her damage: +${offer.keep.hold} tons of hold, ${offer.keep.minCrew} of your men to sail her, and the fleet keeps her pace (${offer.keep.speed}).${
+      offer.nation === 'pirate' ? '' : ` ${COUNTRY[offer.nation] ?? offer.nation} hears of it (${signed(content.combat.standing.scuttle)}).`
+    }`;
+  }
   if (offer.nation === 'pirate') return release ? 'She goes back to raiding these waters.' : 'One pirate fewer at sea.';
   const nation = COUNTRY[offer.nation] ?? offer.nation;
   return release
@@ -149,19 +156,26 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
   const [volunteers, setVolunteers] = useState(offer.volunteers > 0);
   // A pirate is best sunk; a merchant let go (her nation hears of it either way).
   const [release, setRelease] = useState(offer.nation !== 'pirate');
+  const [keep, setKeep] = useState(false);
   const [byHand, setByHand] = useState(false);
   const thrown = Object.values(jettison).reduce((a, b) => a + b, 0);
   const taking = Object.values(take).reduce((a, b) => a + b, 0);
-  const room = offer.capacity - used + thrown - taking;
+  // Kept, her hold joins the fleet's.
+  const room = offer.capacity + (keep ? offer.keep.hold : 0) - used + thrown - taking;
   const herUnits = Object.values(offer.theirs).reduce((a, b) => a + b, 0);
-  const choose = () => onPlunder({ take, jettison, volunteers, release });
+  // Taking the most her hold allows: with her own hold kept, all of hers fits.
+  const choose = () => onPlunder({ take: keep ? { ...offer.theirs } : take, jettison, volunteers, release, keep });
+  // Enter takes whatever is chosen at that moment: the listener, set once, reads the latest choice (a listener
+  // rebound after each render could answer with the choice before the last click).
+  const latest = useRef(choose);
+  latest.current = choose;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (!e.repeat && e.key === 'Enter') choose();
+      if (!e.repeat && e.key === 'Enter') latest.current();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  });
+  }, []);
   const name = (g: string) => content.goods.find((x) => x.id === g)?.name ?? g;
   const step = (n: number) => Math.max(1, Math.ceil(n / 4));
   return (
@@ -201,14 +215,18 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
         <Art id="ui.icon.anchor" class="plunder-icon" />
         <div>
           <div class="plunder-fate">
-            <button class={release ? 'active' : ''} onClick={() => setRelease(true)}>
+            <button class={release && !keep ? 'active' : ''} onClick={() => (setRelease(true), setKeep(false))}>
               Let her go
             </button>
-            <button class={release ? '' : 'active'} onClick={() => setRelease(false)}>
+            <button class={!release && !keep ? 'active' : ''} onClick={() => (setRelease(false), setKeep(false))}>
               Sink her
             </button>
+            <button class={keep ? 'active' : ''} disabled={Boolean(offer.keep.whyNot)} title={offer.keep.whyNot} onClick={() => setKeep(true)}>
+              Keep her
+            </button>
           </div>
-          <div class="plunder-note">{fateText(content, offer, release)}</div>
+          <div class="plunder-note">{offer.keep.whyNot && keep ? offer.keep.whyNot : fateText(content, offer, release, keep)}</div>
+          {offer.keep.whyNot ? <div class="plunder-note">Keep her: {offer.keep.whyNot}</div> : null}
         </div>
       </div>
       {herUnits ? (
@@ -254,8 +272,13 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
         </div>
       ) : null}
       <button class="leave plunder-go" onClick={choose}>
-        {herUnits ? 'Take it and ' : ''}
-        {release ? (herUnits ? 'let her go' : 'Let her go') : herUnits ? 'sink her' : 'Sink her'} · Enter
+        {keep ? 'Take her into the fleet' : (
+          <>
+            {herUnits ? 'Take it and ' : ''}
+            {release ? (herUnits ? 'let her go' : 'Let her go') : herUnits ? 'sink her' : 'Sink her'}
+          </>
+        )}{' '}
+        · Enter
       </button>
     </div>
   );

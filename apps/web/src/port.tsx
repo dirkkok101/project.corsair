@@ -15,6 +15,9 @@ import {
   quote,
   referenceStock,
   daysUnpaid,
+  fleetBerths,
+  fleetHold,
+  fleetOf,
   foodDays,
   moraleOf,
   moraleWord,
@@ -24,6 +27,7 @@ import {
   wagesOwed,
   sellsGuns,
   sellsUpgrade,
+  shipValue,
   tradeLean,
   tradePreview,
 } from '@corsair/systems-economy';
@@ -103,7 +107,7 @@ function Merchant({
   const [preview, setPreview] = useState<string>();
   const market = state.markets?.[town.id] ?? {};
   const gold = state.captain?.gold ?? 0;
-  const capacity = content.ships[ship.classId]!.cargo;
+  const capacity = fleetHold(content, state, ship);
   const used = cargoUsed(ship);
   return (
     <div class="merchant">
@@ -261,7 +265,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const ship = state.ships[shipId]!;
   const market = state.markets?.[town.id] ?? {};
   const gold = state.captain?.gold ?? 0;
-  const capacity = content.ships[ship.classId]!.cargo;
+  const capacity = fleetHold(content, state, ship);
   const used = cargoUsed(ship);
   const trade = (type: 'Buy' | 'Sell', good: string, quantity: number) => send({ type, shipId, good, quantity });
   const known = state.captain?.knownPrices ?? {};
@@ -428,7 +432,7 @@ function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' |
   const cls = content.ships[ship.classId]!;
   const crew = crewOf(content, ship);
   const price = content.combat.port.recruitGold;
-  const berths = shipStats(content, ship).maxCrew;
+  const berths = fleetBerths(content, state, ship);
   const room = berths - crew;
   return (
     <div class="recruit">
@@ -476,6 +480,54 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
         Pay wages · {owed} gold
       </button>
     </div>
+  );
+}
+
+/**
+ * The fleet at the shipwright (PRD section 7): each ship's condition, making her the flagship, or selling her
+ * for her class's price by her condition. A sale that would leave too little hold for the cargo, or too few
+ * berths for the crew, says so instead.
+ */
+function FleetList({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
+  const ship = state.ships[shipId]!;
+  const fleet = fleetOf(state);
+  if (!fleet.length) return <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her to grow it.</div>;
+  const hold = fleetHold(content, state, ship);
+  const berths = fleetBerths(content, state, ship);
+  const cargo = cargoUsed(ship);
+  const crew = crewOf(content, ship);
+  return (
+    <table class="fleet-list">
+      <tbody>
+        {fleet.map((f) => {
+          const cls = content.ships[f.classId]!;
+          const stats = shipStats(content, f);
+          const why =
+            hold - cls.cargo < cargo
+              ? `Her hold is needed: the rest of the fleet can't carry the ${cargo} tons aboard.`
+              : berths - stats.maxCrew < crew
+                ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
+                : undefined;
+          const kind = f.classId.replace(/^ship\./, '');
+          return (
+            <tr key={f.id}>
+              <td>
+                <Art id={`ui.ship.${kind}`} class="fleet-ship" /> {f.name} <span class="port-sub">({kind})</span>
+              </td>
+              <td class="port-sub">
+                hull {Math.round(f.hull)} / {stats.hullMax} · sails {Math.round(f.sailCondition)}% · hold {cls.cargo} · speed {stats.speed}
+              </td>
+              <td class="actions">
+                <button onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>Make flagship</button>
+                <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
+                  Sell · {shipValue(content, f).toLocaleString()} gold
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -573,7 +625,8 @@ function Shipwright({
 }) {
   const ship = state.ships[shipId]!;
   const stats = shipStats(content, ship);
-  const cost = repairCost(content, ship);
+  const fleet = fleetOf(state);
+  const cost = repairCost(content, ship, fleet);
   const gold = state.captain?.gold ?? 0;
   const p = content.combat.port;
   const room = stats.maxGuns - stats.guns;
@@ -582,14 +635,17 @@ function Shipwright({
     <div class="shipwright">
       <div class="shipwright-row">
         <span>
-          Hull {Math.round(ship.hull ?? stats.hullMax)} / {stats.hullMax} · Sails {Math.round(ship.sailCondition ?? 100)}%
+          {ship.name ? `${ship.name}: ` : 'Your flagship: '}hull {Math.round(ship.hull ?? stats.hullMax)} / {stats.hullMax} · sails {Math.round(ship.sailCondition ?? 100)}%
         </span>
         {cost > 0 ? (
-          <button onClick={() => send({ type: 'Repair', shipId })}>Repair · {cost} gold</button>
+          <button onClick={() => send({ type: 'Repair', shipId })}>
+            Repair {fleet.length ? 'the fleet' : ''} · {cost} gold
+          </button>
         ) : (
-          <span class="port-sub">She is sound.</span>
+          <span class="port-sub">{fleet.length ? 'Every ship is sound.' : 'She is sound.'}</span>
         )}
       </div>
+      <FleetList content={content} state={state} shipId={shipId} send={send} />
       <div class="shipwright-row">
         <span>
           Guns {stats.guns} / {stats.maxGuns}

@@ -1,7 +1,7 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship } from '@corsair/core';
-import { decodeRasterMap, gameplayContent, loadContent, placeSettlements, shipStats } from '@corsair/data';
+import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
 import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
@@ -22,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, foodDays, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, fleetBerths, fleetHold, fleetMinCrew, fleetOf, foodDays, moraleOf, moraleWord, newsText, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -157,6 +157,11 @@ function pointOfCompass(from: { x: number; y: number }, to: { x: number; y: numb
 }
 /** About how often each ship in a skirmish within sight fires a broadside. */
 const VOLLEY_MS = 2200;
+/** The fleet astern: tiles between one ship and the next along the flagship's track. */
+const ESCORT_GAP_TILES = 2.5;
+/** How far the flagship moves before her track gets a new point, and how many points it keeps. */
+const TRACK_STEP_TILES = 0.25;
+const TRACK_POINTS = 400;
 /** How often a course checks its way is still clear, and re-plots it if not. */
 const REPLAN_MS = 1000;
 /** Cruising holds at 1x within this many tiles of a coast, or of a port. */
@@ -289,7 +294,8 @@ async function main() {
     const battle = createBattle(content, {
       map: battleSea,
       wind: windAt(sim.state, me.x, me.y),
-      player: me,
+      // Only the flagship fights: her berths' worth of the fleet's men, at her own pace.
+      player: { ...me, crew: Math.min(crewOf(content, me), shipStats(content, { ...me, fleetSpeed: undefined }).maxCrew), fleetSpeed: undefined },
       enemy: them,
       seed: (seed ^ Math.imul(sim.state.tick, 2654435761)) >>> 0,
       bearingDeg,
@@ -325,7 +331,7 @@ async function main() {
     const me = player();
     const known = sim.state.captain?.knownPrices ?? {};
     const gold = sim.state.captain?.gold ?? 0;
-    const room = Math.max(1, content.ships[me.classId]!.cargo - (me.cargo.food ?? 0));
+    const room = Math.max(1, fleetHold(content, sim.state, me) - (me.cargo.food ?? 0));
     // Tiles a day at a fair average of her best speed (beating and reaching together).
     const perDay = content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
     const laneLength = (a: string, b: string) => {
@@ -661,6 +667,53 @@ async function main() {
     },
   };
   const player = () => sim.state.ships[def.start.shipId]!;
+  // The rest of the fleet, drawn following the flagship in line astern along her track (they are not on the
+  // world map: only the drawing has them). A jump (a teleport, setting sail) starts the track afresh.
+  const track: { x: number; y: number }[] = [];
+  const withEscorts = (state: typeof sim.state): typeof sim.state => {
+    const me = state.ships[def.start.shipId];
+    const fleet = fleetOf(state);
+    if (!me || me.docked || !fleet.length) {
+      track.length = 0;
+      return state;
+    }
+    const last = track[0];
+    if (!last || Math.hypot(last.x - me.x, last.y - me.y) > 6) track.splice(0, track.length, { x: me.x, y: me.y });
+    else if (Math.hypot(last.x - me.x, last.y - me.y) >= TRACK_STEP_TILES) track.unshift({ x: me.x, y: me.y });
+    if (track.length > TRACK_POINTS) track.length = TRACK_POINTS;
+    const ships = { ...state.ships };
+    fleet.forEach((f, k) => {
+      const want = (k + 1) * ESCORT_GAP_TILES;
+      let along = 0;
+      let at: { x: number; y: number; headingDeg: number } | undefined;
+      for (let i = 1; i < track.length && !at; i++) {
+        along += Math.hypot(track[i]!.x - track[i - 1]!.x, track[i]!.y - track[i - 1]!.y);
+        if (along >= want) {
+          const deg = (Math.atan2(track[i - 1]!.x - track[i]!.x, -(track[i - 1]!.y - track[i]!.y)) * 180) / Math.PI;
+          at = { x: track[i]!.x, y: track[i]!.y, headingDeg: (deg + 360) % 360 };
+        }
+      }
+      // Too short a track yet: astern of her on her heading, if that is water (else she joins as the track grows).
+      if (!at) {
+        const r = (me.headingDeg * Math.PI) / 180;
+        at = { x: me.x - Math.sin(r) * want, y: me.y + Math.cos(r) * want, headingDeg: me.headingDeg };
+        if (isLand(tileAt(map, at.x, at.y))) return;
+      }
+      ships[`escort.${k}`] = {
+        id: `escort.${k}`,
+        classId: f.classId,
+        ...at,
+        speed: me.speed,
+        helm: 0,
+        sails: me.sails,
+        blocked: false,
+        cargo: {},
+        hull: f.hull,
+        sailCondition: f.sailCondition,
+      };
+    });
+    return { ...state, ships };
+  };
   // The keys steer the battle while one is on, the world otherwise; the debug wind keys only at sea.
   bindInput(
     () => {
@@ -839,7 +892,20 @@ async function main() {
                   theirs: prize.ship.cargo,
                   volunteers: prize.volunteers,
                   mine: me.cargo,
-                  capacity: content.ships[me.classId]!.cargo,
+                  capacity: fleetHold(content, sim.state, me),
+                  keep: (() => {
+                    const fleet = fleetOf(sim.state);
+                    const cls = content.ships[prize.ship.classId]!;
+                    const men = crewOf(content, me) + prize.volunteers;
+                    const needs = fleetMinCrew(content, [...fleet, prize.ship], me);
+                    const whyNot =
+                      fleet.length + 2 > content.combat.fleet.maxShips
+                        ? `Your fleet is full (${content.combat.fleet.maxShips} ships): sell one at a shipwright first.`
+                        : men < needs
+                          ? `Too few men to sail her too: the fleet would need ${needs}, you have ${men}${prize.volunteers ? ' with her volunteers' : ''}.`
+                          : undefined;
+                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: cls.speed, whyNot };
+                  })(),
                   role: prize.ship.ai?.role ?? 'merchant',
                   nation: prize.ship.ai?.nation ?? 'pirate',
                   foodNow: foodDays(content, me),
@@ -902,12 +968,14 @@ async function main() {
             hullMax={stats.hullMax}
             sails={me.sailCondition ?? 100}
             crew={crewOf(content, me)}
-            berths={stats.maxCrew}
+            berths={fleetBerths(content, sim.state, me)}
             sailSetting={me.sails}
             guns={{ port: { loaded: each, of: each }, starboard: { loaded: each, of: each } }}
             morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
             foodDays={foodDays(content, me)}
-            purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: content.ships[me.classId]!.cargo }}
+            purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: fleetHold(content, sim.state, me) }}
+            fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, speed: shipStats(content, f).speed }))}
+            pace={me.fleetSpeed !== undefined && me.fleetSpeed < shipStats(content, { ...me, fleetSpeed: undefined }).speed ? me.fleetSpeed : undefined}
             mounted={{ guns: stats.guns, of: stats.maxGuns }}
             setSails={me.docked ? undefined : (sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
             cruise={
@@ -994,7 +1062,7 @@ async function main() {
       renderer.seaFight(foe.x, foe.y);
       audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
     }
-    renderer.render(sim.state, now);
+    renderer.render(withEscorts(sim.state), now);
     labels.update(renderer.camera(), renderer.view(), scale);
     shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
     charts.update(

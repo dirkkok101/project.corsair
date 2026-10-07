@@ -809,3 +809,55 @@ test('a course to a port takes her in when she comes within reach, without press
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.docked'))).toBeFalsy();
   expect(errors).toEqual([]);
 });
+
+test('fleets: keep a prize, she follows astern and shows on the ship card, and the shipwright sells her', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.sim.step(90);
+    const s = (window.__corsair.state.get('ships') as typeof ships)[id]!;
+    for (const [dx, dy] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx!, y: s.y + dy! });
+      window.__corsair.sim.step(1);
+      const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
+    }
+  });
+  await page.keyboard.press('h');
+  await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
+  const outcome = await page.evaluate(() => {
+    for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
+    return window.__corsair.battle.result()?.outcome;
+  });
+  test.skip(outcome !== 'boarded' && outcome !== 'struck', `no prize this run (${outcome})`);
+  await page.locator('.plunder-fate').getByRole('button', { name: 'Keep her' }).click();
+  await expect(page.locator('.plunder')).toContainText('joins your fleet');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(1);
+  // The card shows her and the pace she holds the fleet to.
+  await expect(page.locator('.panel-fleet')).toContainText('held to');
+  await page.evaluate(() => window.__corsair.sim.step(60));
+  await page.screenshot({ path: 'test-results/fleet-at-sea.png' });
+
+  // Into Port Royal: the shipwright lists her, and sells her.
+  await page.evaluate(() => {
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await expect(page.locator('.fleet-list')).toContainText('fluyt');
+  await page.screenshot({ path: 'test-results/fleet-shipwright.png' });
+  const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
+  await page.locator('.fleet-list').getByRole('button', { name: /^Sell/ }).click();
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBeGreaterThan(gold);
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(0);
+  expect(errors).toEqual([]);
+});

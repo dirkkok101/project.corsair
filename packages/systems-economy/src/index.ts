@@ -1,5 +1,5 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, Deed, EmittedEvent, KnownPrices, NewsItem, Ship, System, Wind, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, FleetShip, KnownPrices, NewsItem, Ship, System, Wind, WorldState } from '@corsair/core';
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, polarAt } from '@corsair/systems-navigation';
@@ -178,6 +178,39 @@ export function bountiesOwed(content: ContentPack, state: WorldState, nation: Pl
   return { pay, kept, total };
 }
 
+/** The rest of the player's fleet (the flagship aside). */
+export function fleetOf(state: WorldState): FleetShip[] {
+  return state.captain?.fleet ?? [];
+}
+
+/** The fleet's hold: the flagship's and every other ship's, counted as one. */
+export function fleetHold(content: ContentPack, state: WorldState, ship: Ship): number {
+  return fleetOf(state).reduce((n, f) => n + content.ships[f.classId]!.cargo, content.ships[ship.classId]!.cargo);
+}
+
+/** The fleet's berths: the men it can carry. */
+export function fleetBerths(content: ContentPack, state: WorldState, ship: Ship): number {
+  return fleetOf(state).reduce((n, f) => n + shipStats(content, f).maxCrew, shipStats(content, { ...ship, fleetSpeed: undefined }).maxCrew);
+}
+
+/** The men the fleet needs to sail at all: every ship's minimum crew. */
+export function fleetMinCrew(content: ContentPack, fleet: Pick<FleetShip, 'classId'>[], ship: Pick<Ship, 'classId'>): number {
+  return fleet.reduce((n, f) => n + content.ships[f.classId]!.minCrew, content.ships[ship.classId]!.minCrew);
+}
+
+/** The flagship with her fleet's pace: the slowest other ship's speed (none with no fleet). */
+export function withFleetPace(content: ContentPack, ship: Ship, fleet: FleetShip[]): Ship {
+  const fleetSpeed = fleet.length ? Math.min(...fleet.map((f) => shipStats(content, f).speed)) : undefined;
+  return fleetSpeed === undefined ? (({ fleetSpeed: _, ...rest }) => rest)(ship) : { ...ship, fleetSpeed };
+}
+
+/** What a shipwright pays for a ship of the fleet: a share of her class's price, by her hull and, less, her sails. */
+export function shipValue(content: ContentPack, f: Pick<FleetShip, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>): number {
+  const cls = content.ships[f.classId]!;
+  const hull = Math.max(0, Math.min(1, f.hull / shipStats(content, f).hullMax));
+  return Math.round(cls.price * content.combat.fleet.sellShare * hull * (0.75 + 0.25 * (f.sailCondition / 100)));
+}
+
 /** Men aboard: a ship from before crews were counted sails with the career's starting crew. */
 export function crewOf(content: ContentPack, ship: Ship): number {
   return ship.crew ?? Math.round(content.ships[ship.classId]!.maxCrew * content.combat.startCrew);
@@ -236,10 +269,14 @@ export function crewMood(content: ContentPack, state: WorldState, ship: Ship): n
 }
 
 /** Repair bill: hull points and sail condition short of sound, at the shipwright's rates. */
-export function repairCost(content: ContentPack, ship: Ship): number {
-  const hullMax = shipStats(content, ship).hullMax;
+export function repairCost(content: ContentPack, ship: Ship, fleet: FleetShip[] = []): number {
   const p = content.combat.port;
-  return Math.ceil(hullMax - (ship.hull ?? hullMax)) * p.hullGold + Math.ceil(100 - (ship.sailCondition ?? 100)) * p.sailGold;
+  const one = (s: Pick<Ship, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>) => {
+    const hullMax = shipStats(content, s).hullMax;
+    return Math.ceil(hullMax - (s.hull ?? hullMax)) * p.hullGold + Math.ceil(100 - (s.sailCondition ?? 100)) * p.sailGold;
+  };
+  // The whole fleet, as the shipwright mends it.
+  return fleet.reduce((n, f) => n + one(f), one(ship));
 }
 
 /** Whether a port's shipwright sells cannon: every one but a hamlet's. */
@@ -390,7 +427,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
   const e = content.economy;
   const byId = new Map(settlements.map((s) => [s.id, s]));
   const ticksPerWeek = e.daysPerWeek * content.calendar.ticksPerDay;
-  const capacity = (ship: Ship) => content.ships[ship.classId]!.cargo;
+  const capacity = (state: WorldState, ship: Ship) => fleetHold(content, state, ship);
 
   const seen = (state: WorldState, s: Settlement, market: Record<string, number>): Record<string, KnownPrices> => ({
     ...state.captain!.knownPrices,
@@ -526,11 +563,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         };
       }
       if (command.type === 'Recruit') {
-        // The tavern: men sign on for a bounty each, up to the berths the ship has.
+        // The tavern: men sign on for a bounty each, up to the berths the fleet has.
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
-        const berths = shipStats(content, ship).maxCrew;
+        const berths = fleetBerths(content, state, ship);
         const crew = crewOf(content, ship);
         const price = content.combat.port.recruitGold;
         const count = Math.min(Math.floor(command.count), berths - crew, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
@@ -574,25 +611,85 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         };
       }
       if (command.type === 'Repair') {
-        // The shipwright: hull first, then sails, as far as the purse reaches.
+        // The shipwright: every ship of the fleet, the flagship first, hull then sails, as far as the purse reaches.
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
-        const hullMax = shipStats(content, ship).hullMax;
         const p = content.combat.port;
         let gold = state.captain.gold;
-        let hull = ship.hull ?? hullMax;
-        let sails = ship.sailCondition ?? 100;
-        const hullFix = Math.min(Math.ceil(hullMax - hull), p.hullGold > 0 ? Math.floor(gold / p.hullGold) : Infinity);
-        hull = Math.min(hullMax, hull + hullFix);
-        gold -= hullFix * p.hullGold;
-        const sailFix = Math.min(Math.ceil(100 - sails), p.sailGold > 0 ? Math.floor(gold / p.sailGold) : Infinity);
-        sails = Math.min(100, sails + sailFix);
-        gold -= sailFix * p.sailGold;
-        if (hullFix <= 0 && sailFix <= 0) return refuse(state, ship, hull >= hullMax && sails >= 100 ? 'sound' : 'not-enough-gold');
+        let mended = false;
+        const mend = <T extends { classId: string; hull?: number; sailCondition?: number; upgrades?: string[]; guns?: number }>(s: T): T => {
+          const hullMax = shipStats(content, { ...s, fleetSpeed: undefined }).hullMax;
+          let hull = s.hull ?? hullMax;
+          let sails = s.sailCondition ?? 100;
+          const hullFix = Math.max(0, Math.min(Math.ceil(hullMax - hull), p.hullGold > 0 ? Math.floor(gold / p.hullGold) : Infinity));
+          hull = Math.min(hullMax, hull + hullFix);
+          gold -= hullFix * p.hullGold;
+          const sailFix = Math.max(0, Math.min(Math.ceil(100 - sails), p.sailGold > 0 ? Math.floor(gold / p.sailGold) : Infinity));
+          sails = Math.min(100, sails + sailFix);
+          gold -= sailFix * p.sailGold;
+          if (hullFix > 0 || sailFix > 0) mended = true;
+          return { ...s, hull, sailCondition: sails };
+        };
+        const flagship = mend(ship);
+        const fleet = fleetOf(state).map(mend);
+        if (!mended) {
+          const sound = [ship, ...fleetOf(state)].every((s) => (s.hull ?? Infinity) >= shipStats(content, { ...s, fleetSpeed: undefined }).hullMax && (s.sailCondition ?? 100) >= 100);
+          return refuse(state, ship, sound ? 'sound' : 'not-enough-gold');
+        }
         return {
-          state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, hull, sailCondition: sails } }, captain: { ...state.captain, gold } },
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: flagship },
+            captain: { ...state.captain, gold, ...(state.captain.fleet ? { fleet } : {}) },
+          },
           events: [{ type: 'Repaired', entityIds: [ship.id, ship.docked], payload: { gold: state.captain.gold - gold } }],
+        };
+      }
+      if (command.type === 'SellShip' || command.type === 'MakeFlagship') {
+        // The shipwright and the fleet: sell a ship, or shift the flag to her. A sale is refused when what is
+        // left couldn't carry the cargo aboard or berth the crew.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const fleet = fleetOf(state);
+        const sold = fleet.find((f) => f.id === command.fleetId);
+        if (!sold) return refuse(state, ship, 'no-such-ship');
+        const rest = fleet.filter((f) => f !== sold);
+        if (command.type === 'SellShip') {
+          const after = { ...state, captain: { ...state.captain, fleet: rest } };
+          if (fleetHold(content, after, ship) < cargoUsed(ship)) return refuse(state, ship, 'cargo-wont-fit');
+          if (fleetBerths(content, after, ship) < crewOf(content, ship)) return refuse(state, ship, 'crew-wont-fit');
+          const gold = shipValue(content, sold);
+          return {
+            state: {
+              ...state,
+              ships: { ...state.ships, [ship.id]: withFleetPace(content, ship, rest) },
+              captain: { ...state.captain, gold: state.captain.gold + gold, fleet: rest },
+            },
+            events: [{ type: 'ShipSold', entityIds: [ship.id, ship.docked], payload: { name: sold.name, classId: sold.classId, gold } }],
+          };
+        }
+        // The flag shifts: she becomes the flagship (where the flagship lies), and the old flagship sails in the fleet.
+        const old: FleetShip = {
+          id: `fleet.${state.tick}.${ship.classId}`,
+          name: ship.name ?? `Your ${ship.classId.replace(/^ship\./, '')}`,
+          classId: ship.classId,
+          hull: ship.hull ?? shipStats(content, { ...ship, fleetSpeed: undefined }).hullMax,
+          sailCondition: ship.sailCondition ?? 100,
+          ...(ship.guns !== undefined ? { guns: ship.guns } : {}),
+          ...(ship.upgrades ? { upgrades: ship.upgrades } : {}),
+        };
+        const fleetAfter = [...rest, old];
+        const { guns: _g, upgrades: _u, ...hull } = ship;
+        const flagship = withFleetPace(
+          content,
+          { ...hull, classId: sold.classId, name: sold.name, hull: sold.hull, sailCondition: sold.sailCondition, ...(sold.guns !== undefined ? { guns: sold.guns } : {}), ...(sold.upgrades ? { upgrades: sold.upgrades } : {}) },
+          fleetAfter,
+        );
+        return {
+          state: { ...state, ships: { ...state.ships, [ship.id]: flagship }, captain: { ...state.captain, fleet: fleetAfter } },
+          events: [{ type: 'FlagShifted', entityIds: [ship.id, ship.docked], payload: { name: sold.name, classId: sold.classId } }],
         };
       }
       if (command.type === 'BuyGuns' || command.type === 'SellGuns') {
@@ -674,7 +771,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         for (; done < qty; done++) {
           const q = quote(content, s, command.good, stock);
           if (command.type === 'Buy') {
-            if (stock < 1 || gold < q.buy || used >= capacity(ship)) break;
+            if (stock < 1 || gold < q.buy || used >= capacity(state, ship)) break;
             stock--;
             gold -= q.buy;
             held++;
@@ -692,7 +789,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         }
         if (done === 0) {
           const reason =
-            command.type === 'Sell' ? 'none-in-hold' : stock < 1 ? 'sold-out' : used >= capacity(ship) ? 'hold-full' : 'not-enough-gold';
+            command.type === 'Sell' ? 'none-in-hold' : stock < 1 ? 'sold-out' : used >= capacity(state, ship) ? 'hold-full' : 'not-enough-gold';
           return refuse(state, ship, reason, { good: command.good });
         }
         const market = { ...state.markets[s.id]!, [command.good]: stock };
