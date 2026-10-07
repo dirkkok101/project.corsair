@@ -138,8 +138,7 @@ export interface VoyagePlan {
   leads: Omit<PlannedTrade, 'buy' | 'sell' | 'profit'>[];
 }
 
-/** A port's chart mark: its painted town by size, a haven's stockade for the pirates. */
-const markFor = (s: PlacedSettlement) => ART[s.nation === 'pirate' ? 'ui.chart.haven' : `ui.chart.${s.size === 'hamlet' ? 'hamlet' : s.size === 'town' ? 'town' : 'city'}`];
+
 
 /** `onSelect` gets the port clicked on the chart, or undefined when the chosen port is clicked again. */
 export function createCharts(
@@ -179,21 +178,9 @@ export function createCharts(
   }
   // Every port gets a dot; its name is placed later by layoutLabels, which needs the chart visible.
   const pins = settlements.map((s) => {
-    // The painted mark, or the plain square in the nation's colour if the art isn't there (a missing image
-    // would leave only its underline, and the names looking adrift of their ports).
-    const mark = markFor(s);
-    const dot = sheet.appendChild(document.createElement(mark ? 'img' : 'div'));
-    dot.className = mark ? `chart-dot chart-mark label-${s.nation}` : `chart-dot label-${s.nation}`;
-    if (dot instanceof HTMLImageElement) {
-      dot.src = mark!;
-      dot.alt = '';
-      dot.draggable = false;
-      // An image that fails to load falls back to the square too.
-      dot.addEventListener('error', () => {
-        dot.removeAttribute('src');
-        dot.classList.remove('chart-mark');
-      });
-    }
+    // A port is a square in its nation's colour (painted towns read poorly at chart size).
+    const dot = sheet.appendChild(document.createElement('div'));
+    dot.className = `chart-dot label-${s.nation}`;
     dot.title = s.name;
     // Where marks overlap, the bigger port lies on top (a hamlet's never hides a capital or a haven).
     dot.style.zIndex = String(4 - (s.type === 'capital' ? RANK.capital : s.nation === 'pirate' ? RANK.city : RANK[s.size]));
@@ -316,10 +303,9 @@ export function createCharts(
   const showKey = () => {
     const wars = market.wars();
     key.innerHTML =
-      '<span class="chart-key-item">underlined by nation:</span>' +
+      '<span class="chart-key-item">ports:</span>' +
       NATION_KEY.map(([id, name]) => `<span class="chart-key-item"><span class="chart-key-dot label-${id}"></span>${name}</span>`).join('') +
-      `<span class="chart-key-item">${keyMark('ui.chart.hamlet')}hamlet ${keyMark('ui.chart.town')}town ${keyMark('ui.chart.city')}city</span>` +
-      `<span class="chart-key-item">${keyMark('ui.chart.haven')}pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>` +
+      '<span class="chart-key-item"><span class="chart-key-dot label-pirate"></span>pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>' +
       `<span class="chart-key-item">${keyMark('ui.chart.you')}you</span>` +
       '<span class="chart-key-item"><span class="chart-key-ship"></span>a ship seen (fades over days)</span>' +
       `<div class="chart-key-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a} and ${b}`).join(' · ')}` : 'All nations at peace'} · pirates are at war with everyone</div>`;

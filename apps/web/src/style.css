@@ -82,8 +82,7 @@ body {
   position: relative;
   /* As big as the screen allows: room above for the hint and the key, below for the goods filter, and to
      the right for the voyage planner. */
-  margin-top: 62px;
-  margin-right: 316px;
+  margin: 62px 316px 56px 0;
   width: min(calc(98vw - 316px), calc((100vh - 130px) * 1600 / 1100));
   border: 2px solid #c09473;
 }
@@ -162,17 +161,6 @@ body {
 
 .chart-port[hidden] {
   display: none;
-}
-
-/* A port's painted mark (its town by size, a haven's stockade), underlined in its nation's colour. */
-.chart-dot.chart-mark {
-  width: clamp(16px, 1.5vw, 28px);
-  height: auto;
-  padding: 0 0 1px;
-  background: none;
-  border: none;
-  border-bottom: 3px solid currentColor;
-  image-rendering: pixelated;
 }
 
 /* You: your ship, turned to her heading (set inline). */
@@ -899,12 +887,19 @@ body {
   display: none;
 }
 
+/* The goods filter, in the room under the chart and centred on it (the planner takes the right side);
+   a picked good's legend wraps onto a line of its own rather than running off the screen. */
 .chart-goods {
   position: absolute;
-  bottom: 10px;
+  bottom: 8px;
+  left: calc((100vw - 316px) / 2);
+  transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
+  max-width: calc(100vw - 340px);
 }
 
 .chart-goods button {
