@@ -1708,6 +1708,11 @@ body {
   object-fit: contain;
 }
 
+/* A ship of the fleet that needs a shipwright. */
+.panel-fleet-ship.damaged {
+  filter: sepia(1) saturate(4) hue-rotate(-30deg);
+}
+
 .panel-fleet-pace {
   flex-basis: 100%;
   color: #e8c170;

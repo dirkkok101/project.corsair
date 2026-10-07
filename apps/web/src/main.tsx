@@ -22,7 +22,7 @@ import type { LoopControl } from './debug';
 import { Hud } from './hud';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -157,11 +157,6 @@ function pointOfCompass(from: { x: number; y: number }, to: { x: number; y: numb
 }
 /** About how often each ship in a skirmish within sight fires a broadside. */
 const VOLLEY_MS = 2200;
-/** The fleet astern: tiles between one ship and the next along the flagship's track. */
-const ESCORT_GAP_TILES = 2.5;
-/** How far the flagship moves before her track gets a new point, and how many points it keeps. */
-const TRACK_STEP_TILES = 0.25;
-const TRACK_POINTS = 400;
 /** How often the plotted line to a destination on the chart is redrawn (display only). */
 const REPLAN_MS = 1000;
 /**
@@ -445,7 +440,7 @@ async function main() {
       .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
     if (!port) return undefined;
     const km = Math.round((Math.hypot(port.x - me.x, port.y - me.y) * kmPerTile) / 10) * 10;
-    return `What now: she's hurt (hull ${Math.round(hull * 100)}%, sails ${Math.round(sails * 100)}%). The nearest shipwright is at ${port.name}, about ${km} km off: press M and pick it.`;
+    return `What now: your ship is hurt (hull ${Math.round(hull * 100)}%, sails ${Math.round(sails * 100)}%). The nearest shipwright is at ${port.name}, about ${km} km off: press M and pick it.`;
   };
   const takePlunder = (choice: PlunderChoice) => {
     sim.send({ type: 'TakePlunder', shipId: player().id, ...choice });
@@ -701,53 +696,6 @@ async function main() {
     },
   };
   const player = () => sim.state.ships[def.start.shipId]!;
-  // The rest of the fleet, drawn following the flagship in line astern along her track (they are not on the
-  // world map: only the drawing has them). A jump (a teleport, setting sail) starts the track afresh.
-  const track: { x: number; y: number }[] = [];
-  const withEscorts = (state: typeof sim.state): typeof sim.state => {
-    const me = state.ships[def.start.shipId];
-    const fleet = fleetOf(state);
-    if (!me || me.docked || !fleet.length) {
-      track.length = 0;
-      return state;
-    }
-    const last = track[0];
-    if (!last || Math.hypot(last.x - me.x, last.y - me.y) > 6) track.splice(0, track.length, { x: me.x, y: me.y });
-    else if (Math.hypot(last.x - me.x, last.y - me.y) >= TRACK_STEP_TILES) track.unshift({ x: me.x, y: me.y });
-    if (track.length > TRACK_POINTS) track.length = TRACK_POINTS;
-    const ships = { ...state.ships };
-    fleet.forEach((f, k) => {
-      const want = (k + 1) * ESCORT_GAP_TILES;
-      let along = 0;
-      let at: { x: number; y: number; headingDeg: number } | undefined;
-      for (let i = 1; i < track.length && !at; i++) {
-        along += Math.hypot(track[i]!.x - track[i - 1]!.x, track[i]!.y - track[i - 1]!.y);
-        if (along >= want) {
-          const deg = (Math.atan2(track[i - 1]!.x - track[i]!.x, -(track[i - 1]!.y - track[i]!.y)) * 180) / Math.PI;
-          at = { x: track[i]!.x, y: track[i]!.y, headingDeg: (deg + 360) % 360 };
-        }
-      }
-      // Too short a track yet: astern of her on her heading, if that is water (else she joins as the track grows).
-      if (!at) {
-        const r = (me.headingDeg * Math.PI) / 180;
-        at = { x: me.x - Math.sin(r) * want, y: me.y + Math.cos(r) * want, headingDeg: me.headingDeg };
-        if (isLand(tileAt(map, at.x, at.y))) return;
-      }
-      ships[`escort.${k}`] = {
-        id: `escort.${k}`,
-        classId: f.classId,
-        ...at,
-        speed: me.speed,
-        helm: 0,
-        sails: me.sails,
-        blocked: false,
-        cargo: {},
-        hull: f.hull,
-        sailCondition: f.sailCondition,
-      };
-    });
-    return { ...state, ships };
-  };
   // The keys steer the battle while one is on, the world otherwise; the debug wind keys only at sea.
   bindInput(
     () => {
@@ -938,7 +886,7 @@ async function main() {
                         : men < needs
                           ? `Too few men to sail her too: the fleet would need ${needs}, you have ${men}${prize.volunteers ? ' with her volunteers' : ''}.`
                           : undefined;
-                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: cls.speed, whyNot };
+                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: fleetShipPace(content, prize.ship), fullSpeed: cls.speed, whyNot };
                   })(),
                   role: prize.ship.ai?.role ?? 'merchant',
                   nation: prize.ship.ai?.nation ?? 'pirate',
@@ -1008,7 +956,7 @@ async function main() {
             morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
             foodDays={foodDays(content, me)}
             purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: fleetHold(content, sim.state, me) }}
-            fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, speed: shipStats(content, f).speed }))}
+            fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, speed: fleetShipPace(content, f), damaged: fleetShipPace(content, f) < shipStats(content, f).speed }))}
             pace={me.fleetSpeed !== undefined && me.fleetSpeed < shipStats(content, { ...me, fleetSpeed: undefined }).speed ? me.fleetSpeed : undefined}
             mounted={{ guns: stats.guns, of: stats.maxGuns }}
             setSails={me.docked ? undefined : (sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
@@ -1102,7 +1050,7 @@ async function main() {
       renderer.seaFight(foe.x, foe.y);
       audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
     }
-    renderer.render(withEscorts(sim.state), now);
+    renderer.render(sim.state, now);
     labels.update(renderer.camera(), renderer.view(), scale);
     shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
     charts.update(

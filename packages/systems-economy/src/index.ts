@@ -2,7 +2,7 @@ import { rngStream, seedRng } from '@corsair/core';
 import type { Captain, Deed, EmittedEvent, FleetShip, KnownPrices, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
-import { angleOffWind, polarAt } from '@corsair/systems-navigation';
+import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigation';
 import { atWar, enemiesOf } from '@corsair/systems-politics';
 import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
@@ -247,8 +247,16 @@ export function fleetMinCrew(content: ContentPack, fleet: Pick<FleetShip, 'class
 }
 
 /** The flagship with her fleet's pace: the slowest other ship's speed (none with no fleet). */
+/**
+ * The pace a ship of the fleet keeps: her class's speed, slowed as the flagship's is at sea by shot-through
+ * sails and a hull below 30%, until a shipwright mends her.
+ */
+export function fleetShipPace(content: ContentPack, f: Pick<FleetShip, 'classId' | 'guns' | 'upgrades'> & { hull?: number; sailCondition?: number }): number {
+  return Math.round(shipStats(content, f).speed * conditionFactor(content, f) * 10) / 10;
+}
+
 export function withFleetPace(content: ContentPack, ship: Ship, fleet: FleetShip[]): Ship {
-  const fleetSpeed = fleet.length ? Math.min(...fleet.map((f) => shipStats(content, f).speed)) : undefined;
+  const fleetSpeed = fleet.length ? Math.min(...fleet.map((f) => fleetShipPace(content, f))) : undefined;
   return fleetSpeed === undefined ? (({ fleetSpeed: _, ...rest }) => rest)(ship) : { ...ship, fleetSpeed };
 }
 
@@ -845,7 +853,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         return {
           state: {
             ...state,
-            ships: { ...state.ships, [ship.id]: flagship },
+            // Mended sails let the fleet make its pace again.
+            ships: { ...state.ships, [ship.id]: withFleetPace(content, flagship, fleet) },
             captain: { ...state.captain, gold, ...(state.captain.fleet ? { fleet } : {}) },
           },
           events: [{ type: 'Repaired', entityIds: [ship.id, ship.docked], payload: { gold: state.captain.gold - gold } }],

@@ -31,7 +31,7 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
  * v = v_base * P(theta) * W_s * sail setting. Hull, crew, load and current are not modelled yet.
  */
 /** How a ship's condition slows her (PRD section 7): shot-through sails draw less, and a hull below 30% drags. */
-export function conditionFactor(content: ContentPack, ship: Ship): number {
+export function conditionFactor(content: ContentPack, ship: Pick<Ship, 'classId' | 'sailCondition' | 'hull' | 'crew' | 'guns' | 'upgrades'>): number {
   const sails = 0.3 + 0.7 * ((ship.sailCondition ?? 100) / 100);
   const hull = ship.hull !== undefined && ship.hull < shipStats(content, ship).hullMax * 0.3 ? 0.8 : 1;
   return sails * hull * handsFactor(content, ship);
@@ -41,7 +41,7 @@ export function conditionFactor(content: ContentPack, ship: Ship): number {
  * Short-handed: below her class's minimum crew a ship sails and turns slower, in proportion, down to
  * crew.json's floor (Pirates!: fewer men than she needs, and she is slower). A ship with no count has her crew.
  */
-export function handsFactor(content: ContentPack, ship: Ship): number {
+export function handsFactor(content: ContentPack, ship: Pick<Ship, 'classId' | 'crew'>): number {
   const min = content.ships[ship.classId]!.minCrew;
   if (ship.crew === undefined || ship.crew >= min) return 1;
   return Math.max(content.crew.shortHandedFloor, ship.crew / min);

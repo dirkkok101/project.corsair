@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
 import type { BattleResult, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
-import { createEconomySystem, normalStock, stockCap, withEconomy } from '@corsair/systems-economy';
+import { createEconomySystem, fleetShipPace, normalStock, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -263,7 +263,8 @@ describe('fights at sea', () => {
     expect(kept.state.captain!.fleet).toMatchObject([{ id, classId: 'ship.fluyt', hull: 10 }]);
     // Her hold joins the fleet's, so all 120 of her sugar comes aboard; the fleet keeps her pace.
     expect(kept.state.ships.player!.cargo.sugar).toBe(120);
-    expect(kept.state.ships.player!.fleetSpeed).toBe(content.ships['ship.fluyt']!.speed);
+    // The fleet keeps her pace, slowed by the damage she took until a shipwright mends her.
+    expect(kept.state.ships.player!.fleetSpeed).toBe(fleetShipPace(content, kept.state.captain!.fleet![0]!));
     // Not kept, the brig's hold takes what it can.
     const aboard = Object.values(laden.ships.player!.cargo).reduce((n, u) => n + u, 0);
     expect(take(laden, false).state.ships.player!.cargo.sugar).toBe(content.ships['ship.brig']!.cargo - aboard);

@@ -26,7 +26,7 @@ export interface ShipPanelProps {
   /** Guns mounted against the most she can carry (at sea and in port). */
   mounted?: { guns: number; of: number };
   /** The rest of her fleet, and the pace its slowest ship holds her to (when it does). */
-  fleet?: { name: string; classId: string; speed: number }[];
+  fleet?: { name: string; classId: string; speed: number; damaged: boolean }[];
   pace?: number;
   sailSetting: SailSetting;
   /** Guns per broadside, and how many of them are loaded now (all of them at sea). */
@@ -115,16 +115,28 @@ export function ShipPanel(p: ShipPanelProps) {
         </>
       ) : null}
       {p.fleet?.length ? (
-        <div class="panel-fleet" title={p.fleet.map((f) => `${f.name} (${f.classId.replace(/^ship\./, '')})`).join(', ')}>
-          <span>Fleet:</span>
+        // The rest of the fleet sails with her off the map: only the flagship is drawn at sea, so this is where it shows.
+        <div class="panel-fleet" title={p.fleet.map((f) => `${f.name} (${f.classId.replace(/^ship\./, '')}${f.damaged ? ', damaged' : ''})`).join(', ')}>
+          <span>Fleet of {p.fleet.length + 1}:</span>
           {p.fleet.map((f) => (
-            <Art key={f.name} id={`ui.ship.${f.classId.replace(/^ship\./, '')}`} class="panel-fleet-ship" title={`${f.name} (${f.classId.replace(/^ship\./, '')})`} />
+            <Art
+              key={f.name}
+              id={`ui.ship.${f.classId.replace(/^ship\./, '')}`}
+              class={`panel-fleet-ship${f.damaged ? ' damaged' : ''}`}
+              title={`${f.name} (${f.classId.replace(/^ship\./, '')}${f.damaged ? ', damaged: a shipwright mends her' : ''})`}
+            />
           ))}
-          {p.pace !== undefined ? (
-            <span class="panel-fleet-pace">
-              held to {p.pace} by the {[...p.fleet].sort((a, b) => a.speed - b.speed)[0]!.classId.replace(/^ship\./, '')}
-            </span>
-          ) : null}
+          {p.pace !== undefined
+            ? (() => {
+                const slowest = [...p.fleet].sort((a, b) => a.speed - b.speed)[0]!;
+                return (
+                  <span class="panel-fleet-pace">
+                    held to {p.pace} by the {slowest.classId.replace(/^ship\./, '')}
+                    {slowest.damaged ? "'s damage: mend her at a shipwright" : ''}
+                  </span>
+                );
+              })()
+            : null}
         </div>
       ) : null}
       <Battery label="Port" {...p.guns.port} />

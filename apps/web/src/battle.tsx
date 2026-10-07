@@ -66,7 +66,8 @@ export interface PlunderOffer {
   foodNow: number;
   foodWith: number;
   /** Keeping her: her hold, the men she needs and her speed, and why she can't be kept, if not. */
-  keep: { hold: number; minCrew: number; speed: number; whyNot?: string };
+  /** Her pace as she is (her damage slows her), and once a shipwright has mended her. */
+  keep: { hold: number; minCrew: number; speed: number; fullSpeed: number; whyNot?: string };
 }
 
 export type PlunderChoice = Omit<Extract<Command, { type: 'TakePlunder' }>, 'type' | 'shipId'>;
@@ -133,7 +134,11 @@ function bestTake(content: ContentPack, theirs: Record<string, number>, room: nu
 /** What her fate means, in a line, for the choice on the plunder screen. */
 function fateText(content: ContentPack, offer: PlunderOffer, release: boolean, keep: boolean) {
   if (keep) {
-    return `She joins your fleet with her damage: +${offer.keep.hold} tons of hold, ${offer.keep.minCrew} of your men to sail her, and the fleet keeps her pace (${offer.keep.speed}).${
+    const pace =
+      offer.keep.speed < offer.keep.fullSpeed
+        ? `her shot-through sails slow her to ${offer.keep.speed} (${offer.keep.fullSpeed} once a shipwright mends them), and the fleet sails at its slowest ship's pace`
+        : `the fleet sails at its slowest ship's pace (hers is ${offer.keep.speed})`;
+    return `She joins your fleet: +${offer.keep.hold} tons of hold, ${offer.keep.minCrew} of your men to sail her; ${pace}.${
       offer.nation === 'pirate' ? '' : ` ${COUNTRY[offer.nation] ?? offer.nation} hears of it (${signed(content.combat.standing.scuttle)}).`
     }`;
   }
@@ -205,7 +210,9 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
             </div>
             <div class="plunder-note">
               {volunteers
-                ? `Stronger boarders and faster reloads; food lasts ${Math.floor(offer.foodWith)} days instead of ${Math.floor(offer.foodNow)}, and the plunder is split more ways.`
+                ? `Stronger boarders and faster reloads${
+                    Math.floor(offer.foodWith) < Math.floor(offer.foodNow) ? `; food lasts ${Math.floor(offer.foodWith)} days instead of ${Math.floor(offer.foodNow)}` : ''
+                  }, and the plunder is split more ways.`
                 : 'They are put ashore.'}
             </div>
           </div>

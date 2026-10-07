@@ -818,7 +818,7 @@ test('a course to a port takes her in when she comes within reach, without press
   expect(errors).toEqual([]);
 });
 
-test('fleets: keep a prize, she follows astern and shows on the ship card, and the shipwright sells her', async ({ page }) => {
+test('fleets: keep a prize, she shows on the ship card, and the shipwright sells her', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   await page.evaluate(() => {
     window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
