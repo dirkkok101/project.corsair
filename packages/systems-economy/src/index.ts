@@ -78,6 +78,55 @@ export function quote(content: ContentPack, s: Settlement, good: string, stock: 
   return { buy: Math.max(sell + 1, Math.round(mid * (1 + spread))), sell };
 }
 
+/**
+ * What a trade of up to `qty` units would come to here, unit by unit as Buy and Sell price it (each unit
+ * moves the stock): how many units go, the gold in total, and the price after it. `gold`, `room` and `held`
+ * stop it where the trade itself would stop.
+ */
+export function tradePreview(
+  content: ContentPack,
+  s: Settlement,
+  good: string,
+  stock: number,
+  side: 'Buy' | 'Sell',
+  qty: number,
+  limits: { gold: number; room: number; held: number },
+): { units: number; total: number; after: number } {
+  let units = 0;
+  let total = 0;
+  for (; units < qty; units++) {
+    const q = quote(content, s, good, stock);
+    if (side === 'Buy') {
+      if (stock < 1 || limits.gold - total < q.buy || units >= limits.room) break;
+      total += q.buy;
+      stock--;
+    } else {
+      if (units >= limits.held) break;
+      total += q.sell;
+      stock++;
+    }
+  }
+  const after = quote(content, s, good, stock);
+  return { units, total, after: side === 'Buy' ? after.buy : after.sell };
+}
+
+/**
+ * Why a price is what it is: the market's stock against its usual, whether that makes the good cheap or dear
+ * here, its usual prices, and the news behind a shock if one is moving it.
+ */
+export function priceStory(content: ContentPack, state: WorldState, s: Settlement & { name?: string }, good: string) {
+  const stock = state.markets?.[s.id]?.[good] ?? 0;
+  const usualStock = normalStock(content, s, good);
+  const now = quote(content, s, good, stock);
+  const usual = quote(content, s, good, usualStock);
+  const ratio = (now.buy + now.sell) / Math.max(1, usual.buy + usual.sell);
+  const level: 'cheap' | 'usual' | 'dear' = ratio > 1.15 ? 'dear' : ratio < 0.87 ? 'cheap' : 'usual';
+  const shock = activeShock(state, s.id, good);
+  const name = content.goods.find((g) => g.id === good)?.name.toLowerCase() ?? good;
+  const news = shock ? content.economy.shocks.kinds[shock.kind]?.news.replaceAll('{good}', name).replaceAll('{town}', s.name ?? s.id) : undefined;
+  return { stock: Math.round(stock), usualStock: Math.round(usualStock), level, usual, news };
+}
+
 const DEPTH_CAP = 999;
 
 /**

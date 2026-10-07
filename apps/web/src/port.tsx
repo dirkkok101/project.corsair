@@ -11,6 +11,7 @@ import {
   newsAt,
   newsText,
   portTrade,
+  priceStory,
   quote,
   referenceStock,
   daysUnpaid,
@@ -24,6 +25,7 @@ import {
   sellsGuns,
   sellsUpgrade,
   tradeLean,
+  tradePreview,
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 import { shipTitle } from './hail';
@@ -77,6 +79,174 @@ function Takes({ depth }: { depth: number }) {
 /** Services that work so far; the rest are drawn but marked "soon". */
 const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
+
+/**
+ * The merchant (PRD section 6), made to explain itself: each good's price here and why (its stock against
+ * the usual, and the news behind a shock), what you hold and what you paid, what selling now would make or
+ * lose, the best sale you know of, and, as you point at a button, exactly what that trade comes to.
+ */
+function Merchant({
+  content,
+  state,
+  town,
+  ship,
+  bestSale,
+  trade,
+}: {
+  content: ContentPack;
+  state: WorldState;
+  town: PlacedSettlement;
+  ship: import('@corsair/core').Ship;
+  bestSale: (good: string) => { name: string; sell: number; age: number; depth?: number } | undefined;
+  trade: (type: 'Buy' | 'Sell', good: string, quantity: number) => void;
+}) {
+  const [preview, setPreview] = useState<string>();
+  const market = state.markets?.[town.id] ?? {};
+  const gold = state.captain?.gold ?? 0;
+  const capacity = content.ships[ship.classId]!.cargo;
+  const used = cargoUsed(ship);
+  return (
+    <div class="merchant">
+      <table class="market">
+        <thead>
+          <tr>
+            <th>Goods</th>
+            <th title="What the merchant charges you, and pays you, for one unit now">Price here: buy · sell</th>
+            <th title="Units this market takes before its sell price falls by a quarter">Takes</th>
+            <th>In your hold</th>
+            <th title="The best price you have seen another port pay">Best sale you know</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {content.goods.map((g) => {
+            const stock = market[g.id] ?? 0;
+            const q = quote(content, town, g.id, stock);
+            const held = ship.cargo[g.id] ?? 0;
+            const side = tradeLean(content, town, g.id);
+            const tag = side === 'exports' ? 'made here' : side === 'wants' ? 'needed here' : '';
+            const story = priceStory(content, state, town, g.id);
+            const name = g.name.toLowerCase();
+            const why = [
+              `Stock here ${story.stock}; usually about ${story.usualStock}.`,
+              story.level === 'dear'
+                ? `Short of ${name}, so it is dear: usually ${story.usual.buy} · ${story.usual.sell}.`
+                : story.level === 'cheap'
+                  ? `Plenty of ${name}, so it is cheap: usually ${story.usual.buy} · ${story.usual.sell}.`
+                  : `About its usual price here.`,
+              ...(story.news ? [story.news] : []),
+              side === 'exports' ? `${town.name} makes ${name}: it is cheap to buy here.` : side === 'wants' ? `${town.name} needs ${name}: it sells well here.` : '',
+              'Each unit you buy raises the price; each you sell lowers it.',
+            ].filter(Boolean);
+            const cost = held > 0 && ship.paid?.[g.id] !== undefined ? ship.paid[g.id]! / held : undefined;
+            const plunder = ship.plunder?.[g.id] ?? 0;
+            const best = bestSale(g.id);
+            const margin = best && best.sell - q.buy;
+            const room = capacity - used;
+            const say = (side: 'Buy' | 'Sell', qty: number) => {
+              const t = tradePreview(content, town, g.id, stock, side, qty, { gold, room, held });
+              if (!t.units) return side === 'Buy' ? (room < 1 ? 'Your hold is full.' : stock < 1 ? `The merchant has no ${name} left.` : `Not enough gold for one ${name}.`) : `You have no ${name} to sell.`;
+              if (side === 'Buy') {
+                return `Buy ${t.units} ${name} for ${t.total.toLocaleString()} gold (${Math.round(t.total / t.units)} each); the price here rises to ${t.after}.${
+                  best && best.sell > t.total / t.units ? ` At ${best.name} they'd fetch about ${best.sell} each.` : ''
+                }`;
+              }
+              // Plunder cost nothing, so only a hold of bought goods has a gain or loss to speak of.
+              const fromPlunder = Math.min(plunder, t.units);
+              const gain = cost !== undefined && !plunder ? Math.round(t.total - cost * t.units) : undefined;
+              return `Sell ${t.units} ${name} for ${t.total.toLocaleString()} gold; the price here falls to ${t.after}.${
+                gain !== undefined ? ` ${gain >= 0 ? `${gain} more than` : `${-gain} less than`} you paid.` : ''
+              }${
+                gain !== undefined && gain < 0
+                  ? ` A merchant pays less than he charges, so goods bought here sell at a loss here: sell where they are needed${best && best.sell > (cost ?? 0) ? `, like ${best.name} (${best.sell})` : ''}.`
+                  : ''
+              }${fromPlunder ? ` ${fromPlunder} are plunder: their gold goes to the crew's chest.` : ''}`;
+            };
+            const hover = (side: 'Buy' | 'Sell', qty: number) => ({ onMouseEnter: () => setPreview(say(side, qty)), onMouseLeave: () => setPreview(undefined) });
+            return (
+              <tr key={g.id}>
+                <td>
+                  <GoodIcon id={g.id} /> {g.name} {tag ? <span class={`trend ${side === 'exports' ? 'export' : 'want'}`}>{tag}</span> : null}
+                </td>
+                <td class="num">
+                  <span class="explain" onMouseEnter={() => setPreview(why.join(' '))} onMouseLeave={() => setPreview(undefined)}>
+                    {q.buy} · {q.sell} <span class={`level ${story.level}`}>{story.level}</span>
+                  </span>
+                </td>
+                <td class="num">
+                  <Takes depth={sellDepth(content, town, g.id, stock)} />
+                </td>
+                <td class="hold">
+                  {held ? (
+                    <>
+                      {held}
+                      {g.id === 'food' ? <span class="paid">{` · ${Math.floor(foodDays(content, ship))} days`}</span> : null}
+                      {cost !== undefined && g.id !== 'food' && !plunder ? (
+                        <span class="paid">
+                          {' '}
+                          paid {Math.round(cost)} ·{' '}
+                          <span class={q.sell >= cost ? 'gain' : 'loss'} title="Selling one here now, against what it cost you">
+                            {q.sell >= cost ? `+${Math.round(q.sell - cost)}` : `−${Math.round(cost - q.sell)}`} each now
+                          </span>
+                        </span>
+                      ) : null}
+                      {plunder ? <span class="paid"> · {plunder} plunder</span> : null}
+                    </>
+                  ) : (
+                    <span class="age">—</span>
+                  )}
+                </td>
+                <td class="best">
+                  {best ? (
+                    <>
+                      {best.name} {best.sell}
+                      <span class="age"> · {best.age === 0 ? 'today' : `${best.age}d ago`}</span>
+                      {best.depth !== undefined ? (
+                        <>
+                          {' · '}
+                          <Takes depth={best.depth} />
+                        </>
+                      ) : null}
+                      {margin! > 0 ? (
+                        <span class="gain" title="Profit per unit, buying here and selling there">
+                          {' '}
+                          ▲ +{margin} each
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span class="age">not seen yet</span>
+                  )}
+                </td>
+                <td class="actions">
+                  <button {...hover('Buy', 1)} onClick={() => trade('Buy', g.id, 1)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
+                    Buy 1
+                  </button>
+                  <button {...hover('Buy', 10)} onClick={() => trade('Buy', g.id, 10)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
+                    10
+                  </button>
+                  <button {...hover('Buy', ALL)} onClick={() => trade('Buy', g.id, ALL)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
+                    Max
+                  </button>
+                  <button {...hover('Sell', 1)} onClick={() => trade('Sell', g.id, 1)} disabled={held < 1}>
+                    Sell 1
+                  </button>
+                  <button {...hover('Sell', ALL)} onClick={() => trade('Sell', g.id, ALL)} disabled={held < 1}>
+                    All
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div class="merchant-preview">
+        {preview ??
+          'Point at a button to see what the trade comes to. Point at a price to see why it is what it is: every unit you buy raises it, every unit you sell lowers it.'}
+      </div>
+    </div>
+  );
+}
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
 export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date }: PortProps) {
@@ -227,100 +397,11 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             send={send}
           />
         ) : (
-          <table class="market">
-            <thead>
-              <tr>
-                <th>Goods</th>
-                <th>Buy</th>
-                <th>Sell</th>
-                <th title="Units this market takes before its sell price falls by a quarter">Takes</th>
-                <th>Hold</th>
-                <th title="The best price you have seen another port pay">Best sale you know</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {content.goods.map((g) => {
-                const stock = market[g.id] ?? 0;
-                const q = quote(content, town, g.id, stock);
-                const held = ship.cargo[g.id] ?? 0;
-                // Trade tags say which way to deal: buy where the port makes the good, sell where it needs it.
-                const side = tradeLean(content, town, g.id);
-                const tag = side === 'exports' ? 'buy here' : side === 'wants' ? 'sells well' : '';
-                const scarce = stock < referenceStock(content, town, g.id) * 0.25;
-                const cost = held > 0 && ship.paid?.[g.id] !== undefined ? Math.round(ship.paid[g.id]! / held) : undefined;
-                const best = bestSale(g.id);
-                const margin = best && best.sell - q.buy;
-                return (
-                  <tr key={g.id}>
-                    <td>
-                      <GoodIcon id={g.id} /> {g.name} {tag ? <span class={`trend ${side === 'exports' ? 'export' : 'want'}`}>{tag}</span> : null}
-                      {scarce ? <span class="trend scarce">scarce</span> : null}
-                    </td>
-                    <td class="num">{q.buy}</td>
-                    <td class={`num${cost === undefined ? '' : q.sell > cost ? ' gain' : ' loss'}`}>{q.sell}</td>
-                    <td class="num">
-                      <Takes depth={sellDepth(content, town, g.id, stock)} />
-                    </td>
-                    <td class="num hold">
-                      {held || ''}
-                      {g.id === 'food' && held ? <span class="paid" title="How long it lasts this crew">{` · ${Math.floor(foodDays(content, ship))} days`}</span> : null}
-                      {cost !== undefined ? (
-                        <span class="paid" title="What you paid per unit">
-                          {' '}
-                          @{cost}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td class="best">
-                      {best ? (
-                        <>
-                          {best.name} {best.sell}
-                          <span class="age"> · {best.age === 0 ? 'today' : `${best.age}d`}</span>
-                          {best.depth !== undefined ? (
-                            <>
-                              {' · '}
-                              <Takes depth={best.depth} />
-                            </>
-                          ) : null}
-                          {/* Only a run that pays is flagged: buy here, sell there. */}
-                          {margin! > 0 ? (
-                            <span class="gain" title="Profit per unit, buying here and selling there">
-                              {' '}
-                              ▲+{margin}
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        <span class="age">—</span>
-                      )}
-                    </td>
-                    <td class="actions">
-                      <button onClick={() => trade('Buy', g.id, 1)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
-                        Buy 1
-                      </button>
-                      <button onClick={() => trade('Buy', g.id, 10)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
-                        10
-                      </button>
-                      <button onClick={() => trade('Buy', g.id, ALL)} disabled={stock < 1 || gold < q.buy || used >= capacity}>
-                        Max
-                      </button>
-                      <button onClick={() => trade('Sell', g.id, 1)} disabled={held < 1}>
-                        Sell 1
-                      </button>
-                      <button onClick={() => trade('Sell', g.id, ALL)} disabled={held < 1}>
-                        All
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <Merchant content={content} state={state} town={town} ship={ship} bestSale={bestSale} trade={trade} />
         )}
 
         <footer class="port-foot">
-          <span>{open === 'merchant' ? 'Prices are per unit; each unit you trade moves the price.' : ''}</span>
+          <span />
           <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
             Set sail · E
           </button>

@@ -18,11 +18,13 @@ import {
   newsText,
   normalStock,
   portTrade,
+  priceStory,
   quote,
   seawardHeading,
   sellDepth,
   shockFactor,
   tradeLean,
+  tradePreview,
   withEconomy,
 } from '../src';
 
@@ -556,6 +558,34 @@ describe('the governor', () => {
     gov.send({ type: 'CollectBounties', shipId: 'player' });
     gov.applyCommands();
     expect(gov.events().at(-1)!.payload.reason).toBe('nothing-owed');
+  });
+});
+
+describe('explaining prices', () => {
+  it('previews a trade unit by unit, as Buy and Sell price it, and stops where the trade would', () => {
+    const sim = moored();
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const stock = sim.state.markets![portRoyal.id]!.sugar!;
+    const preview = tradePreview(content, portRoyal, 'sugar', stock, 'Buy', 10, { gold: 100_000, room: 100, held: 0 });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 10 });
+    sim.applyCommands();
+    const bought = sim.events().find((e) => e.type === 'Bought')!.payload;
+    expect(preview).toMatchObject({ units: 10, total: bought.gold });
+    expect(preview.after).toBe(quote(content, portRoyal, 'sugar', stock - 10).buy);
+    // Room and gold stop it where the trade would stop.
+    expect(tradePreview(content, portRoyal, 'sugar', stock, 'Buy', 10, { gold: 100_000, room: 3, held: 0 }).units).toBe(3);
+    expect(tradePreview(content, portRoyal, 'sugar', stock, 'Sell', 50, { gold: 0, room: 0, held: 7 }).units).toBe(7);
+  });
+
+  it('says why a price is what it is: stock against the usual, and the news behind a shock', () => {
+    const sim = moored();
+    const usual = Math.round(normalStock(content, portRoyal, 'sugar'));
+    const at = (sugar: number) => ({ ...sim.state, markets: { ...sim.state.markets, [portRoyal.id]: { ...sim.state.markets![portRoyal.id], sugar } } });
+    expect(priceStory(content, at(usual * 0.3), portRoyal, 'sugar')).toMatchObject({ level: 'dear', usualStock: usual });
+    expect(priceStory(content, at(usual * 3), portRoyal, 'sugar').level).toBe('cheap');
+    const shocked = { ...at(usual * 0.3), shocks: [{ id: 's', kind: 'shortage', settlementId: portRoyal.id, good: 'sugar', startTick: 0, endTick: 1e9 }] };
+    expect(priceStory(content, shocked, { ...portRoyal, name: 'Port Royal' }, 'sugar').news).toContain('Port Royal');
   });
 });
 

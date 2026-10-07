@@ -327,6 +327,8 @@ p = p_{base} \cdot \left(\frac{T}{\max(S, 1)}\right)^{e} \cdot m_{war} \cdot m_{
 - Each trade moves S immediately, so dumping 200 sugar in one port crashes the price. This makes trade routes self-limiting.
 - Built: m_war and m_rep are still 1. Whole-gold rounding never lets the buy price fall to the sell price. Starting stocks vary by +-30% per seed. Over 200 seeds a full purse of Bridgetown sugar sold in Port Royal (a strong market) clears a median of about 330 gold and never loses; sold in Coro, which uses only a little sugar, it makes about 75 and loses one start in five.
 
+- Built (trading screen): the merchant explains himself. Each good shows its price here (buy and sell) with a cheap, usual or dear mark against its usual price; pointing at a price says why (today's stock against the usual, the news behind a shock, whether the town makes or needs it, and that every unit traded moves it). The hold column shows what you paid each and what selling one here now would gain or lose; the best sale you know of shows its profit a unit. Pointing at any Buy or Sell button previews the trade exactly as it would go (`tradePreview`: units, gold, the price after it, the gain or loss against what you paid, plunder's gold going to the chest), and a sale at a loss says why (the merchant's spread) and where to sell instead.
+
 ### Production and consumption
 
 - Weekly tick: S += production - consumption, clamped. Production scales with population and a random harvest factor. Built as recovery: each week S closes 25% of the gap to its usual stock, times a harvest of 0.8 to 1.2, capped at 3x usual.

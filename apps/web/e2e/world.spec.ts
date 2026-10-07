@@ -208,13 +208,13 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   // What the port makes and needs is common knowledge, and the rows say which way to trade.
   await expect(page.locator('.port-lean')).toContainText('exports Sugar');
   const sugar = page.locator('.port .market tr', { hasText: 'Sugar' });
-  await expect(sugar).toContainText('buy here');
+  await expect(sugar).toContainText('made here');
   // Food is a staple: never worth carrying, so it gets no trade tag. Every good shows how much its market takes.
   await expect(page.locator('tr', { hasText: 'Food' }).locator('.trend')).toHaveCount(0);
   // This port's own depth comes first; a remembered best sale elsewhere shows its depth too.
   await expect(sugar.locator('.takes').first()).toHaveText(/^~\d+$/);
   await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
-  await expect(sugar.locator('.paid')).toContainText('@');
+  await expect(sugar.locator('.paid')).toContainText('paid');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);
   await page.screenshot({ path: 'test-results/port.png' });
@@ -229,9 +229,9 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
 
   await goTo('Port Royal');
   const sugarHere = page.locator('.port .market tr', { hasText: 'Sugar' });
-  await expect(sugarHere).toContainText('sells well');
+  await expect(sugarHere).toContainText('needed here');
   // Selling above what the hold cost shows as a gain; Bridgetown is now a remembered price.
-  await expect(sugarHere.locator('td.num.gain')).toHaveCount(1);
+  await expect(sugarHere.locator('.hold .gain')).toContainText('each now');
   await expect(sugarHere.locator('.best')).toContainText('Bridgetown');
   await expect(sugarHere.locator('.best .takes')).toHaveText(/^~\d+$/);
   await page.screenshot({ path: 'test-results/port-trade.png' });

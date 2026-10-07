@@ -382,6 +382,56 @@ body {
   white-space: nowrap;
 }
 
+/* The merchant: a big ledger, a row per good, every number explained on hover. */
+.port-panel:has(.merchant) {
+  max-height: 80vh;
+}
+
+.merchant .market td {
+  padding: 5px 8px 5px 0;
+  font-size: 14px;
+}
+
+.merchant .market .ui-art.inline-icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: -7px;
+}
+
+.level {
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+  border: 1px solid currentColor;
+}
+
+.level.cheap {
+  color: #a8ca58;
+}
+
+.level.dear {
+  color: #df84a5;
+}
+
+.level.usual {
+  color: #819796;
+}
+
+.merchant-preview {
+  min-height: 2.8em;
+  margin-top: 8px;
+  padding: 6px 10px;
+  color: #e8c170;
+  background: rgb(9 10 20 / 0.5);
+  border-left: 3px solid #e8c170;
+}
+
+/* A number explained in the preview line when pointed at. */
+.explain {
+  cursor: help;
+  border-bottom: 1px dotted #819796;
+}
+
 /* A good's name and its badges, and what's in the hold, each stay on one line (the headings may wrap). */
 .market td:first-child,
 .market .hold,
