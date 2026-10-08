@@ -7,16 +7,17 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@corsair/audio": "workspace:*",
     "@corsair/core": "workspace:*",
     "@corsair/data": "workspace:*",
-    "@corsair/render": "workspace:*",
-    "@corsair/systems-navigation": "workspace:*",
-    "preact": "^11.0.0",
-    "@corsair/systems-weather": "workspace:*",
-    "@corsair/audio": "workspace:*",
-    "@corsair/systems-economy": "workspace:*",
-    "@corsair/systems-traffic": "workspace:*",
     "@corsair/minigame-sea-battle": "workspace:*",
-    "@corsair/systems-politics": "workspace:*"
+    "@corsair/render": "workspace:*",
+    "@corsair/render3d": "workspace:*",
+    "@corsair/systems-economy": "workspace:*",
+    "@corsair/systems-navigation": "workspace:*",
+    "@corsair/systems-politics": "workspace:*",
+    "@corsair/systems-traffic": "workspace:*",
+    "@corsair/systems-weather": "workspace:*",
+    "preact": "^11.0.0"
   }
 }

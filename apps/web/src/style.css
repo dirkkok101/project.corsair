@@ -18,6 +18,19 @@ body {
   image-rendering: pixelated;
 }
 
+/* The 3D sea map (?renderer=3d): over the 2D canvas, full window; the 2D labels are for the 2D camera. */
+.viewport canvas.sea3d {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.viewport.three-d .labels {
+  display: none;
+}
+
 .viewport {
   position: relative;
   overflow: hidden;

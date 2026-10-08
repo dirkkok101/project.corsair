@@ -3,6 +3,7 @@ import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SE
 import type { Nation, Ship } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createRenderer, fitView, parseGpl } from '@corsair/render';
+import { createSeaRenderer } from '@corsair/render3d';
 import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
@@ -52,6 +53,14 @@ const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
   query: '?url',
   import: 'default',
 });
+// The 3D sea map (?renderer=3d, being built): ship models by class (tools/art/export_ships_glb.py).
+const RENDER_3D = new URLSearchParams(location.search).get('renderer') === '3d';
+const shipModels = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../../../art/game/models/*.glb', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
+    path.split('/').pop()!.replace(/\.glb$/, ''),
+    url,
+  ]),
+);
 const townFrames = import.meta.glob<string>('../../../art/game/settlements/*.png', {
   eager: true,
   query: '?url',
@@ -248,6 +257,15 @@ async function main() {
   const viewport = stage.appendChild(document.createElement('div'));
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
+  // The 3D sea map draws over the 2D one at sea; port scenes and battles are still the 2D renderer's.
+  const sea3d = RENDER_3D ? await createSeaRenderer(content, map, { playerId: def.start.shipId, settlements, windAt, models: shipModels }) : undefined;
+  if (sea3d) {
+    viewport.appendChild(sea3d.canvas);
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      sea3d.zoom(Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / 40));
+    }, { passive: false });
+  }
   const labels = createLabels(viewport, settlements, map.tileSize);
   const shipLabels = createShipLabels(viewport, map.tileSize);
   const hudRoot = stage.appendChild(document.createElement('div'));
@@ -517,6 +535,7 @@ async function main() {
     scale = view.scale / devicePixelRatio;
     renderer.canvas.style.width = `${view.cssWidth}px`;
     renderer.canvas.style.height = `${view.cssHeight}px`;
+    sea3d?.resize(innerWidth, innerHeight);
   };
   fit();
   window.addEventListener('resize', fit);
@@ -551,6 +570,8 @@ async function main() {
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
       return;
     }
+    // C: the 3D camera overhead or from astern.
+    if (sea3d && e.key.toLowerCase() === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
     // E: enter the port in reach, or set sail again.
     if (e.key.toLowerCase() === 'e' && !e.repeat) {
       const ship = player();
@@ -1060,6 +1081,13 @@ async function main() {
       audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
     }
     renderer.render(sim.state, now);
+    if (sea3d) {
+      // At sea the 3D view covers the 2D one (whose labels, drawn for the 2D camera, are hidden under it).
+      const atSea = !fight && !renderer.harbour.visible;
+      sea3d.canvas.style.display = atSea ? '' : 'none';
+      viewport.classList.toggle('three-d', atSea);
+      if (atSea) sea3d.render(sim.state, now, hourOf(sim.state.tick, content.calendar.ticksPerDay));
+    }
     labels.update(renderer.camera(), renderer.view(), scale);
     shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
     charts.update(

@@ -33,7 +33,7 @@ Project Corsair is a browser-based, single-player pirate career sim set in the 1
 ### Non-goals for v1.0
 
 - Multiplayer or shared worlds.
-- 3D graphics. The game is 2D sprites and tiles.
+- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D.
 - Monetisation, accounts or cloud saves. Saves live in browser storage with file export.
 - Historical accuracy beyond flavour. Fun wins over realism.
 
@@ -697,7 +697,7 @@ The renderer never mutates state. Every change enters through the command bus an
 | Concern | Choice | Why |
 |---|---|---|
 | Language | TypeScript (strict) | One language for core, UI, tools and tests |
-| Rendering | PixiJS v8 (WebGL/WebGPU) | Fast sprite batching and tilemaps; no engine lock-in |
+| Rendering | PixiJS v8 (WebGL/WebGPU) for the 2D views; Three.js for the 3D sea map and battles (`@corsair/render3d`, being built behind `?renderer=3d`) | Fast sprite batching for the 2D views; Three.js is the most established 3D library on the web, reads glTF ship models and fits TypeScript; no engine lock-in |
 | UI | Preact + CSS over the canvas | Menus, journal, trade screens are easier as DOM |
 | Build | Vite, pnpm workspaces | Fast dev loop, one package per module |
 | Data validation | JSON Schema + Ajv (or Zod generating schema) | Validate content at build and at boot |
@@ -715,6 +715,7 @@ Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The des
 - `@corsair/minigame-*`: sea-battle, fencing, land-battle, dance, stealth, trade. Each exports `init(snapshot, params)`, `step(input)`, `result()`.
 - `@corsair/data`: loaders, schemas, content-pack merging (base game + mods).
 - `@corsair/render`: PixiJS scenes, sprite atlas management, camera, tilemap.
+- `@corsair/render3d`: the 3D sea map (Three.js): the sea, islands from the elevation map, ships from glTF models, sky, camera.
 - `@corsair/ui`: Preact screens.
 - `@corsair/devtools`: debug API, inspector overlay, event log viewer.
 - `@corsair/sim-runner`: Node CLI for headless runs, soak tests and balance reports.
