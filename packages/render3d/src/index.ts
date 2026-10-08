@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -14,6 +13,7 @@ import type { SeaState } from './ocean';
 import { loadShipModels, makeShip } from './ships';
 import type { ShipModel } from './ships';
 import { createGround } from './terrain';
+import { createSky } from './sky';
 import { createWakes } from './wakes';
 
 // The 3D sea map (art direction: Sid Meier's Pirates! 2004, in HD): the world in map tiles, x east and z south,
@@ -66,6 +66,9 @@ const MOON = new THREE.Color('#8aa4ff');
 const DAY_SKY = new THREE.Color('#9fd3f0');
 const GOLD_SKY = new THREE.Color('#f2a679');
 const NIGHT_SKY = new THREE.Color('#2c4670');
+const DAY_ZENITH = new THREE.Color('#2f7fcf');
+const GOLD_ZENITH = new THREE.Color('#5568a8');
+const NIGHT_ZENITH = new THREE.Color('#0d1a33');
 const PENNANT: Record<string, string> = { spain: '#e8c170', england: '#a53030', france: '#ebede9', netherlands: '#de9e41', pirate: '#090a14' };
 
 export interface SeaRenderer {
@@ -108,20 +111,14 @@ export async function createSeaRenderer(
   // The finished image: soft bloom on sun, sails and foam (Pirates!'s glow), anti-aliased, tone-mapped last.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1920, 1080), 0.32, 0.5, 0.86);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1920, 1080), 0.22, 0.45, 0.94);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   composer.addPass(new SMAAPass());
 
   // Sky and light: a clear Caribbean sky, the sun (with a shadow near the player), a soft fill from the sky.
-  const sky = new Sky();
-  sky.scale.setScalar(3000);
-  const su = sky.material.uniforms as Record<string, THREE.IUniform>;
-  su.turbidity!.value = 2.2;
-  su.rayleigh!.value = 1.1;
-  su.mieCoefficient!.value = 0.004;
-  su.mieDirectionalG!.value = 0.8;
-  scene.add(sky);
+  const sky = createSky();
+  scene.add(sky.mesh);
   const sun = new THREE.DirectionalLight('#fff1d6', 2.4);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -135,7 +132,7 @@ export async function createSeaRenderer(
   scene.add(fill);
 
   const ground = createGround(map);
-  for (const m of ground.meshes) scene.add(m);
+  scene.add(ground.object);
   const ocean = createOcean(ground.depth, map.width, map.height);
   scene.add(ocean.mesh);
 
@@ -221,6 +218,7 @@ export async function createSeaRenderer(
   const target = new THREE.Vector3();
   const sunDir = new THREE.Vector3();
   const light = { sunDir, sun: new THREE.Color(), sky: new THREE.Color(), level: 1, fog: new THREE.Color(), fogDensity: 0.002 };
+  const zenith = new THREE.Color();
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
   let skySeconds = SKY_START;
@@ -245,15 +243,14 @@ export async function createSeaRenderer(
     const elevation = Math.max(4, e * 70);
     const azimuth = ((hour - 6) / 12) * 180 + 90;
     sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elevation), THREE.MathUtils.degToRad(azimuth));
-    su.sunPosition!.value.copy(sunDir);
     // Bright through the golden hours (a Technicolor sunset, not a dim one); a readable moonlit night.
     const level = THREE.MathUtils.lerp(0.55, 1, THREE.MathUtils.smoothstep(e, -0.12, 0.08));
     light.level = level;
     light.sun.copy(GOLD_SUN).lerp(DAY_SUN, dayness).lerp(MOON.clone().multiplyScalar(0.6), night);
     light.sky.copy(GOLD_SKY).lerp(DAY_SKY, dayness).lerp(NIGHT_SKY, night);
-    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.25 * dayness);
-    // At night the sky dome (sun below the horizon) gives way to a moonlit blue.
-    sky.visible = night < 0.5;
+    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.08 * dayness);
+    // The dome: deep blue overhead, the horizon in the hour's colour.
+    zenith.copy(GOLD_ZENITH).lerp(DAY_ZENITH, dayness).lerp(NIGHT_ZENITH, night);
     (scene.background as THREE.Color).copy(light.sky);
     sun.intensity = THREE.MathUtils.lerp(0.9, 2.6, THREE.MathUtils.smoothstep(e, -0.05, 0.12));
     sun.color.copy(light.sun);
@@ -334,7 +331,9 @@ export async function createSeaRenderer(
     camera.lookAt(target.x, 0.6, target.z);
     sun.position.copy(target).addScaledVector(sunDir, 200);
     sun.target.position.copy(target);
+    ground.update(camera.position, target);
     ocean.update(target, sea, t, light);
+    sky.update(camera.position, zenith, light.sky, sunDir, light.sun);
     composer.render(dt);
   };
 
