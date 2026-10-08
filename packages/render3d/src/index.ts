@@ -6,12 +6,16 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
+import type { BattleViewState } from '@corsair/render/battle';
 import { sailAnim } from '@corsair/render/sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
 import { createOcean, seaHeight } from './ocean';
 import type { SeaState } from './ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
+import type { BuiltShip, ShipPlan } from './shipyard';
+import { createBattleFx } from './battle';
+import type { BattleHull } from './battle';
 import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
@@ -40,6 +44,11 @@ const FAR_SHIP_SCALE = 4;
 const SHIP_LENGTH = 2.4 * MODEL_SCALE;
 /** How fast a ship eases into the swell's pitch and roll (per second): slow, so she rocks rather than bounces. */
 const RIDE_EASE = 1.1;
+/** The battle camera's distance in tiles, framing both ships, before the player's own zoom (a factor). */
+const BATTLE_VIEW = { min: 16, max: 90 };
+const BATTLE_ZOOM = { min: 0.45, max: 3 };
+/** A sunk ship takes this long to go under. */
+const SINK_SECONDS = 6;
 
 /**
  * The sky keeps its own slow day, not the game clock's (a game day passes in under half a minute): a long
@@ -80,9 +89,11 @@ export interface SeaRenderer {
   canvas: HTMLCanvasElement;
   /** Draws the sea map for this state; `nowMs` is the frame time (the sky keeps its own slow day). */
   render(state: WorldState, nowMs: number): void;
+  /** Draws the sea battle (on the same sea: its positions are world tiles); `enemyNation` flies her colours. */
+  renderBattle(view: BattleViewState, nowMs: number, enemyNation?: string): void;
   /** CSS size of the view; the canvas renders at the device's pixel ratio. */
   resize(width: number, height: number): void;
-  /** Zoom by wheel steps (positive out). */
+  /** Zoom by wheel steps (positive out); in a battle, the camera's framing of the fight. */
   zoom(steps: number): void;
   /** Overhead or from astern. */
   toggleChase(): void;
@@ -169,11 +180,13 @@ export async function createSeaRenderer(
   }
 
   const wakes = createWakes(scene);
+  const worldShips = new THREE.Group();
+  scene.add(worldShips);
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; classId: string }>();
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
     if (m && m.classId !== s.classId) {
-      scene.remove(m.root);
+      worldShips.remove(m.root);
       m = undefined;
     }
     if (!m) {
@@ -181,7 +194,7 @@ export async function createSeaRenderer(
       const built = buildShip(RIGS[s.classId] ?? RIGS['ship.brig']!, s.ai?.nation ?? 'player');
       m = { root: built.root, setSails: (anim: string) => built.setSails(...sailsOf(anim), lastMs), classId: s.classId };
       ships.set(s.id, m);
-      scene.add(m.root);
+      worldShips.add(m.root);
     }
     return m;
   };
@@ -198,18 +211,13 @@ export async function createSeaRenderer(
   // Each ship's ride: her height on the swell and her pitch and roll, eased toward the sea's each frame.
   const rides = new Map<string, { bob: number; pitch: number; roll: number }>();
 
-  const render = (state: WorldState, nowMs: number) => {
-    const t = nowMs / 1000;
+  /** The frame's clock and the hour's light: sun, sky, sea and sails blend smoothly by the sun's height. */
+  const beginFrame = (nowMs: number, view: number) => {
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
     skySeconds += dt;
     const hour = skyHour(skySeconds);
-    const me = state.ships[options.playerId];
-    if (!me) return;
-    const wind = options.windAt(state, me.x, me.y);
-    const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
-
-    // The sun's arc from 6 to 18; light, sky and sea blend smoothly by its height: golden low, moonlit blue at night.
+    // The sun's arc from 6 to 18; golden low, moonlit blue at night.
     const e = Math.sin(((hour - 6) / 12) * Math.PI);
     const dayness = THREE.MathUtils.smoothstep(e, 0.05, 0.4);
     const night = 1 - THREE.MathUtils.smoothstep(e, -0.14, 0.02);
@@ -232,9 +240,106 @@ export async function createSeaRenderer(
     fill.intensity = 0.55 + level * 0.5;
     fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);
     renderer.toneMappingExposure = 0.7 + level * 0.3;
-    light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, distance)) ** 0.5;
+    light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, view)) ** 0.5;
+    return dt;
+  };
 
-    // Ships: each at her place, riding the swell, heeled by the wind on her beam, her sails for the wind.
+  /**
+   * A ship at her place, riding the swell under her whole hull (so she rides it rather than every ripple),
+   * heeled by the wind on her beam. Returns her drawn length.
+   */
+  const placeShip = (
+    id: string,
+    root: THREE.Object3D,
+    s: { x: number; y: number; headingDeg: number; sails: string },
+    w: Wind,
+    sea: SeaState,
+    t: number,
+    dt: number,
+    scale: number,
+  ) => {
+    const len = SHIP_LENGTH * scale;
+    const r = (s.headingDeg * Math.PI) / 180;
+    const fx = Math.sin(r);
+    const fz = -Math.cos(r);
+    const at = (along: number, abeam: number) => seaHeight(sea, s.x + fx * along - fz * abeam, s.y + fz * along + fx * abeam, t);
+    const bow = at(len * 0.4, 0);
+    const stern = at(-len * 0.4, 0);
+    const port = at(0, -len * 0.12);
+    const starboard = at(0, len * 0.12);
+    let rel = normalizeDeg(w.fromDeg - s.headingDeg);
+    if (rel > 180) rel -= 360;
+    const press = s.sails === 'furled' ? 0 : (s.sails === 'full' ? 1 : 0.6) * strengthOf(w);
+    const heel = Math.sin((rel * Math.PI) / 180) * press * 0.12;
+    const ride = rides.get(id) ?? { bob: 0, pitch: 0, roll: 0 };
+    const ease = 1 - Math.exp(-dt * RIDE_EASE);
+    ride.bob += ((bow + stern + port + starboard) / 4 - ride.bob) * ease;
+    ride.pitch += (Math.atan2(bow - stern, len * 0.8) - ride.pitch) * ease;
+    ride.roll += (Math.atan2(starboard - port, len * 0.24) * 0.5 + heel - ride.roll) * ease;
+    rides.set(id, ride);
+    root.position.set(s.x, ride.bob, s.y);
+    root.rotation.set(0, 0, 0);
+    root.rotateY(-r);
+    root.rotateX(ride.pitch);
+    root.rotateZ(-ride.roll);
+    root.scale.setScalar(MODEL_SCALE * scale);
+    return len;
+  };
+
+  /** Clouds drifting downwind (shown only from afar), the camera, and the frame drawn. */
+  const finishFrame = (view: number, pitch: number, yaw: number, wind: Wind, sea: SeaState, t: number, dt: number) => {
+    cloudMat.opacity = 0.85 * THREE.MathUtils.smoothstep(view, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!);
+    const drift = strengthOf(wind) * 1.6 * dt;
+    const to = ((wind.fromDeg + 180) * Math.PI) / 180;
+    for (const c of clouds) {
+      c.position.x = (c.position.x + Math.sin(to) * drift + map.width) % map.width;
+      c.position.z = (c.position.z - Math.cos(to) * drift + map.height) % map.height;
+    }
+    const back = new THREE.Vector3(0, Math.sin(pitch), Math.cos(pitch)).multiplyScalar(view);
+    back.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    camera.position.copy(target).add(back);
+    camera.lookAt(target.x, 0.6, target.z);
+    sun.position.copy(target).addScaledVector(sunDir, 200);
+    sun.target.position.copy(target);
+    ground.update(camera.position, target);
+    ocean.update(target, sea, t, light);
+    sky.update(camera.position, zenith, light.sky, sunDir, light.sun);
+    towns.update(t);
+    composer.render(dt);
+  };
+
+  // The sea battle: its two ships, built like any other, and its layer of shot, smoke and wreckage.
+  const fx = createBattleFx();
+  fx.object.visible = false;
+  scene.add(fx.object);
+  const fighters = new Map<'player' | 'enemy', { built: BuiltShip; classId: string; plan: ShipPlan }>();
+  let inBattle = false;
+  let battleZoom = 1;
+  let battleView = BATTLE_VIEW.min;
+  let sinkingFrom: number | undefined;
+  /** Back to the sea map: the fight's ships and its wreckage go; the world's ships return. */
+  const leaveBattle = () => {
+    inBattle = false;
+    for (const [side, f] of fighters) {
+      scene.remove(f.built.root);
+      rides.delete(`battle.${side}`);
+    }
+    fighters.clear();
+    fx.object.visible = false;
+    fx.reset();
+    worldShips.visible = true;
+  };
+
+  const render = (state: WorldState, nowMs: number) => {
+    if (inBattle) leaveBattle();
+    const me = state.ships[options.playerId];
+    if (!me) return;
+    const dt = beginFrame(nowMs, distance);
+    const t = nowMs / 1000;
+    const wind = options.windAt(state, me.x, me.y);
+    const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
+
+    // Ships: each at her place, her sails for the wind; far out they grow so they stay readable.
     const farScale = THREE.MathUtils.clamp(distance / 140, 1, FAR_SHIP_SCALE);
     const seen = new Set<string>();
     for (const s of Object.values(state.ships)) {
@@ -242,36 +347,11 @@ export async function createSeaRenderer(
       seen.add(s.id);
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
-      // The swell under her whole hull (bow and stern, both sides), so she rides it rather than every ripple.
-      const len = SHIP_LENGTH * farScale;
-      const r = (s.headingDeg * Math.PI) / 180;
-      const fx = Math.sin(r);
-      const fz = -Math.cos(r);
-      const at = (along: number, abeam: number) => seaHeight(sea, s.x + fx * along - fz * abeam, s.y + fz * along + fx * abeam, t);
-      const bow = at(len * 0.4, 0);
-      const stern = at(-len * 0.4, 0);
-      const port = at(0, -len * 0.12);
-      const starboard = at(0, len * 0.12);
-      let rel = normalizeDeg(w.fromDeg - s.headingDeg);
-      if (rel > 180) rel -= 360;
-      const press = s.sails === 'furled' ? 0 : (s.sails === 'full' ? 1 : 0.6) * strengthOf(w);
-      const heel = Math.sin((rel * Math.PI) / 180) * press * 0.12;
-      const ride = rides.get(s.id) ?? { bob: 0, pitch: 0, roll: 0 };
-      const ease = 1 - Math.exp(-dt * RIDE_EASE);
-      ride.bob += ((bow + stern + port + starboard) / 4 - ride.bob) * ease;
-      ride.pitch += (Math.atan2(bow - stern, len * 0.8) - ride.pitch) * ease;
-      ride.roll += (Math.atan2(starboard - port, len * 0.24) * 0.5 + heel - ride.roll) * ease;
-      rides.set(s.id, ride);
-      m.root.position.set(s.x, ride.bob, s.y);
-      m.root.rotation.set(0, 0, 0);
-      m.root.rotateY(-r);
-      m.root.rotateX(ride.pitch);
-      m.root.rotateZ(-ride.roll);
-      m.root.scale.setScalar(MODEL_SCALE * farScale);
+      placeShip(s.id, m.root, s, w, sea, t, dt, farScale);
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
-      scene.remove(m.root);
+      worldShips.remove(m.root);
       ships.delete(id);
       rides.delete(id);
     }
@@ -285,42 +365,111 @@ export async function createSeaRenderer(
       light.level,
     );
 
-    // Clouds drift with the wind where the player is, and show only from afar.
-    cloudMat.opacity = 0.85 * THREE.MathUtils.smoothstep(distance, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!);
     for (const n of names) n.sprite.visible = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
     // Each town's line, from the game's state, freshened every couple of seconds (redrawn only when it changes).
     if (options.townLine && nowMs - bannersAt > 2000) {
       bannersAt = nowMs;
       for (const n of names) if (n.sprite.visible) n.banner.setLine(options.townLine(n.s, state));
     }
-    const drift = strengthOf(wind) * 1.6 * dt;
-    const to = ((wind.fromDeg + 180) * Math.PI) / 180;
-    for (const c of clouds) {
-      c.position.x = (c.position.x + Math.sin(to) * drift + map.width) % map.width;
-      c.position.z = (c.position.z - Math.cos(to) * drift + map.height) % map.height;
-    }
 
     // Camera: overhead (steeper the further out) or from astern, following the player.
     target.set(me.x, 0, me.y);
     const zt = Math.log(distance / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
     const pitch = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
-    const yaw = chase ? (-me.headingDeg * Math.PI) / 180 : 0;
-    const back = new THREE.Vector3(0, Math.sin(pitch), Math.cos(pitch)).multiplyScalar(distance);
-    back.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    camera.position.copy(target).add(back);
-    camera.lookAt(target.x, 0.6, target.z);
-    sun.position.copy(target).addScaledVector(sunDir, 200);
-    sun.target.position.copy(target);
-    ground.update(camera.position, target);
-    ocean.update(target, sea, t, light);
-    sky.update(camera.position, zenith, light.sky, sunDir, light.sun);
-    towns.update(t);
-    composer.render(dt);
+    finishFrame(distance, pitch, chase ? (-me.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
+  };
+
+  /** The sea battle, on the same sea as the map (its positions are world tiles). */
+  const renderBattle = (view: BattleViewState, nowMs: number, enemyNation?: string) => {
+    if (!inBattle) {
+      // A fresh fight: the world's ships give way to the two fighting, the camera starts framing them.
+      inBattle = true;
+      worldShips.visible = false;
+      fx.object.visible = true;
+      fx.reset();
+      sinkingFrom = undefined;
+      battleView = 0;
+    }
+    const wind = view.wind;
+    const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
+    const { player, enemy } = view.ships;
+    const apart = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+    // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close.
+    const want = THREE.MathUtils.clamp(apart * 1.15 + 14, BATTLE_VIEW.min, BATTLE_VIEW.max) * battleZoom;
+    const dt = beginFrame(nowMs, battleView || want);
+    const t = nowMs / 1000;
+    battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;
+
+    const hulls: Partial<Record<'player' | 'enemy', BattleHull>> = {};
+    const wakeShips: Parameters<typeof wakes.update>[0] = [];
+    for (const [side, s] of [['player', player], ['enemy', enemy]] as const) {
+      let f = fighters.get(side);
+      if (f && f.classId !== s.classId) {
+        scene.remove(f.built.root);
+        f = undefined;
+      }
+      if (!f) {
+        const plan = RIGS[s.classId] ?? RIGS['ship.brig']!;
+        f = { built: buildShip(plan, side === 'player' ? 'player' : (enemyNation ?? 'pirate')), classId: s.classId, plan };
+        fighters.set(side, f);
+        scene.add(f.built.root);
+      }
+      // Sails shot to rags show as less canvas set (as the 2D battle draws them).
+      const c = s.sailCondition ?? 100;
+      const sails = c < 25 ? 'furled' : c < 55 && s.sails === 'full' ? 'half' : s.sails;
+      f.built.setSails(...sailsOf(sailAnim(content, { sails, headingDeg: s.headingDeg }, wind, nowMs)), nowMs);
+      const length = placeShip(`battle.${side}`, f.built.root, { ...s, sails }, wind, sea, t, dt, 1);
+      // Going down: she settles by the stern, rolls and is gone under the sea.
+      if (side === 'enemy' && view.wreck) {
+        if (sinkingFrom === undefined) {
+          sinkingFrom = t;
+          fx.splash(t, s.x, s.y);
+        }
+        const k = Math.min(1, (t - sinkingFrom) / SINK_SECONDS);
+        const root = f.built.root;
+        root.rotateX(-0.35 * k);
+        root.rotateZ(0.45 * k * k);
+        root.position.y -= k * k * (f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1) + 0.6) * MODEL_SCALE;
+        root.visible = k < 1;
+      } else f.built.root.visible = true;
+      const tallest = f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1);
+      hulls[side] = {
+        x: s.x,
+        z: s.y,
+        headingDeg: s.headingDeg,
+        length: f.plan.hull.length * MODEL_SCALE,
+        halfBeam: f.plan.hull.beam * MODEL_SCALE,
+        deck: f.plan.hull.rail * MODEL_SCALE,
+        sails: tallest * 0.6 * MODEL_SCALE,
+      };
+      if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, length });
+    }
+    wakes.update(wakeShips, dt, t, light.level);
+    for (const n of names) n.sprite.visible = false;
+
+    fx.update({
+      t,
+      dt,
+      view,
+      hulls: { player: hulls.player!, enemy: hulls.enemy },
+      seaAt: (x, z) => seaHeight(sea, x, z, t),
+      windToDeg: sea.toDeg,
+      windStrength: sea.strength,
+      level: light.level,
+      viewHeight: renderer.domElement.height,
+    });
+
+    // The camera: on the pair (a little toward the player), high and oblique; from astern of her on C.
+    target.set(player.x + (enemy.x - player.x) * 0.45, 0, player.y + (enemy.y - player.y) * 0.45);
+    if (chase) target.set(player.x, 0, player.y);
+    const pitch = THREE.MathUtils.degToRad(chase ? 24 : 52);
+    finishFrame(chase ? Math.min(battleView, 30) : battleView, pitch, chase ? (-player.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
   };
 
   return {
     canvas,
     render,
+    renderBattle,
     resize(width, height) {
       renderer.setSize(width, height);
       composer.setPixelRatio(renderer.getPixelRatio());
@@ -329,7 +478,8 @@ export async function createSeaRenderer(
       camera.updateProjectionMatrix();
     },
     zoom(steps) {
-      distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
+      if (inBattle) battleZoom = THREE.MathUtils.clamp(battleZoom * Math.pow(1.12, steps), BATTLE_ZOOM.min, BATTLE_ZOOM.max);
+      else distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
     },
     toggleChase() {
       chase = !chase;

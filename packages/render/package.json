@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./sails": "./src/sails.ts"
+    "./sails": "./src/sails.ts",
+    "./battle": "./src/battle.ts"
   },
   "dependencies": {
     "@corsair/core": "workspace:*",

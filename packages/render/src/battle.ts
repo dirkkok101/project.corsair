@@ -18,6 +18,8 @@ export interface BattleViewShip {
   headingDeg: number;
   classId: string;
   sails: 'full' | 'half' | 'furled';
+  /** Tiles a second, for her wake. */
+  speed?: number;
   /** Her state, drawn: sails shot to rags show as less canvas set, a hurt hull smokes and then burns. */
   sailCondition?: number;
   hull?: number;
@@ -27,7 +29,8 @@ export interface BattleViewState {
   tick: number;
   wind: Wind;
   ships: { player: BattleViewShip; enemy: BattleViewShip };
-  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape' }[];
+  /** Balls in flight; `hit` ones end on her (the 3D view lands them on her rail or sails, misses in the sea). */
+  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape'; hit?: boolean }[];
   effects: { kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape'; x: number; y: number; at: number }[];
   /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
    * whether each broadside can fire now (as the battle's aim reports it). */

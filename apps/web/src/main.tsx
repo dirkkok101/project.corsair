@@ -255,7 +255,7 @@ async function main() {
   const viewport = stage.appendChild(document.createElement('div'));
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
-  // The 3D sea map draws over the 2D one at sea; port scenes and battles are still the 2D renderer's.
+  // The 3D sea map draws over the 2D one at sea and in battle; port scenes are still the 2D renderer's.
   const sea3d = RENDER_3D ? await createSeaRenderer(content, map, {
           playerId: def.start.shipId,
           settlements,
@@ -588,6 +588,7 @@ async function main() {
       } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
       else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
       else if (k === 'g' && !e.repeat) fight.battle.send({ type: 'Board' });
+      else if (k === 'c' && sea3d && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
       return;
     }
@@ -905,7 +906,12 @@ async function main() {
             port: fight.battle.aim('port'),
             starboard: fight.battle.aim('starboard'),
           };
-      renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, fight.nation);
+      if (sea3d) {
+        // In 3D the fight is drawn on the same sea as the map, over the 2D view.
+        sea3d.canvas.style.display = '';
+        viewport.classList.add('three-d');
+        sea3d.renderBattle({ ...bs, arcs }, now, fight.nation);
+      } else renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, fight.nation);
       const me = player();
       const prize = sim.state.prize;
       render(

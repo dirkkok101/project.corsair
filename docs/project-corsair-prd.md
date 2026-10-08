@@ -715,7 +715,7 @@ Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The des
 - `@corsair/minigame-*`: sea-battle, fencing, land-battle, dance, stealth, trade. Each exports `init(snapshot, params)`, `step(input)`, `result()`.
 - `@corsair/data`: loaders, schemas, content-pack merging (base game + mods).
 - `@corsair/render`: PixiJS scenes, sprite atlas management, camera, tilemap.
-- `@corsair/render3d`: the 3D sea map (Three.js): the sea, islands from the elevation map, ships from glTF models, sky, camera.
+- `@corsair/render3d`: the 3D sea map and sea battles (Three.js): the sea, islands from the elevation map, ships from glTF models, sky, camera; shot, smoke and wreckage in battle.
 - `@corsair/ui`: Preact screens.
 - `@corsair/devtools`: debug API, inspector overlay, event log viewer.
 - `@corsair/sim-runner`: Node CLI for headless runs, soak tests and balance reports.

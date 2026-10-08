@@ -31,6 +31,11 @@ body {
   display: none;
 }
 
+/* The 3D battle camera keeps both ships in view: no marker for an enemy off the edge. */
+.viewport.three-d ~ * .battle-marker {
+  display: none;
+}
+
 .viewport {
   position: relative;
   overflow: hidden;

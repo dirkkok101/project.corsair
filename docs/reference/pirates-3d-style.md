@@ -89,12 +89,20 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   - A jib, spanker, gaff or lateen as the class carries.
   - The nation's ensign and a pennant, streaming.
   - Each ship rides the swell smoothly (her pitch and roll eased, averaged over the hull) and leaves a wake.
+- **Sea battles** (`battle.ts`): fought on the same 3D sea as the map, its positions being world tiles.
+  - The two ships, built like any other; sails shot to rags show as less canvas set.
+  - Balls in flight on flat arcs (hits land on her rail or sails, misses in the sea); chain whirls, grape scatters.
+  - Gunsmoke banks rolling downwind, muzzle flashes, splashes, splinters, torn canvas, grape sparks.
+  - A hurt hull smokes, and below a quarter she burns.
+  - Sunk, she settles by the stern and goes under, leaving barrels and men clinging to spars.
+  - The player's firing arcs on the water, gold when a broadside bears and is loaded.
+  - The camera frames both ships, high and oblique, closer as they close; the wheel zooms, C views from astern.
 - **Image:** bloom, SMAA and ACES tone mapping.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
-  - sea battles in 3D (with shot holes in sails and falling masts);
+  - shot holes in sails and falling masts (the battle doesn't track masts or where a ball struck);
   - bow spray;
   - real town and fort models;
-  - mouse clicks on the 3D view;
+  - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);
   - the course line;
   - region names on the sea.
