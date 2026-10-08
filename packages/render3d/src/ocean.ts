@@ -184,7 +184,9 @@ float flecks(vec2 w, float scale, float density, float footprint, float t) {
   float phase = hash(cell + 9.2);
   float cycle = t * 0.11 + phase;
   float life = fract(cycle);
-  float alive = step(1.0 - density, hash(cell + floor(cycle) * 1.7 + 3.3));
+  // Soft, so a gust coming or going fades flecks in and out rather than switching them (a hard cut, swept
+  // across the sea by the gusts, read as white dots darting about).
+  float alive = smoothstep(1.0 - density, 1.0 - density + 0.12, hash(cell + floor(cycle) * 1.7 + 3.3));
   float fade = smoothstep(0.0, 0.3, life) * (1.0 - smoothstep(0.6, 1.0, life));
   vec2 spot = vec2(hash(cell + 1.3), hash(cell + 4.1)) * 0.5 + 0.25;
   vec2 d = fract(p) - spot;
@@ -260,7 +262,8 @@ void main() {
   // kept off the shallows.
   vec2 across = vec2(-uWindDir.y, uWindDir.x);
   vec2 w = vec2(dot(vWorld.xz, uWindDir), dot(vWorld.xz, across));
-  float gust = smoothstep(0.25, 0.75, noise(vWorld.xz * 0.045 - uWindDir * uTime * 0.05));
+  // The gusty patches drift downwind no faster than the flecks themselves.
+  float gust = smoothstep(0.25, 0.75, noise((vWorld.xz - uWindDir * uTime * 0.08) * 0.045));
   float density = clamp((uStrength - 0.25) * 0.55, 0.0, 0.42) * (0.3 + 0.7 * gust);
   float close = flecks(w + 12.3, 3.2, density, footprint, uTime) * (1.0 - smoothstep(0.065, 0.085, footprint * 3.2));
   float fine = flecks(w, 1.6, density, footprint, uTime) * smoothstep(0.065, 0.085, footprint * 3.2);
