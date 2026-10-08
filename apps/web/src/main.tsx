@@ -53,14 +53,8 @@ const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
   query: '?url',
   import: 'default',
 });
-// The 3D sea map (?renderer=3d, being built): ship models by class (tools/art/export_ships_glb.py).
+// The 3D sea map (?renderer=3d, being built).
 const RENDER_3D = new URLSearchParams(location.search).get('renderer') === '3d';
-const shipModels = Object.fromEntries(
-  Object.entries(import.meta.glob<string>('../../../art/game/models/*.glb', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
-    path.split('/').pop()!.replace(/\.glb$/, ''),
-    url,
-  ]),
-);
 const townFrames = import.meta.glob<string>('../../../art/game/settlements/*.png', {
   eager: true,
   query: '?url',
@@ -262,8 +256,12 @@ async function main() {
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
   // The 3D sea map draws over the 2D one at sea; port scenes and battles are still the 2D renderer's.
-  const sea3d = RENDER_3D ? await createSeaRenderer(content, map, { playerId: def.start.shipId, settlements, windAt, models: shipModels }) : undefined;
-  if (sea3d) viewport.appendChild(sea3d.canvas);
+  const sea3d = RENDER_3D ? await createSeaRenderer(content, map, { playerId: def.start.shipId, settlements, windAt }) : undefined;
+  if (sea3d) {
+    viewport.appendChild(sea3d.canvas);
+    // For review and tests: the 3D renderer's showcase and sky controls.
+    (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
+  }
   // ?sky=17.5 starts the 3D sky at that hour, for reviewing sunrise, sunset and night.
   const skyHour = Number(new URLSearchParams(location.search).get('sky'));
   if (sea3d && Number.isFinite(skyHour) && skyHour > 0) sea3d.setSkyHour(skyHour);

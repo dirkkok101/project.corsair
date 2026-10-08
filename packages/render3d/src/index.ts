@@ -10,8 +10,8 @@ import { sailAnim } from '@corsair/render/sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
 import { createOcean, seaHeight } from './ocean';
 import type { SeaState } from './ocean';
-import { loadShipModels, makeShip } from './ships';
-import type { ShipModel } from './ships';
+import { RIGS } from './rigs';
+import { buildShip } from './shipyard';
 import { createGround } from './terrain';
 import { createSky } from './sky';
 import { createWakes } from './wakes';
@@ -83,6 +83,8 @@ export interface SeaRenderer {
   toggleChase(): void;
   /** Sets the sky to an hour of its day (for reviewing sunrise, sunset and night). */
   setSkyHour(hour: number): void;
+  /** For review: a row of these classes under sail, abeam of the player, drawn only (not in the world). */
+  showcase(classIds: string[], state: WorldState): void;
 }
 
 export async function createSeaRenderer(
@@ -92,8 +94,6 @@ export async function createSeaRenderer(
     playerId: string;
     settlements: PlacedSettlement[];
     windAt: (state: WorldState, x: number, y: number) => Wind;
-    /** Ship models by class id (ship.brig), as URLs of their glTF files. */
-    models: Record<string, string>;
   },
 ): Promise<SeaRenderer> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -196,8 +196,7 @@ export async function createSeaRenderer(
   }
 
   const wakes = createWakes(scene);
-  const models = await loadShipModels(options.models);
-  const ships = new Map<string, ShipModel & { classId: string }>();
+  const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; classId: string }>();
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
     if (m && m.classId !== s.classId) {
@@ -205,8 +204,9 @@ export async function createSeaRenderer(
       m = undefined;
     }
     if (!m) {
-      const model = models.get(s.classId) ?? models.get('ship.brig')!;
-      m = { ...makeShip(model), classId: s.classId };
+      // Built in code from her class's plan (cloth sails, her nation's colours).
+      const built = buildShip(RIGS[s.classId] ?? RIGS['ship.brig']!, s.ai?.nation ?? 'player');
+      m = { root: built.root, setSails: (anim: string) => built.setSails(...sailsOf(anim), lastMs), classId: s.classId };
       ships.set(s.id, m);
       scene.add(m.root);
     }
@@ -353,6 +353,20 @@ export async function createSeaRenderer(
     toggleChase() {
       chase = !chase;
     },
+    showcase(classIds, state) {
+      const me = state.ships[options.playerId];
+      if (!me) return;
+      classIds.forEach((id, i) => {
+        const plan = RIGS[id];
+        if (!plan) return;
+        const built = buildShip(plan, i % 2 ? 'spain' : 'england');
+        built.setSails('full', 'beam', 1, 0);
+        built.root.position.set(me.x - 9 + (i % 4) * 6, 0, me.y + 5 + Math.floor(i / 4) * 5);
+        built.root.rotation.y = -Math.PI / 2;
+        built.root.scale.setScalar(MODEL_SCALE);
+        scene.add(built.root);
+      });
+    },
     setSkyHour(hour) {
       // The first moment in the sky's cycle that shows this hour.
       let at = 0;
@@ -393,6 +407,13 @@ function label(text: string, colour: string): THREE.Sprite {
   sprite.position.set(0, 2.4, 0);
   sprite.renderOrder = 10;
   return sprite;
+}
+
+/** A sprite animation name (`sail_full_beam_s`) as the builder's setting, point of sail, and wind side (+1 starboard). */
+function sailsOf(anim: string): ['full' | 'half' | 'furled', string, number] {
+  const [, setting, point, tack] = anim.split('_') as [string, 'full' | 'half' | 'furled', string?, string?];
+  if (setting === 'furled') return ['furled', 'run', 0];
+  return [setting, point ?? 'run', tack?.startsWith('s') ? 1 : tack?.startsWith('p') ? -1 : 0];
 }
 
 /** A soft cloud puff, drawn once into a canvas. */

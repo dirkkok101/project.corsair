@@ -66,18 +66,35 @@ Sources and the full notes are in the research summary in the 3D planning conver
 
 ## Built so far
 
-- **Slice 1, the spike** (`?renderer=3d`, `@corsair/render3d`, Three.js):
-  - the sea (swells rolling downwind, depth-tinted shallows, surf along the coasts, sparkle);
-  - islands raised from the map's elevation bands;
-  - stand-in towns with names;
-  - clouds drifting downwind, shown only from afar;
-  - the sun's arc and a moonlit night;
-  - every ship on the map, using the existing low-poly class models (`tools/art/export_ships_glb.py`), each riding the
-    swell, heeling to the wind and showing her sail state;
-  - a camera zoomed with the mouse wheel and switched to a chase view with C.
+All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets the sky for review.
+
+- **Sky:** its own slow day, separate from the game clock (about 20 real minutes: a long bright day, golden
+  sunrise and sunset, a short moonlit night); the HUD shows the date only in 3D. A painted dome, deep blue
+  overhead and pale at the horizon, with a soft sun glow (a physical sky's glare washed out a low camera).
+  Clouds drift downwind and show only from afar.
+- **Sea:**
+  - Calm and painterly: low, long swells, with the fine chop only in the shading.
+  - Ripple normals, sun sparkle that fades before it would shimmer, and short broken wind streaks.
+  - Surf bands rolling in along the depth contours, and sand showing through the shallows.
+  - The water takes the light's colour.
+- **Islands:**
+  - Levels of detail down to a quarter-tile mesh near the camera, smooth between tiles.
+  - Generated rolling hills and ridges inland, with the coastline kept where the map has it.
+  - Ground painted by height and slope (beach, jungle, grass, tan rock).
+  - Instanced palms along the shore and jungle canopy inland.
+- **Ships** (`shipyard.ts`, each class's plan in `rigs.ts`):
+  - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery.
+  - Masts with fighting tops, yards, shrouds and stays.
+  - Cloth sails that belly with the wind, luff in irons, reef and furl, with a soft glow of their own.
+  - A jib, spanker, gaff or lateen as the class carries.
+  - The nation's ensign and a pennant, streaming.
+  - Each ship rides the swell smoothly (her pitch and roll eased, averaged over the hull) and leaves a wake.
+- **Image:** bloom, SMAA and ACES tone mapping.
+- **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
-  - HD ships and the battle in 3D;
-  - wakes and palms;
+  - sea battles in 3D (with shot holes in sails and falling masts);
+  - bow spray;
+  - real town and fort models;
   - mouse clicks on the 3D view;
   - the course line;
   - region names on the sea.
