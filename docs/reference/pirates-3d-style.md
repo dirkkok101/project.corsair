@@ -69,7 +69,7 @@ Sources and the full notes are in the research summary in the 3D planning conver
 
 All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets the sky for review.
 `?sea=plain` draws the bare water for review; add layers back by name: `?sea=plain,flecks` (also `shadows`,
-`ripples`, `surf`, `clouds`, `wakes`).
+`ripples`, `surf`, `swell`, `clouds`, `wakes`).
 
 - **Sky:** its own slow day, separate from the game clock (about 20 real minutes: a long bright day, golden
   sunrise and sunset, a short moonlit night); the HUD shows the date only in 3D. A painted dome, deep blue

@@ -129,7 +129,7 @@ export async function createSeaRenderer(
     townLine?: (s: PlacedSettlement, state: WorldState) => string;
     /**
      * For review, what to draw on the sea (`?sea=`): "plain" alone is the bare water; add layers by name to
-     * bring them back (flecks, shadows, ripples, surf, clouds, wakes). Unset, everything.
+     * bring them back (flecks, shadows, ripples, surf, swell, clouds, wakes). Unset, everything.
      */
     sea?: string[];
   },

@@ -27,8 +27,8 @@ const GRAVITY = 9.8;
  * drift across the view, not a sweep), so the wind reads without hurrying the eye.
  */
 export const CLOUD_SPEED = 0.5;
-/** Swell speed is scaled down from deep-water physics to read as a lazy roll at this scale. */
-const SPEED = 0.12;
+/** Swell speed, scaled well down from deep-water physics: crossing swells moving faster read as a restless shimmer. */
+const SPEED = 0.045;
 // The mesh carries only the swells long enough for its grid (shorter ones would alias into stripes); the
 // fragment shader lights every swell, per pixel, fading the short ones out with distance.
 const MESH_SWELLS = 2;
@@ -162,6 +162,7 @@ uniform vec3 uSunColor;
 uniform float uLight;
 uniform float uStrength;
 uniform vec4 uShow;           // for review: flecks, cloud shadows, ripples, surf (1 shown, 0 hidden)
+uniform vec4 uShow2;          // for review: the swell's shading
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 uniform vec4 uSwell[${SWELLS.length}];
@@ -212,7 +213,7 @@ void main() {
     float c = sqrt(${GRAVITY.toFixed(1)} / k) * ${SPEED.toFixed(3)};
     float f = k * (dot(d, vWorld.xz) - c * uTime);
     float fade = 1.0 - smoothstep(uSwell[i].z * 6.0, uSwell[i].z * 30.0, dist);
-    slope += d * k * uSwell[i].w * cos(f) * fade;
+    slope += d * k * uSwell[i].w * cos(f) * fade * uShow2.x;
   }
   // Fine ripples on top, two layers drifting downwind at different scales.
   vec2 drift = uWindDir * uTime;
@@ -312,7 +313,7 @@ export interface Ocean {
 
 /**
  * For review, the sea's layers that can be hidden (`?sea=plain` hides them all, `?sea=plain,flecks` brings one
- * back): flecks of whitecap, cloud shadows, ripples (and their texture), surf and wave lines.
+ * back): flecks of whitecap, cloud shadows, ripples (and their texture), surf and wave lines, and the swell's shading.
  */
 export const SEA_LAYERS = ['flecks', 'shadows', 'ripples', 'surf'] as const;
 
@@ -342,6 +343,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       uLight: { value: 1 },
       uStrength: { value: 0.8 },
       uShow: { value: new THREE.Vector4(1, 1, 1, 1) },
+      uShow2: { value: new THREE.Vector4(1, 1, 1, 1) },
       uFogColor: { value: new THREE.Color('#bfe3f2') },
       uFogDensity: { value: 0.002 },
     },
@@ -350,6 +352,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
   // The plane moves with the camera; culling it by its first position would lose it.
   mesh.frustumCulled = false;
   const u = material.uniforms as Record<string, THREE.IUniform>;
+  (u.uShow2!.value as THREE.Vector4).x = shown('swell') ? 1 : 0;
   (u.uShow!.value as THREE.Vector4).set(...(SEA_LAYERS.map((l) => (shown(l) ? 1 : 0)) as [number, number, number, number]));
   let lastT: number | undefined;
   return {
