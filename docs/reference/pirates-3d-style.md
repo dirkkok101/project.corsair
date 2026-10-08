@@ -105,6 +105,9 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   - The player's firing arcs on the water, gold when a broadside bears and is loaded.
   - The camera frames both ships, high and oblique, closer as they close; the wheel zooms, C views from astern.
 - **Image:** bloom, SMAA and ACES tone mapping.
+- **Compass** (HUD, top-right): a gilt rose on a sea-blue face, north-up; the wind a red arrow through it to where
+  it blows, longer and bolder the harder it blows; the heading a gold mark on the rim; speed in knots beneath, with
+  the point of sail. Behind the rose, quietly, the speed for every heading and the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
   - shot holes in sails and falling masts (the battle doesn't track masts or where a ball struck);

@@ -1,30 +1,39 @@
 import type { Wind, WorldState } from '@corsair/core';
-import { shipStats } from '@corsair/data';
 import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
 
-const ROSE = { size: 120, inner: 8, outer: 46 };
+const ROSE = { size: 168, ring: 62, inner: 10, outer: 54 };
+const GILT = '#e6bf6a';
+const GILT_DARK = '#9a6e34';
+const WIND_RED = '#d8352a';
 
 /**
- * The ship's speed for every heading in this wind, drawn north-up like the map. The shape is the
- * polar table scaled by wind strength and sail setting, against an outer ring at the strongest wind
- * on full sail, so it grows and shrinks with the wind. The red arc is the no-go zone; gold is the heading.
+ * The compass (after Sid Meier's Pirates!, whose HUD shows the wind as a red arrow through a gilt compass rose):
+ * north-up like the map, the red arrow pointing where the wind blows, longer and bolder the harder it blows;
+ * the ship's heading as a gold mark on the rim, and her speed in knots beneath. Quietly behind the rose, for
+ * the sailor: her speed for every heading in this wind (the pale shape, against the strongest wind on full
+ * sail), and the no-go zone dark red on the ring.
  */
-function WindRose({
+function Compass({
   polar,
   wind,
+  windDrive,
   headingDeg,
   scale,
-  best,
+  knots,
+  pointName,
 }: {
   polar: Polar;
   wind: Wind;
+  /** The wind's strength, 0..1 of the strongest. */
+  windDrive: number;
   headingDeg: number;
   /** Wind strength x sail setting, as a fraction of the strongest wind on full sail. */
   scale: number;
-  /** Best speed in this wind, on the class's 1-10 scale. */
-  best: number;
+  knots: number;
+  /** Her point of sail ("Beam reach"). */
+  pointName: string;
 }) {
   const windFromDeg = wind.fromDeg;
   const c = ROSE.size / 2;
@@ -32,37 +41,85 @@ function WindRose({
     const rad = (deg * Math.PI) / 180;
     return [c + Math.sin(rad) * r, c - Math.cos(rad) * r];
   };
-  const radius = (deg: number) =>
-    ROSE.inner + polarAt(polar, angleOffWind(deg, windFromDeg)) * scale * (ROSE.outer - ROSE.inner);
-  const curve = Array.from({ length: 72 }, (_, i) => at(i * 5, radius(i * 5)).join(',')).join(' ');
+  const pt = (deg: number, r: number) => at(deg, r).join(',');
+  const radius = (deg: number) => ROSE.inner + polarAt(polar, angleOffWind(deg, windFromDeg)) * scale * (ROSE.outer - ROSE.inner);
+  const curve = Array.from({ length: 72 }, (_, i) => pt(i * 5, radius(i * 5))).join(' ');
   const noGo = Array.from({ length: 72 }, (_, i) => i * 5).filter((d) => polarAt(polar, angleOffWind(d, windFromDeg)) < 0.02);
-  const [hx, hy] = at(headingDeg, ROSE.outer + 6);
-  const [sx, sy] = at(headingDeg, radius(headingDeg));
-  const [w1x, w1y] = at(windFromDeg, ROSE.outer + 12);
-  const [w2x, w2y] = at(windFromDeg, ROSE.outer + 2);
+  // The rose: four long points to the quarters, four short between, each lit on one side (a gilt star).
+  const star = [0, 45, 90, 135, 180, 225, 270, 315].map((d) => {
+    const long = d % 90 === 0;
+    const r = long ? ROSE.outer - 4 : ROSE.outer * 0.55;
+    const w = long ? 16 : 12;
+    return (
+      <g key={d}>
+        <polygon points={`${c},${c} ${pt(d - w, r * 0.32)} ${pt(d, r)}`} fill={long ? GILT : GILT_DARK} />
+        <polygon points={`${c},${c} ${pt(d + w, r * 0.32)} ${pt(d, r)}`} fill={long ? GILT_DARK : '#6e4d24'} />
+      </g>
+    );
+  });
+  // The wind's arrow, through the rose to where it blows; its length and weight by how hard it blows.
+  const to = windFromDeg + 180;
+  const reach = 22 + windDrive * 30;
+  const [tx, ty] = at(to, reach);
+  const [fx, fy] = at(windFromDeg, reach * 0.85);
+  const width = 3 + windDrive * 3;
+  const head = `${pt(to, reach + 8)} ${pt(to + 24, reach - 6)} ${pt(to - 24, reach - 6)}`;
+  const flight = (side: number) => `${pt(windFromDeg + side * 14, reach * 0.85 + 6)} ${pt(windFromDeg, reach * 0.85 - 4)} ${pt(windFromDeg + side * 4, reach * 0.85 + 8)}`;
+  const [hx, hy] = at(headingDeg, ROSE.ring - 3);
   return (
-    <svg class="hud-rose" width={ROSE.size} height={ROSE.size} viewBox={`0 0 ${ROSE.size} ${ROSE.size}`}>
-      <circle cx={c} cy={c} r={ROSE.outer} fill="none" stroke="#394a50" />
-      <circle cx={c} cy={c} r={(ROSE.inner + ROSE.outer) / 2} fill="none" stroke="#202e37" />
-      <text x={c} y={9} text-anchor="middle" fill="#819796" font-size="9">N</text>
-      <text x={c} y={ROSE.size - 3} text-anchor="middle" fill="#819796" font-size="9">
-        best {best.toFixed(1)}
-      </text>
-      <polygon points={curve} fill="rgb(115 190 211 / 0.25)" stroke="#73bed3" />
-      {noGo.map((d) => {
-        const [ax, ay] = at(d - 2.5, ROSE.outer);
-        const [bx, by] = at(d + 2.5, ROSE.outer);
-        return <line key={d} x1={ax} y1={ay} x2={bx} y2={by} stroke="#cf573c" stroke-width="4" />;
-      })}
-      <line x1={w1x} y1={w1y} x2={w2x} y2={w2y} stroke="#ebede9" stroke-width="2" marker-end="url(#rose-arrow)" />
-      <line x1={c} y1={c} x2={hx} y2={hy} stroke="#e8c170" stroke-width="2" />
-      <circle cx={sx} cy={sy} r={3} fill="#e8c170" />
-      <defs>
-        <marker id="rose-arrow" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="5" markerHeight="5" orient="auto">
-          <path d="M0,0 L6,3 L0,6 z" fill="#ebede9" />
-        </marker>
-      </defs>
-    </svg>
+    <div class="hud-rose" title="Compass: the red arrow is the wind, the gold mark your heading">
+      <svg width={ROSE.size} height={ROSE.size} viewBox={`0 0 ${ROSE.size} ${ROSE.size}`}>
+        <defs>
+          <radialGradient id="compass-face" cx="50%" cy="45%" r="60%">
+            <stop offset="0" stop-color="#2a5d8c" />
+            <stop offset="1" stop-color="#132c47" />
+          </radialGradient>
+          <linearGradient id="compass-gilt" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#f6dc95" />
+            <stop offset="0.5" stop-color={GILT} />
+            <stop offset="1" stop-color={GILT_DARK} />
+          </linearGradient>
+        </defs>
+        <circle cx={c} cy={c} r={ROSE.ring + 8} fill="url(#compass-face)" stroke="url(#compass-gilt)" stroke-width="5" />
+        <circle cx={c} cy={c} r={ROSE.ring} fill="none" stroke="url(#compass-gilt)" stroke-width="1.5" opacity="0.8" />
+        {/* Ticks round the ring: long at the quarters. */}
+        {Array.from({ length: 32 }, (_, i) => {
+          const d = i * 11.25;
+          const [ax, ay] = at(d, ROSE.ring);
+          const [bx, by] = at(d, ROSE.ring - (i % 8 === 0 ? 7 : i % 2 === 0 ? 4 : 2));
+          return <line key={i} x1={ax} y1={ay} x2={bx} y2={by} stroke={GILT} stroke-width={i % 8 === 0 ? 1.5 : 1} opacity="0.85" />;
+        })}
+        <polygon points={curve} fill="rgb(150 220 235 / 0.16)" stroke="rgb(150 220 235 / 0.45)" stroke-width="1" />
+        {noGo.map((d) => {
+          const [ax, ay] = at(d - 2.5, ROSE.ring + 3);
+          const [bx, by] = at(d + 2.5, ROSE.ring + 3);
+          return <line key={d} x1={ax} y1={ay} x2={bx} y2={by} stroke="#7a2a24" stroke-width="4" />;
+        })}
+        {star}
+        <circle cx={c} cy={c} r="5" fill={GILT} stroke={GILT_DARK} />
+        {/* North: a fleur-de-lis above the ring. */}
+        <path
+          d={`M${c},${c - ROSE.ring - 14} q-5,6 0,13 q5,-7 0,-13 M${c - 10},${c - ROSE.ring - 2} q3,-9 10,-4 q7,-5 10,4`}
+          fill={GILT}
+          stroke={GILT_DARK}
+          stroke-width="0.8"
+        />
+        <text x={c} y={c - ROSE.ring + 18} text-anchor="middle" class="compass-n">N</text>
+        {/* The wind's red arrow, over everything. */}
+        <g opacity={0.55 + windDrive * 0.45}>
+          <line x1={fx} y1={fy} x2={tx} y2={ty} stroke={WIND_RED} stroke-width={width} stroke-linecap="round" />
+          <polygon points={head} fill={WIND_RED} stroke="#7a1a14" stroke-width="1" />
+          <polygon points={flight(1)} fill={WIND_RED} />
+          <polygon points={flight(-1)} fill={WIND_RED} />
+        </g>
+        {/* Her heading: a gold mark on the rim. */}
+        <circle cx={hx} cy={hy} r="4.5" fill="#fff1c4" stroke={GILT_DARK} stroke-width="1.5" />
+      </svg>
+      <div class="compass-speed">
+        {Math.round(knots)} {Math.round(knots) === 1 ? 'knot' : 'knots'}
+      </div>
+      <div class="compass-point">{pointName}</div>
+    </div>
   );
 }
 
@@ -89,6 +146,8 @@ export interface HudProps {
   timeScale?: number | string;
   /** True for a moment after the career is saved. */
   saved?: boolean;
+  /** Knots for a speed of one tile a second (from the map's scale and the game's clock). */
+  knotsPerTilePerSecond: number;
 }
 
 export function Hud({
@@ -105,6 +164,7 @@ export function Hud({
   prompt,
   timeScale,
   saved,
+  knotsPerTilePerSecond,
 }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
@@ -114,8 +174,7 @@ export function Hud({
   const polar = content.polars[cls.polar]!;
   const drive = nav.windStrength[wind.strength]! * nav.sailSettings[ship.sails]!;
   const strongest = Math.max(...Object.values(nav.windStrength)) * Math.max(...Object.values(nav.sailSettings));
-  const stats = shipStats(content, ship);
-  const best = stats.speed * Math.max(...polar.values) * drive;
+  const windDrive = nav.windStrength[wind.strength]! / Math.max(...Object.values(nav.windStrength));
   return (
     <>
       <div class="hud">
@@ -125,13 +184,11 @@ export function Hud({
           {typeof timeScale === 'string' ? ` · 1×, ${timeScale}` : timeScale ? ` · ${timeScale}×` : ''}
         </div>
         <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>
-        {/* The arrow shows where the wind blows to; fromDeg is where it comes from. */}
-        <div class="hud-wind" style={{ transform: `rotate(${wind.fromDeg}deg)` }} title="Wind">
-          ↓
-        </div>
+        <div>Wind</div>
         <div>
-          Wind {wind.strength} from {Math.round(wind.fromDeg)}°
+          {wind.strength} from {Math.round(wind.fromDeg)}°
         </div>
+        <div />
         <div>
           {pointOfSail(content, offWind).name} · {Math.round(offWind)}° off the wind
         </div>
@@ -168,7 +225,15 @@ export function Hud({
           {ship.blocked ? ' · aground' : ''}
         </div>
       </div>
-      <WindRose polar={polar} wind={wind} headingDeg={ship.headingDeg} scale={drive / strongest} best={best} />
+      <Compass
+        polar={polar}
+        wind={wind}
+        windDrive={windDrive}
+        headingDeg={ship.headingDeg}
+        scale={drive / strongest}
+        knots={ship.speed * knotsPerTilePerSecond}
+        pointName={pointOfSail(content, offWind).name}
+      />
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
       {saved ? <div class="hud-saved">Saved</div> : null}

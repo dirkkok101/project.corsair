@@ -320,15 +320,6 @@ body {
   font-weight: bold;
 }
 
-.hud-wind {
-  grid-row: span 2;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  font-size: 22px;
-}
-
 .hud-sound {
   position: absolute;
   bottom: 34px;
@@ -344,12 +335,42 @@ body {
   color: #819796;
 }
 
+/* The compass (after Pirates!): a gilt rose on a sea-blue face, the wind a red arrow; speed in knots beneath. */
 .hud-rose {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  background: rgb(9 10 20 / 0.75);
-  border: 1px solid #394a50;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  justify-items: center;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.5));
+  pointer-events: none;
+}
+
+.hud-rose svg {
+  display: block;
+}
+
+.compass-n {
+  font-family: 'Pirata One', serif;
+  font-size: 13px;
+  fill: #f6dc95;
+}
+
+.compass-speed {
+  margin-top: -6px;
+  padding: 1px 12px;
+  font-family: 'Pirata One', serif;
+  font-size: 20px;
+  color: #f7eedb;
+  background: rgb(19 44 71 / 0.85);
+  border: 1px solid #9a6e34;
+  border-radius: 10px;
+}
+
+.compass-point {
+  font-size: 11px;
+  color: #e6c98a;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
 }
 
 .hud-prompt {

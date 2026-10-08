@@ -548,6 +548,8 @@ async function main() {
     (((lonMax - lonMin) / def.width) * 111.32 * Math.cos((((latMin + latMax) / 2) * Math.PI) / 180) +
       ((latMax - latMin) / def.height) * 110.57) /
     2;
+  // Speed in knots for the compass: a tile a second covers this many km in a game hour, over a nautical mile.
+  const knotsPerTilePerSecond = (kmPerTile * (content.calendar.ticksPerDay / TICKS_PER_SECOND / 24)) / 1.852;
   // CSS pixels per art pixel; the device-pixel scale behind it is always a whole number.
   let scale = 1;
   const fit = () => {
@@ -1288,6 +1290,7 @@ async function main() {
         time={RENDER_3D ? undefined : `${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
+        knotsPerTilePerSecond={knotsPerTilePerSecond}
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
