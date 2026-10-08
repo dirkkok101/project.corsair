@@ -128,8 +128,7 @@
     ],
     "sprites": {
       "world": "ship.war_sloop.world",
-      "combat": "ship.war_sloop.combat",
-      "icon": "ui.ship.sloop"
+      "combat": "ship.war_sloop.combat"
     }
   },
   {
@@ -153,8 +152,7 @@
     ],
     "sprites": {
       "world": "ship.royal_sloop.world",
-      "combat": "ship.royal_sloop.combat",
-      "icon": "ui.ship.sloop"
+      "combat": "ship.royal_sloop.combat"
     }
   },
   {
@@ -182,8 +180,7 @@
     ],
     "sprites": {
       "world": "ship.barque.world",
-      "combat": "ship.barque.combat",
-      "icon": "ui.ship.fluyt"
+      "combat": "ship.barque.combat"
     }
   },
   {
@@ -210,8 +207,7 @@
     ],
     "sprites": {
       "world": "ship.merchantman.world",
-      "combat": "ship.merchantman.combat",
-      "icon": "ui.ship.fluyt"
+      "combat": "ship.merchantman.combat"
     }
   },
   {
@@ -237,8 +233,7 @@
     ],
     "sprites": {
       "world": "ship.brigantine.world",
-      "combat": "ship.brigantine.combat",
-      "icon": "ui.ship.brig"
+      "combat": "ship.brigantine.combat"
     }
   },
   {
@@ -262,8 +257,7 @@
     ],
     "sprites": {
       "world": "ship.ship_of_the_line.world",
-      "combat": "ship.ship_of_the_line.combat",
-      "icon": "ui.ship.frigate"
+      "combat": "ship.ship_of_the_line.combat"
     }
   },
   {
@@ -291,8 +285,7 @@
     ],
     "sprites": {
       "world": "ship.galleon.world",
-      "combat": "ship.galleon.combat",
-      "icon": "ui.ship.frigate"
+      "combat": "ship.galleon.combat"
     }
   },
   {
@@ -320,8 +313,7 @@
     ],
     "sprites": {
       "world": "ship.treasure_galleon.world",
-      "combat": "ship.treasure_galleon.combat",
-      "icon": "ui.ship.frigate"
+      "combat": "ship.treasure_galleon.combat"
     }
   }
 ]

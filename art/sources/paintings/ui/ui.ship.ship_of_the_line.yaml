@@ -1,0 +1,11 @@
+id: ui.ship.ship_of_the_line
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-08
+reference: ""
+prompt: |
+  Pixel art game sprite, a single object centred on a perfectly flat solid magenta background (#FF00FF) that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold, iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. Bold, simple shapes that read at small size. No text, no letters, no numbers, no logos, no watermark, no frame. 3:2 landscape image, the ship in side view facing right, filling about 80% of the width, sails set full, no sea under her, no flag on any mast. The bow points to the right edge and the stern is on the left. A great three-masted ship of the line of the 1660s: a towering dark brown hull, gilded carving at the stern. Along the hull side, three horizontal painted stripes of gun ports stacked one under another from keel to rail: a lower brown stripe filled with a row of black square gun ports, a middle cream stripe filled with a row of black square gun ports, and an upper brown stripe filled with a row of black square gun ports. Each of the three masts, including the aftermost mast, carries two wide rectangular cream square sails stacked one above the other. The lowest sail on the aftermost mast is a wide rectangle the same shape as the other lower sails.
+seed: ""
+kept: [v2]
+hand_changes: "v1 had two gun rows and a gaff on the mizzen. v2 is an Imagine edit of a later generation: the mizzen lower sail is a rectangle on a level yard. A hand pass enlarged the three gun rows and lightened the upper row so they still separate at 96×64. The upper row stops short of the bow. The mizzen has no topsail."

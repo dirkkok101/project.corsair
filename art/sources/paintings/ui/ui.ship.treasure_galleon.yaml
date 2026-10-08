@@ -1,0 +1,11 @@
+id: ui.ship.treasure_galleon
+tool: Grok Imagine
+model: grok-imagine-image-quality
+plan: API
+date: 2026-10-08
+reference: ""
+prompt: |
+  Pixel art game sprite, a single object centred on a perfectly flat solid magenta background (#FF00FF) that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold, iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. Bold, simple shapes that read at small size. No text, no letters, no numbers, no logos, no watermark, no frame. 3:2 landscape image, the ship in side view facing right, filling about 80% of the width, sails set full, no sea under her, no flag on any mast. The bow points to the right edge and the high stern castle is on the left. A huge three-masted Spanish treasure galleon of the 1660s: a very high, richly gilded stern castle, a deep hull with two rows of gun ports, square sails on the fore and main masts, a lateen sail on the mizzen only.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass. First generation faced left. Second generation faced right with a blue headsail and a gaff on the mizzen. Kept frame is an Imagine edit: the headsail is cream and the mizzen is a lateen."
