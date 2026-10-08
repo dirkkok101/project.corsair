@@ -182,6 +182,10 @@ const SAIL_HO_TILES = 15;
 const SAIL_HO_MS = 3500;
 
 async function main() {
+  // A trackpad pinch never zooms the page itself: magnified, the page pushes the HUD and the menus off the
+  // screen. (Chrome reports a pinch as a wheel with Ctrl held; Safari as its own gesture events.)
+  window.addEventListener('wheel', (e) => e.ctrlKey && e.preventDefault(), { passive: false });
+  for (const type of ['gesturestart', 'gesturechange']) document.addEventListener(type, (e) => e.preventDefault());
   const content = loadContent();
   const def = content.maps.caribbean;
   const layer = async (name: string) => {
@@ -259,11 +263,14 @@ async function main() {
   viewport.appendChild(renderer.canvas);
   // The 3D sea map draws over the 2D one at sea; port scenes and battles are still the 2D renderer's.
   const sea3d = RENDER_3D ? await createSeaRenderer(content, map, { playerId: def.start.shipId, settlements, windAt, models: shipModels }) : undefined;
+  if (sea3d) viewport.appendChild(sea3d.canvas);
+  // At sea in 3D the wheel and the trackpad's pinch zoom the map, from anywhere on the screen (the HUD too).
   if (sea3d) {
-    viewport.appendChild(sea3d.canvas);
-    viewport.addEventListener('wheel', (e) => {
+    window.addEventListener('wheel', (e) => {
+      if (sea3d.canvas.style.display === 'none') return;
       e.preventDefault();
-      sea3d.zoom(Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / 40));
+      // A pinch reports small, fine-grained deltas; a wheel notch about 100.
+      sea3d.zoom(Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / (e.ctrlKey ? 8 : 40)));
     }, { passive: false });
   }
   const labels = createLabels(viewport, settlements, map.tileSize);
