@@ -1,7 +1,8 @@
 """Builds a low-poly ship class and renders its world-map set: 23 sail sprites x 32 facings at 96 px.
 
 Same camera, passes, palette snap, outline, file naming and waterline pivot as tools/art/render_brig.py,
-so a class drops into the game under the brig's 23 animation names. Classes: fluyt, sloop, frigate.
+so a class drops into the game under the brig's 23 animation names. Classes: fluyt, sloop, frigate, and
+war_sloop, royal_sloop, barque, merchantman, brigantine, ship_of_the_line, galleon, treasure_galleon.
 
 Run from the repo root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/art/render_ships.py -- "$PWD" <tmp dir> <class>
@@ -20,7 +21,8 @@ REPO, TMP, CLASS = ARGS[0], ARGS[1], ARGS[2]
 CHECK = '--check' in ARGS
 COMBAT = '--combat' in ARGS
 ONLY = ARGS[ARGS.index('--state') + 1] if '--state' in ARGS else None
-CLASSES = ('fluyt', 'sloop', 'frigate')
+CLASSES = ('fluyt', 'sloop', 'frigate', 'war_sloop', 'royal_sloop', 'barque', 'merchantman', 'brigantine', 'ship_of_the_line',
+           'galleon', 'treasure_galleon')
 OUT = os.path.join(REPO, 'art/sources/renders/ships')
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(TMP, exist_ok=True)
@@ -138,9 +140,10 @@ sail = mat('sail', 'ebede9')
 slack = mat('slack', 'c7cfcc')
 cabin = mat('cabin', 'ad7757')
 grate = mat('grate', '4d2b32')
+royal = mat('royal', '3c5e8b')  # a navy-blue hull (the royal sloop)
 
 
-def hull(L, N, wf, hf, sect, smats):
+def hull(L, N, wf, hf, sect, smats, mats=None):
     """Lofted hull, stern at -Y, bow at +Y, waterline at z 0 (the pivot), hull centre at y 0.
     wf(t), hf(t): half-width and rail height along the length (t 0 stern .. 1 bow).
     sect: cross-section (x fraction of wf, z fraction of hf) from the waterline up to the rail;
@@ -162,7 +165,7 @@ def hull(L, N, wf, hf, sect, smats):
             idx.append(smats[k] if k < n - 1 else 2 if k == n - 1 else smats[m - 2 - k])
     faces.append(tuple(range(m)))  # transom
     idx.append(0)
-    obj('hull', verts, faces, [hull_dark, band, deck], idx)
+    obj('hull', verts, faces, mats or [hull_dark, band, deck], idx)
     # bulwarks: a dark rim along the deck edge, as on the brig
     rv, rf = [], []
     for x, y, z in rails:
@@ -171,7 +174,7 @@ def hull(L, N, wf, hf, sect, smats):
         a, b = 4 * i, 4 * (i + 1)
         rf += [(a, b, b + 1, a + 1), (a + 2, b + 2, b + 3, a + 3)]
     rf.append((0, 1, 3, 2))
-    obj('bulwark', rv, rf, [hull_dark])
+    obj('bulwark', rv, rf, [(mats or [hull_dark])[0]])
     return rails
 
 
@@ -482,7 +485,361 @@ def build_frigate():
     return build_states(rig, lambda: furled_squares(SQUARES))
 
 
-STATES = {'fluyt': build_fluyt, 'sloop': build_sloop, 'frigate': build_frigate}[CLASS]()
+def clamp01(v):
+    return min(1.0, max(0.0, v))
+
+
+# Gaff sloops bigger than the sloop: her lines stretched by k along and kw across, a square topsail above
+# the gaff, more gunports; the royal sloop in navy blue with a second jib.
+SLOOP_SWING = {'run': (80, 0.42, 0.16), 'broad': (55, 0.36, 0.16), 'beam': (35, 0.28, 0.14),
+               'close': (12, 0.14, 0.08), 'irons': (3, 0.03, 0.0)}
+
+
+def gaff_main(anim, MY, TACK, THROAT, PEAK, CLEW, BOOM, swing, setting, m, lee, belly, ripple):
+    """A gaff mainsail on its boom and gaff, swung `swing` deg about the mast at y = MY; half is reefed."""
+    objs = [beam(f'{anim}_boom', braced((0, MY, TACK[1]), MY, swing), braced((0, *BOOM), MY, swing), 0.025, mast)]
+    if setting == 'half':
+        drop = 0.36
+        throat, peak, tack, clew = (THROAT[0], THROAT[1] - drop), (PEAK[0], PEAK[1] - drop), (TACK[0], TACK[1] + 0.06), (CLEW[0] + 0.02, CLEW[1] + 0.06)
+        objs.append(beam(f'{anim}_reef', braced((0, MY - 0.05, TACK[1] + 0.06), MY, swing), braced((0, CLEW[0] + 0.02, CLEW[1] + 0.04), MY, swing), 0.03, sail))
+    else:
+        throat, peak, tack, clew = THROAT, PEAK, TACK, CLEW
+    objs.append(beam(f'{anim}_gaff', braced((0, MY, throat[1]), MY, swing), braced((0, peak[0] - 0.04, peak[1] + 0.02), MY, swing), 0.02, mast))
+    objs.append(fore_aft_sail(f'{anim}_main', (tack, throat, peak, clew), lee, belly, ripple, m, MY, swing))
+    return objs
+
+
+def gaff_furled(MY, TACK, BOOM, CLEW):
+    return [beam('furled_boom', (0, MY, TACK[1]), (0, *BOOM), 0.025, mast),
+            beam('furled_roll', (0, MY - 0.05, TACK[1] + 0.07), (0, CLEW[0] + 0.04, TACK[1] + 0.07), 0.042, sail),
+            beam('furled_gaff', (0, MY, TACK[1] + 0.16), (0, CLEW[0] + 0.24, TACK[1] + 0.14), 0.02, mast)]
+
+
+def build_big_sloop(k, kw, top, nports, mats, second_jib):
+    L = 1.80 * k
+
+    def wf(t):
+        if t < 0.45:
+            return kw * (0.24 + 0.07 * math.sin(math.pi / 2 * t / 0.45))
+        u = (t - 0.45) / 0.55
+        return kw * 0.31 * math.sqrt(max(0.0, 1 - u ** 2.0))
+
+    def hf(t):
+        return 0.23 + 0.05 * (1 - t) ** 3 + 0.07 * t ** 4
+
+    sect = [(0.80, 0.0), (0.96, 0.62), (0.99, 0.82), (1.0, 1.0)]
+    hull(L, 28, wf, hf, sect, [0, 1, 0], mats)
+    ports(L, wf, hf, 0.98, [k * (-0.52 + i * 0.86 / (nports - 1)) for i in range(nports)], 0.58, 0.82, size=0.035)
+    box('hatch0', -0.08, 0.08, -0.18 * k, -0.02 * k, 0.24, 0.28, grate)
+    box('companion', -0.09, 0.09, -0.62 * k, -0.46 * k, 0.25, 0.32, cabin)
+    MY, TOP = 0.22 * k, top
+    box('mast', -0.03, 0.03, MY - 0.03, MY + 0.03, 0.2, TOP, mast)
+    beam('bowsprit', (0, 0.80 * k, 0.29), (0, 1.48 * k, 0.42), 0.022, mast)
+    TACK, THROAT, PEAK, CLEW = (MY - 0.05, 0.44), (MY - 0.05, 1.42), (-0.86 * k, 1.70), (-1.12 * k, 0.48)
+    BOOM = (-1.16 * k, 0.44)
+    # The square topsail, above the gaff's jaws; kept set when the main is reefed.
+    TOPSAIL = {'topsail': (MY, MY + 0.03, TOP - 0.10, 1.50, 0.52, 0.70, 0.06)}
+
+    def rig(anim, setting, point, side, frame):
+        swing_deg, jib_lee, belly = SLOOP_SWING[point]
+        luff = point == 'irons'
+        canvas = slack if luff else sail
+        lee = -side if side else -1
+        if luff:
+            swing_deg += 0 if frame == 0 else 6
+        swing = lee * swing_deg
+        ripple = (0.10 if frame == 0 else -0.10) if luff else 0.0
+        objs = gaff_main(anim, MY, TACK, THROAT, PEAK, CLEW, BOOM, swing, setting, canvas, lee, belly, ripple)
+        objs += square_rig(TOPSAIL, anim, setting, point, side, frame, lambda n: False)
+        jl = lee * jib_lee + (ripple * 0.8 if luff else 0.0)
+        objs.append(jib(f'{anim}_jib', (1.44 * k, 0.44), (MY + 0.04, 1.62), (0.46 * k, 0.36), jl, canvas))
+        if second_jib and setting == 'full':
+            objs.append(jib(f'{anim}_jib2', (1.12 * k, 0.40), (MY + 0.06, 1.30), (0.52 * k, 0.40), jl * 0.9, canvas))
+        return objs
+
+    def furled():
+        return gaff_furled(MY, TACK, BOOM, CLEW) + furled_squares(TOPSAIL)
+
+    INFO.update(hull_length=L, main_masthead=(MY, TOP))
+    return build_states(rig, furled)
+
+
+def build_war_sloop():
+    # A heavier sloop: 1.12x the sloop's length, five ports a side, a square topsail.
+    return build_big_sloop(1.12, 1.08, 2.02, 5, None, False)
+
+
+def build_royal_sloop():
+    # A navy sloop: longer still, a blue hull with a gold band, six ports a side, a topsail and two jibs.
+    return build_big_sloop(1.20, 1.10, 2.10, 6, [royal, band, deck], True)
+
+
+def build_rigged(L, wf, hf, sect, smats, port_rows, boxes, masts, squares, bowsprit, head, mizzen, mats=None):
+    """A square-rigged ship: hull, rows of ports (sect fraction, stations, z0, z1, size), deck boxes, masts,
+    her square sails (courses furled at half sail), a jib or a spritsail at the head, and a spanker or a
+    lateen on the mizzen (or neither)."""
+    hull(L, 40, wf, hf, sect, smats, mats)
+    for frac, ys, z0, z1, size in port_rows:
+        ports(L, wf, hf, frac, ys, z0, z1, size)
+    for b in boxes:
+        box(*b)
+    for name, (y, top) in masts.items():
+        box(name, -0.03, 0.03, y - 0.03, y + 0.03, 0.2, top, mast)
+    beam('bowsprit', *bowsprit, 0.025, mast)
+    sprit = head if isinstance(head, dict) else {}
+
+    def lateen(anim, lee, m, MZ, yard0, yard1, tack, peak, clew, ripple=0.0, belly=0.0, furl_it=False):
+        swing = math.degrees(math.atan2(lee, 0.8))
+        objs = [beam(f'{anim}_lateen_yard', braced((0, *yard0), MZ, swing), braced((0, *yard1), MZ, swing), 0.02, mast)]
+        if furl_it:
+            objs.append(beam(f'{anim}_lateen_furl', braced((0, tack[0], yard0[1]), MZ, swing), braced((0, peak[0], peak[1] - 0.08), MZ, swing), 0.035, sail))
+        else:
+            objs.append(fore_aft_sail(f'{anim}_lateen', (tack, tack, peak, clew), 1 if lee >= 0 else -1, belly, ripple, m, MZ, swing))
+        return objs
+
+    def rig(anim, setting, point, side, frame):
+        _, belly, jib_lee, sp_lee = POINTS[point]
+        luff = point == 'irons'
+        canvas = slack if luff else sail
+        objs = square_rig({**squares, **sprit}, anim, setting, point, side, frame, lambda n: n.endswith('course'))
+        if not sprit:
+            objs.append(jib(f'{anim}_jib', head[0], head[1], head[2], -side * jib_lee, canvas))
+        if mizzen and mizzen[0] == 'spanker' and setting == 'full':
+            (a, b, c, d) = mizzen[1]
+            lee = -side * sp_lee
+            objs.append(obj(f'{anim}_spanker', [(0, *a), (0, *b), (lee, *c), (lee, *d)], [(0, 1, 2, 3)], [canvas]))
+        if mizzen and mizzen[0] == 'lateen':
+            MZ, yard0, yard1, tack, peak, clew = mizzen[1]
+            lee = -side * sp_lee
+            ripple = (0.05 if frame == 0 else -0.05) if luff else 0.0
+            objs += lateen(anim, lee, canvas, MZ, yard0, yard1, tack, peak, clew, ripple, 0.0 if luff else 0.05, setting == 'half')
+        return objs
+
+    def furled():
+        objs = furled_squares({**squares, **sprit})
+        if mizzen and mizzen[0] == 'lateen':
+            objs += lateen('furled', 0.0, sail, *mizzen[1], furl_it=True)
+        return objs
+
+    INFO.update(hull_length=L, main_masthead=masts['main'])
+    return build_states(rig, furled)
+
+
+def build_barque():
+    # A small three-master: a plain, broad merchant hull, square sails on fore and main, a gaff spanker on
+    # the mizzen. 1.0x the brig.
+    L = 2.40
+
+    def wf(t):
+        if t < 0.25:
+            return 0.42 * (0.55 + 0.45 * math.sin(math.pi / 2 * t / 0.25))
+        if t < 0.60:
+            return 0.42
+        return 0.42 * math.sqrt(max(0.0, 1 - ((t - 0.60) / 0.40) ** 2.4))
+
+    def hf(t):
+        return 0.27 + 0.10 * clamp01((0.20 - t) / 0.05) + 0.06 * t ** 4
+
+    sect = [(0.86, 0.0), (1.00, 0.45), (0.92, 0.82), (0.84, 1.0)]
+    squares = {
+        'fore_course': (0.68, 0.71, 1.00, 0.50, 0.80, 0.90, 0.10),
+        'fore_top': (0.68, 0.71, 1.52, 1.06, 0.56, 0.74, 0.08),
+        'main_course': (0.00, 0.03, 1.08, 0.52, 0.90, 1.00, 0.10),
+        'main_top': (0.00, 0.03, 1.66, 1.14, 0.62, 0.82, 0.08),
+    }
+    return build_rigged(
+        L, wf, hf, sect, [0, 0, 1],
+        [(0.93, (-0.30, 0.20, 0.60), 0.50, 0.68, 0.035)],
+        [('cabin', -0.16, 0.16, -0.95, -0.80, hf(0.1), hf(0.1) + 0.09, cabin),
+         ('hatch0', -0.10, 0.10, -0.20, 0.05, 0.27, 0.32, grate), ('hatch1', -0.09, 0.09, 0.32, 0.48, 0.27, 0.32, grate)],
+        {'fore': (0.68, 1.62), 'main': (0.00, 1.84), 'mizzen': (-0.72, 1.40)},
+        squares,
+        ((0, 1.12, 0.32), (0, 1.62, 0.58)),
+        ((1.58, 0.58), (0.74, 1.50), (1.10, 0.48)),
+        ('spanker', ((-0.76, 0.56), (-0.76, 1.22), (-1.28, 1.08), (-1.36, 0.56))),
+    )
+
+
+def build_merchantman():
+    # A big armed merchantman: deep and full-bellied, one row of ports, a raised stern castle, three masts
+    # square-rigged with a spanker. 1.25x the brig.
+    L = 3.00
+
+    def wf(t):
+        if t < 0.30:
+            return 0.42 + 0.10 * math.sin(math.pi / 2 * t / 0.30)
+        if t < 0.62:
+            return 0.52
+        return 0.52 * math.sqrt(max(0.0, 1 - ((t - 0.62) / 0.38) ** 2.2))
+
+    def hf(t):
+        return 0.36 + 0.16 * clamp01((0.22 - t) / 0.04) + 0.05 * clamp01((t - 0.85) / 0.03) + 0.05 * t ** 4
+
+    sect = [(0.86, 0.0), (1.00, 0.42), (0.96, 0.80), (0.86, 1.0)]
+    squares = {
+        'fore_course': (0.80, 0.83, 1.10, 0.56, 1.10, 1.20, 0.10),
+        'fore_top': (0.80, 0.83, 1.66, 1.18, 0.80, 1.02, 0.08),
+        'main_course': (0.05, 0.08, 1.20, 0.60, 1.22, 1.32, 0.10),
+        'main_top': (0.05, 0.08, 1.86, 1.28, 0.88, 1.12, 0.08),
+        'mizzen_top': (-0.82, -0.79, 1.52, 1.10, 0.66, 0.82, 0.07),
+    }
+    return build_rigged(
+        L, wf, hf, sect, [0, 1, 0],
+        [(0.98, [-0.95 + k * 0.26 for k in range(8)], 0.50, 0.68, 0.04)],
+        [('cabin', -0.24, 0.24, -1.40, -1.18, hf(0.08), hf(0.08) + 0.08, cabin),
+         ('hatch0', -0.12, 0.12, -0.45, -0.20, 0.36, 0.41, grate), ('hatch1', -0.12, 0.12, 0.30, 0.55, 0.36, 0.41, grate)],
+        {'fore': (0.80, 1.96), 'main': (0.05, 2.18), 'mizzen': (-0.82, 1.74)},
+        squares,
+        ((0, 1.40, 0.42), (0, 1.72, 0.78)),
+        ((1.70, 0.78), (0.86, 1.70), (1.22, 0.62)),
+        ('spanker', ((-0.88, 0.70), (-0.88, 1.30), (-1.42, 1.14), (-1.52, 0.70))),
+    )
+
+
+def build_brigantine():
+    # A two-master: square sails on the foremast, a big gaff mainsail aft and a jib. 0.95x the brig.
+    L = 2.28
+
+    def wf(t):
+        if t < 0.40:
+            return 0.32 + 0.08 * math.sin(math.pi / 2 * t / 0.40)
+        return 0.40 * math.sqrt(max(0.0, 1 - ((t - 0.40) / 0.60) ** 2.0))
+
+    def hf(t):
+        return 0.26 + 0.04 * (1 - t) ** 3 + 0.06 * t ** 4
+
+    sect = [(0.82, 0.0), (0.97, 0.55), (1.0, 0.82), (0.97, 1.0)]
+    hull(L, 32, wf, hf, sect, [0, 1, 0])
+    ports(L, wf, hf, 0.99, (-0.66, -0.36, -0.06, 0.24, 0.54), 0.56, 0.80, size=0.035)
+    box('companion', -0.10, 0.10, -0.86, -0.70, 0.27, 0.34, cabin)
+    box('hatch0', -0.09, 0.09, -0.02, 0.18, 0.27, 0.31, grate)
+    FY, FTOP, MY, MTOP = 0.56, 1.80, -0.28, 1.96
+    box('fore', -0.03, 0.03, FY - 0.03, FY + 0.03, 0.2, FTOP, mast)
+    box('main', -0.03, 0.03, MY - 0.03, MY + 0.03, 0.2, MTOP, mast)
+    beam('bowsprit', (0, 1.02, 0.32), (0, 1.60, 0.54), 0.024, mast)
+    FORE = {
+        'fore_course': (FY, FY + 0.03, 1.00, 0.50, 0.86, 0.96, 0.10),
+        'fore_top': (FY, FY + 0.03, 1.56, 1.08, 0.60, 0.78, 0.08),
+    }
+    TACK, THROAT, PEAK, CLEW = (MY - 0.05, 0.42), (MY - 0.05, 1.46), (MY - 0.88, 1.84), (MY - 1.00, 0.46)
+    BOOM = (MY - 1.04, 0.42)
+
+    def rig(anim, setting, point, side, frame):
+        swing_deg, jib_lee, belly = SLOOP_SWING[point]
+        luff = point == 'irons'
+        canvas = slack if luff else sail
+        lee = -side if side else -1
+        if luff:
+            swing_deg += 0 if frame == 0 else 6
+        ripple = (0.10 if frame == 0 else -0.10) if luff else 0.0
+        objs = square_rig(FORE, anim, setting, point, side, frame, lambda n: n.endswith('course'))
+        # The main's boom swings less than a sloop's: the foremast's square sails take the run.
+        objs += gaff_main(anim, MY, TACK, THROAT, PEAK, CLEW, BOOM, lee * swing_deg * 0.8, setting, canvas, lee, belly, ripple)
+        objs.append(jib(f'{anim}_jib', (1.56, 0.54), (FY + 0.04, 1.66), (1.02, 0.42), lee * jib_lee + (ripple * 0.8 if luff else 0.0), canvas))
+        return objs
+
+    def furled():
+        return furled_squares(FORE) + gaff_furled(MY, TACK, BOOM, CLEW)
+
+    INFO.update(hull_length=L, main_masthead=(MY, MTOP))
+    return build_states(rig, furled)
+
+
+def build_ship_of_the_line():
+    # The great ship: a towering hull with three rows of ports, gilded stern, frigate rig made bigger.
+    # As long as the cell allows (1.38x the brig); her bulk is in her beam and her height.
+    L = 3.30
+
+    def wf(t):
+        if t < 0.36:
+            return 0.42 + 0.12 * math.sin(math.pi / 2 * t / 0.36)
+        u = (t - 0.36) / 0.64
+        return 0.54 * math.sqrt(max(0.0, 1 - u ** 2.4))
+
+    def hf(t):
+        qd = 0.10 * clamp01((0.32 - t) / 0.03)
+        fc = 0.05 * clamp01((t - 0.82) / 0.03)
+        return 0.46 + qd + fc + 0.03 * (1 - t) ** 4 + 0.05 * t ** 4
+
+    sect = [(0.84, 0.0), (0.98, 0.32), (1.0, 0.62), (0.94, 0.84), (0.88, 1.0)]
+    ys = [-1.12 + k * 0.215 for k in range(11)]
+    squares = {
+        'fore_course': (0.75, 0.78, 1.14, 0.60, 1.20, 1.30, 0.10),
+        'fore_top': (0.75, 0.78, 1.66, 1.20, 0.88, 1.10, 0.08),
+        'fore_tgallant': (0.75, 0.78, 1.96, 1.72, 0.58, 0.78, 0.06),
+        'main_course': (0.05, 0.08, 1.24, 0.64, 1.32, 1.42, 0.10),
+        'main_top': (0.05, 0.08, 1.84, 1.30, 0.96, 1.20, 0.08),
+        'main_tgallant': (0.05, 0.08, 2.18, 1.90, 0.64, 0.86, 0.06),
+        'mizzen_top': (-0.85, -0.82, 1.56, 1.14, 0.72, 0.88, 0.07),
+        'mizzen_tgallant': (-0.85, -0.82, 1.80, 1.60, 0.48, 0.64, 0.05),
+    }
+    return build_rigged(
+        L, wf, hf, sect, [0, 1, 0, 1],
+        [(1.0, ys, 0.26, 0.38, 0.04), (1.0, ys, 0.50, 0.62, 0.04), (0.96, ys[1:-1], 0.72, 0.84, 0.035)],
+        [('cabin', -0.30, 0.30, -1.52, -1.30, hf(0.1), hf(0.1) + 0.09, band),
+         ('hatch0', -0.12, 0.12, -0.50, -0.26, 0.46, 0.50, grate), ('hatch1', -0.12, 0.12, 0.30, 0.54, 0.46, 0.50, grate),
+         ('boat', -0.13, 0.13, -0.12, 0.20, 0.47, 0.54, cabin)],
+        {'fore': (0.75, 2.04), 'main': (0.05, 2.26), 'mizzen': (-0.85, 1.86)},
+        squares,
+        ((0, 1.52, 0.50), (0, 1.74, 0.86)),
+        ((1.73, 0.84), (0.83, 1.70), (1.20, 0.70)),
+        ('spanker', ((-0.90, 0.76), (-0.90, 1.34), (-1.50, 1.18), (-1.60, 0.76))),
+    )
+
+
+def galleon(L, castle, gilt):
+    """A galleon: high castled stern, raised forecastle, two rows of ports, square sails on fore and main,
+    a lateen on the mizzen and a spritsail under the bowsprit. `castle` is the stern castle's height;
+    `gilt` paints the castles and upper hull gold (the treasure galleon)."""
+
+    def wf(t):
+        if t < 0.30:
+            return 0.36 + 0.12 * math.sin(math.pi / 2 * t / 0.30)
+        if t < 0.60:
+            return 0.48
+        return 0.48 * math.sqrt(max(0.0, 1 - ((t - 0.60) / 0.40) ** 2.6))
+
+    def hf(t):
+        return 0.36 + castle * clamp01((0.24 - t) / 0.05) + 0.18 * clamp01((t - 0.82) / 0.05) + 0.04 * t ** 4
+
+    sect = [(0.84, 0.0), (1.0, 0.40), (0.96, 0.72), (0.86, 1.0)]
+    ys = [-0.62 + k * 0.20 for k in range(7)]
+    MZ = -0.80
+    squares = {
+        'fore_course': (0.85, 0.88, 1.10, 0.62, 1.04, 1.14, 0.10),
+        'fore_top': (0.85, 0.88, 1.64, 1.18, 0.72, 0.92, 0.08),
+        'main_course': (0.10, 0.13, 1.22, 0.64, 1.20, 1.30, 0.10),
+        'main_top': (0.10, 0.13, 1.88, 1.30, 0.84, 1.08, 0.08),
+    }
+    top = hf(0.1)
+    return build_rigged(
+        L, wf, hf, sect, [0, 1, 1] if gilt else [0, 1, 0],
+        [(1.0, ys, 0.40, 0.54, 0.04), (0.97, ys, 0.62, 0.76, 0.035)],
+        [('gallery', -0.26, 0.26, -L / 2 - 0.02, -L / 2 + 0.10, top - 0.18, top + 0.04, band),
+         ('hatch0', -0.12, 0.12, -0.25, 0.0, 0.36, 0.41, grate), ('hatch1', -0.12, 0.12, 0.30, 0.52, 0.36, 0.41, grate)],
+        {'fore': (0.85, 1.92), 'main': (0.10, 2.18), 'mizzen': (MZ, 1.74)},
+        squares,
+        # Bowsprit, spritsail and lateen kept in from the cell's edges: braced close-hauled, the spritsail
+        # yard reaches forward, and the lateen's peak stands over the high stern.
+        ((0, 1.38, 0.56), (0, 1.62, 0.84)),
+        {'sprit': (1.44, 1.46, 0.70, 0.44, 0.42, 0.46, 0.06)},
+        ('lateen', (MZ, (MZ + 0.46, 0.42 + castle), (MZ - 0.56, 1.54), (MZ + 0.40, 0.48 + castle), (MZ - 0.50, 1.48), (MZ - 0.44, 0.44 + castle))),
+        [hull_dark, band, deck],
+    )
+
+
+def build_galleon():
+    return galleon(3.10, 0.36, False)
+
+
+def build_treasure_galleon():
+    return galleon(3.16, 0.42, True)
+
+
+STATES = {'fluyt': build_fluyt, 'sloop': build_sloop, 'frigate': build_frigate, 'war_sloop': build_war_sloop,
+          'royal_sloop': build_royal_sloop, 'barque': build_barque, 'merchantman': build_merchantman,
+          'brigantine': build_brigantine, 'ship_of_the_line': build_ship_of_the_line, 'galleon': build_galleon,
+          'treasure_galleon': build_treasure_galleon}[CLASS]()
 print('INFO', CLASS, INFO)
 
 # The combat run never overwrites the world master .blend.
@@ -539,6 +896,7 @@ RAMPS = {
     'ebede9': ['c7cfcc', 'e7d5b3', 'ebede9'],
     'c7cfcc': ['577277', '819796', 'a8b5b2'],
     'a53030': ['752438', 'a53030', 'cf573c'],
+    '3c5e8b': ['253a5e', '3c5e8b', '4f8fba'],
 }
 BASE = np.array([hexrgb(h) for h in RAMPS], dtype=np.float32) / 255
 RAMP = np.array([[hexrgb(h) for h in r] for r in RAMPS.values()], dtype=np.float32) / 255

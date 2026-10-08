@@ -246,5 +246,453 @@
       "forward": 0.75,
       "up": 2.06
     }
+  },
+  "ship.war_sloop.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py war_sloop), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.25,
+      "up": 2.02
+    }
+  },
+  "ship.war_sloop.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.25,
+      "up": 2.02
+    }
+  },
+  "ship.royal_sloop.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py royal_sloop), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.26,
+      "up": 2.1
+    }
+  },
+  "ship.royal_sloop.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.26,
+      "up": 2.1
+    }
+  },
+  "ship.barque.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py barque), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.0,
+      "up": 1.84
+    }
+  },
+  "ship.barque.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.0,
+      "up": 1.84
+    }
+  },
+  "ship.merchantman.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py merchantman), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.05,
+      "up": 2.18
+    }
+  },
+  "ship.merchantman.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.05,
+      "up": 2.18
+    }
+  },
+  "ship.brigantine.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py brigantine), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": -0.28,
+      "up": 1.96
+    }
+  },
+  "ship.brigantine.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": -0.28,
+      "up": 1.96
+    }
+  },
+  "ship.ship_of_the_line.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py ship_of_the_line), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.05,
+      "up": 2.26
+    }
+  },
+  "ship.ship_of_the_line.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.05,
+      "up": 2.26
+    }
+  },
+  "ship.galleon.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py galleon), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.1,
+      "up": 2.18
+    }
+  },
+  "ship.galleon.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.1,
+      "up": 2.18
+    }
+  },
+  "ship.treasure_galleon.world": {
+    "$comment": "45 deg camera render like the brig (tools/art/render_ships.py treasure_galleon), same 23 sail anims, pivot and cell; packed into one atlas by tools/art/pack_ships.ts. mast: the head the flag streams from, in model units (forward of the pivot, up from the waterline).",
+    "cell": 96,
+    "facings": 32,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_furled",
+      "sail_full_run",
+      "sail_full_broad_p",
+      "sail_full_beam_p",
+      "sail_full_close_p",
+      "sail_full_irons_p0",
+      "sail_full_irons_p1",
+      "sail_full_broad_s",
+      "sail_full_beam_s",
+      "sail_full_close_s",
+      "sail_full_irons_s0",
+      "sail_full_irons_s1",
+      "sail_half_run",
+      "sail_half_broad_p",
+      "sail_half_beam_p",
+      "sail_half_close_p",
+      "sail_half_irons_p0",
+      "sail_half_irons_p1",
+      "sail_half_broad_s",
+      "sail_half_beam_s",
+      "sail_half_close_s",
+      "sail_half_irons_s0",
+      "sail_half_irons_s1"
+    ],
+    "mast": {
+      "forward": 0.1,
+      "up": 2.18
+    }
+  },
+  "ship.treasure_galleon.combat": {
+    "$comment": "Sea battle set (scenes doc S3): the world model rendered at 192 px with the same 45 deg camera and framing, 16 facings, three sail states (set sails drawn on a beam reach). tools/art/render_ships.py --combat (render_brig.py for the brig), packed by pack_ships.ts.",
+    "cell": 192,
+    "facings": 16,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.615
+    },
+    "anims": [
+      "sail_full",
+      "sail_half",
+      "sail_furled"
+    ],
+    "mast": {
+      "forward": 0.1,
+      "up": 2.18
+    }
   }
 }

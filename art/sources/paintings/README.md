@@ -406,6 +406,8 @@ merchant and plunder screens' goods). Each good's id is `ui.icon.good.{id}`, the
 | `ui.icon.good.luxuries` | A small carved wooden casket with a silk cloth and a glass bottle of wine beside it. |
 | `ui.icon.good.silver` | Three stacked silver ingots with a pale grey metallic shine. |
 | `ui.icon.good.food` | A wooden crate, a cheese and a cask. |
+| `ui.icon.good.rum` | A small oak rum cask on its side with a dark glass bottle of amber rum standing beside it. |
+| `ui.icon.good.cloth` | A neat stack of folded bolts of dyed cloth, red, blue and cream, tied with a ribbon. |
 
 **Panel frame** (3:2):
 

@@ -127,8 +127,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.sloop.world",
-      "combat": "ship.sloop.combat",
+      "world": "ship.war_sloop.world",
+      "combat": "ship.war_sloop.combat",
       "icon": "ui.ship.sloop"
     }
   },
@@ -152,8 +152,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.sloop.world",
-      "combat": "ship.sloop.combat",
+      "world": "ship.royal_sloop.world",
+      "combat": "ship.royal_sloop.combat",
       "icon": "ui.ship.sloop"
     }
   },
@@ -181,8 +181,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.fluyt.world",
-      "combat": "ship.fluyt.combat",
+      "world": "ship.barque.world",
+      "combat": "ship.barque.combat",
       "icon": "ui.ship.fluyt"
     }
   },
@@ -209,8 +209,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.fluyt.world",
-      "combat": "ship.fluyt.combat",
+      "world": "ship.merchantman.world",
+      "combat": "ship.merchantman.combat",
       "icon": "ui.ship.fluyt"
     }
   },
@@ -236,8 +236,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.brig.world",
-      "combat": "ship.brig.combat",
+      "world": "ship.brigantine.world",
+      "combat": "ship.brigantine.combat",
       "icon": "ui.ship.brig"
     }
   },
@@ -261,8 +261,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.frigate.world",
-      "combat": "ship.frigate.combat",
+      "world": "ship.ship_of_the_line.world",
+      "combat": "ship.ship_of_the_line.combat",
       "icon": "ui.ship.frigate"
     }
   },
@@ -290,8 +290,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.frigate.world",
-      "combat": "ship.frigate.combat",
+      "world": "ship.galleon.world",
+      "combat": "ship.galleon.combat",
       "icon": "ui.ship.frigate"
     }
   },
@@ -319,8 +319,8 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.frigate.world",
-      "combat": "ship.frigate.combat",
+      "world": "ship.treasure_galleon.world",
+      "combat": "ship.treasure_galleon.combat",
       "icon": "ui.ship.frigate"
     }
   }
