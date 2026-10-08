@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // The sea (art direction: Sid Meier's Pirates! 2004, a bright "Technicolor" sea, docs/reference/pirates-3d-style.md):
 // long swells rolled downwind, fine ripples over them that show as a soft hammered texture, aqua over the
 // shallows with the sand showing through and light dappling it, surf rolling in along the depth contours, flecks
-// of whitecap lying along the wind and coming and going, cloud shadows drifting over, sun sparkle, and the sky's
+// of whitecap lying along the wind and coming and going, cloud shadows drifting over, and the sky's
 // colour at a glancing angle. One plane that follows the camera.
 // Distances are in map tiles (one tile is about 2.5 km; ships and swells are drawn far larger than life).
 
@@ -254,19 +254,6 @@ void main() {
   // A faint, soft sheen from the sun across the swell (no mirrored disc; more would grey one side of the view).
   vec3 h = normalize(uSunDir + v);
   col += uSunColor * pow(max(dot(n, h), 0.0), 60.0) * 0.04 * uLight;
-  // Sun sparkle at two sizes: fine specks close in, coarser ones that still show zoomed out (the sea glitters
-  // all over, a pixel or two in a hundred), each fading out before it would be smaller than a pixel.
-  // Each glint is a small round point at a random spot in its cell, about a pixel and a half across, never
-  // the whole cell (which would show as a square).
-  vec2 cell = floor(vWorld.xz * 7.0);
-  vec2 spot = vec2(hash(cell + 3.1), hash(cell + 7.7)) * 0.6 + 0.2;
-  float dot1 = 1.0 - smoothstep(0.0, footprint * 7.0 * 0.9 + 0.04, length(fract(vWorld.xz * 7.0) - spot));
-  float wink = step(0.975, hash(cell + floor(uTime * 3.0 + hash(cell) * 7.0))) * dot1 * (1.0 - smoothstep(0.05, 0.13, footprint));
-  vec2 cell2 = floor(vWorld.xz * 1.6);
-  vec2 spot2 = vec2(hash(cell2 + 5.3), hash(cell2 + 9.1)) * 0.6 + 0.2;
-  float dot2 = 1.0 - smoothstep(0.0, footprint * 1.6 * 0.9, length(fract(vWorld.xz * 1.6) - spot2));
-  float wink2 = step(0.97, hash(cell2 + 17.0 + floor(uTime * 2.0 + hash(cell2) * 5.0))) * dot2 * smoothstep(0.08, 0.2, footprint) * (1.0 - smoothstep(0.6, 1.4, footprint));
-  col += uSunColor * (wink + wink2) * uLight * 0.85;
 
   // Whitecaps: flecks lying along the wind, more of them the harder it blows, gathered in gusty patches; fine
   // ones close in and coarser ones further out (so on screen they stay about the same size at every zoom),

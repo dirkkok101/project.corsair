@@ -35,7 +35,8 @@ Sources and the full notes are in the research summary in the 3D planning conver
 ## The look, from the references
 
 - **Sea:**
-  - Saturated cerulean (about `#1a6cb5`) with fine sun sparkle all over it, not a mirrored sun.
+  - An even, soft cerulean (about `#5b8fc2` on screen, measured from the footage) with small whitecap flecks,
+    no glitter and no mirrored sun.
   - Wide turquoise bands over the shallows (about `#2fd0cf`).
   - White, streaky foam that follows the coast's contours.
   - Long white wind streaks across open water.
@@ -80,7 +81,8 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
     faint: each lives about 9 seconds and barely drifts, so the sea shows the wind without flickering or racing.
     Pirates! puts the wind's direction on the compass (a red arrow through the rose) and keeps the sea calm.
   - Cloud shadows: big soft darker patches drifting downwind with the clouds, slowly (half a tile a second).
-  - Sun sparkle that fades before it would shimmer; only a faint sheen, so the sea is one even soft blue.
+  - No sun sparkle (glints that jumped about read as dots darting over the sea); only a faint sheen, so the
+    sea is one even soft blue.
   - Surf bands rolling in along the depth contours, and sand showing through the shallows.
   - The water takes the light's colour; a moonlit sea is greyed a little toward navy, its flecks only a glimmer.
   - Measured against the reference's open sea (hue about 209, saturation 0.52, value 0.76 on screen).
