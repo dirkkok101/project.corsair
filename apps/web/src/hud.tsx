@@ -1,4 +1,4 @@
-import type { Wind, WorldState } from '@corsair/core';
+import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
@@ -8,22 +8,7 @@ const GILT = '#e6bf6a';
 const GILT_DARK = '#9a6e34';
 const WIND_RED = '#d8352a';
 
-/**
- * The compass (after Sid Meier's Pirates!, whose HUD shows the wind as a red arrow through a gilt compass rose):
- * north-up like the map, the red arrow pointing where the wind blows, longer and bolder the harder it blows;
- * the ship's heading as a gold mark on the rim, and her speed in knots beneath. Quietly behind the rose, for
- * the sailor: her speed for every heading in this wind (the pale shape, against the strongest wind on full
- * sail), and the no-go zone dark red on the ring.
- */
-function Compass({
-  polar,
-  wind,
-  windDrive,
-  headingDeg,
-  scale,
-  knots,
-  pointName,
-}: {
+export interface CompassProps {
   polar: Polar;
   wind: Wind;
   /** The wind's strength, 0..1 of the strongest. */
@@ -34,7 +19,28 @@ function Compass({
   knots: number;
   /** Her point of sail ("Beam reach"). */
   pointName: string;
-}) {
+  className?: string;
+}
+
+/**
+ * The compass (after Sid Meier's Pirates!, whose HUD shows the wind as a red arrow through a gilt compass rose):
+ * north-up like the map, the red arrow pointing where the wind blows, longer and bolder the harder it blows;
+ * the ship's heading as a gold mark on the rim, and her speed in knots beneath. Quietly behind the rose, for
+ * the sailor: her speed for every heading in this wind (the pale shape, against the strongest wind on full
+ * sail), and the no-go zone dark red on the ring.
+ */
+export function Compass({
+  polar,
+  wind,
+  windDrive,
+  headingDeg,
+  scale,
+  knots,
+  pointName,
+  className,
+}: CompassProps) {
+  // Its gradients' ids are its own: another compass (the sea HUD's, hidden in battle) can't lend them.
+  const uid = `compass-${className ?? 'sea'}`;
   const windFromDeg = wind.fromDeg;
   const c = ROSE.size / 2;
   const at = (deg: number, r: number): [number, number] => {
@@ -67,21 +73,21 @@ function Compass({
   const flight = (side: number) => `${pt(windFromDeg + side * 14, reach * 0.85 + 6)} ${pt(windFromDeg, reach * 0.85 - 4)} ${pt(windFromDeg + side * 4, reach * 0.85 + 8)}`;
   const [hx, hy] = at(headingDeg, ROSE.ring - 3);
   return (
-    <div class="hud-rose" title="Compass: the red arrow is the wind, the gold mark your heading">
+    <div class={`hud-rose${className ? ` ${className}` : ''}`} title="Compass: the red arrow is the wind, the gold mark your heading">
       <svg width={ROSE.size} height={ROSE.size} viewBox={`0 0 ${ROSE.size} ${ROSE.size}`}>
         <defs>
-          <radialGradient id="compass-face" cx="50%" cy="45%" r="60%">
+          <radialGradient id={`${uid}-face`} cx="50%" cy="45%" r="60%">
             <stop offset="0" stop-color="#2a5d8c" />
             <stop offset="1" stop-color="#132c47" />
           </radialGradient>
-          <linearGradient id="compass-gilt" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id={`${uid}-gilt`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stop-color="#f6dc95" />
             <stop offset="0.5" stop-color={GILT} />
             <stop offset="1" stop-color={GILT_DARK} />
           </linearGradient>
         </defs>
-        <circle cx={c} cy={c} r={ROSE.ring + 8} fill="url(#compass-face)" stroke="url(#compass-gilt)" stroke-width="5" />
-        <circle cx={c} cy={c} r={ROSE.ring} fill="none" stroke="url(#compass-gilt)" stroke-width="1.5" opacity="0.8" />
+        <circle cx={c} cy={c} r={ROSE.ring + 8} fill={`url(#${uid}-face)`} stroke={`url(#${uid}-gilt)`} stroke-width="5" />
+        <circle cx={c} cy={c} r={ROSE.ring} fill="none" stroke={`url(#${uid}-gilt)`} stroke-width="1.5" opacity="0.8" />
         {/* Ticks round the ring: long at the quarters. */}
         {Array.from({ length: 32 }, (_, i) => {
           const d = i * 11.25;
@@ -121,6 +127,23 @@ function Compass({
       <div class="compass-point">{pointName}</div>
     </div>
   );
+}
+
+/** The compass's reading for a ship in this wind, going at `knots`. */
+export function compassProps(content: ContentPack, ship: { classId: string; headingDeg: number; sails: Ship['sails'] }, wind: Wind, knots: number): CompassProps {
+  const nav = content.navigation;
+  const polar = content.polars[content.ships[ship.classId]!.polar]!;
+  const drive = nav.windStrength[wind.strength]! * nav.sailSettings[ship.sails]!;
+  const strongest = Math.max(...Object.values(nav.windStrength)) * Math.max(...Object.values(nav.sailSettings));
+  return {
+    polar,
+    wind,
+    windDrive: nav.windStrength[wind.strength]! / Math.max(...Object.values(nav.windStrength)),
+    headingDeg: ship.headingDeg,
+    scale: drive / strongest,
+    knots,
+    pointName: pointOfSail(content, angleOffWind(ship.headingDeg, wind.fromDeg)).name,
+  };
 }
 
 export interface HudProps {
@@ -168,13 +191,7 @@ export function Hud({
 }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
-  const cls = content.ships[ship.classId]!;
   const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
-  const nav = content.navigation;
-  const polar = content.polars[cls.polar]!;
-  const drive = nav.windStrength[wind.strength]! * nav.sailSettings[ship.sails]!;
-  const strongest = Math.max(...Object.values(nav.windStrength)) * Math.max(...Object.values(nav.sailSettings));
-  const windDrive = nav.windStrength[wind.strength]! / Math.max(...Object.values(nav.windStrength));
   return (
     <>
       <div class="hud">
@@ -225,15 +242,7 @@ export function Hud({
           {ship.blocked ? ' · aground' : ''}
         </div>
       </div>
-      <Compass
-        polar={polar}
-        wind={wind}
-        windDrive={windDrive}
-        headingDeg={ship.headingDeg}
-        scale={drive / strongest}
-        knots={ship.speed * knotsPerTilePerSecond}
-        pointName={pointOfSail(content, offWind).name}
-      />
+      <Compass {...compassProps(content, ship, wind, ship.speed * knotsPerTilePerSecond)} />
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
       {saved ? <div class="hud-saved">Saved</div> : null}

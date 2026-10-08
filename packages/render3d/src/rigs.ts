@@ -7,17 +7,17 @@ import type { FlatSail, HullPlan, Mast, ShipPlan, SquareSail } from './shipyard'
 
 type Paint = HullPlan['paint'];
 /** Pirates! 2004's golden-brown hulls: dark planking below, a warm painted band above, gilt trim. */
-const WARM: Paint = { hull: '#5b3425', band: '#c98f3d', wale: '#2b1b16', deck: '#c6a079', trim: '#e6bf6a' };
+const WARM: Paint = { hull: '#5b3425', band: '#c98f3d', wale: '#2b1b16', deck: '#9c7a57', trim: '#e6bf6a' };
 /** A plain trader: weathered brown with a dull ochre band. */
-const TRADER: Paint = { hull: '#4f3426', band: '#a87b45', wale: '#2b1b16', deck: '#bf9b74', trim: '#c9a35e' };
+const TRADER: Paint = { hull: '#4f3426', band: '#a87b45', wale: '#2b1b16', deck: '#967553', trim: '#c9a35e' };
 /** A navy sloop: blue with a gold band. */
-const ROYAL: Paint = { hull: '#24406e', band: '#d6ae4a', wale: '#14213a', deck: '#c6a079', trim: '#f0cf72' };
+const ROYAL: Paint = { hull: '#24406e', band: '#d6ae4a', wale: '#14213a', deck: '#9c7a57', trim: '#f0cf72' };
 /** A man-of-war: dark hull, gilded bands between the gun decks. */
-const NAVY: Paint = { hull: '#3a2820', band: '#d4a83c', wale: '#1d1714', deck: '#c2a07a', trim: '#f2cf6e' };
+const NAVY: Paint = { hull: '#3a2820', band: '#d4a83c', wale: '#1d1714', deck: '#987755', trim: '#f2cf6e' };
 /** A Spanish galleon: dark wood, a red band, gold trim. */
-const SPANISH: Paint = { hull: '#46281d', band: '#b0422c', wale: '#22140f', deck: '#c09a72', trim: '#e9c26a' };
+const SPANISH: Paint = { hull: '#46281d', band: '#b0422c', wale: '#22140f', deck: '#967350', trim: '#e9c26a' };
 /** The treasure galleon: gilded all along. */
-const TREASURE: Paint = { hull: '#46281d', band: '#d9a83c', wale: '#22140f', deck: '#c09a72', trim: '#ffe08a' };
+const TREASURE: Paint = { hull: '#46281d', band: '#d9a83c', wale: '#22140f', deck: '#967350', trim: '#ffe08a' };
 
 const sq = (name: string, zt: number, zb: number, wt: number, wb: number, billow: number): SquareSail => ({ name, zt, zb, wt, wb, billow });
 const mast = (at: number, height: number, ...squares: SquareSail[]): Mast => ({ at, height, squares });

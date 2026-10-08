@@ -152,6 +152,14 @@ function deckTexture(plan: HullPlan): THREE.CanvasTexture {
   const g = c.getContext('2d')!;
   g.fillStyle = plan.paint.deck;
   g.fillRect(0, 0, 256, 256);
+  // Weathered and oiled: a warm dark wash, since the deck faces the sun full on and would otherwise read as
+  // a pale tan slab from above (Pirates!'s decks are a deep reddish brown), and each plank a shade apart.
+  g.fillStyle = 'rgba(70, 32, 14, 0.4)';
+  g.fillRect(0, 0, 256, 256);
+  for (let x = 0; x < 256; x += 16) {
+    g.fillStyle = `rgba(40, 18, 8, ${((x * 37) % 5) * 0.03})`;
+    g.fillRect(x, 0, 16, 256);
+  }
   for (let x = 0; x < 256; x += 16) {
     g.fillStyle = 'rgba(0,0,0,0.18)';
     g.fillRect(x, 0, 1.5, 256);
@@ -407,7 +415,7 @@ function spar(r0: number, r1: number, length: number): THREE.Mesh {
  * sheet, 1 in the middle of the cloth), and the shader pushes it along the sail's own z by the ship's belly,
  * rippling it when the sail luffs.
  */
-type SailUniforms = { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform };
+type SailUniforms = { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform; uTatter: THREE.IUniform };
 /** The sails' own glow, shared by every sail and tinted by the renderer with the light: warm at dusk, blue by moonlight. */
 export const SAIL_GLOW = new THREE.Color('#fffaf0');
 function sailMaterial(cloth: THREE.Texture, shared?: SailUniforms): THREE.MeshStandardMaterial & { userData: { uniforms: SailUniforms } } {
@@ -415,7 +423,7 @@ function sailMaterial(cloth: THREE.Texture, shared?: SailUniforms): THREE.MeshSt
   const m = new THREE.MeshStandardMaterial({ map: cloth, roughness: 0.92, side: THREE.DoubleSide, emissive: '#fffaf0', emissiveIntensity: 0.38, emissiveMap: cloth }) as THREE.MeshStandardMaterial & {
     userData: { uniforms: SailUniforms };
   };
-  const uniforms = shared ?? { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 } };
+  const uniforms = shared ?? { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 }, uTatter: { value: 0 } };
   m.emissive = SAIL_GLOW;
   m.userData.uniforms = uniforms;
   m.onBeforeCompile = (shader) => {
@@ -428,6 +436,29 @@ function sailMaterial(cloth: THREE.Texture, shared?: SailUniforms): THREE.MeshSt
 float wave = sin((position.x + position.z) * 9.0 + uTime * 11.0) * sin(position.y * 6.0 - uTime * 7.0);
 vec3 belly = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), aAbeam);
 transformed += belly * aFree * (aDepth * uBelly + wave * uLuff * 0.05);`,
+      );
+    // Shot through (uTatter 0 whole .. 1 in rags): round holes in more and more of the cloth, then the foot
+    // torn away in ragged tongues, so a beaten ship's canvas shows it (Pirates! draws hers as rags).
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform float uTatter;
+float tatterHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `if (uTatter > 0.0) {
+  vec2 cells = vMapUv * vec2(7.0, 6.0);
+  vec2 cell = floor(cells);
+  vec2 spot = vec2(tatterHash(cell + 1.7), tatterHash(cell + 5.3)) * 0.6 + 0.2;
+  float hit = step(tatterHash(cell + 9.1), uTatter * 0.7);
+  float r = (0.12 + 0.22 * tatterHash(cell + 3.9)) * hit;
+  if (length(fract(cells) - spot) < r) discard;
+  float rag = smoothstep(0.45, 1.0, uTatter) * (0.35 + 0.4 * tatterHash(vec2(floor(vMapUv.x * 9.0), 2.0)));
+  if (1.0 - vMapUv.y < rag) discard;
+}
+#include <map_fragment>`,
       );
   };
   return m;
@@ -575,6 +606,8 @@ export interface BuiltShip {
   root: THREE.Object3D;
   /** Sails for the setting and the wind: the point of sail, which side the wind is on (+1 starboard), luffing. */
   setSails(setting: 'full' | 'half' | 'furled', point: string, side: number, nowMs: number): void;
+  /** How shot through her sails are: 0 whole .. 1 in rags. */
+  setTatters(share: number): void;
 }
 
 /** The parts of a class shared by every ship of it (geometry and hull paint), built once. */
@@ -776,6 +809,10 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       // The flags stream downwind: away from the wind's side.
       ensign.rotation.y = -Math.PI / 2 - side * 0.6;
       pennant.rotation.y = -Math.PI / 2 - side * 0.6;
+    },
+    setTatters(share) {
+      // Barely scratched canvas stays whole.
+      sailMat.userData.uniforms.uTatter.value = THREE.MathUtils.clamp((share - 0.08) / 0.92, 0, 1);
     },
   };
 }

@@ -20,7 +20,7 @@ import { angleOffWind, pointOfSail, speedPoints } from '@corsair/systems-navigat
 import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
-import { Hud } from './hud';
+import { compassProps, Hud } from './hud';
 import { shipIcon, shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
@@ -953,11 +953,13 @@ async function main() {
               : undefined
           }
           advice={fight.report ? repairAdvice() : undefined}
-          wind={{
-            fromDeg: bs.wind.fromDeg,
-            strength: bs.wind.strength,
-            point: pointOfSail(content, angleOffWind(bs.ships.player.headingDeg, bs.wind.fromDeg)).name,
-          }}
+          compass={compassProps(
+            content,
+            bs.ships.player,
+            bs.wind,
+            // The battle's speeds run on their own scale: as speed points, then as the sea map's tiles a second.
+            (bs.ships.player.speed / content.combat.battle.tilesPerSecondPerSpeedPoint) * content.navigation.tilesPerSecondPerSpeedPoint * knotsPerTilePerSecond,
+          )}
           board={{ odds: fight.battle.boardingOdds(), active: Boolean(bs.boarding) }}
           onPlunder={takePlunder}
           reloadSeconds={gunnery.reloadSeconds}

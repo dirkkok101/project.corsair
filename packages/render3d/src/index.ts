@@ -44,8 +44,23 @@ const FAR_SHIP_SCALE = 4;
 const SHIP_LENGTH = 2.4 * MODEL_SCALE;
 /** How fast a ship eases into the swell's pitch and roll (per second): slow, so she rocks rather than bounces. */
 const RIDE_EASE = 1.1;
+/** A fast ship's speed in speed points, for how hard a ship heels in a turn. */
+const FAST_SHIP = 7;
 /** The battle camera's distance in tiles, framing both ships, before the player's own zoom (a factor). */
-const BATTLE_VIEW = { min: 16, max: 90 };
+const BATTLE_VIEW = { min: 9, max: 90 };
+/**
+ * In battle ships are drawn at their true size (the map's 1.6x enlargement would make them dwarf the fight:
+ * broadsides from barely a ship's length apart), so they trade shots across a few lengths of sea, as in Pirates!.
+ */
+const BATTLE_MODEL_SCALE = MODEL_SCALE / SHIP_SCALE;
+/**
+ * A ship heels outward as she turns (Pirates! 2004: her masts lean well over in a hard turn and come upright as
+ * she steadies): this many radians at full speed in a turn this fast (degrees a second) or faster, easing in
+ * over about half a second.
+ */
+const TURN_HEEL = 0.28;
+const TURN_FULL_DEG = 30;
+const TURN_EASE = 2.5;
 const BATTLE_ZOOM = { min: 0.45, max: 3 };
 /** A sunk ship takes this long to go under. */
 const SINK_SECONDS = 6;
@@ -209,7 +224,7 @@ export async function createSeaRenderer(
   let lastMs = 0;
   let skySeconds = SKY_START;
   // Each ship's ride: her height on the swell and her pitch and roll, eased toward the sea's each frame.
-  const rides = new Map<string, { bob: number; pitch: number; roll: number }>();
+  const rides = new Map<string, { bob: number; pitch: number; roll: number; lean: number; heading: number }>();
 
   /** The frame's clock and the hour's light: sun, sky, sea and sails blend smoothly by the sun's height. */
   const beginFrame = (nowMs: number, view: number) => {
@@ -257,6 +272,9 @@ export async function createSeaRenderer(
     t: number,
     dt: number,
     scale: number,
+    /** Her speed as a share of a fast ship's (0..1): she heels in a turn only as hard as she is going. */
+    pace: number,
+    model = MODEL_SCALE,
   ) => {
     const len = SHIP_LENGTH * scale;
     const r = (s.headingDeg * Math.PI) / 180;
@@ -271,18 +289,27 @@ export async function createSeaRenderer(
     if (rel > 180) rel -= 360;
     const press = s.sails === 'furled' ? 0 : (s.sails === 'full' ? 1 : 0.6) * strengthOf(w);
     const heel = Math.sin((rel * Math.PI) / 180) * press * 0.12;
-    const ride = rides.get(id) ?? { bob: 0, pitch: 0, roll: 0 };
+    const ride = rides.get(id) ?? { bob: 0, pitch: 0, roll: 0, lean: 0, heading: s.headingDeg };
     const ease = 1 - Math.exp(-dt * RIDE_EASE);
     ride.bob += ((bow + stern + port + starboard) / 4 - ride.bob) * ease;
     ride.pitch += (Math.atan2(bow - stern, len * 0.8) - ride.pitch) * ease;
     ride.roll += (Math.atan2(starboard - port, len * 0.24) * 0.5 + heel - ride.roll) * ease;
+    // Turning to starboard (heading rising) she leans out to port, and the other way round; positive roll is
+    // to port, as for the wind on her starboard side.
+    const turned = ((s.headingDeg - ride.heading + 540) % 360) - 180;
+    ride.heading = s.headingDeg;
+    const rate = dt > 0 ? turned / dt : 0;
+    // Even a ship at a modest pace leans well over in a hard turn (the square root keeps it readable).
+    const lean = THREE.MathUtils.clamp(rate / TURN_FULL_DEG, -1, 1) * Math.sqrt(THREE.MathUtils.clamp(pace, 0, 1)) * TURN_HEEL;
+    ride.lean += (lean - ride.lean) * (1 - Math.exp(-dt * TURN_EASE));
     rides.set(id, ride);
     root.position.set(s.x, ride.bob, s.y);
     root.rotation.set(0, 0, 0);
     root.rotateY(-r);
     root.rotateX(ride.pitch);
-    root.rotateZ(-ride.roll);
-    root.scale.setScalar(MODEL_SCALE * scale);
+    // A positive turn about her fore-and-aft axis lays her masts over to port (her local -x).
+    root.rotateZ(ride.roll + ride.lean);
+    root.scale.setScalar(model * scale);
     return len;
   };
 
@@ -388,7 +415,7 @@ export async function createSeaRenderer(
       seen.add(s.id);
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
-      placeShip(s.id, m.root, s, w, sea, t, dt, farScale);
+      placeShip(s.id, m.root, s, w, sea, t, dt, farScale, s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP);
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
@@ -436,7 +463,7 @@ export async function createSeaRenderer(
     const { player, enemy } = view.ships;
     const apart = Math.hypot(enemy.x - player.x, enemy.y - player.y);
     // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close.
-    const want = THREE.MathUtils.clamp(apart * 1.15 + 14, BATTLE_VIEW.min, BATTLE_VIEW.max) * battleZoom;
+    const want = THREE.MathUtils.clamp(apart * 1.3 + 6, BATTLE_VIEW.min, BATTLE_VIEW.max) * battleZoom;
     const dt = beginFrame(nowMs, battleView || want);
     const t = nowMs / 1000;
     battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;
@@ -455,11 +482,11 @@ export async function createSeaRenderer(
         fighters.set(side, f);
         scene.add(f.built.root);
       }
-      // Sails shot to rags show as less canvas set (as the 2D battle draws them).
-      const c = s.sailCondition ?? 100;
-      const sails = c < 25 ? 'furled' : c < 55 && s.sails === 'full' ? 'half' : s.sails;
-      f.built.setSails(...sailsOf(sailAnim(content, { sails, headingDeg: s.headingDeg }, wind, nowMs)), nowMs);
-      const length = placeShip(`battle.${side}`, f.built.root, { ...s, sails }, wind, sea, t, dt, 1);
+      // Sails shot through show it: holes, then rags (her canvas set as she set it).
+      f.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
+      f.built.setSails(...sailsOf(sailAnim(content, s, wind, nowMs)), nowMs);
+      const pace = (s.speed ?? 0) / content.combat.battle.tilesPerSecondPerSpeedPoint / FAST_SHIP;
+      const length = placeShip(`battle.${side}`, f.built.root, s, wind, sea, t, dt, 1 / SHIP_SCALE, pace, BATTLE_MODEL_SCALE);
       // Going down: she settles by the stern, rolls and is gone under the sea.
       if (side === 'enemy' && view.wreck) {
         if (sinkingFrom === undefined) {
@@ -470,7 +497,7 @@ export async function createSeaRenderer(
         const root = f.built.root;
         root.rotateX(-0.35 * k);
         root.rotateZ(0.45 * k * k);
-        root.position.y -= k * k * (f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1) + 0.6) * MODEL_SCALE;
+        root.position.y -= k * k * (f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1) + 0.6) * BATTLE_MODEL_SCALE;
         root.visible = k < 1;
       } else f.built.root.visible = true;
       const tallest = f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1);
@@ -478,10 +505,10 @@ export async function createSeaRenderer(
         x: s.x,
         z: s.y,
         headingDeg: s.headingDeg,
-        length: f.plan.hull.length * MODEL_SCALE,
-        halfBeam: f.plan.hull.beam * MODEL_SCALE,
-        deck: f.plan.hull.rail * MODEL_SCALE,
-        sails: tallest * 0.6 * MODEL_SCALE,
+        length: f.plan.hull.length * BATTLE_MODEL_SCALE,
+        halfBeam: f.plan.hull.beam * BATTLE_MODEL_SCALE,
+        deck: f.plan.hull.rail * BATTLE_MODEL_SCALE,
+        sails: tallest * 0.6 * BATTLE_MODEL_SCALE,
       };
       if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, length });
     }

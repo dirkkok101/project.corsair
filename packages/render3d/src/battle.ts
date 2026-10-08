@@ -55,7 +55,7 @@ interface Particle {
 /** How each kind looks and moves: its colour, blend, starting opacity, gravity and drag. */
 const KINDS: Record<Kind, { colour: string; glow?: boolean; alpha: number; gravity: number; drag: number; debris?: boolean }> = {
   // Gunsmoke: white, thick at first, thinning as it rolls downwind.
-  smoke: { colour: '#eef0ee', alpha: 0.9, gravity: -0.25, drag: 1.6 },
+  smoke: { colour: '#eef0ee', alpha: 0.7, gravity: -0.25, drag: 1.6 },
   // A hurt hull's smoke: dark where it leaves her, climbing.
   hullSmoke: { colour: '#2c3133', alpha: 0.9, gravity: -0.6, drag: 0.6 },
   flash: { colour: '#ffb45a', glow: true, alpha: 1, gravity: 0, drag: 0 },
@@ -132,7 +132,7 @@ export function createBattleFx() {
 
   // Balls in flight: dark iron spheres (a touch larger than life, so they read from the camera).
   const balls = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.075, 12, 8),
+    new THREE.SphereGeometry(0.05, 10, 8),
     new THREE.MeshStandardMaterial({ color: BALL, roughness: 0.35, metalness: 0.6 }),
     MAX_BALLS,
   );
@@ -195,9 +195,9 @@ export function createBattleFx() {
   const paintArc = (side: { fill: THREE.Mesh; edge: THREE.Line }, aim: string) => {
     const fill = side.fill.material as THREE.MeshBasicMaterial;
     const edge = side.edge.material as THREE.LineBasicMaterial;
-    // As the 2D battle draws them: gold and filled when ready, a gold edge when she bears but is out of reach.
-    const [fc, fa, ec, ea] =
-      aim === 'ready' ? [GOLD, 0.24, GOLD, 0.9] : aim === 'out-of-range' ? [PALE, 0.07, GOLD, 0.7] : [PALE, aim === 'loading' ? 0.04 : 0.08, PALE, 0.22];
+    // Light on the water: a faint gold fill only when that broadside is ready, a gold edge when she bears but is
+    // out of reach, otherwise just a faint edge (the sea and the ships stay the picture).
+    const [fc, fa, ec, ea] = aim === 'ready' ? [GOLD, 0.14, GOLD, 0.85] : aim === 'out-of-range' ? [PALE, 0, GOLD, 0.5] : [PALE, 0, PALE, 0.14];
     fill.color.set(fc);
     fill.opacity = fa;
     edge.color.set(ec);
@@ -229,10 +229,11 @@ export function createBattleFx() {
       const x = ship.x + fx * along + right[0] * ship.halfBeam * out;
       const z = ship.z + fz * along + right[1] * ship.halfBeam * out;
       const y = ship.deck * 0.7;
-      const push = 2.4 + rand() * 1.2;
-      spawn('flash', t, x + right[0] * out * 0.25, y, z + right[1] * out * 0.25, [right[0] * out * 3, 0, right[1] * out * 3], 0.14, [0.9, 1.5]);
-      for (let k = 0; k < 3; k++)
-        spawn('smoke', t + k * 0.04, x, y + rand() * 0.2, z, [right[0] * out * push * (1 - k * 0.25) + (rand() - 0.5) * 0.4, 0.15 + rand() * 0.2, right[1] * out * push * (1 - k * 0.25) + (rand() - 0.5) * 0.4], 3.4 + rand() * 1.4, [0.7, 3.2 + rand()]);
+      // A puff at each port (Pirates!: small white puffs, the ship never lost in them), pushed out and rolling
+      // downwind.
+      const push = 1.3 + rand() * 0.7;
+      spawn('flash', t, x + right[0] * out * 0.15, y, z + right[1] * out * 0.15, [right[0] * out * 2, 0, right[1] * out * 2], 0.12, [0.45, 0.8]);
+      spawn('smoke', t + rand() * 0.06, x, y + rand() * 0.1, z, [right[0] * out * push + (rand() - 0.5) * 0.3, 0.12 + rand() * 0.15, right[1] * out * push + (rand() - 0.5) * 0.3], 2.2 + rand(), [0.35, 1.5 + rand() * 0.5]);
     }
   };
   /** A ball strikes her hull: splinters fly from the hit and a little dark smoke. */
@@ -242,8 +243,9 @@ export function createBattleFx() {
       const s = 1.5 + rand() * 3;
       spawn('splinter', t, x, y, z, [Math.cos(a) * s, 1.5 + rand() * 3.5, Math.sin(a) * s], 1.6, [1, 1]);
     }
-    spawn('hullSmoke', t, x, y, z, [0, 0.5, 0], 1.4, [0.5, 1.6]);
-    spawn('flash', t, x, y, z, [0, 0, 0], 0.1, [0.8, 1.2]);
+    // Dark smoke trailing up from where she was struck.
+    for (let k = 0; k < 4; k++) spawn('hullSmoke', t + k * 0.12, x, y, z, [(rand() - 0.5) * 0.3, 0.6 + rand() * 0.4, (rand() - 0.5) * 0.3], 2.6 + rand(), [0.35, 1.5]);
+    spawn('flash', t, x, y, z, [0, 0, 0], 0.1, [0.5, 0.8]);
   };
   /** Shot through her canvas: scraps of sail fluttering down. */
   const tear = (t: number, x: number, y: number, z: number) => {
@@ -410,32 +412,49 @@ export function createBattleFx() {
       if (debris.instanceColor) debris.instanceColor.needsUpdate = true;
 
       // Balls on their arcs: from her side to where they fall (a hit ends at her rail or her sails, a miss in the sea).
+      // Each of the battle's shots is drawn as a few balls from guns along her side, landing a little apart, so a
+      // broadside streams across as a loose spray of shot (as Pirates! draws it).
       let nb = 0;
+      const shotHash = (s: { flight: number; tx: number; ty: number }, k: number) => {
+        const v = Math.sin(s.flight * 91.7 + s.tx * 12.3 + s.ty * 7.1 + k * 17.31) * 43758.5453;
+        return v - Math.floor(v);
+      };
       const ball = (x: number, y: number, z: number, s: number) => {
         if (nb >= MAX_BALLS) return;
         m.compose(p.set(x, y, z), q.identity(), sc.setScalar(s));
         balls.setMatrixAt(nb++, m);
       };
       for (const s of view.shots) {
-        const k = 1 - s.t / s.flight;
         const from = hullAt(s.x, s.y);
         const target = hullAt(s.tx, s.ty);
+        const fr = THREE.MathUtils.degToRad(from.headingDeg);
+        const tr = THREE.MathUtils.degToRad(target.headingDeg);
         const y0 = from.deck * 0.7;
         const y1 = s.hit ? (s.ammo === 'chain' ? target.sails : target.deck * (s.ammo === 'grape' ? 1.1 : 0.7)) : f.seaAt(s.tx, s.ty);
         const rise = Math.hypot(s.tx - s.x, s.ty - s.y) * ARC_RISE;
-        const x = s.x + (s.tx - s.x) * k;
-        const z = s.y + (s.ty - s.y) * k;
-        const y = y0 + (y1 - y0) * k + rise * 4 * k * (1 - k);
-        if (s.ammo === 'chain') {
-          // Two balls whirling on their chain.
-          const spin = t * 18 + s.flight * 10;
-          const dx = Math.cos(spin) * 0.16;
-          const dz = Math.sin(spin) * 0.16;
-          ball(x + dx, y, z + dz, 0.8);
-          ball(x - dx, y, z - dz, 0.8);
-        } else if (s.ammo === 'grape') {
-          for (let j = 0; j < 6; j++) ball(x + Math.cos(j * 1.3 + s.flight) * 0.14, y + Math.sin(j * 2.1) * 0.08, z + Math.sin(j * 1.9 + s.flight) * 0.14, 0.45);
-        } else ball(x, y, z, 1);
+        for (let b = 0; b < (s.ammo === 'grape' ? 1 : 3); b++) {
+          // Out of a port along her side, into her length (or the sea about her), each a moment apart.
+          const along = (shotHash(s, b) - 0.5) * from.length * 0.6;
+          const into = (shotHash(s, b + 5) - 0.5) * (s.hit ? target.length * 0.5 : 0.8);
+          const k = THREE.MathUtils.clamp(1 - s.t / s.flight + (shotHash(s, b + 9) - 0.5) * 0.06, 0, 1);
+          const sx = s.x + Math.sin(fr) * along;
+          const sz = s.y - Math.cos(fr) * along;
+          const ex = s.tx + Math.sin(tr) * into;
+          const ez = s.ty - Math.cos(tr) * into;
+          const x = sx + (ex - sx) * k;
+          const z = sz + (ez - sz) * k;
+          const y = y0 + (y1 - y0) * k + rise * 4 * k * (1 - k);
+          if (s.ammo === 'chain') {
+            // Two balls whirling on their chain.
+            const spin = t * 18 + s.flight * 10;
+            const dx = Math.cos(spin) * 0.16;
+            const dz = Math.sin(spin) * 0.16;
+            ball(x + dx, y, z + dz, 0.9);
+            ball(x - dx, y, z - dz, 0.9);
+          } else if (s.ammo === 'grape') {
+            for (let j = 0; j < 6; j++) ball(x + Math.cos(j * 1.3 + s.flight) * 0.14, y + Math.sin(j * 2.1) * 0.08, z + Math.sin(j * 1.9 + s.flight) * 0.14, 0.6);
+          } else ball(x, y, z, 1);
+        }
       }
       balls.count = nb;
       balls.instanceMatrix.needsUpdate = true;

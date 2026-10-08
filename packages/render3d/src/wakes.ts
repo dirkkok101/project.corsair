@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 // Wakes (Pirates! 2004: a long thin white trail behind every ship): each ship leaves a ribbon of foam along
-// the way she came, widening into a V and fading as it ages. The trail is kept in world positions, so a
+// the way she came, widening into a V and fading as it ages. It starts at her bow, so where it spreads wider
+// than her hull it shows along her sides as a bow wave, then opens out astern. The trail is kept in world positions, so a
 // ship turning leaves a curved wake.
 
 /** Trail points a wake keeps, and how far apart (tiles) they are laid. */
@@ -9,7 +10,7 @@ const POINTS = 48;
 const SPACING = 0.18;
 /** Half-width at the stern, and how much it widens per tile astern (the wake's spread). */
 const HALF_WIDTH = 0.14;
-const SPREAD = 0.11;
+const SPREAD = 0.16;
 /** A wake fades out over this many seconds once she stops laying it. */
 const FADE_SECONDS = 6;
 
@@ -108,11 +109,11 @@ export function createWakes(scene: THREE.Scene): Wakes {
           w = make();
           wakes.set(s.id, w);
         }
-        // The stern, where the wake starts.
+        // The bow, where the wake starts.
         const r = (s.headingDeg * Math.PI) / 180;
         const fx = Math.sin(r);
         const fz = -Math.cos(r);
-        const stern = new THREE.Vector2(s.x - fx * s.length * 0.45, s.z - fz * s.length * 0.45);
+        const stern = new THREE.Vector2(s.x + fx * s.length * 0.42, s.z + fz * s.length * 0.42);
         const last = w.trail[0];
         if (!last || last.distanceTo(stern) > 3) w.trail = [stern.clone()];
         else if (last.distanceTo(stern) >= SPACING) {

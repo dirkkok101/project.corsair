@@ -97,14 +97,23 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   - Cloth sails that belly with the wind, luff in irons, reef and furl, with a soft glow of their own.
   - A jib, spanker, gaff or lateen as the class carries.
   - The nation's ensign and a pennant, streaming.
-  - Each ship rides the swell smoothly (her pitch and roll eased, averaged over the hull) and leaves a wake.
+  - Each ship rides the swell smoothly (her pitch and roll eased, averaged over the hull), heels with the wind
+    on her beam, and leans outward in a turn (Pirates!: masts well over in a hard turn, upright as she steadies;
+    harder the faster she goes).
+  - A wake from the bow: a bow wave along her sides opening into a V astern.
+  - Decks a weathered, oiled reddish brown (a pale deck reads as a tan slab from the overhead camera).
 - **Sea battles** (`battle.ts`): fought on the same 3D sea as the map, its positions being world tiles.
-  - The two ships, built like any other; sails shot to rags show as less canvas set.
-  - Balls in flight on flat arcs (hits land on her rail or sails, misses in the sea); chain whirls, grape scatters.
-  - Gunsmoke banks rolling downwind, muzzle flashes, splashes, splinters, torn canvas, grape sparks.
+  - The two ships at their true size (the map's 1.6x enlargement would leave no sea between them), so they
+    trade broadsides across a couple of lengths of water, as in Pirates!.
+  - Sails shot through show it: round holes in more and more of the cloth, then the foot torn into rags.
+  - Each broadside streams across as a loose spray of small balls on flat arcs (hits land on her rail or sails,
+    misses in the sea); chain whirls, grape scatters.
+  - A small white puff at each gunport (the ship is never lost in smoke), dark smoke trailing from a hit,
+    splashes, splinters, torn canvas, grape sparks.
   - A hurt hull smokes, and below a quarter she burns.
   - Sunk, she settles by the stern and goes under, leaving barrels and men clinging to spars.
-  - The player's firing arcs on the water, gold when a broadside bears and is loaded.
+  - The player's firing arcs on the water, kept light: a faint edge, filled gold only when a broadside is ready.
+  - The compass top-left (the wind's red arrow, heading, knots), as at sea.
   - The camera frames both ships, high and oblique, closer as they close; the wheel zooms, C views from astern.
 - **Image:** bloom, SMAA and ACES tone mapping.
 - **Compass** (HUD, top-right): a gilt rose on a sea-blue face, north-up; the wind a red arrow through it to where

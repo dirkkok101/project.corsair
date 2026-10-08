@@ -925,7 +925,7 @@ body {
 .in-port .labels,
 #stage.in-port .minimap,
 .in-battle .hud,
-.in-battle .hud-rose,
+.in-battle .hud-rose:not(.battle-compass),
 .in-battle .hud-keys,
 .in-battle .hud-prompt,
 .in-battle .labels,
@@ -1468,23 +1468,10 @@ body {
 }
 
 /* The wind on the battle water: where it blows from, and her point of sail in it. */
-.battle-wind {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  font-size: 13px;
-  background: rgb(9 10 20 / 0.75);
-  border: 1px solid #577277;
-}
-
-.battle-wind-arrow {
-  display: inline-block;
-  font-size: 18px;
-  color: #a4dddb;
+/* In battle the compass sits top-left (the enemy's card has the top-right). */
+.hud-rose.battle-compass {
+  right: auto;
+  left: 8px;
 }
 
 .battle-board {

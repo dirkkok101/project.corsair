@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BattleResult, Command } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
+import { Compass } from './hud';
+import type { CompassProps } from './hud';
 import { ShipPanel } from './panel';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import type { ShipPanelProps } from './panel';
@@ -376,8 +378,8 @@ export interface BattleHudProps {
   offer?: PlunderOffer;
   /** What to do next, after a fight that left her hurt (where to repair). */
   advice?: string;
-  /** The wind on the battle water, and her point of sail in it. */
-  wind: { fromDeg: number; strength: string; point: string };
+  /** The compass: the wind on the battle water, her heading, speed and point of sail. */
+  compass: CompassProps;
   /** Boarding: the chance the player's boarders carry her deck now, and whether "close to board" is on. */
   board: { odds: number; active: boolean };
   onPlunder: (choice: PlunderChoice) => void;
@@ -405,7 +407,7 @@ function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps
   );
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, view, wavering, report, attacked, offer, advice, wind, board, onPlunder, onContinue }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, view, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -417,16 +419,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
         <ShipCard ship={state.ships.enemy} title={enemyTitle} name={enemyName} />
       </div>
       {state.result || state.wreck ? null : <EnemyMarker state={state} view={view} />}
-      {state.result ? null : (
-        <div class="battle-wind" title="The wind: it drives both ships, as on the open sea">
-          <span class="battle-wind-arrow" style={{ transform: `rotate(${wind.fromDeg}deg)` }}>
-            ↓
-          </span>
-          <span>
-            Wind {wind.strength} from {Math.round(wind.fromDeg)}° · you are {wind.point.toLowerCase()}
-          </span>
-        </div>
-      )}
+      {state.result ? null : <Compass {...compass} className="battle-compass" />}
       {!state.result && !state.wreck && state.grappling === 0 && (board.active || (apart <= 12 && board.odds >= 0.5)) ? (
         <div class="battle-parting battle-board">
           {board.active
