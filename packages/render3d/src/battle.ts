@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { BattleViewShip, BattleViewState } from '@corsair/render/battle';
+import type { BattleViewPlace, BattleViewShip, BattleViewState } from '@corsair/render/battle';
 
 // The sea battle's own layer over the 3D world (Pirates! 2004's fights happen on the same sea as the map):
 // balls in flight on their arcs, gunsmoke rolling downwind, splashes, splinters and torn canvas, a hurt ship
@@ -16,6 +16,17 @@ export interface BattleHull {
   halfBeam: number;
   deck: number;
   sails: number;
+  /** Her masts, fore to aft: place along her length (bow positive, -0.5 .. 0.5) and height above the water. */
+  masts: { along: number; height: number }[];
+}
+
+/** A point on her: along her length, at the height of what was struck (her side, her deck, a mast's rigging). */
+function placeOn(h: BattleHull, place: BattleViewPlace, jitter: number) {
+  const r = THREE.MathUtils.degToRad(h.headingDeg);
+  const along = (place.along + (jitter - 0.5) * 0.06) * h.length;
+  const mast = h.masts.reduce((a, b) => (Math.abs(b.along - place.along) < Math.abs(a.along - place.along) ? b : a), h.masts[0] ?? { along: 0, height: h.sails });
+  const y = place.part === 'rigging' ? mast.height * (0.45 + 0.4 * jitter) : place.part === 'deck' ? h.deck + 0.05 : h.deck * (0.35 + 0.4 * jitter);
+  return { x: h.x + Math.sin(r) * along, y, z: h.z - Math.cos(r) * along };
 }
 
 export interface BattleFrame {
@@ -67,6 +78,17 @@ const KINDS: Record<Kind, { colour: string; glow?: boolean; alpha: number; gravi
 };
 
 const MAX_POINTS = 3000;
+/** A mast takes this long to come down, from the crack to the sea. */
+export const MAST_FALL_SECONDS = 1.6;
+/**
+ * The way a mast falls on her own bearings (0 her bow, 90 starboard): over the side the shot was going, a
+ * little fore or aft of square (a mast falling along her length would lie on her own deck).
+ */
+export function fallSide(headingDeg: number, towardDeg: number): number {
+  const rel = THREE.MathUtils.degToRad(towardDeg - headingDeg);
+  const side = Math.sin(rel) >= 0 ? 1 : -1;
+  return side * 90 - Math.cos(rel) * 20 * side;
+}
 const MAX_DEBRIS = 400;
 const MAX_BALLS = 400;
 /** How high a ball climbs over its flight, per tile it travels: a flat arc, as a gun's is. */
@@ -262,6 +284,27 @@ export function createBattleFx() {
       spawn('spray', t, x, y, z, [Math.cos(a) * s, (2.6 + rand() * 2.2) * big, Math.sin(a) * s], 0.95, [0.35, 0.9 * big]);
     }
   };
+  /**
+   * A mast goes by the board: splinters burst from it as it cracks, and as it comes down over her side (about
+   * a second and a half later) a long splash where it hits the water, its full length out from her.
+   */
+  const fallen = (t: number, ship: BattleHull, index: number, towardDeg: number) => {
+    const m = ship.masts[index];
+    if (!m) return;
+    const r = THREE.MathUtils.degToRad(ship.headingDeg);
+    const x = ship.x + Math.sin(r) * m.along * ship.length;
+    const z = ship.z - Math.cos(r) * m.along * ship.length;
+    for (let k = 0; k < 18; k++) {
+      const a = rand() * Math.PI * 2;
+      spawn('splinter', t, x, m.height * 0.3, z, [Math.cos(a) * 2.5, 1 + rand() * 3, Math.sin(a) * 2.5], 1.8, [1, 1]);
+    }
+    const fall = THREE.MathUtils.degToRad(fallSide(ship.headingDeg, towardDeg) + ship.headingDeg);
+    for (let k = 3; k <= 10; k++) {
+      const d = (k / 10) * m.height;
+      splash(t + MAST_FALL_SECONDS * 0.85 + k * 0.03, x + Math.sin(fall) * d, 0, z - Math.cos(fall) * d, 1.1);
+    }
+  };
+
   /** Grapeshot sweeping her deck: a scatter of little sparks. */
   const scatter = (t: number, x: number, y: number, z: number) => {
     for (let k = 0; k < 12; k++) {
@@ -298,14 +341,19 @@ export function createBattleFx() {
         return near(hulls.player) <= near(hulls.enemy) ? hulls.player : hulls.enemy!;
       };
       // What happened since the last frame (the sim keeps its effects only a moment; these play out longer).
+      // A hit lands where the sim placed it on her: her side, her deck, or up in a mast's rigging.
       for (const fx of view.effects) {
         if (fx.at <= seenAt) continue;
-        const h = hullAt(fx.x, fx.y);
+        const h = (fx.ship && hulls[fx.ship]) || hullAt(fx.x, fx.y);
+        const at = fx.place ? placeOn(h, fx.place, rand()) : { x: fx.x, y: 0, z: fx.y };
         if (fx.kind === 'smoke') broadside(t, h, h === hulls.player ? hulls.enemy : hulls.player);
         else if (fx.kind === 'splash') splash(t, fx.x, f.seaAt(fx.x, fx.y), fx.y);
-        else if (fx.kind === 'hit') strike(t, fx.x, h.deck * (0.5 + rand() * 0.5), fx.y);
-        else if (fx.kind === 'sail') tear(t, fx.x, h.sails * (0.8 + rand() * 0.4), fx.y);
-        else scatter(t, fx.x, h.deck + 0.1, fx.y);
+        else if (fx.kind === 'mast') fallen(t, h, fx.mast ?? 0, fx.towardDeg ?? 0);
+        else if (fx.kind === 'hit') {
+          strike(t, at.x, fx.place ? at.y : h.deck * (0.5 + rand() * 0.5), at.z);
+          if (fx.place?.part === 'rigging') tear(t, at.x, at.y, at.z);
+        } else if (fx.kind === 'sail') tear(t, at.x, fx.place ? at.y : h.sails * (0.8 + rand() * 0.4), at.z);
+        else scatter(t, at.x, h.deck + 0.1, at.z);
       }
       seenAt = Math.max(seenAt, ...view.effects.map((fx) => fx.at));
 
@@ -430,17 +478,19 @@ export function createBattleFx() {
         const fr = THREE.MathUtils.degToRad(from.headingDeg);
         const tr = THREE.MathUtils.degToRad(target.headingDeg);
         const y0 = from.deck * 0.7;
-        const y1 = s.hit ? (s.ammo === 'chain' ? target.sails : target.deck * (s.ammo === 'grape' ? 1.1 : 0.7)) : f.seaAt(s.tx, s.ty);
+        const end = s.hit && s.place ? placeOn(target, s.place, shotHash(s, 3)) : undefined;
+        const y1 = end ? end.y : s.hit ? (s.ammo === 'chain' ? target.sails : target.deck * (s.ammo === 'grape' ? 1.1 : 0.7)) : f.seaAt(s.tx, s.ty);
         const rise = Math.hypot(s.tx - s.x, s.ty - s.y) * ARC_RISE;
         for (let b = 0; b < (s.ammo === 'grape' ? 1 : 3); b++) {
           // Out of a port along her side, into her length (or the sea about her), each a moment apart.
           const along = (shotHash(s, b) - 0.5) * from.length * 0.6;
-          const into = (shotHash(s, b + 5) - 0.5) * (s.hit ? target.length * 0.5 : 0.8);
+          // A hit goes where the sim placed it (the balls of a shot landing close together); a miss about her.
+          const into = end ? 0 : (shotHash(s, b + 5) - 0.5) * (s.hit ? target.length * 0.5 : 0.8);
           const k = THREE.MathUtils.clamp(1 - s.t / s.flight + (shotHash(s, b + 9) - 0.5) * 0.06, 0, 1);
           const sx = s.x + Math.sin(fr) * along;
           const sz = s.y - Math.cos(fr) * along;
-          const ex = s.tx + Math.sin(tr) * into;
-          const ez = s.ty - Math.cos(tr) * into;
+          const ex = end ? end.x + (shotHash(s, b + 5) - 0.5) * 0.12 : s.tx + Math.sin(tr) * into;
+          const ez = end ? end.z + (shotHash(s, b + 7) - 0.5) * 0.12 : s.ty - Math.cos(tr) * into;
           const x = sx + (ex - sx) * k;
           const z = sz + (ez - sz) * k;
           const y = y0 + (y1 - y0) * k + rise * 4 * k * (1 - k);

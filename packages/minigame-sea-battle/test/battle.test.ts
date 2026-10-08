@@ -395,4 +395,42 @@ describe('sea battle', () => {
     // A frigate outguns a brig: attacking one is a mistake.
     expect(frigate.outcomes.lost ?? 0).toBeGreaterThan(wins(frigate.outcomes));
   }, 120_000);
+
+  it('places every hit on her, and rigging hits bring masts down: canvas and men go with them', () => {
+    // The brig keeps her range and pounds a big merchantman with round shot until a mast goes.
+    let seen = 0;
+    for (let seed = 1; seed <= 12 && !seen; seed++) {
+      const battle = createBattle(content, {
+        map,
+        wind: { fromDeg: 70, strength: 'fresh' },
+        player: ship('ship.brig', undefined, 0.9),
+        enemy: ship('ship.merchantman', 'merchant', 0.5),
+        seed,
+        bearingDeg: 90,
+      });
+      const masts = content.ships['ship.merchantman']!.masts.length;
+      let guard = 0;
+      while (!battle.result() && guard++ < 30 * 60 * 6) {
+        const before = battle.state.ships.enemy;
+        battle.step(1, 'cautious');
+        const s = battle.state;
+        for (const shot of s.shots) expect(Boolean(shot.place)).toBe(shot.hit);
+        for (const shot of s.shots.filter((x) => x.place)) expect(Math.abs(shot.place!.along)).toBeLessThanOrEqual(0.5);
+        const fell = s.effects.find((e) => e.kind === 'mast' && e.ship === 'enemy' && e.at === s.tick / 30);
+        if (!fell) continue;
+        const after = s.ships.enemy;
+        seen++;
+        expect(after.masts[fell.mast!]).toBe(0);
+        expect(after.masts.length).toBe(masts);
+        // Her canvas: never more than her standing masts can carry.
+        const up = after.masts.filter((m) => m > 0).length;
+        expect(after.sailCondition).toBeLessThanOrEqual((100 * up) / masts + 1e-9);
+        expect(after.sailCondition).toBeLessThan(before.sailCondition);
+        expect(after.crew).toBeLessThan(before.crew);
+        expect(fell.towardDeg).toBeGreaterThanOrEqual(0);
+        break;
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
 });

@@ -14,7 +14,7 @@ import type { SeaState } from './ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
 import type { BuiltShip, ShipPlan } from './shipyard';
-import { createBattleFx } from './battle';
+import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import type { BattleHull } from './battle';
 import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
@@ -385,6 +385,9 @@ export async function createSeaRenderer(
   let battleZoom = 1;
   let battleView = BATTLE_VIEW.min;
   let sinkingFrom: number | undefined;
+  /** Masts going by the board, by ship and mast: when it began, and the way it falls on her bearings. */
+  const falls = new Map<string, { from: number; towardDeg: number }>();
+  let fallsSeen = -Infinity;
   /** Back to the sea map: the fight's ships and its wreckage go; the world's ships return. */
   const leaveBattle = () => {
     inBattle = false;
@@ -456,6 +459,8 @@ export async function createSeaRenderer(
       fx.object.visible = true;
       fx.reset();
       sinkingFrom = undefined;
+      falls.clear();
+      fallsSeen = -Infinity;
       battleView = 0;
     }
     const wind = view.wind;
@@ -484,6 +489,16 @@ export async function createSeaRenderer(
       }
       // Sails shot through show it: holes, then rags (her canvas set as she set it).
       f.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
+      // Masts shot away: each comes down over her side when it goes, and stays down.
+      for (const e of view.effects) {
+        if (e.kind !== 'mast' || e.ship !== side || e.at <= fallsSeen || e.mast === undefined) continue;
+        falls.set(`${side}:${e.mast}`, { from: t, towardDeg: fallSide(s.headingDeg, e.towardDeg ?? s.headingDeg + 90) });
+      }
+      (s.masts ?? []).forEach((m, i) => {
+        const fall = falls.get(`${side}:${i}`);
+        if (fall) f!.built.setMast(i, (t - fall.from) / MAST_FALL_SECONDS, fall.towardDeg);
+        else f!.built.setMast(i, m > 0 ? 0 : 1, 90);
+      });
       f.built.setSails(...sailsOf(sailAnim(content, s, wind, nowMs)), nowMs);
       const pace = (s.speed ?? 0) / content.combat.battle.tilesPerSecondPerSpeedPoint / FAST_SHIP;
       const length = placeShip(`battle.${side}`, f.built.root, s, wind, sea, t, dt, 1 / SHIP_SCALE, pace, BATTLE_MODEL_SCALE);
@@ -509,10 +524,12 @@ export async function createSeaRenderer(
         halfBeam: f.plan.hull.beam * BATTLE_MODEL_SCALE,
         deck: f.plan.hull.rail * BATTLE_MODEL_SCALE,
         sails: tallest * 0.6 * BATTLE_MODEL_SCALE,
+        masts: f.plan.masts.map((m) => ({ along: m.at / f!.plan.hull.length, height: m.height * BATTLE_MODEL_SCALE })),
       };
       if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, length });
     }
     wakes.update(wakeShips, dt, t, light.level);
+    fallsSeen = Math.max(fallsSeen, ...view.effects.map((e) => e.at));
     for (const n of names) n.inRange = false;
 
     fx.update({

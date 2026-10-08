@@ -10,6 +10,8 @@ export const shipClassSchema = z.object({
   rig,
   speed: z.number().min(1).max(10),
   turn: z.number().min(1).max(10),
+  /** Her masts, fore to aft: each one's place along her length from the middle (bow positive, -0.5 .. 0.5). */
+  masts: z.array(z.number().min(-0.5).max(0.5)).min(1),
   draft: z.number(),
   hull: z.number(),
   /** Hold capacity in units of cargo. */
@@ -378,6 +380,16 @@ export const combatSchema = z.object({
   ),
   /** Chance a round-shot hit dismounts a gun. */
   gunLoss: share,
+  /**
+   * Masts: the share of each shot's hits that land in the rigging (the rest in her hull, grape on her deck),
+   * what a rigging hit takes off the nearest mast's strength (out of 100), and what a mast costs her when it
+   * falls: its share of her canvas, and men crushed or carried over the side.
+   */
+  masts: z.object({
+    rigging: z.record(z.enum(['round', 'chain', 'grape']), share),
+    damage: z.record(z.enum(['round', 'chain', 'grape']), z.number().min(0)),
+    crewLoss: z.number().min(0),
+  }),
   /** A ship strikes when her hull or crew falls below these shares, rolled each second at strikeChance. */
   strike: z.object({
     hull: share,

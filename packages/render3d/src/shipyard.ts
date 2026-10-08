@@ -608,6 +608,11 @@ export interface BuiltShip {
   setSails(setting: 'full' | 'half' | 'furled', point: string, side: number, nowMs: number): void;
   /** How shot through her sails are: 0 whole .. 1 in rags. */
   setTatters(share: number): void;
+  /**
+   * A mast (fore to aft) going by the board: `fallen` 0 standing .. 1 gone (over the side and under), toppling
+   * toward `towardDeg` on her own bearings (0 her bow, 90 to starboard).
+   */
+  setMast(index: number, fallen: number, towardDeg: number): void;
 }
 
 /** The parts of a class shared by every ship of it (geometry and hull paint), built once. */
@@ -640,20 +645,40 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   const sailMat = sailMaterial(sailTexture(nation === 'spain' || nation === 'pirate' ? nation : 'plain'));
   const flatMat = sailMaterial(sailTexture('plain'), sailMat.userData.uniforms);
   const flagMat = flagMaterial(flagTexture(nation));
-  const lines: number[] = [];
   const h = plan.hull;
   const railAt = (forward: number) => stationOf(h, 0.5 + forward / h.length);
 
-  // Masts, each with its yards and square sails in a group that braces round the mast.
+  // Masts, each with its yards and square sails in a group that braces round the mast. Everything a mast
+  // carries (yards, sails, top, shrouds, its stay, the canvas set on it) hangs in one piece pivoting at its
+  // foot on deck, so a mast shot through can go by the board whole, leaving a stump. Each piece is built in
+  // the ship's own coordinates inside a frame that undoes the pivot's offset.
   const yards: { group: THREE.Group; sails: { mesh: THREE.Mesh; furl: THREE.Mesh; course: boolean }[] }[] = [];
+  const sticks: { stick: THREE.Group; stump: THREE.Mesh; foot: number }[] = [];
+  const frames: THREE.Group[] = [];
+  const mastLines: number[][] = [];
   for (const m of plan.masts) {
     const z = -m.at;
+    const foot = railAt(m.at).h - 0.05;
+    const stick = new THREE.Group();
+    stick.position.set(0, foot, z);
+    root.add(stick);
+    const frame = new THREE.Group();
+    frame.position.set(0, -foot, -z);
+    stick.add(frame);
+    frames.push(frame);
+    const stump = spar(0.042, 0.034, foot + 0.18);
+    stump.position.set(0, 0.05, z);
+    stump.visible = false;
+    root.add(stump);
+    sticks.push({ stick, stump, foot });
+    const lines: number[] = [];
+    mastLines.push(lines);
     const mast = spar(0.04, 0.022, m.height);
     mast.position.set(0, 0.05, z);
-    root.add(mast);
+    frame.add(mast);
     const group = new THREE.Group();
     group.position.set(0, 0, z);
-    root.add(group);
+    frame.add(group);
     const sails: (typeof yards)[number]['sails'] = [];
     m.squares.forEach((sq, i) => {
       // The yard, the sail hanging from it (bellying forward, -z), and its furled roll.
@@ -678,7 +703,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       if (i === m.squares.length - 1 && m.squares.length > 1) {
         const top = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.03, 10), SPAR);
         top.position.set(0, sq.zt + 0.08, z);
-        root.add(top);
+        frame.add(top);
       }
     });
     yards.push({ group, sails });
@@ -696,7 +721,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       );
       ladder.setAttribute('uv', new THREE.Float32BufferAttribute([0.45, 1, 0.55, 1, 0, 0, 1, 0], 2));
       ladder.setIndex([0, 2, 3, 0, 3, 1]);
-      root.add(new THREE.Mesh(ladder, RATLINES));
+      frame.add(new THREE.Mesh(ladder, RATLINES));
       const chain = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.3), SPAR);
       chain.position.set(s * (rail.w + 0.025), rail.h - 0.05, z + 0.16);
       root.add(chain);
@@ -707,8 +732,9 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   const [[bx0, by0], [bx1, by1]] = plan.bowsprit;
   masts.forEach((m, i) => {
     const ahead = masts[i - 1];
-    if (ahead) lines.push(0, m.height * 0.95, -m.at, 0, ahead.height * 0.45, -ahead.at);
-    else lines.push(0, m.height * 0.95, -m.at, 0, by1, -bx1);
+    const own = mastLines[plan.masts.indexOf(m)]!;
+    if (ahead) own.push(0, m.height * 0.95, -m.at, 0, ahead.height * 0.45, -ahead.at);
+    else own.push(0, m.height * 0.95, -m.at, 0, by1, -bx1);
   });
   // The bowsprit.
   const sprit = spar(0.03, 0.016, Math.hypot(bx1 - bx0, by1 - by0));
@@ -721,7 +747,9 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   for (const f of plan.flats) {
     const group = new THREE.Group();
     group.position.set(0, 0, -f.pivot);
-    root.add(group);
+    // Set on the nearest mast (a jib on the foremast's stay, a spanker on the mizzen), and lost with it.
+    const on = plan.masts.reduce((best, m, i) => (Math.abs(m.at - f.pivot) < Math.abs(plan.masts[best]!.at - f.pivot) ? i : best), 0);
+    frames[on]!.add(group);
     const c = f.corners.map(([fwd, up]) => new THREE.Vector3(0, up, -(fwd - f.pivot)));
     const quad: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3] =
       c.length === 3 ? [c[1]!, c[1]!.clone().add(new THREE.Vector3(0, -0.001, 0.001)), c[2]!, c[0]!] : [c[1]!, c[2]!, c[3]!, c[0]!];
@@ -743,10 +771,12 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
     flats.push({ group, mesh, kind: f.kind });
   }
 
-  // Rigging lines, in one draw.
-  const rig = new THREE.BufferGeometry();
-  rig.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
-  root.add(new THREE.LineSegments(rig, LINE));
+  // Rigging lines: each mast's shrouds and stay, a draw a mast.
+  mastLines.forEach((own, i) => {
+    const rig = new THREE.BufferGeometry();
+    rig.setAttribute('position', new THREE.Float32BufferAttribute(own, 3));
+    frames[i]!.add(new THREE.LineSegments(rig, LINE));
+  });
 
   // Cannon muzzles out of the lowest row of ports.
   const row = h.ports[0];
@@ -778,7 +808,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   const pennant = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.08, 12, 1).translate(0.3, 0, 0), flagMat);
   pennant.rotation.y = -Math.PI / 2;
   pennant.position.set(0, main.height + 0.02, -main.at);
-  root.add(pennant);
+  frames[plan.masts.indexOf(main)]!.add(pennant);
 
   return {
     root,
@@ -809,6 +839,18 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       // The flags stream downwind: away from the wind's side.
       ensign.rotation.y = -Math.PI / 2 - side * 0.6;
       pennant.rotation.y = -Math.PI / 2 - side * 0.6;
+    },
+    setMast(index, fallen, towardDeg) {
+      const m = sticks[index];
+      if (!m) return;
+      const k = THREE.MathUtils.clamp(fallen, 0, 1);
+      m.stick.visible = k < 1;
+      m.stump.visible = k > 0;
+      // Falling like a tree: slow to start, then over past the horizontal into the sea, settling as it goes.
+      const a = THREE.MathUtils.degToRad(towardDeg);
+      const axis = new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)).normalize();
+      m.stick.quaternion.setFromAxisAngle(axis, k * k * 1.75);
+      m.stick.position.y = m.foot - k * k * 0.25;
     },
     setTatters(share) {
       // Barely scratched canvas stays whole.

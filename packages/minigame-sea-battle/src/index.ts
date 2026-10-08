@@ -34,6 +34,14 @@ export interface BattleShip extends Ship {
   /** Her crew's spirit, 0 to 100: the player's from the career, an AI crew's by her role (crew.json). */
   morale: number;
   reloadMult: number;
+  /** Each mast's strength, fore to aft (her class's masts), 100 sound .. 0 gone by the board. */
+  masts: number[];
+}
+
+/** Where a ball strikes her: along her length (from the middle, bow positive, -0.5 .. 0.5), and in what. */
+export interface HitPlace {
+  along: number;
+  part: 'hull' | 'rigging' | 'deck';
 }
 
 /** A ball in flight: it lands at (tx, ty) after `t` seconds, and hits only if `hit`. */
@@ -47,16 +55,27 @@ export interface Shot {
   flight: number;
   hit: boolean;
   ammo: Ammo;
+  /** A hit's place on her, chosen as the guns fire. */
+  place?: HitPlace;
 }
 
-/** Something for the view to draw for a moment: smoke at the guns, a splash, splinters. */
+/** Something for the view to draw for a moment: smoke at the guns, a splash, splinters, a mast going. */
 export interface BattleEffect {
-  /** hit: round shot's splinters; sail: chain shot's torn canvas; grape: a spray of small shot on her deck. */
-  kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape';
+  /**
+   * hit: round shot's splinters; sail: chain shot's torn canvas; grape: a spray of small shot on her deck;
+   * mast: one of her masts goes by the board.
+   */
+  kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape' | 'mast';
   x: number;
   y: number;
   /** Battle seconds when it happened. */
   at: number;
+  /** A hit's ship and place on her. */
+  ship?: Side;
+  place?: HitPlace;
+  /** A falling mast: which (fore to aft), and the way it falls (degrees, the way the shot was going). */
+  mast?: number;
+  towardDeg?: number;
 }
 
 export interface BattleState {
@@ -166,6 +185,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       ammo: 'round',
       role: ship.ai?.role,
       morale: side === 'player' ? (setup.playerMorale ?? content.crew.morale.start) : (content.crew.enemyMorale[ship.ai?.role ?? 'merchant'] ?? 50),
+      masts: cls.masts.map(() => 100),
     };
   };
 
@@ -250,8 +270,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const hitChance = Math.min(0.95, (c.guns.hitFar + (c.guns.hitNear - c.guns.hitFar) * near) * (1 + c.guns.rakeBonus * along));
     const shots: Shot[] = [];
     const flight = d / c.guns.shotTilesPerSecond;
+    // Where each hit lands on her, from a stream of its own for this broadside: the fight's own rolls (hits,
+    // damage, the AI) run exactly as they would without it.
+    const aimRng = rngStream(seedRng(setup.seed, `place:${state.tick}:${side}`));
     for (let g = 0; g < Math.floor(ship.guns / 2); g++) {
       const hit = rng.float() < hitChance;
+      const along = aimRng.float() - 0.5;
+      const high = aimRng.float() < c.masts.rigging[ship.ammo]!;
       // Misses fall short, long or wide by up to a tile and a half.
       const spread = hit ? 0.4 : 1.5;
       shots.push({
@@ -264,6 +289,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         flight,
         hit,
         ammo: ship.ammo,
+        ...(hit ? { place: { along, part: ship.ammo === 'grape' ? 'deck' : high ? 'rigging' : 'hull' } as HitPlace } : {}),
       });
     }
     state = {
@@ -542,20 +568,40 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const v = state.ships[victimSide];
           const a = c.ammo[shot.ammo]!;
           const guns = shot.ammo === 'round' && rng.float() < c.gunLoss ? Math.max(0, v.guns - 1) : v.guns;
-          state = {
-            ...state,
-            ships: {
-              ...state.ships,
-              [victimSide]: {
-                ...v,
-                hull: v.hull - a.hull,
-                sailCondition: Math.max(0, v.sailCondition - a.sails),
-                crew: Math.max(0, v.crew - a.crew),
-                guns,
-              },
-            },
+          let hurt: BattleShip = {
+            ...v,
+            hull: v.hull - a.hull,
+            sailCondition: Math.max(0, v.sailCondition - a.sails),
+            crew: Math.max(0, v.crew - a.crew),
+            guns,
           };
-          effects.push({ kind: shot.ammo === 'grape' ? 'grape' : a.sails > a.hull ? 'sail' : 'hit', x: shot.tx, y: shot.ty, at: seconds() });
+          const place = shot.place;
+          effects.push({ kind: shot.ammo === 'grape' ? 'grape' : a.sails > a.hull ? 'sail' : 'hit', x: shot.tx, y: shot.ty, at: seconds(), ship: victimSide, ...(place ? { place } : {}) });
+          // Into her rigging: the nearest standing mast takes it, and may go by the board.
+          if (place?.part === 'rigging') {
+            const at = content.ships[v.classId]!.masts;
+            const standing = hurt.masts.map((m, i) => (m > 0 ? i : -1)).filter((i) => i >= 0);
+            const i = standing.sort((p, q) => Math.abs(at[p]! - place.along) - Math.abs(at[q]! - place.along))[0];
+            if (i !== undefined) {
+              const masts = [...hurt.masts];
+              masts[i] = Math.max(0, masts[i]! - c.masts.damage[shot.ammo]!);
+              hurt = { ...hurt, masts };
+              if (masts[i] === 0) {
+                // Gone: her canvas on that mast with it (never more than her standing masts can carry), and the
+                // men under it.
+                const share = 100 / masts.length;
+                const up = masts.filter((m) => m > 0).length;
+                hurt = {
+                  ...hurt,
+                  sailCondition: Math.max(0, Math.min(hurt.sailCondition - share, up * share)),
+                  crew: Math.max(0, hurt.crew - c.masts.crewLoss),
+                };
+                const towardDeg = normalizeDeg((Math.atan2(shot.tx - shot.x, -(shot.ty - shot.y)) * 180) / Math.PI);
+                effects.push({ kind: 'mast', x: v.x, y: v.y, at: seconds(), ship: victimSide, mast: i, towardDeg });
+              }
+            }
+          }
+          state = { ...state, ships: { ...state.ships, [victimSide]: hurt } };
         }
         state = { ...state, shots: flying, effects };
 

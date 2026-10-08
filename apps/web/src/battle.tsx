@@ -343,7 +343,11 @@ function Bar({ label, value, max, unit = '' }: { label: string; value: number; m
   );
 }
 
+/** A ship's masts by name, fore to aft. */
+const MAST_NAMES: Record<number, string[]> = { 1: ['mast'], 2: ['foremast', 'mainmast'], 3: ['foremast', 'mainmast', 'mizzen'] };
+
 function ShipCard({ ship, title, name }: { ship: BattleShip; title: string; name: string }) {
+  const up = ship.masts.filter((m) => m > 0).length;
   return (
     <div class="battle-card">
       <div class="battle-name">{name}</div>
@@ -351,7 +355,9 @@ function ShipCard({ ship, title, name }: { ship: BattleShip; title: string; name
       <Bar label="Hull" value={ship.hull} max={ship.hullMax} />
       <Bar label="Sails" value={ship.sailCondition} max={100} unit="%" />
       <Bar label="Crew" value={ship.crew} max={Math.max(ship.crewStart, 1)} />
-      <div class="battle-title">{ship.guns} guns</div>
+      <div class="battle-title">
+        {ship.guns} guns{up < ship.masts.length ? ` · ${up} of ${ship.masts.length} masts standing` : ''}
+      </div>
     </div>
   );
 }
@@ -412,6 +418,16 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
   const reload = (side: 'port' | 'starboard') => 1 - Math.min(1, me.reload[side] / reloadSeconds);
+  // A mast going by the board, called out for a few seconds (the sim's own record of it lasts a moment).
+  const mastCall = useRef<{ text: string; until: number; seen: number }>({ text: '', until: -1, seen: -1 });
+  const now = state.tick / 30;
+  for (const e of state.effects) {
+    if (e.kind !== 'mast' || e.at <= mastCall.current.seen || e.mast === undefined || !e.ship) continue;
+    const masts = state.ships[e.ship].masts.length;
+    const mast = MAST_NAMES[masts]?.[e.mast] ?? 'mast';
+    const text = e.ship === 'enemy' ? `Her ${mast} goes by the board!` : `Your ${mast} is shot away!`;
+    mastCall.current = { text, until: e.at + 3.5, seen: e.at };
+  }
   return (
     <div class="battle">
       <ShipPanel {...panel} />
@@ -428,6 +444,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
         </div>
       ) : null}
       {wavering ? <div class="battle-parting battle-waver">She's wavering: keep at her and she'll strike</div> : null}
+      {!state.result && now < mastCall.current.until ? <div class="battle-parting battle-mast">{mastCall.current.text}</div> : null}
       {state.wreck && !state.result ? (
         <div class="battle-parting battle-wreck">
           <span>

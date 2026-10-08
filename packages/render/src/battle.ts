@@ -24,14 +24,31 @@ export interface BattleViewShip {
   sailCondition?: number;
   hull?: number;
   hullMax?: number;
+  /** Each mast's strength, fore to aft (0: gone by the board). */
+  masts?: number[];
+}
+/** Where a ball struck her: along her length (bow positive, -0.5 .. 0.5), and in what. */
+export interface BattleViewPlace {
+  along: number;
+  part: 'hull' | 'rigging' | 'deck';
 }
 export interface BattleViewState {
   tick: number;
   wind: Wind;
   ships: { player: BattleViewShip; enemy: BattleViewShip };
   /** Balls in flight; `hit` ones end on her (the 3D view lands them on her rail or sails, misses in the sea). */
-  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape'; hit?: boolean }[];
-  effects: { kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape'; x: number; y: number; at: number }[];
+  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape'; hit?: boolean; place?: BattleViewPlace }[];
+  /** A hit's ship and place on her; a mast going by the board, which and the way it fell. */
+  effects: {
+    kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape' | 'mast';
+    x: number;
+    y: number;
+    at: number;
+    ship?: 'player' | 'enemy';
+    place?: BattleViewPlace;
+    mast?: number;
+    towardDeg?: number;
+  }[];
   /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
    * whether each broadside can fire now (as the battle's aim reports it). */
   arcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
@@ -209,7 +226,8 @@ export function createBattleView(
       const now = state.tick / 30;
       for (const e of state.effects) {
         const age = (now - e.at) / EFFECT_SECONDS;
-        if (age < 0 || age > 1) continue;
+        // A mast going by the board is the 3D view's to show; here her canvas shows it.
+        if (age < 0 || age > 1 || e.kind === 'mast') continue;
         const x = Math.round(e.x * ts);
         const y = Math.round(e.y * ts);
         if (e.kind === 'smoke') {

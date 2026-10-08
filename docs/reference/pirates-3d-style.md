@@ -112,6 +112,10 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
     splashes, splinters, torn canvas, grape sparks.
   - A hurt hull smokes, and below a quarter she burns.
   - Sunk, she settles by the stern and goes under, leaving barrels and men clinging to spars.
+  - Every hit lands where the battle placed it (along her length; her side, her deck or her rigging), and
+    rigging hits wear down the nearest mast: one shot away cracks with a burst of splinters and comes down over
+    her side with its yards, sails and stay, a long splash where it hits the water, leaving a stump. The HUD
+    calls it out ("Her foremast goes by the board!") and her card shows the masts still standing.
   - The player's firing arcs on the water, kept light: a faint edge, filled gold only when a broadside is ready.
   - The compass top-left (the wind's red arrow, heading, knots), as at sea.
   - The camera frames both ships, high and oblique, closer as they close; the wheel zooms, C views from astern.
@@ -121,7 +125,6 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   the point of sail. Behind the rose, quietly, the speed for every heading and the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
-  - shot holes in sails and falling masts (the battle doesn't track masts or where a ball struck);
   - bow spray;
   - real town and fort models;
   - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);

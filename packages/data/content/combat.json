@@ -54,6 +54,12 @@
       "short": true
     }
   },
+  "masts": {
+    "$comment": "Rigging hits wear down the nearest mast (strength 100); a fallen mast takes its share of canvas and a few men. Chain is aimed high.",
+    "rigging": { "round": 0.2, "chain": 0.9, "grape": 0 },
+    "damage": { "round": 20, "chain": 10, "grape": 0 },
+    "crewLoss": 3
+  },
   "gunLoss": 0.03,
   "strike": {
     "hull": 0.25,

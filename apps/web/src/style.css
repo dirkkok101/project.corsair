@@ -1538,6 +1538,12 @@ body {
   border-color: #e8c170;
 }
 
+.battle-mast {
+  top: 176px;
+  color: #ebede9;
+  border-color: #cf573c;
+}
+
 .battle-wreck {
   max-width: 90vw;
   white-space: normal;
