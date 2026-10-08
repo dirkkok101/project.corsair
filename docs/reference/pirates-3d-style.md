@@ -74,9 +74,14 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   Clouds drift downwind and show only from afar.
 - **Sea:**
   - Calm and painterly: low, long swells, with the fine chop only in the shading.
-  - Ripple normals, sun sparkle that fades before it would shimmer, and short broken wind streaks.
+  - Ripple normals that also show as a soft, low-contrast hammered texture in the water's colour.
+  - Flecks of whitecap lying along the wind, coming and going, more in a blow, gathered in gusty patches; three
+    sizes so they stay about the same on screen at every zoom (Pirates! has no long wind streaks).
+  - Cloud shadows: big soft darker patches drifting downwind with the clouds.
+  - Sun sparkle that fades before it would shimmer; only a faint sheen, so the sea is one even soft blue.
   - Surf bands rolling in along the depth contours, and sand showing through the shallows.
-  - The water takes the light's colour.
+  - The water takes the light's colour; a moonlit sea is greyed a little toward navy, its flecks only a glimmer.
+  - Measured against the reference's open sea (hue about 209, saturation 0.52, value 0.76 on screen).
 - **Islands:**
   - Levels of detail down to a quarter-tile mesh near the camera, smooth between tiles.
   - Generated rolling hills and ridges inland, with the coastline kept where the map has it.
