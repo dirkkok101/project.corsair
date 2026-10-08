@@ -127,6 +127,11 @@ export async function createSeaRenderer(
     windAt: (state: WorldState, x: number, y: number) => Wind;
     /** A town's line under its name ("Prosperous English Capital"), from the game's state. */
     townLine?: (s: PlacedSettlement, state: WorldState) => string;
+    /**
+     * For review, what to draw on the sea (`?sea=`): "plain" alone is the bare water; add layers by name to
+     * bring them back (flecks, shadows, ripples, surf, clouds, wakes). Unset, everything.
+     */
+    sea?: string[];
   },
 ): Promise<SeaRenderer> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -166,7 +171,8 @@ export async function createSeaRenderer(
 
   const ground = createGround(map, options.settlements.map((s) => ({ x: s.x, y: s.y, r: TOWN_RADIUS[s.size] ?? 3.5 })));
   scene.add(ground.object);
-  const ocean = createOcean(ground.depth, map.width, map.height);
+  const shown = (layer: string) => !options.sea?.includes('plain') || options.sea.includes(layer);
+  const ocean = createOcean(ground.depth, map.width, map.height, shown);
   scene.add(ocean.mesh);
 
   // Towns: houses in the nation's style up from the shore, a church, a fort with its flag, a pier; the name over it.
@@ -355,7 +361,7 @@ export async function createSeaRenderer(
 
   /** Clouds drifting downwind (shown only from afar), the camera, and the frame drawn. */
   const finishFrame = (view: number, pitch: number, yaw: number, wind: Wind, sea: SeaState, t: number, dt: number) => {
-    cloudMat.opacity = 0.85 * THREE.MathUtils.smoothstep(view, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!);
+    cloudMat.opacity = shown('clouds') ? 0.85 * THREE.MathUtils.smoothstep(view, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!) : 0;
     const drift = strengthOf(wind) * CLOUD_SPEED * dt;
     const to = ((wind.fromDeg + 180) * Math.PI) / 180;
     for (const c of clouds) {
@@ -429,7 +435,7 @@ export async function createSeaRenderer(
     // Wakes behind the ships near the camera (far out they'd be finer than a pixel).
     wakes.update(
       Object.values(state.ships)
-        .filter((s) => Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
+        .filter((s) => shown('wakes') && Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
         .map((s) => ({ id: s.id, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed, length: SHIP_LENGTH * farScale })),
       dt,
       t,

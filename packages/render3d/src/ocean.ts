@@ -161,6 +161,7 @@ uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform float uLight;
 uniform float uStrength;
+uniform vec4 uShow;           // for review: flecks, cloud shadows, ripples, surf (1 shown, 0 hidden)
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 uniform vec4 uSwell[${SWELLS.length}];
@@ -220,7 +221,7 @@ void main() {
   vec3 r1 = t1.xyz * 2.0 - 1.0;
   vec3 r2 = t2.xyz * 2.0 - 1.0;
   float rippleFade = (1.0 - smoothstep(0.08, 0.6, footprint)) * (0.35 + 0.65 * uStrength);
-  slope += (r1.xy * 0.22 + r2.xy * 0.12) * rippleFade;
+  slope += (r1.xy * 0.22 + r2.xy * 0.12) * rippleFade * uShow.z;
   vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
   vec3 v = normalize(cameraPosition - vWorld);
 
@@ -239,11 +240,11 @@ void main() {
   water = mix(water, uSand, sandy * 0.55) + vec3(caustic * smoothstep(0.6, 0.9, floorUp) * 0.12);
   // The ripples show in the water's colour too: a soft, low-contrast hammered texture all over.
   float hammer = (t1.a - 0.5) * 0.16 + (t2.a - 0.5) * 0.08;
-  water *= 1.0 + hammer * (1.0 - smoothstep(0.1, 0.7, footprint));
+  water *= 1.0 + hammer * (1.0 - smoothstep(0.1, 0.7, footprint)) * uShow.z;
   // Cloud shadows: big soft darker patches drifting downwind with the clouds.
   vec2 sp = (vWorld.xz - uShadowAt) * 0.022;
   float cloud = noise(sp) * 0.65 + noise(sp * 2.3 + 5.1) * 0.35;
-  water *= 1.0 - smoothstep(0.52, 0.78, cloud) * 0.2;
+  water *= 1.0 - smoothstep(0.52, 0.78, cloud) * 0.2 * uShow.y;
 
   // The water takes the light's colour: golden at sunrise and sunset, blue under the moon.
   vec3 tint = uSunColor / max(max(uSunColor.r, uSunColor.g), max(uSunColor.b, 0.001));
@@ -268,7 +269,7 @@ void main() {
   float close = flecks(w + 12.3, 3.2, density, footprint, uTime) * (1.0 - smoothstep(0.065, 0.085, footprint * 3.2));
   float fine = flecks(w, 1.6, density, footprint, uTime) * smoothstep(0.065, 0.085, footprint * 3.2);
   float coarse = flecks(w + 31.7, 0.4, density * 0.8, footprint, uTime) * smoothstep(0.1, 0.2, footprint * 1.6);
-  float caps = max(max(close, fine), coarse) * (1.0 - smoothstep(0.35, 0.6, floorUp));
+  float caps = max(max(close, fine), coarse) * (1.0 - smoothstep(0.35, 0.6, floorUp)) * uShow.x;
   // Surf: bands of foam rolling in along the depth contours, broken up, densest at the waterline.
   float band = 0.5 + 0.5 * sin(floorUp * 46.0 - uTime * 1.6 + noise(vWorld.xz * 0.6) * 4.0);
   float surf = smoothstep(0.86, 0.97, floorUp) * smoothstep(0.55, 1.0, band) * (0.5 + 0.5 * noise(vWorld.xz * 3.0 + uTime * 0.3));
@@ -277,7 +278,7 @@ void main() {
   float crest = smoothstep(0.93, 0.99, 0.5 + 0.5 * sin(near * 34.0 - uTime * 0.9 + noise(vWorld.xz * 0.35) * 3.0));
   float waves = crest * smoothstep(0.2, 0.5, near) * (1.0 - smoothstep(0.85, 0.97, floorUp)) * smoothstep(0.45, 0.8, noise(vWorld.xz * 0.9 + uTime * 0.05));
   waves *= 1.0 - smoothstep(0.15, 0.6, footprint);
-  float foam = clamp(surf * 0.8 + shoreline * 0.9 + waves * 0.75, 0.0, 1.0);
+  float foam = clamp((surf * 0.8 + waves * 0.75) * uShow.w + shoreline * 0.9, 0.0, 1.0);
   col = mix(col, vec3(0.96, 0.98, 1.0) * max(uLight, 0.3), foam);
   // Whitecaps are pale and a little blue, not pure white (in the reference they hardly ever reach white).
   // At night they are only a faint glimmer.
@@ -309,7 +310,13 @@ export interface Ocean {
   update(at: THREE.Vector3, sea: SeaState, t: number, light: SeaLight): void;
 }
 
-export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): Ocean {
+/**
+ * For review, the sea's layers that can be hidden (`?sea=plain` hides them all, `?sea=plain,flecks` brings one
+ * back): flecks of whitecap, cloud shadows, ripples (and their texture), surf and wave lines.
+ */
+export const SEA_LAYERS = ['flecks', 'shadows', 'ripples', 'surf'] as const;
+
+export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, shown: (layer: string) => boolean = () => true): Ocean {
   const geometry = new THREE.PlaneGeometry(SIZE, SIZE, SEGMENTS, SEGMENTS);
   geometry.rotateX(-Math.PI / 2);
   const material = new THREE.ShaderMaterial({
@@ -334,6 +341,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): O
       uSunColor: { value: new THREE.Color('#fff4d6') },
       uLight: { value: 1 },
       uStrength: { value: 0.8 },
+      uShow: { value: new THREE.Vector4(1, 1, 1, 1) },
       uFogColor: { value: new THREE.Color('#bfe3f2') },
       uFogDensity: { value: 0.002 },
     },
@@ -342,6 +350,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): O
   // The plane moves with the camera; culling it by its first position would lose it.
   mesh.frustumCulled = false;
   const u = material.uniforms as Record<string, THREE.IUniform>;
+  (u.uShow!.value as THREE.Vector4).set(...(SEA_LAYERS.map((l) => (shown(l) ? 1 : 0)) as [number, number, number, number]));
   let lastT: number | undefined;
   return {
     mesh,

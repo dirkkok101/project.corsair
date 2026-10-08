@@ -260,6 +260,8 @@ async function main() {
           playerId: def.start.shipId,
           settlements,
           windAt,
+          // ?sea=plain (then layers by name) for review: what's drawn on the 3D sea.
+          sea: new URLSearchParams(location.search).get('sea')?.split(',') ?? undefined,
           townLine: (s, state) => {
             // "Prosperous English Capital": the town's trend, nation and kind, and anything ailing it.
             const t = townOf(content, state, s);
