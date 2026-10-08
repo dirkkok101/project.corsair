@@ -499,6 +499,7 @@ export function newsText(content: ContentPack, item: NewsItem, townName: string)
     .replaceAll('{ship}', item.ship ?? 'a ship')
     .replaceAll('{nation}', nationWords[item.nation ?? ''] ?? '')
     .replaceAll('{other}', nationWords[item.other ?? ''] ?? '')
+    .replaceAll('{vessel}', item.vessel ?? 'a ship')
     .replace(/^./, (c) => c.toUpperCase());
 }
 
@@ -858,6 +859,29 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             captain: { ...state.captain, gold, ...(state.captain.fleet ? { fleet } : {}) },
           },
           events: [{ type: 'Repaired', entityIds: [ship.id, ship.docked], payload: { gold: state.captain.gold - gold } }],
+        };
+      }
+      if (command.type === 'ReclaimShip') {
+        // A ship of the player's retaken from pirates, laid up here: she rejoins the fleet, salvage paid.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const laidUp = state.captain.laidUp ?? [];
+        const laid = laidUp.find((l) => l.id === command.laidUpId && l.settlementId === ship.docked);
+        if (!laid) return refuse(state, ship, 'not-here');
+        const { settlementId: _at, fee, ...back } = laid;
+        const fleet = fleetOf(state);
+        if (fleet.length + 2 > content.combat.fleet.maxShips) return refuse(state, ship, 'fleet-full');
+        if (crewOf(content, ship) < fleetMinCrew(content, [...fleet, back], ship)) return refuse(state, ship, 'too-few-men');
+        if (state.captain.gold < fee) return refuse(state, ship, 'not-enough-gold');
+        const fleetAfter = [...fleet, back];
+        return {
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: withFleetPace(content, ship, fleetAfter) },
+            captain: { ...state.captain, gold: state.captain.gold - fee, fleet: fleetAfter, laidUp: laidUp.filter((l) => l !== laid) },
+          },
+          events: [{ type: 'ShipReclaimed', entityIds: [ship.id, ship.docked], payload: { laidUpId: laid.id, fee } }],
         };
       }
       if (command.type === 'SellShip' || command.type === 'MakeFlagship') {

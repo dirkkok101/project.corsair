@@ -128,6 +128,15 @@
     "maxShips": 8,
     "sellShare": 0.35
   },
+  "prizes": {
+    "$comment": "Ships that change hands: a pirate who wins keeps the beaten ship in tow (up to 'max'), her hold adding to hers and her pace holding her back; she sells them at her haven 'sellDays' after taking them. Beaten by a pirate, the player loses the most valuable ship of the fleet (never the flagship). A ship of the player's freed by a patrol lies at that nation's nearest port, to be taken back for 'salvage' of her value.",
+    "max": 2,
+    "sellDays": [
+      20,
+      40
+    ],
+    "salvage": 0.1
+  },
   "hunt": {
     "playerValue": 400,
     "nerve": [0.6, 1.2],
@@ -160,7 +169,11 @@
     "pirateSunk": "A pirate, the {ship}, was sent to the bottom off {town}.",
     "convoyDue": "The {nation} convoy {ship} is on her way from Europe to {town}, with luxuries and settlers.",
     "treasureDue": "The {nation} treasure ship {ship} is loading silver at {town} for Havana and home.",
-    "blockade": "{nation} warships are lying off {town}: little gets in or out."
+    "blockade": "{nation} warships are lying off {town}: little gets in or out.",
+    "yourShipTaken": "The pirate {ship} took your {vessel} off {town}, and is making for her haven.",
+    "prizeSold": "The pirate {ship} has sold the {vessel} at {town}.",
+    "yourShipRetaken": "A {nation} patrol took your {vessel} back from the pirate {ship}. She lies at {town} for you to collect.",
+    "prizeFreed": "The {nation} {vessel} was freed from the pirate {ship} off {town}."
   },
   "autoResolve": {
     "merchant": 0.9,

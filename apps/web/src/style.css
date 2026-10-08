@@ -1853,3 +1853,8 @@ body {
   min-height: 0;
   margin-bottom: 8px;
 }
+
+/* A pirate with a ship of the player's in tow: worth chasing. */
+.hail .hail-yours {
+  color: #e8c170;
+}

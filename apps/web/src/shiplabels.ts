@@ -26,7 +26,9 @@ export function createShipLabels(parent: HTMLElement, tileSize: number) {
           nodes.set(ship.id, el);
         }
         el.className = `label ship-label label-${ship.ai.nation}`;
-        el.textContent = shipTitle(ship);
+        // Only she is drawn: the prizes she has in tow show as a count.
+        const towing = ship.ai.prizes?.length ?? 0;
+        el.textContent = towing ? `${shipTitle(ship)} +${towing}` : shipTitle(ship);
         const vx = ship.x * tileSize - camera.x;
         const vy = ship.y * tileSize + BELOW_PX - camera.y;
         el.style.transform = `translate(${vx * scale}px, ${vy * scale}px) translateX(-50%)`;

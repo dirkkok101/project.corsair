@@ -17,6 +17,7 @@ import {
   daysUnpaid,
   fleetBerths,
   fleetHold,
+  fleetMinCrew,
   fleetOf,
   foodDays,
   moraleOf,
@@ -569,6 +570,48 @@ function FleetList({ content, state, shipId, send }: { content: ContentPack; sta
   );
 }
 
+/** Ships of the player's retaken from pirates and laid up here: take her back into the fleet, salvage paid. */
+function LaidUp({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
+  const ship = state.ships[shipId]!;
+  const here = (state.captain?.laidUp ?? []).filter((l) => l.settlementId === ship.docked);
+  if (!here.length) return null;
+  const fleet = fleetOf(state);
+  const crew = crewOf(content, ship);
+  const gold = state.captain?.gold ?? 0;
+  return (
+    <table class="fleet-list laid-up">
+      <tbody>
+        {here.map((l) => {
+          const kind = l.classId.replace(/^ship\./, '');
+          const why =
+            fleet.length + 2 > content.combat.fleet.maxShips
+              ? `Your fleet is full (${content.combat.fleet.maxShips} ships): sell one first.`
+              : crew < fleetMinCrew(content, [...fleet, l], ship)
+                ? `Too few men to sail her too: the fleet would need ${fleetMinCrew(content, [...fleet, l], ship)}, you have ${crew}.`
+                : gold < l.fee
+                  ? `Not enough gold for the salvage (${l.fee}).`
+                  : undefined;
+          return (
+            <tr key={l.id}>
+              <td>
+                <Art id={`ui.ship.${kind}`} class="fleet-ship" /> Your {kind} {l.name} lies here, retaken from pirates
+              </td>
+              <td class="port-sub">
+                hull {Math.round(l.hull)} · sails {Math.round(l.sailCondition)}%
+              </td>
+              <td class="actions">
+                <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'ReclaimShip', shipId, laidUpId: l.id })}>
+                  Take her back{l.fee ? ` · ${l.fee.toLocaleString()} gold salvage` : ''}
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 /** The shipwright: hull and sails made good, as far as the purse reaches. */
 const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands', pirate: 'the pirates' };
 
@@ -683,6 +726,7 @@ function Shipwright({
           <span class="port-sub">{fleet.length ? 'Every ship is sound.' : 'She is sound.'}</span>
         )}
       </div>
+      <LaidUp content={content} state={state} shipId={shipId} send={send} />
       <FleetList content={content} state={state} shipId={shipId} send={send} />
       <div class="shipwright-row">
         <span>

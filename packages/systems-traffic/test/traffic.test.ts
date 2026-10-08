@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
-import type { BattleResult, Ship, WorldState } from '@corsair/core';
+import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
-import { createEconomySystem, fleetShipPace, normalStock, stockCap, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, normalStock, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -23,18 +23,18 @@ const lanes = createSeaLanes(map, settlements, content.traffic.laneCell);
 const windAt = createWindField(content, def, map);
 const day = content.calendar.ticksPerDay;
 
-function world(seed: number, start: WorldState = createWorld(def)) {
-  const w = withTraffic(withEconomy(withWeather(start, content, def, seed), content, settlements, seed), content, settlements, lanes, seed);
+function world(seed: number, start: WorldState = createWorld(def), pack = content) {
+  const w = withTraffic(withEconomy(withWeather(start, pack, def, seed), pack, settlements, seed), pack, settlements, lanes, seed);
   return createSim(w, [
-    createWeatherSystem(content, def, map),
-    createEconomySystem(content, settlements, map),
-    createTrafficSystem(content, settlements, lanes, map, windAt),
-    createNavigationSystem(content, map, windAt),
+    createWeatherSystem(pack, def, map),
+    createEconomySystem(pack, settlements, map),
+    createTrafficSystem(pack, settlements, lanes, map, windAt),
+    createNavigationSystem(pack, map, windAt),
   ]);
 }
 const ai = (state: WorldState) => Object.values(state.ships).filter((s) => s.ai);
 /** The everyday traffic: AI ships less the convoys, which sail on a timetable of their own. */
-const traffic0 = (state: WorldState) => ai(state).filter((s) => !s.ai!.convoy);
+const traffic0 = (state: WorldState) => ai(state).filter((s) => !s.ai!.convoy).flatMap((s) => [s, ...(s.ai!.prizes ?? []).filter((p) => p.takenFrom !== 'player')]);
 
 describe('ships at sea', () => {
   it('start with the full population moored at home ports, by role', () => {
@@ -309,7 +309,10 @@ describe('fights at sea', () => {
 
 describe('ships that carry the world', () => {
   it('the English convoy sails on her timetable: lands luxuries and settlers at Port Royal, loads sugar and rum, and goes home', () => {
-    const sim = world(2);
+    // No pirates: this is the convoy's timetable, not her luck (pirates take convoys, and keep them).
+    const roles = content.traffic.roles;
+    const calm = { ...content, traffic: { ...content.traffic, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } } };
+    const sim = world(2, createWorld(def), calm);
     const line = content.traffic.convoys.lines.find((l) => l.id === 'english')!;
     const royal = 'town.port_royal';
     sim.step(line.firstDay * day);
@@ -608,5 +611,201 @@ describe('nations at war at sea', () => {
     });
     s2.applyCommands();
     expect(s2.state.captain!.deeds).toEqual([{ nation: 'spain', role: 'merchant', kind: 'taken', tick: s2.state.tick }]);
+  });
+});
+
+describe('ships that change hands', () => {
+  const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
+  const spawn = (sim: ReturnType<typeof world>, role: 'merchant' | 'pirate' | 'patrol', from: string, to: string) => {
+    sim.send({ type: 'SpawnShip', role, from, to });
+    sim.applyCommands();
+    return Object.keys(sim.state.ships).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+  };
+  /** A ship put halfway down her lane, out on the open sea, by distance along it. */
+  const halfway = (ship: Ship): Ship => {
+    const route = ship.ai!.route;
+    const legs = route.slice(1).map((q, i) => Math.hypot(q[0] - route[i]![0], q[1] - route[i]![1]));
+    const along = legs.reduce((t, l) => t + l, 0) / 2;
+    let i = 0;
+    let run = 0;
+    while (run + legs[i]! < along) run += legs[i++]!;
+    const f = (along - run) / legs[i]!;
+    const [x0, y0] = route[i]!;
+    const [x1, y1] = route[i + 1]!;
+    return { ...ship, x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f, ai: { ...ship.ai!, along } };
+  };
+  const result = (outcome: BattleResult['outcome']) => ({
+    outcome,
+    player: { hull: 60, sailCondition: 80, crew: 50, guns: 14 },
+    enemy: { hull: 10, sailCondition: 40, crew: 9, guns: 6 },
+  });
+  const prize = (id: string, name: string, takenFrom: Prize['takenFrom'], sellAfter = 1e9): Prize => ({
+    id,
+    name,
+    classId: 'ship.fluyt',
+    hull: 70,
+    sailCondition: 100,
+    takenFrom,
+    role: 'merchant',
+    sellAfter,
+  });
+
+  it('a pirate who takes a merchant keeps her in tow, at her pace, and makes for her haven', () => {
+    const sim = world(9);
+    const merchant = spawn(sim, 'merchant', 'town.port_royal', 'town.cartagena');
+    const pirate = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const m = halfway(sim.state.ships[merchant]!);
+    const ships = {
+      ...sim.state.ships,
+      player: { ...sim.state.ships.player!, docked: 'town.port_royal' },
+      [merchant]: { ...m, crew: 5, cargo: { sugar: 10 } },
+      [pirate]: { ...sim.state.ships[pirate]!, x: m.x + 1, y: m.y, ai: { ...sim.state.ships[pirate]!.ai!, route: m.ai!.route, along: m.ai!.along } },
+    };
+    const fight = createSim({ ...sim.state, ships }, [traffic()]);
+    fight.step(30);
+    const p = fight.state.ships[pirate]!;
+    expect(p.ai!.prizes).toMatchObject([{ id: merchant, takenFrom: 'england', role: 'merchant' }]);
+    expect(p.fleetSpeed).toBe(fleetShipPace(content, p.ai!.prizes![0]!));
+    expect(p.ai!.to).toBe('town.tortuga');
+  });
+
+  it('beaten by a pirate, you lose the best ship of the fleet (never the flagship), and what the rest cannot carry', () => {
+    const sim = world(8);
+    const id = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const other = sim.state.ships[id]!;
+    const fleet = [
+      { id: 'f1', name: 'Endeavour', classId: 'ship.fluyt', hull: 70, sailCondition: 100 },
+      { id: 'f2', name: 'Kestrel', classId: 'ship.sloop', hull: 45, sailCondition: 100 },
+    ];
+    const best = [...fleet].sort((a, b) => shipValue(content, b) - shipValue(content, a))[0]!;
+    const state: WorldState = {
+      ...sim.state,
+      captain: { ...sim.state.captain!, fleet },
+      ships: {
+        ...sim.state.ships,
+        [id]: { ...other, cargo: {} },
+        player: { ...sim.state.ships.player!, x: other.x + 1, y: other.y, crew: 120, cargo: { sugar: 250, food: 10 } },
+      },
+    };
+    const lose = createSim(state, [traffic()]);
+    lose.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('lost') });
+    lose.applyCommands();
+    const me = lose.state.ships.player!;
+    expect(lose.state.captain!.fleet!.map((f) => f.id)).toEqual(fleet.filter((f) => f !== best).map((f) => f.id));
+    expect(lose.state.ships[id]!.ai!.prizes).toMatchObject([{ id: best.id, takenFrom: 'player' }]);
+    expect(lose.state.ships[id]!.ai!.to).toBe('town.tortuga');
+    // What's left fits what's left of the fleet.
+    expect(cargoUsed(me)).toBeLessThanOrEqual(fleetHold(content, lose.state, me));
+    expect(me.crew!).toBeLessThanOrEqual(fleetBerths(content, lose.state, me));
+    const over = lose.events().find((e) => e.type === 'BattleOver')!;
+    expect(over.payload.lost).toMatchObject({ ship: { name: best.name }, boundFor: 'Tortuga' });
+    expect(lose.state.news!.some((n) => n.kind === 'yourShipTaken' && n.vessel?.includes(best.name))).toBe(true);
+  });
+
+  it('take her, and your ship is yours again; a nation\'s ship she held sails home, and they thank you', () => {
+    const sim = world(8);
+    const id = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const other = sim.state.ships[id]!;
+    const state: WorldState = {
+      ...sim.state,
+      ships: {
+        ...sim.state.ships,
+        [id]: { ...other, ai: { ...other.ai!, prizes: [prize('f1', 'Endeavour', 'player'), prize('ai.900', 'San Juan', 'spain')] } },
+        player: { ...sim.state.ships.player!, x: other.x + 1, y: other.y, crew: 120 },
+      },
+    };
+    const win = createSim(state, [traffic()]);
+    win.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('boarded') });
+    win.applyCommands();
+    expect(win.state.captain!.fleet).toMatchObject([{ id: 'f1', name: 'Endeavour' }]);
+    expect(win.state.ships['ai.900']!.ai).toMatchObject({ nation: 'spain', role: 'merchant' });
+    expect(settlements.find((s) => s.id === win.state.ships['ai.900']!.ai!.to)!.nation).toBe('spain');
+    expect(win.state.captain!.standing!.spain).toBe(content.combat.standing.pirate + content.combat.hunt.rescueStanding);
+    expect(win.events().find((e) => e.type === 'BattleOver')!.payload.retaken).toEqual([{ name: 'Endeavour', classId: 'ship.fluyt' }]);
+    expect(win.state.prize!.ship.ai!.prizes).toBeUndefined();
+  });
+
+  it('with no room for her, your ship waits in port for you to take back', () => {
+    const sim = world(8);
+    const id = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const other = sim.state.ships[id]!;
+    const full = Array.from({ length: 7 }, (_, k) => ({ id: `s${k}`, name: `S${k}`, classId: 'ship.sloop', hull: 45, sailCondition: 100 }));
+    const state: WorldState = {
+      ...sim.state,
+      captain: { ...sim.state.captain!, fleet: full },
+      ships: {
+        ...sim.state.ships,
+        [id]: { ...other, ai: { ...other.ai!, prizes: [prize('f1', 'Endeavour', 'player')] } },
+        player: { ...sim.state.ships.player!, x: other.x + 1, y: other.y, crew: 150 },
+      },
+    };
+    const win = createSim(state, [traffic()]);
+    win.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('sunk') });
+    win.applyCommands();
+    const laid = win.state.captain!.laidUp!;
+    expect(laid).toMatchObject([{ id: 'f1', fee: 0 }]);
+    // At the shipwright there: a full fleet can't take her until a ship is sold.
+    const at = laid[0]!.settlementId;
+    const port = settlements.find((s) => s.id === at)!;
+    const docked = { ...win.state, ships: { ...win.state.ships, player: { ...win.state.ships.player!, x: port.x, y: port.y, docked: at, crew: 150 } } };
+    const yard = createSim(docked, [createEconomySystem(content, settlements)]);
+    yard.send({ type: 'ReclaimShip', shipId: 'player', laidUpId: 'f1' });
+    yard.applyCommands();
+    expect(yard.events().at(-1)).toMatchObject({ type: 'TradeRefused', payload: { reason: 'fleet-full' } });
+    const roomy = createSim({ ...docked, captain: { ...docked.captain!, fleet: full.slice(1) } }, [createEconomySystem(content, settlements)]);
+    roomy.send({ type: 'ReclaimShip', shipId: 'player', laidUpId: 'f1' });
+    roomy.applyCommands();
+    expect(roomy.state.captain!.fleet!.map((f) => f.id)).toContain('f1');
+    expect(roomy.state.captain!.laidUp).toEqual([]);
+  });
+
+  it('a pirate sells the prizes she has held long enough when she sails from her haven', () => {
+    const sim = world(8);
+    const id = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const other = sim.state.ships[id]!;
+    const [mx, my] = lanes.mooring('town.tortuga')!;
+    const prizes = [prize('ai.901', 'Hope', 'england', sim.state.tick), prize('ai.902', 'Faith', 'england')];
+    const state: WorldState = {
+      ...sim.state,
+      ships: {
+        ...sim.state.ships,
+        [id]: { ...other, x: mx, y: my, speed: 0, ai: { ...other.ai!, from: 'town.tortuga', to: 'town.tortuga', route: [], waitUntil: sim.state.tick + 1, prizes } },
+      },
+    };
+    const port = createSim(state, [traffic()]);
+    port.step(3);
+    expect(port.state.ships[id]!.ai!.prizes!.map((p) => p.id)).toEqual(['ai.902']);
+    expect(port.events().some((e) => e.type === 'PrizeSold' && e.payload.prize === 'ai.901')).toBe(true);
+    expect(port.state.news!.some((n) => n.kind === 'prizeSold' && n.settlementId === 'town.tortuga')).toBe(true);
+  });
+
+  it('a patrol that beats a pirate frees her prizes: a merchant sails home, your ship lies in port for salvage', () => {
+    const sim = world(9);
+    const patrol = spawn(sim, 'patrol', 'town.port_royal', 'town.cartagena');
+    const pirate = spawn(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    const pat = halfway(sim.state.ships[patrol]!);
+    const pir = sim.state.ships[pirate]!;
+    const ships = {
+      ...sim.state.ships,
+      player: { ...sim.state.ships.player!, docked: 'town.port_royal' },
+      [patrol]: pat,
+      [pirate]: {
+        ...pir,
+        x: pat.x + 1,
+        y: pat.y,
+        crew: 2,
+        ai: { ...pir.ai!, route: pat.ai!.route, along: pat.ai!.along, prizes: [prize('f1', 'Endeavour', 'player'), prize('ai.903', 'Hope', 'england')] },
+      },
+    };
+    const fight = createSim({ ...sim.state, ships }, [traffic()]);
+    let guard = 0;
+    while (fight.state.ships[pirate] && guard++ < 20) fight.step(30);
+    expect(fight.state.ships[pirate]).toBeUndefined();
+    expect(fight.state.ships['ai.903']!.ai).toMatchObject({ nation: 'england', role: 'merchant' });
+    const laid = fight.state.captain!.laidUp!;
+    expect(laid).toMatchObject([{ id: 'f1' }]);
+    expect(laid[0]!.fee).toBe(Math.round(shipValue(content, laid[0]!) * content.combat.prizes.salvage));
+    expect(settlements.find((s) => s.id === laid[0]!.settlementId)!.nation).toBe('england');
+    expect(fight.state.news!.some((n) => n.kind === 'yourShipRetaken')).toBe(true);
   });
 });

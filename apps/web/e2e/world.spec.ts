@@ -869,3 +869,67 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(0);
   expect(errors).toEqual([]);
 });
+
+test('ships change hands: a pirate takes your fleet ship, shows her in tow, and taking her wins her back', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // Fights are settled straight through the sim here (the battle itself has its own tests): one won to keep a
+  // merchant, one lost to a pirate, one won back.
+  const alongside = (role: string, from: string, to: string) =>
+    page.evaluate(
+      ({ role, from, to }) => {
+        window.__corsair.cmd.send({ type: 'SpawnShip', role, from, to } as never);
+        window.__corsair.sim.step(1);
+        const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
+        const id = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+        // Out of harbour and a little way down her lane (a ship in port is out of reach and unlabelled).
+        const at = () => (window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: { route: unknown[]; along: number } }>)[id]!;
+        for (let i = 0; i < 40 && !(at().ai!.route.length && at().ai!.along > 8); i++) window.__corsair.sim.step(90);
+        const s = at();
+        for (const [dx, dy] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1]]) {
+          window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx!, y: s.y + dy! });
+          window.__corsair.sim.step(1);
+          const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+          if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
+        }
+        return id;
+      },
+      { role, from, to },
+    );
+  const settle = (targetId: string, outcome: string) =>
+    page.evaluate(
+      ({ targetId, outcome }) => {
+        window.__corsair.cmd.send({
+          type: 'BattleEnded',
+          shipId: 'player',
+          targetId,
+          result: { outcome, player: { hull: 80, sailCondition: 90, crew: 70, guns: 18 }, enemy: { hull: 10, sailCondition: 40, crew: 5, guns: 6 } },
+        } as never);
+        window.__corsair.sim.step(1);
+      },
+      { targetId, outcome },
+    );
+  const fleet = () => page.evaluate(() => ((window.__corsair.state.get('captain') as { fleet?: { name: string }[] }).fleet ?? []).map((f) => f.name));
+
+  const merchant = await alongside('merchant', 'town.port_royal', 'town.cartagena');
+  await settle(merchant, 'boarded');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'TakePlunder', shipId: 'player', take: {}, volunteers: false, release: false, keep: true } as never);
+    window.__corsair.sim.step(1);
+  });
+  const [kept] = await fleet();
+  expect(kept).toBeTruthy();
+
+  const pirate = await alongside('pirate', 'town.tortuga', 'town.port_royal');
+  await settle(pirate, 'lost');
+  expect(await fleet()).toEqual([]);
+  // At sea she shows her prize in tow, and hailing her says whose it is.
+  await expect(page.locator('.ship-label', { hasText: '+1' })).toBeVisible();
+  await page.keyboard.press('h');
+  await expect(page.locator('.hail')).toContainText(`your fluyt ${kept}`);
+  await page.screenshot({ path: 'test-results/prize-in-tow.png' });
+  await page.keyboard.press('h');
+
+  await settle(pirate, 'boarded');
+  expect(await fleet()).toEqual([kept]);
+  expect(errors).toEqual([]);
+});

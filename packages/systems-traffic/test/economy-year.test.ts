@@ -43,18 +43,20 @@ describe('a year of the economy', () => {
     ];
     const sums = routes.map(() => 0);
     // Famines, shortages and plagues across the year, counted month by month (the event log is a ring).
-    const events = { famine: 0, shortage: 0, plague: 0 };
+    const events = { famine: 0, shortage: 0, plague: 0, prizesSold: 0, prizesFreed: 0 };
     for (let month = 0; month < 12; month++) {
       const from = sim.state.tick;
       sim.step(30 * content.calendar.ticksPerDay);
       routes.forEach(([a, b, g], i) => (sums[i]! += margin(a, b, g) / 12));
       for (const e of sim.events().filter((x) => x.tick > from)) {
         if (e.type === 'Plague') events.plague++;
+        else if (e.type === 'PrizeSold') events.prizesSold++;
+        else if (e.type === 'PrizeFreed') events.prizesFreed++;
         else if (e.type === 'MarketShock' && (e.payload.kind === 'famine' || e.payload.kind === 'shortage')) events[e.payload.kind]++;
       }
     }
     if (process.env.ECONOMY_LOG)
-      appendFileSync(process.env.ECONOMY_LOG, `average margins ${sums.map((x) => x.toFixed(0)).join(', ')} people ${start} -> ${people()}; ${JSON.stringify(events)}\n`);
+      appendFileSync(process.env.ECONOMY_LOG, `average margins ${sums.map((x) => x.toFixed(0)).join(', ')} people ${start} -> ${people()}; ${JSON.stringify(events)}; in tow at the end ${Object.values(sim.state.ships).reduce((n, s) => n + (s.ai?.prizes?.length ?? 0), 0)}\n`);
     for (const g of content.goods) {
       const ratios = settlements.map((s) => sim.state.markets![s.id]![g.id]! / Math.max(1, usualStock(content, sim.state, s, g.id)));
       const mean = ratios.reduce((a, b) => a + b, 0) / ratios.length;

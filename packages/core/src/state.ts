@@ -61,6 +61,11 @@ export interface AiCaptain {
   blockading?: string;
   blockadeOf?: string;
   /**
+   * Ships she has taken and keeps in tow (a pirate): her hold adds theirs, she keeps their pace, and she sells
+   * them at her haven after `sellAfter`. Take her, or a patrol beats her, and they are free again.
+   */
+  prizes?: Prize[];
+  /**
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.
    */
@@ -180,6 +185,19 @@ export interface KnownPrices {
 }
 
 /** A ship of the player's fleet other than her flagship: her own condition; her hold and men are the fleet's. */
+/** A ship a pirate has taken: who from (a nation's, or the player's), what she was, and when she is sold. */
+export interface Prize extends FleetShip {
+  takenFrom: Nation | 'player';
+  role: AiCaptain['role'];
+  sellAfter: number;
+}
+
+/** A ship of the player's laid up in a port (retaken from pirates), to be taken back for `fee` gold. */
+export interface LaidUpShip extends FleetShip {
+  settlementId: string;
+  fee: number;
+}
+
 export interface FleetShip {
   id: string;
   name: string;
@@ -247,6 +265,8 @@ export interface Captain {
    * flagship fights; the fleet keeps the pace of its slowest ship (the flagship's `fleetSpeed`).
    */
   fleet?: FleetShip[];
+  /** Ships of the player's freed from pirates, waiting in port to be taken back. */
+  laidUp?: LaidUpShip[];
 }
 
 /** A ship the player sank or took, waiting for a governor's bounty. */
@@ -326,6 +346,8 @@ export interface NewsItem {
   nation?: Nation;
   /** News of war or peace, or of a fight between ships: the other nation. */
   other?: Nation;
+  /** News of a ship changing hands: the ship taken, sold or freed ("brig Swallow"). */
+  vessel?: string;
 }
 
 export interface WorldState {
@@ -401,6 +423,8 @@ export type Command =
   /** At the shipwright: sell a ship of the fleet, or make one the flagship. */
   | { type: 'SellShip'; shipId: string; fleetId: string }
   | { type: 'MakeFlagship'; shipId: string; fleetId: string }
+  /** Take back a ship of the player's laid up in this port. */
+  | { type: 'ReclaimShip'; shipId: string; laidUpId: string }
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
   | { type: 'Repair'; shipId: string }

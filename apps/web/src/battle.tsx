@@ -50,7 +50,10 @@ export interface BattleReport {
   moraleBefore: number;
   morale: number;
   standing: Record<string, number>;
-  lost: { gold: number; chest: number; cargo: Record<string, number> };
+  lost: { gold: number; chest: number; cargo: Record<string, number>; ship?: { name: string; classId: string }; men?: number; boundFor?: string };
+  /** Ships of the player's she had in tow: back in the fleet, or laid up in port when there was no room. */
+  retaken?: { name: string; classId: string }[];
+  laidUp?: { name: string; classId: string; at: string }[];
 }
 
 /** A prize waiting on the plunder screen: her hold, the men who would sign on, and the player's own hold. */
@@ -96,7 +99,21 @@ function reportRows(content: ContentPack, r: BattleReport): Row[] {
   if (r.rescued) rows.push({ icon: 'ui.icon.crew', text: `+${r.rescued} men pulled from the water join your crew`, tone: 'good' });
   if (r.lost.chest) rows.push({ icon: 'ui.icon.chest', text: `−${r.lost.chest} gold: the pirates took the plunder chest`, tone: 'bad' });
   const cargo = goodsText(content, r.lost.cargo);
-  if (cargo) rows.push({ icon: 'ui.icon.good.luxuries', text: `They emptied your hold: ${cargo} (they left the food)`, tone: 'bad' });
+  if (cargo) rows.push({ icon: 'ui.icon.good.luxuries', text: `They emptied your hold: ${cargo}${r.lost.cargo.food ? '' : ' (they left the food)'}`, tone: 'bad' });
+  const kind = (classId: string) => classId.replace(/^ship\./, '').replace(/_/g, ' ');
+  if (r.lost.ship) {
+    rows.push({
+      icon: `ui.ship.${r.lost.ship.classId.replace(/^ship\./, '')}`,
+      text: `They took your ${kind(r.lost.ship.classId)} ${r.lost.ship.name}${r.lost.men ? ` and ${r.lost.men} men with her` : ''}${
+        r.lost.boundFor ? `. She's bound for ${r.lost.boundFor}: catch her before she's sold there` : ''
+      }`,
+      tone: 'bad',
+    });
+  }
+  for (const s of r.retaken ?? []) rows.push({ icon: `ui.ship.${s.classId.replace(/^ship\./, '')}`, text: `Your ${kind(s.classId)} ${s.name} is yours again: she rejoins the fleet`, tone: 'good' });
+  for (const s of r.laidUp ?? []) {
+    rows.push({ icon: `ui.ship.${s.classId.replace(/^ship\./, '')}`, text: `Your ${kind(s.classId)} ${s.name} is free, but you've no room or men to sail her: she lies at ${s.at} for you to collect`, tone: 'good' });
+  }
   if (r.lost.gold) rows.push({ icon: 'ui.icon.gold', text: `−${r.lost.gold} gold: her captain fined your purse`, tone: 'bad' });
   if (r.menLost) rows.push({ icon: 'ui.icon.crew', text: `−${r.menLost} men killed or wounded`, tone: 'bad' });
   if (r.morale !== r.moraleBefore) {

@@ -432,6 +432,12 @@ export const combatSchema = z.object({
     /** A shipwright pays this share of a ship's class price (by her condition): prizes help, they don't flood the purse. */
     sellShare: z.number().positive().max(1),
   }),
+  /** Ships that change hands: prizes a pirate keeps in tow, when she sells them, and the salvage on one freed. */
+  prizes: z.object({
+    max: z.number().int().min(0),
+    sellDays: z.tuple([z.number().min(0), z.number().min(0)]),
+    salvage: z.number().min(0).max(1),
+  }),
   hunt: z.object({
     playerValue: z.number().min(0),
     /** Each pirate's nerve, drawn at spawn: her temperament's attackOdds is multiplied by it (low: bolder). */

@@ -41,6 +41,14 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
       : ai.role === 'patrol'
         ? `A man-of-war on patrol, bound for ${name(ai.to)}. Her gunports are closed.`
         : 'A lean, fast sloop with a hard-looking crew. She keeps a wary distance and answers short.';
+  const prizes = ai.prizes ?? [];
+  const mine = prizes.filter((p) => p.takenFrom === 'player');
+  const kind = (classId: string) => classId.replace(/^ship\./, '').replace(/_/g, ' ');
+  const towing = prizes.length
+    ? `She has ${prizes.length === 1 ? 'a prize' : `${prizes.length} prizes`} in tow${
+        mine.length ? `: ${mine.map((p) => `your ${kind(p.classId)} ${p.name}`).join(' and ')}${mine.length < prizes.length ? ' among them' : ''}` : ''
+      }. Take her and ${prizes.length === 1 ? 'she is' : 'they are'} free.`
+    : '';
   const items = news.map((id) => state.news?.find((n) => n.id === id)).filter((n) => n !== undefined);
   return (
     <div class="hail">
@@ -50,6 +58,7 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
           <span class="port-sub">{shipTitle(ship)}</span>
         </div>
         <p>{errand}</p>
+        {towing ? <p class={mine.length ? 'hail-yours' : undefined}>{towing}</p> : null}
         <div class="hail-news">
           {items.length ? (
             items.map((n) => (
