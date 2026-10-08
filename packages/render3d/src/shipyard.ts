@@ -160,9 +160,15 @@ function deckTexture(plan: HullPlan): THREE.CanvasTexture {
   return finish(c, 4);
 }
 
-/** Sailcloth: off-white canvas with seams down each cloth and a reinforced edge. */
-const CANVAS = (() => {
-  if (typeof document === 'undefined') return undefined;
+/**
+ * Sailcloth: off-white canvas with seams down each cloth, a bolt rope round the edge and two reef bands near
+ * the head; a square sail can carry its nation's emblem (Pirates! paints the Spanish cross on Spanish canvas
+ * and a skull on a pirate's).
+ */
+const CLOTH = new Map<string, THREE.CanvasTexture>();
+function sailTexture(emblem: string): THREE.CanvasTexture {
+  const known = CLOTH.get(emblem);
+  if (known) return known;
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 256;
@@ -173,11 +179,44 @@ const CANVAS = (() => {
     g.fillStyle = 'rgba(120,100,70,0.16)';
     g.fillRect(x, 0, 2, 256);
   }
-  g.strokeStyle = 'rgba(120,100,70,0.35)';
+  // Reef bands with their points.
+  for (const y of [46, 84]) {
+    g.fillStyle = 'rgba(120,100,70,0.3)';
+    g.fillRect(0, y, 256, 3);
+    for (let x = 8; x < 256; x += 16) g.fillRect(x, y + 3, 2, 7);
+  }
+  g.strokeStyle = 'rgba(120,100,70,0.4)';
   g.lineWidth = 6;
   g.strokeRect(3, 3, 250, 250);
-  return finish(c, 1);
-})();
+  if (emblem === 'spain') {
+    // The ragged red cross of Burgundy.
+    g.strokeStyle = 'rgba(176,36,40,0.9)';
+    g.lineWidth = 16;
+    g.beginPath();
+    g.moveTo(60, 70);
+    g.lineTo(196, 216);
+    g.moveTo(196, 70);
+    g.lineTo(60, 216);
+    g.stroke();
+  } else if (emblem === 'pirate') {
+    g.fillStyle = 'rgba(40,36,44,0.82)';
+    g.beginPath();
+    g.arc(128, 128, 30, 0, Math.PI * 2);
+    g.fill();
+    g.fillRect(108, 150, 40, 18);
+    g.save();
+    g.translate(128, 188);
+    for (const a of [0.6, -0.6]) {
+      g.rotate(a);
+      g.fillRect(-56, -6, 112, 12);
+      g.rotate(-a);
+    }
+    g.restore();
+  }
+  const t = finish(c, 1);
+  CLOTH.set(emblem, t);
+  return t;
+}
 
 function finish(c: HTMLCanvasElement, anisotropy: number): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
@@ -203,8 +242,40 @@ function stationOf(plan: HullPlan, t: number): { w: number; h: number } {
 }
 
 const KEEL = -0.28;
-const STATIONS = 64;
-const SECTION = 14;
+const STATIONS = 96;
+const SECTION = 20;
+
+/** How far out the hull side stands at a height `s` up it (keel 0 .. rail 1), for a half-width `w`. */
+function sideAt(w: number, s: number): number {
+  const bilge = Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, s * 1.6)) ** 2));
+  const tumble = 1 - 0.12 * Math.max(0, (s - 0.7) / 0.3) ** 2;
+  return w * bilge * tumble;
+}
+
+/** A strip along both sides of the hull at height `s`: a wale (out from the side) or the rail's cap. */
+function strake(plan: HullPlan, s: number, height: number, out: number, material: THREE.Material): THREE.Mesh {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  for (let i = 0; i <= STATIONS; i++) {
+    const t = i / STATIONS;
+    const { w, h } = stationOf(plan, t);
+    const z = plan.length / 2 - t * plan.length;
+    const y = KEEL + (h - KEEL) * s;
+    const x = sideAt(w, s) + out;
+    pos.push(x, y - height / 2, z, x, y + height / 2, z, -x, y - height / 2, z, -x, y + height / 2, z);
+    if (i < STATIONS) {
+      const a = i * 4;
+      idx.push(a, a + 4, a + 1, a + 1, a + 4, a + 5, a + 2, a + 3, a + 6, a + 3, a + 7, a + 6);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, material);
+  m.castShadow = true;
+  return m;
+}
 
 function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, deck: THREE.Material): THREE.Group {
   const group = new THREE.Group();
@@ -220,9 +291,7 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
       for (let j = 0; j <= SECTION; j++) {
         const s = j / SECTION;
         const y = KEEL + (h - KEEL) * s;
-        const bilge = Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, s * 1.6)) ** 2));
-        const tumble = 1 - 0.12 * Math.max(0, (s - 0.7) / 0.3) ** 2;
-        pos.push(side * w * bilge * tumble, y, z);
+        pos.push(side * sideAt(w, s), y, z);
         // u once along the length (so the painted ports meet the muzzles), v up the side (keel 0 .. rail 1).
         uv.push(t, (y - KEEL) / (h - KEEL));
       }
@@ -272,6 +341,37 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
   deckGeo.setIndex(deckIdx);
   deckGeo.computeVertexNormals();
   group.add(new THREE.Mesh(deckGeo, deck));
+
+  const gilt = new THREE.MeshStandardMaterial({ color: plan.paint.trim, roughness: 0.4, metalness: 0.6 });
+  const wale = new THREE.MeshStandardMaterial({ color: plan.paint.wale, roughness: 0.7 });
+  // Raised wales: a heavy one below the painted band, a lighter one along the waterline; the rail capped in gilt.
+  group.add(strake(plan, 0.64, 0.035, 0.012, wale), strake(plan, 0.42, 0.025, 0.008, wale), strake(plan, 1, 0.022, 0.006, gilt));
+  // The bow: a beakhead platform under the bowsprit, a gilded figurehead leaning out, a cutwater below.
+  const bow = stationOf(plan, 1);
+  const beak = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.2), wale);
+  beak.position.set(0, bow.h * 0.72, -plan.length / 2 - 0.08);
+  const figure = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), gilt);
+  figure.scale.set(0.8, 1.2, 2.2);
+  figure.position.set(0, bow.h * 0.62, -plan.length / 2 - 0.13);
+  figure.rotation.x = 0.5;
+  const cutwater = new THREE.Mesh(new THREE.BoxGeometry(0.03, bow.h + 0.2, 0.12), wale);
+  cutwater.position.set(0, (bow.h - 0.2) / 2, -plan.length / 2 - 0.02);
+  group.add(beak, figure, cutwater);
+  // The stern: quarter galleries on either side, three lanterns on the taffrail.
+  const aft = stationOf(plan, 0.05);
+  for (const side of [-1, 1]) {
+    const gallery = new THREE.Mesh(new THREE.BoxGeometry(0.05, aft.h * 0.38, 0.22), stern);
+    gallery.position.set(side * (aft.w + 0.02), aft.h * 0.72, plan.length / 2 - 0.16);
+    group.add(gallery);
+  }
+  const lantern = new THREE.MeshStandardMaterial({ color: '#ffd77a', emissive: '#ffb84a', emissiveIntensity: 1.6, roughness: 0.3 });
+  const s0top = stationOf(plan, 0);
+  for (const [x, lift] of [[-s0top.w * 0.6, 0.1], [0, 0.16], [s0top.w * 0.6, 0.1]] as const) {
+    const l = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), lantern);
+    l.scale.y = 1.4;
+    l.position.set(x, s0top.h + lift, plan.length / 2 + 0.01);
+    group.add(l);
+  }
   return group;
 }
 
@@ -280,6 +380,19 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
 const SPAR = new THREE.MeshStandardMaterial({ color: '#4a2f22', roughness: 0.8 });
 const BLACK = new THREE.MeshStandardMaterial({ color: '#1d1a19', roughness: 0.6, metalness: 0.3 });
 const LINE = new THREE.LineBasicMaterial({ color: '#2a2220', transparent: true, opacity: 0.85 });
+/** Ratlines: rope rungs across the shrouds, drawn as a see-through ladder. */
+const RATLINES = (() => {
+  if (typeof document === 'undefined') return new THREE.MeshBasicMaterial();
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = 'rgba(42,34,32,0.95)';
+  for (let y = 4; y < 256; y += 14) g.fillRect(0, y, 64, 2);
+  for (const x of [1, 31, 61]) g.fillRect(x, 0, 2, 256);
+  const t = new THREE.CanvasTexture(c);
+  return new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, depthWrite: false });
+})();
 
 function spar(r0: number, r1: number, length: number): THREE.Mesh {
   const g = new THREE.CylinderGeometry(r1, r0, length, 8, 1);
@@ -294,12 +407,13 @@ function spar(r0: number, r1: number, length: number): THREE.Mesh {
  * sheet, 1 in the middle of the cloth), and the shader pushes it along the sail's own z by the ship's belly,
  * rippling it when the sail luffs.
  */
-function sailMaterial(): THREE.MeshStandardMaterial & { userData: { uniforms: { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform } } } {
+type SailUniforms = { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform };
+function sailMaterial(cloth: THREE.Texture, shared?: SailUniforms): THREE.MeshStandardMaterial & { userData: { uniforms: SailUniforms } } {
   // A soft glow of their own, so sails stay bright white on the shadowed side too (Pirates!'s glowing canvas).
-  const m = new THREE.MeshStandardMaterial({ map: CANVAS, roughness: 0.92, side: THREE.DoubleSide, emissive: '#fffaf0', emissiveIntensity: 0.38, emissiveMap: CANVAS }) as THREE.MeshStandardMaterial & {
-    userData: { uniforms: { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform } };
+  const m = new THREE.MeshStandardMaterial({ map: cloth, roughness: 0.92, side: THREE.DoubleSide, emissive: '#fffaf0', emissiveIntensity: 0.38, emissiveMap: cloth }) as THREE.MeshStandardMaterial & {
+    userData: { uniforms: SailUniforms };
   };
-  const uniforms = { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 } };
+  const uniforms = shared ?? { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 } };
   m.userData.uniforms = uniforms;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -440,6 +554,18 @@ function flagTexture(nation: string): THREE.CanvasTexture {
   return t;
 }
 
+/** A nation's flag on its own (a fort's), streaming. */
+export function makeFlag(nation: string): { mesh: THREE.Mesh; update(t: number): void } {
+  const material = flagMaterial(flagTexture(nation));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.38, 10, 4).translate(0.31, 0, 0), material);
+  return {
+    mesh,
+    update(t) {
+      material.userData.uniforms.uTime.value = t;
+    },
+  };
+}
+
 // --- a ship ----------------------------------------------------------------------------------------------
 
 export interface BuiltShip {
@@ -474,7 +600,9 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   const kit = kitFor(plan);
   const root = new THREE.Group();
   root.add(kit.hull.clone());
-  const sailMat = sailMaterial();
+  // Square sails carry the nation's emblem (Spain's cross, a pirate's skull); fore-and-aft canvas is plain.
+  const sailMat = sailMaterial(sailTexture(nation === 'spain' || nation === 'pirate' ? nation : 'plain'));
+  const flatMat = sailMaterial(sailTexture('plain'), sailMat.userData.uniforms);
   const flagMat = flagMaterial(flagTexture(nation));
   const lines: number[] = [];
   const h = plan.hull;
@@ -518,12 +646,24 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       }
     });
     yards.push({ group, sails });
-    // Shrouds: from the masthead down to the rail either side, a little aft.
+    // Shrouds: from the masthead down to the chainwale either side, a little aft; ratlines across them, a
+    // chainwale (a ledge outside the rail) where they come down.
     const rail = railAt(m.at - 0.12);
     for (const s of [-1, 1]) {
       for (let k = 0; k < 3; k++) {
-        lines.push(0, m.height * 0.92, z, s * rail.w, rail.h, z + 0.08 + k * 0.08);
+        lines.push(0, m.height * 0.92, z, s * (rail.w + 0.03), rail.h - 0.04, z + 0.08 + k * 0.08);
       }
+      const ladder = new THREE.BufferGeometry();
+      ladder.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([0, m.height * 0.92, z, 0, m.height * 0.92, z, s * (rail.w + 0.03), rail.h - 0.04, z + 0.08, s * (rail.w + 0.03), rail.h - 0.04, z + 0.24], 3),
+      );
+      ladder.setAttribute('uv', new THREE.Float32BufferAttribute([0.45, 1, 0.55, 1, 0, 0, 1, 0], 2));
+      ladder.setIndex([0, 2, 3, 0, 3, 1]);
+      root.add(new THREE.Mesh(ladder, RATLINES));
+      const chain = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.3), SPAR);
+      chain.position.set(s * (rail.w + 0.025), rail.h - 0.05, z + 0.16);
+      root.add(chain);
     }
   }
   // Stays: each masthead forward to the next mast's foot, the foremast's to the bowsprit's end.
@@ -552,7 +692,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
     // A fore-and-aft sail lies in the centreline plane; its cloth is built in x-y then turned to face abeam.
     const geo = cloth(quad.map((v) => new THREE.Vector3(v.z, v.y, 0)) as typeof quad, 0.12, 8, 8, 1);
     geo.rotateY(-Math.PI / 2);
-    const mesh = new THREE.Mesh(geo, sailMat);
+    const mesh = new THREE.Mesh(geo, flatMat);
     mesh.castShadow = true;
     group.add(mesh);
     const along = (a: THREE.Vector3, b: THREE.Vector3, r: number) => {

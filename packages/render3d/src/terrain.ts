@@ -112,7 +112,14 @@ const BUILDS_PER_FRAME = 3;
 /** Vegetation shows in chunks this near the camera's target (tiles). */
 const TREES_WITHIN = 90;
 
-export function createGround(map: TileMap): Ground {
+/** Ground kept clear of trees (a town's footprint): centre and radius in tiles. */
+export interface Clearing {
+  x: number;
+  y: number;
+  r: number;
+}
+
+export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
   const { width: w, height: h } = map;
   const raw = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) raw[i] = groundOf(map.tiles[i] ?? 3, map.elevation[i] ?? 0);
@@ -237,6 +244,8 @@ export function createGround(map: TileMap): Ground {
 
   /** Palms on the beaches and low shore, jungle canopy inland: placed by a seeded grid, so always the same. */
   const plant = (c: Chunk): THREE.Group => {
+    // The clearings that reach into this chunk.
+    const near = clearings.filter((k) => k.x + k.r > c.cx && k.x - k.r < c.cx + CHUNK && k.y + k.r > c.cy && k.y - k.r < c.cy + CHUNK);
     const palms: THREE.Matrix4[] = [];
     const canopy: THREE.Matrix4[] = [];
     const tint: THREE.Color[] = [];
@@ -249,7 +258,7 @@ export function createGround(map: TileMap): Ground {
         const px = x + hash2(Math.round(x * 2) + 7, Math.round(y * 2)) * 0.5;
         const py = y + hash2(Math.round(x * 2), Math.round(y * 2) + 7) * 0.5;
         const g = heightAt(px, py);
-        if (g < 0.12) continue;
+        if (g < 0.12 || near.some((k) => Math.hypot(px - k.x, py - k.y) < k.r)) continue;
         const tile = map.tiles[Math.floor(py) * w + Math.floor(px)] ?? 3;
         const s = 0.75 + hash2(Math.round(px * 9), Math.round(py * 9)) * 0.5;
         q.setFromAxisAngle(up, r * Math.PI * 2);

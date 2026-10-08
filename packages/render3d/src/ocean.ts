@@ -115,6 +115,54 @@ function rippleTexture(size = 256): THREE.DataTexture {
   return texture;
 }
 
+/**
+ * Wind streaks, painted once (Pirates! 2004's sea map): thin white brush strokes of foam, tapered at both ends and
+ * a little curved, in loose clusters, on a tile that wraps. The shader lays it along the wind and drifts it.
+ */
+function streakTexture(size = 1024): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  let seed = 9;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  g.lineCap = 'round';
+  const stroke = (x: number, y: number, length: number, width: number, bend: number, alpha: number) => {
+    // Drawn as short segments, widest and brightest in the middle, so each stroke tapers to nothing.
+    const steps = 24;
+    for (let i = 0; i < steps; i++) {
+      const t0 = i / steps;
+      const t1 = (i + 1) / steps;
+      const taper = Math.sin(Math.PI * (t0 + t1) / 2);
+      g.strokeStyle = `rgba(255,255,255,${alpha * taper})`;
+      g.lineWidth = Math.max(0.6, width * taper);
+      g.beginPath();
+      g.moveTo(x + t0 * length, y + Math.sin(t0 * Math.PI) * bend);
+      g.lineTo(x + t1 * length, y + Math.sin(t1 * Math.PI) * bend);
+      g.stroke();
+    }
+  };
+  for (let k = 0; k < 18; k++) {
+    // A cluster: a few strokes laid close and nearly parallel, like spume drawn out by the wind.
+    const cx = rand() * size;
+    const cy = rand() * size;
+    const n = 2 + Math.floor(rand() * 4);
+    for (let i = 0; i < n; i++) {
+      const length = 70 + rand() * 230;
+      const x = cx + (rand() - 0.5) * 120;
+      const y = cy + (rand() - 0.5) * 26;
+      const width = 1.2 + rand() * 2.6;
+      const bend = (rand() - 0.5) * 10;
+      const alpha = 0.35 + rand() * 0.55;
+      // Drawn at each wrap offset, so the tile repeats without seams.
+      for (const ox of [-size, 0, size]) for (const oy of [-size, 0, size]) stroke(x + ox, y + oy, length, width, bend, alpha);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+
 const VERT = /* glsl */ `
 uniform float uTime;
 uniform vec4 uSwell[${SWELLS.length}];   // dir.x, dir.z, wavelength, amplitude
@@ -147,6 +195,7 @@ const FRAG = /* glsl */ `
 uniform float uTime;
 uniform sampler2D uDepth;     // the sea floor: 0 deep .. 1 at the shore and above (see Ground.depth)
 uniform sampler2D uRipple;    // tiling ripple normals (rgb) and heights (a)
+uniform sampler2D uStreaks;   // wind streaks: white strokes along u
 uniform vec2 uMapSize;
 uniform vec2 uWindDir;        // where the wind blows to, in the xz plane
 uniform vec3 uDeep;
@@ -213,26 +262,30 @@ void main() {
   // A broad, soft sheen from the sun across the swell (no mirrored disc).
   vec3 h = normalize(uSunDir + v);
   col += uSunColor * pow(max(dot(n, h), 0.0), 60.0) * 0.12 * uLight;
-  // Sun sparkle: points of light winking on the ripples, fading once a point would be smaller than a pixel.
+  // Sun sparkle at two sizes: fine specks close in, coarser ones that still show zoomed out (the sea glitters
+  // all over, a pixel or two in a hundred), each fading out before it would be smaller than a pixel.
   vec2 cell = floor(vWorld.xz * 7.0);
-  float wink = step(0.992, hash(cell + floor(uTime * 3.0 + hash(cell) * 7.0)));
-  col += uSunColor * wink * uLight * (1.0 - smoothstep(0.05, 0.13, footprint)) * 0.9;
+  float wink = step(0.975, hash(cell + floor(uTime * 3.0 + hash(cell) * 7.0))) * (1.0 - smoothstep(0.05, 0.13, footprint));
+  vec2 cell2 = floor(vWorld.xz * 1.6);
+  float wink2 = step(0.97, hash(cell2 + 17.0 + floor(uTime * 2.0 + hash(cell2) * 5.0))) * smoothstep(0.08, 0.2, footprint) * (1.0 - smoothstep(0.6, 1.4, footprint));
+  col += uSunColor * (wink + wink2) * uLight * 0.85;
 
   // Wind streaks: long thin white lines laid along the wind across open water (Pirates!'s sea map).
   vec2 across = vec2(-uWindDir.y, uWindDir.x);
   vec2 w = vec2(dot(vWorld.xz, uWindDir), dot(vWorld.xz, across));
-  // Short, soft and broken: a few tiles long, scattered in patches, never a ruled line.
-  float streak = smoothstep(0.72, 0.9, noise(vec2(w.x * 0.35 - uTime * 0.12, w.y * 2.2)));
-  streak *= smoothstep(0.55, 0.85, noise(vec2(w.x * 0.06, w.y * 0.25)));
-  streak *= 0.6 + 0.4 * noise(vWorld.xz * 4.0 + uTime * 0.2);
-  streak *= (1.0 - smoothstep(0.35, 0.6, floorUp)) * (0.4 + 0.6 * uStrength) * (1.0 - smoothstep(0.04, 0.18, footprint));
+  // Painted strokes laid along the wind at two scales, drifting downwind, in patches that come and go.
+  float s1 = texture2D(uStreaks, vec2(w.x / 26.0 - uTime * 0.012, w.y / 26.0)).a;
+  float s2 = texture2D(uStreaks, vec2(w.x / 41.0 - uTime * 0.008 + 0.31, w.y / 41.0 + 0.57)).a;
+  float patches = smoothstep(0.5, 0.85, noise(vWorld.xz * 0.035 + uWindDir * uTime * 0.01));
+  float streak = max(s1, s2 * 0.7) * patches;
+  streak *= (1.0 - smoothstep(0.35, 0.6, floorUp)) * (0.45 + 0.55 * uStrength) * (1.0 - smoothstep(0.12, 0.6, footprint));
   // Surf: bands of foam rolling in along the depth contours, broken up, densest at the waterline.
   float band = 0.5 + 0.5 * sin(floorUp * 46.0 - uTime * 1.6 + noise(vWorld.xz * 0.6) * 4.0);
   float surf = smoothstep(0.86, 0.97, floorUp) * smoothstep(0.55, 1.0, band) * (0.5 + 0.5 * noise(vWorld.xz * 3.0 + uTime * 0.3));
   float shoreline = smoothstep(0.955, 0.995, floorUp);
   // Whitecaps on the swell's crests in a blow.
   float caps = smoothstep(0.08, 0.15, vCrest) * smoothstep(0.85, 1.0, uStrength) * noise(vWorld.xz * 3.0 - uTime * 0.2);
-  float foam = clamp(streak * 0.2 + surf * 0.8 + shoreline * 0.9 + caps * 0.6, 0.0, 1.0);
+  float foam = clamp(streak * 0.45 + surf * 0.8 + shoreline * 0.9 + caps * 0.6, 0.0, 1.0);
   col = mix(col, vec3(0.96, 0.98, 1.0) * max(uLight, 0.3), foam);
 
   float fog = 1.0 - exp(-pow(uFogDensity * dist, 2.0));
@@ -273,11 +326,13 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): O
       uSteep: { value: SWELLS.map((s) => s.steep) },
       uDepth: { value: depth },
       uRipple: { value: rippleTexture() },
+      uStreaks: { value: streakTexture() },
       uMapSize: { value: new THREE.Vector2(mapW, mapH) },
       uWindDir: { value: new THREE.Vector2(0, 1) },
-      uDeep: { value: new THREE.Color('#1462ad') },
-      uMid: { value: new THREE.Color('#2a86c9') },
-      uShallow: { value: new THREE.Color('#33cbd0') },
+      // Softer than pure cerulean (measured against reference footage: saturation about 0.3), paler shallows.
+      uDeep: { value: new THREE.Color('#2a68a3') },
+      uMid: { value: new THREE.Color('#3f86bd') },
+      uShallow: { value: new THREE.Color('#68c2c6') },
       uSand: { value: new THREE.Color('#d9e8c4') },
       uSky: { value: new THREE.Color('#9fd3f0') },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },

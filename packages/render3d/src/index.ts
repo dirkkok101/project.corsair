@@ -11,7 +11,8 @@ import { normalizeDeg } from '@corsair/systems-navigation';
 import { createOcean, seaHeight } from './ocean';
 import type { SeaState } from './ocean';
 import { RIGS } from './rigs';
-import { buildShip } from './shipyard';
+import { buildShip, makeFlag } from './shipyard';
+import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
 import { createWakes } from './wakes';
@@ -30,7 +31,6 @@ const CLOUDS_FROM = [70, 160];
 const NAMES_WITHIN = 160;
 /** Far out, ships grow so they stay readable (as Pirates! draws them), up to this many times life. */
 const FAR_SHIP_SCALE = 4;
-const TOWN_COUNT: Record<string, number> = { hamlet: 4, town: 9, city: 16 };
 /** A ship's length in tiles at model scale (the brig's hull, 2.4 model units). */
 const SHIP_LENGTH = 2.4 * (96 / 3.7 / 24);
 /** How fast a ship eases into the swell's pitch and roll (per second): slow, so she rocks rather than bounces. */
@@ -131,54 +131,19 @@ export async function createSeaRenderer(
   const fill = new THREE.HemisphereLight('#bfe3ff', '#2f6f6a', 0.9);
   scene.add(fill);
 
-  const ground = createGround(map);
+  const ground = createGround(map, options.settlements.map((s) => ({ x: s.x, y: s.y, r: TOWN_RADIUS[s.size] ?? 3.5 })));
   scene.add(ground.object);
   const ocean = createOcean(ground.depth, map.width, map.height);
   scene.add(ocean.mesh);
 
-  // Towns: white walls and terracotta roofs on the shore, a fort for the bigger ones, their flag and name.
-  const wall = new THREE.MeshStandardMaterial({ color: '#efe6d2', roughness: 0.9 });
-  const roof = new THREE.MeshStandardMaterial({ color: '#b5533c', roughness: 0.8 });
-  const stone = new THREE.MeshStandardMaterial({ color: '#9a8f80', roughness: 1 });
-  const houseGeo = new THREE.BoxGeometry(0.5, 0.35, 0.5);
-  const roofGeo = new THREE.ConeGeometry(0.42, 0.3, 4);
-  roofGeo.rotateY(Math.PI / 4);
+  // Towns: houses in the nation's style up from the shore, a church, a fort with its flag, a pier; the name over it.
   const names: { sprite: THREE.Sprite; x: number; y: number }[] = [];
-  for (const s of options.settlements) {
-    const town = new THREE.Group();
-    const base = Math.max(0.2, ground.heightAt(s.x, s.y));
-    town.position.set(s.x, base, s.y);
-    const n = TOWN_COUNT[s.size] ?? 6;
-    // Houses on a loose spiral, the same layout every visit (seeded by the town's place).
-    for (let i = 0; i < n; i++) {
-      const a = i * 2.4 + s.x;
-      const r = 0.35 + 0.42 * Math.sqrt(i);
-      const x = Math.cos(a) * r;
-      const z = Math.sin(a) * r;
-      const lift = Math.max(0.2, ground.heightAt(s.x + x, s.y + z)) - base;
-      const house = new THREE.Mesh(houseGeo, wall);
-      house.position.set(x, lift + 0.17, z);
-      house.castShadow = true;
-      const top = new THREE.Mesh(roofGeo, roof);
-      top.position.set(x, lift + 0.49, z);
-      town.add(house, top);
-    }
-    if (s.size !== 'hamlet') {
-      const fort = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.45, 1.4), stone);
-      fort.position.set(1.5, 0.22, 1.2);
-      fort.castShadow = true;
-      town.add(fort);
-    }
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.6), stone);
-    pole.position.set(0, 0.8, 0);
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.32), new THREE.MeshBasicMaterial({ color: PENNANT[s.nation] ?? '#ffffff', side: THREE.DoubleSide }));
-    flag.position.set(0.25, 1.45, 0);
-    town.add(pole, flag);
-    const name = label(s.name ?? s.id, PENNANT[s.nation] ?? '#ffffff');
-    town.add(name);
-    names.push({ sprite: name, x: s.x, y: s.y });
-    scene.add(town);
-  }
+  const towns = createTowns(options.settlements, ground.heightAt, makeFlag, (s) => {
+    const sprite = label(s.name ?? s.id, PENNANT[s.nation] ?? '#ffffff');
+    names.push({ sprite, x: s.x, y: s.y });
+    return sprite;
+  });
+  scene.add(towns.object);
 
   // Clouds: soft white puffs drifting downwind (Pirates!: white clouds are wind, dark ones a storm).
   const puff = puffTexture();
@@ -334,6 +299,7 @@ export async function createSeaRenderer(
     ground.update(camera.position, target);
     ocean.update(target, sea, t, light);
     sky.update(camera.position, zenith, light.sky, sunDir, light.sun);
+    towns.update(t);
     composer.render(dt);
   };
 
@@ -404,7 +370,6 @@ function label(text: string, colour: string): THREE.Sprite {
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, fog: false }));
   sprite.scale.set((c.width / c.height) * 0.034, 0.034, 1);
-  sprite.position.set(0, 2.4, 0);
   sprite.renderOrder = 10;
   return sprite;
 }
