@@ -9,7 +9,7 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from '@corsair/render/battle';
 import { sailAnim } from '@corsair/render/sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
-import { createOcean, seaHeight } from './ocean';
+import { CLOUD_SPEED, createOcean, seaHeight } from './ocean';
 import type { SeaState } from './ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
@@ -155,10 +155,10 @@ export async function createSeaRenderer(
   scene.add(ocean.mesh);
 
   // Towns: houses in the nation's style up from the shore, a church, a fort with its flag, a pier; the name over it.
-  const names: { sprite: THREE.Sprite; x: number; y: number; s: PlacedSettlement; banner: Banner }[] = [];
+  const names: { sprite: THREE.Sprite; x: number; y: number; s: PlacedSettlement; banner: Banner; inRange: boolean; shown: number }[] = [];
   const towns = createTowns(options.settlements, ground.heightAt, makeFlag, (s) => {
     const banner = createBanner(s.name ?? s.id, s.nation);
-    names.push({ sprite: banner.sprite, x: s.x, y: s.y, s, banner });
+    names.push({ sprite: banner.sprite, x: s.x, y: s.y, s, banner, inRange: false, shown: 0 });
     return banner.sprite;
   });
   let bannersAt = -Infinity;
@@ -286,10 +286,50 @@ export async function createSeaRenderer(
     return len;
   };
 
+  const bannerAt = new THREE.Vector3();
+  const viewSize = new THREE.Vector2();
+  /**
+   * Town banners never overlap (they are drawn the same size at every zoom, so from afar neighbours would pile
+   * up): the most important are placed first (capitals, then cities and towns, nearer ones first), and one that
+   * would cover a banner already placed fades out until there is room for it again.
+   */
+  const declutterBanners = (dt: number) => {
+    camera.updateMatrixWorld();
+    renderer.getSize(viewSize);
+    const unit = (camera.projectionMatrix.elements[5]! * viewSize.y) / 2;
+    const rank = (s: PlacedSettlement) => (s.type === 'capital' ? 4 : s.size === 'city' ? 3 : s.size === 'hamlet' ? 1 : 2);
+    const placed: [number, number, number, number][] = [];
+    const order = names
+      .filter((n) => n.inRange)
+      .sort((a, b) => rank(b.s) - rank(a.s) || Math.hypot(a.x - target.x, a.y - target.z) - Math.hypot(b.x - target.x, b.y - target.z));
+    const keep = new Set<(typeof names)[number]>();
+    for (const n of order) {
+      n.sprite.getWorldPosition(bannerAt).project(camera);
+      if (bannerAt.z > 1) continue;
+      // Its box on screen, in pixels, with a little room around it.
+      const cx = ((bannerAt.x + 1) / 2) * viewSize.x;
+      const cy = ((1 - bannerAt.y) / 2) * viewSize.y;
+      const hw = (n.sprite.scale.x * unit) / 2 + 4;
+      const hh = (n.sprite.scale.y * unit) / 2 + 3;
+      if (placed.some(([x, y, w, h]) => Math.abs(cx - x) < hw + w && Math.abs(cy - y) < hh + h)) continue;
+      placed.push([cx, cy, hw, hh]);
+      keep.add(n);
+    }
+    const step = Math.min(1, dt * 5);
+    for (const n of names) {
+      // Fades rather than pops; a fresh view (no time passed yet) shows the outcome at once.
+      const want = keep.has(n) ? 1 : 0;
+      n.shown = dt ? n.shown + (want - n.shown) * step : want;
+      if (Math.abs(want - n.shown) < 0.01) n.shown = want;
+      n.sprite.visible = n.shown > 0;
+      (n.sprite.material as THREE.SpriteMaterial).opacity = n.shown;
+    }
+  };
+
   /** Clouds drifting downwind (shown only from afar), the camera, and the frame drawn. */
   const finishFrame = (view: number, pitch: number, yaw: number, wind: Wind, sea: SeaState, t: number, dt: number) => {
     cloudMat.opacity = 0.85 * THREE.MathUtils.smoothstep(view, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!);
-    const drift = strengthOf(wind) * 1.6 * dt;
+    const drift = strengthOf(wind) * CLOUD_SPEED * dt;
     const to = ((wind.fromDeg + 180) * Math.PI) / 180;
     for (const c of clouds) {
       c.position.x = (c.position.x + Math.sin(to) * drift + map.width) % map.width;
@@ -299,6 +339,7 @@ export async function createSeaRenderer(
     back.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     camera.position.copy(target).add(back);
     camera.lookAt(target.x, 0.6, target.z);
+    declutterBanners(dt);
     sun.position.copy(target).addScaledVector(sunDir, 200);
     sun.target.position.copy(target);
     ground.update(camera.position, target);
@@ -365,11 +406,11 @@ export async function createSeaRenderer(
       light.level,
     );
 
-    for (const n of names) n.sprite.visible = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
+    for (const n of names) n.inRange = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
     // Each town's line, from the game's state, freshened every couple of seconds (redrawn only when it changes).
     if (options.townLine && nowMs - bannersAt > 2000) {
       bannersAt = nowMs;
-      for (const n of names) if (n.sprite.visible) n.banner.setLine(options.townLine(n.s, state));
+      for (const n of names) if (n.inRange) n.banner.setLine(options.townLine(n.s, state));
     }
 
     // Camera: overhead (steeper the further out) or from astern, following the player.
@@ -445,7 +486,7 @@ export async function createSeaRenderer(
       if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, length });
     }
     wakes.update(wakeShips, dt, t, light.level);
-    for (const n of names) n.sprite.visible = false;
+    for (const n of names) n.inRange = false;
 
     fx.update({
       t,

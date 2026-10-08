@@ -22,6 +22,11 @@ const SWELLS: Swell[] = [
   { offDeg: 64, length: 1.7, amp: 0.006, steep: 0.3 },
 ];
 const GRAVITY = 9.8;
+/**
+ * Clouds and their shadows drift downwind this many tiles a second at full strength: slowly (an unhurried
+ * drift across the view, not a sweep), so the wind reads without hurrying the eye.
+ */
+export const CLOUD_SPEED = 0.5;
 /** Swell speed is scaled down from deep-water physics to read as a lazy roll at this scale. */
 const SPEED = 0.12;
 // The mesh carries only the swells long enough for its grid (shorter ones would alias into stripes); the
@@ -170,16 +175,17 @@ float noise(vec2 p) {
 
 // Flecks of whitecap (Pirates!'s open sea): short dashes lying along the wind, one at a random spot in some of
 // the cells of a grid laid along the wind, each fading in and out on its own few-second life and drifting
-// downwind. \`w\` is the point in the wind's frame (x downwind), \`scale\` cells a tile, \`density\` the share of
+// downwind, slowly: the sea should show the wind, not race with it (Pirates! keeps its sea calm and puts the
+// wind's direction on the compass). \`w\` is the point in the wind's frame (x downwind), \`scale\` cells a tile, \`density\` the share of
 // cells with one. Each dab is about a quarter of a cell long and a third as wide; it fades out before it would be thinner than a pixel.
 float flecks(vec2 w, float scale, float density, float footprint, float t) {
-  vec2 p = w * scale - vec2(t * 0.3 * scale, 0.0);
+  vec2 p = w * scale - vec2(t * 0.08 * scale, 0.0);
   vec2 cell = floor(p);
   float phase = hash(cell + 9.2);
-  float cycle = t * 0.3 + phase;
+  float cycle = t * 0.11 + phase;
   float life = fract(cycle);
   float alive = step(1.0 - density, hash(cell + floor(cycle) * 1.7 + 3.3));
-  float fade = smoothstep(0.0, 0.2, life) * (1.0 - smoothstep(0.5, 1.0, life));
+  float fade = smoothstep(0.0, 0.3, life) * (1.0 - smoothstep(0.6, 1.0, life));
   vec2 spot = vec2(hash(cell + 1.3), hash(cell + 4.1)) * 0.5 + 0.25;
   vec2 d = fract(p) - spot;
   d.x *= 0.4;
@@ -268,7 +274,7 @@ void main() {
   vec2 across = vec2(-uWindDir.y, uWindDir.x);
   vec2 w = vec2(dot(vWorld.xz, uWindDir), dot(vWorld.xz, across));
   float gust = smoothstep(0.25, 0.75, noise(vWorld.xz * 0.045 - uWindDir * uTime * 0.05));
-  float density = clamp((uStrength - 0.25) * 0.65, 0.0, 0.5) * (0.3 + 0.7 * gust);
+  float density = clamp((uStrength - 0.25) * 0.55, 0.0, 0.42) * (0.3 + 0.7 * gust);
   float close = flecks(w + 12.3, 3.2, density, footprint, uTime) * (1.0 - smoothstep(0.065, 0.085, footprint * 3.2));
   float fine = flecks(w, 1.6, density, footprint, uTime) * smoothstep(0.065, 0.085, footprint * 3.2);
   float coarse = flecks(w + 31.7, 0.4, density * 0.8, footprint, uTime) * smoothstep(0.1, 0.2, footprint * 1.6);
@@ -285,7 +291,7 @@ void main() {
   col = mix(col, vec3(0.96, 0.98, 1.0) * max(uLight, 0.3), foam);
   // Whitecaps are pale and a little blue, not pure white (in the reference they hardly ever reach white).
   // At night they are only a faint glimmer.
-  col = mix(col, mix(col, vec3(1.0), 0.6) * max(uLight, 0.3), caps * 0.75 * mix(0.35, 1.0, smoothstep(0.6, 1.0, uLight)));
+  col = mix(col, mix(col, vec3(1.0), 0.6) * max(uLight, 0.3), caps * 0.55 * mix(0.35, 1.0, smoothstep(0.6, 1.0, uLight)));
 
   float fog = 1.0 - exp(-pow(uFogDensity * dist, 2.0));
   gl_FragColor = vec4(mix(col, uFogColor, fog), 1.0);
@@ -358,8 +364,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): O
       const dt = lastT === undefined ? 0 : Math.min(0.1, Math.max(0, t - lastT));
       lastT = t;
       const to = (sea.toDeg * Math.PI) / 180;
-      (u.uShadowAt!.value as THREE.Vector2).x += Math.sin(to) * sea.strength * 1.6 * dt;
-      (u.uShadowAt!.value as THREE.Vector2).y -= Math.cos(to) * sea.strength * 1.6 * dt;
+      (u.uShadowAt!.value as THREE.Vector2).x += Math.sin(to) * sea.strength * CLOUD_SPEED * dt;
+      (u.uShadowAt!.value as THREE.Vector2).y -= Math.cos(to) * sea.strength * CLOUD_SPEED * dt;
       SWELLS.forEach((s, i) => {
         const [dx, dz] = swellDir(sea, s);
         (u.uSwell!.value as THREE.Vector4[])[i]!.set(dx, dz, s.length, s.amp * sea.strength);
