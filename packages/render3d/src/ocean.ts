@@ -244,10 +244,15 @@ void main() {
   vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
   vec3 v = normalize(cameraPosition - vWorld);
 
-  float floorUp = texture2D(uDepth, vWorld.xz / uMapSize).r;
+  vec2 floorTex = texture2D(uDepth, vWorld.xz / uMapSize).rg;
+  float floorUp = floorTex.r;
+  // How near land: a wide soft halo, for the bright apron round every island.
+  float near = floorTex.g;
   // Deep cerulean offshore, a brighter blue over the banks, aqua over the shallows (Pirates!'s Caribbean).
   vec3 water = mix(uDeep, uMid, smoothstep(0.15, 0.55, floorUp));
   water = mix(water, uShallow, smoothstep(0.55, 0.82, floorUp));
+  // The apron: a pale turquoise haze spreading well out from every island (Pirates!'s islands sit in bright halos).
+  water = mix(water, mix(uShallow, vec3(0.82, 0.93, 0.92), 0.25), smoothstep(0.15, 0.85, near) * 0.55);
   // The sand showing through the shallowest water, dappled by the light through the ripples.
   float sandy = smoothstep(0.82, 0.97, floorUp);
   float caustic = smoothstep(0.55, 0.85, texture2D(uRipple, vWorld.xz * 1.6 + drift * 0.03).a) * (1.0 - smoothstep(0.1, 0.5, footprint));
@@ -289,9 +294,13 @@ void main() {
   float band = 0.5 + 0.5 * sin(floorUp * 46.0 - uTime * 1.6 + noise(vWorld.xz * 0.6) * 4.0);
   float surf = smoothstep(0.86, 0.97, floorUp) * smoothstep(0.55, 1.0, band) * (0.5 + 0.5 * noise(vWorld.xz * 3.0 + uTime * 0.3));
   float shoreline = smoothstep(0.955, 0.995, floorUp);
+  // Wave lines: thin white crests running parallel to the coast across the apron, rolling slowly in, broken up.
+  float crest = smoothstep(0.93, 0.99, 0.5 + 0.5 * sin(near * 34.0 - uTime * 0.9 + noise(vWorld.xz * 0.35) * 3.0));
+  float waves = crest * smoothstep(0.2, 0.5, near) * (1.0 - smoothstep(0.85, 0.97, floorUp)) * smoothstep(0.45, 0.8, noise(vWorld.xz * 0.9 + uTime * 0.05));
+  waves *= 1.0 - smoothstep(0.15, 0.6, footprint);
   // Whitecaps on the swell's crests in a blow.
   float caps = smoothstep(0.08, 0.15, vCrest) * smoothstep(0.85, 1.0, uStrength) * noise(vWorld.xz * 3.0 - uTime * 0.2);
-  float foam = clamp(streak * 0.45 + surf * 0.8 + shoreline * 0.9 + caps * 0.6, 0.0, 1.0);
+  float foam = clamp(streak * 0.45 + surf * 0.8 + shoreline * 0.9 + caps * 0.6 + waves * 0.75, 0.0, 1.0);
   col = mix(col, vec3(0.96, 0.98, 1.0) * max(uLight, 0.3), foam);
 
   float fog = 1.0 - exp(-pow(uFogDensity * dist, 2.0));

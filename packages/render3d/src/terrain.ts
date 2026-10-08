@@ -91,7 +91,7 @@ function fbm(x: number, y: number, octaves: number): number {
 export interface Ground {
   /** Ground height at a point (negative under the sea), with the generated detail. */
   heightAt(x: number, y: number): number;
-  /** The sea floor for the water shader: 0 deep water .. 1 at the shoreline and above. */
+  /** The sea floor for the water shader: red 0 deep water .. 1 at the shoreline and above; green, nearness to land. */
   depth: THREE.DataTexture;
   /** The islands and their vegetation; `update` fills it in around the camera. */
   object: THREE.Group;
@@ -149,10 +149,17 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
     return g + inland * (rolling + ridge);
   };
 
-  // The sea floor, one texel a tile: -2.2 (deep) .. 0 (the shoreline) mapped to 0 .. 1.
-  const floor = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) floor[i] = Math.round(255 * Math.min(1, Math.max(0, (base[i]! + 2.2) / 2.2)));
-  const depth = new THREE.DataTexture(floor, w, h, THREE.RedFormat, THREE.UnsignedByteType);
+  // The sea floor, one texel a tile: red, the floor's height (-2.2 deep .. 0 at the shoreline, as 0 .. 1);
+  // green, a wide soft halo of nearness to land, for the bright apron of shallows round every island.
+  const land = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) land[i] = base[i]! > -0.4 ? 1 : 0;
+  const halo = blur(land, w, h, 4, 3);
+  const floor = new Uint8Array(w * h * 2);
+  for (let i = 0; i < w * h; i++) {
+    floor[i * 2] = Math.round(255 * Math.min(1, Math.max(0, (base[i]! + 2.2) / 2.2)));
+    floor[i * 2 + 1] = Math.round(255 * Math.min(1, halo[i]! * 2.2));
+  }
+  const depth = new THREE.DataTexture(floor, w, h, THREE.RGFormat, THREE.UnsignedByteType);
   depth.magFilter = THREE.LinearFilter;
   depth.minFilter = THREE.LinearFilter;
   depth.needsUpdate = true;

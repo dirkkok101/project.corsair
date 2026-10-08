@@ -11,7 +11,7 @@ import { normalizeDeg } from '@corsair/systems-navigation';
 import { createOcean, seaHeight } from './ocean';
 import type { SeaState } from './ocean';
 import { RIGS } from './rigs';
-import { buildShip, flagTexture, makeFlag } from './shipyard';
+import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
 import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
@@ -227,6 +227,8 @@ export async function createSeaRenderer(
     (scene.background as THREE.Color).copy(light.sky);
     sun.intensity = THREE.MathUtils.lerp(0.9, 2.6, THREE.MathUtils.smoothstep(e, -0.05, 0.12));
     sun.color.copy(light.sun);
+    // Sails catch the light: a touch of the sky's colour in their glow (lavender and gold at dusk, blue at night).
+    SAIL_GLOW.set('#fffaf0').lerp(light.sky, 0.18 + 0.3 * (1 - dayness)).lerp(light.sun, 0.12);
     fill.intensity = 0.55 + level * 0.5;
     fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);
     renderer.toneMappingExposure = 0.7 + level * 0.3;

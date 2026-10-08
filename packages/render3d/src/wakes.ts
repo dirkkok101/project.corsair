@@ -49,7 +49,7 @@ void main() {
   float broken = 0.55 + 0.45 * noise(vWorld.xz * 6.0 + uTime * 0.4);
   float a = (arms + churn) * broken * (1.0 - smoothstep(0.25, 1.0, vAge)) * uOpacity;
   if (a < 0.01) discard;
-  gl_FragColor = vec4(vec3(0.97, 0.99, 1.0) * max(uLight, 0.35), a * 0.85);
+  gl_FragColor = vec4(vec3(0.97, 0.99, 1.0) * max(uLight, 0.35), min(1.0, a * 1.05));
   #include <colorspace_fragment>
 }
 `;
@@ -139,7 +139,8 @@ export function createWakes(scene: THREE.Scene): Wakes {
           }
           const nx = -dz / (Math.hypot(dx, dz) || 1);
           const nz = dx / (Math.hypot(dx, dz) || 1);
-          const half = HALF_WIDTH + SPREAD * i * SPACING;
+          // Wider for a bigger ship (the spread is set for the brig, 2.6 tiles long as drawn).
+          const half = (HALF_WIDTH + SPREAD * i * SPACING) * Math.max(1, s.length / 2.6);
           pos.setXYZ(i * 2, p.x - nx * half, 0.03, p.y - nz * half);
           pos.setXYZ(i * 2 + 1, p.x + nx * half, 0.03, p.y + nz * half);
         }

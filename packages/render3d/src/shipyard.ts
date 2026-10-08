@@ -408,12 +408,15 @@ function spar(r0: number, r1: number, length: number): THREE.Mesh {
  * rippling it when the sail luffs.
  */
 type SailUniforms = { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform };
+/** The sails' own glow, shared by every sail and tinted by the renderer with the light: warm at dusk, blue by moonlight. */
+export const SAIL_GLOW = new THREE.Color('#fffaf0');
 function sailMaterial(cloth: THREE.Texture, shared?: SailUniforms): THREE.MeshStandardMaterial & { userData: { uniforms: SailUniforms } } {
   // A soft glow of their own, so sails stay bright white on the shadowed side too (Pirates!'s glowing canvas).
   const m = new THREE.MeshStandardMaterial({ map: cloth, roughness: 0.92, side: THREE.DoubleSide, emissive: '#fffaf0', emissiveIntensity: 0.38, emissiveMap: cloth }) as THREE.MeshStandardMaterial & {
     userData: { uniforms: SailUniforms };
   };
   const uniforms = shared ?? { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 } };
+  m.emissive = SAIL_GLOW;
   m.userData.uniforms = uniforms;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
