@@ -260,6 +260,12 @@ export function withFleetPace(content: ContentPack, ship: Ship, fleet: FleetShip
   return fleetSpeed === undefined ? (({ fleetSpeed: _, ...rest }) => rest)(ship) : { ...ship, fleetSpeed };
 }
 
+/** The ships a port's shipwright builds, for sale (none at a hamlet). */
+export function shipsForSale(content: ContentPack, port: Pick<PlacedSettlement, 'size'>): string[] {
+  const y = content.combat.shipyard;
+  return port.size === 'city' ? y.city : port.size === 'town' ? y.town : [];
+}
+
 /** What a shipwright pays for a ship of the fleet: a share of her class's price, by her hull and, less, her sails. */
 export function shipValue(content: ContentPack, f: Pick<FleetShip, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>): number {
   const cls = content.ships[f.classId]!;
@@ -859,6 +865,43 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             captain: { ...state.captain, gold, ...(state.captain.fleet ? { fleet } : {}) },
           },
           events: [{ type: 'Repaired', entityIds: [ship.id, ship.docked], payload: { gold: state.captain.gold - gold } }],
+        };
+      }
+      if (command.type === 'BuyShip') {
+        // A new ship from the yard: her class's price, sound, with part of her battery; she joins the fleet.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const port = byId.get(ship.docked)!;
+        const cls = content.ships[command.classId];
+        if (!cls || !shipsForSale(content, port).includes(command.classId)) return refuse(state, ship, 'not-built-here');
+        const fleet = fleetOf(state);
+        if (fleet.length + 2 > content.combat.fleet.maxShips) return refuse(state, ship, 'fleet-full');
+        if (crewOf(content, ship) < fleetMinCrew(content, [...fleet, { classId: cls.id }], ship)) return refuse(state, ship, 'too-few-men');
+        if (state.captain.gold < cls.price) return refuse(state, ship, 'not-enough-gold');
+        // Named from her builders' list, the next name not already in the fleet.
+        const names = content.traffic.names[port.nation] ?? content.traffic.names.pirate!;
+        const taken = new Set([...fleet.map((f) => f.name), ship.name]);
+        const name = names.find((x) => !taken.has(x)) ?? `${names[0]} ${fleet.length + 2}`;
+        // Time stands still in port, so the id comes from the world's ship count, not the tick.
+        const n = state.nextShipId ?? 0;
+        const bought = {
+          id: `ai.${n}`,
+          name,
+          classId: cls.id,
+          hull: cls.hull,
+          sailCondition: 100,
+          guns: Math.floor(cls.guns * content.combat.shipyard.gunsShare),
+        };
+        const fleetAfter = [...fleet, bought];
+        return {
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: withFleetPace(content, ship, fleetAfter) },
+            captain: { ...state.captain, gold: state.captain.gold - cls.price, fleet: fleetAfter },
+            nextShipId: n + 1,
+          },
+          events: [{ type: 'ShipBought', entityIds: [ship.id, port.id], payload: { classId: cls.id, gold: cls.price, name } }],
         };
       }
       if (command.type === 'ReclaimShip') {

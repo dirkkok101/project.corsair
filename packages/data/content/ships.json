@@ -104,5 +104,224 @@
       "world": "ship.frigate.world",
       "combat": "ship.frigate.combat"
     }
+  },
+  {
+    "id": "ship.war_sloop",
+    "family": "sloop",
+    "nameKey": "ship.war_sloop.name",
+    "rig": "fore_and_aft",
+    "guns": 10,
+    "maxCrew": 100,
+    "minCrew": 14,
+    "cargo": 50,
+    "speed": 9,
+    "turn": 8,
+    "draft": 1,
+    "hull": 55,
+    "polar": "polar.fore_aft",
+    "price": 4500,
+    "eras": [
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.sloop.world",
+      "combat": "ship.sloop.combat",
+      "icon": "ui.ship.sloop"
+    }
+  },
+  {
+    "id": "ship.royal_sloop",
+    "family": "sloop",
+    "nameKey": "ship.royal_sloop.name",
+    "rig": "fore_and_aft",
+    "guns": 14,
+    "maxCrew": 125,
+    "minCrew": 18,
+    "cargo": 60,
+    "speed": 10,
+    "turn": 8,
+    "draft": 1,
+    "hull": 65,
+    "polar": "polar.fore_aft",
+    "price": 7500,
+    "eras": [
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.sloop.world",
+      "combat": "ship.sloop.combat",
+      "icon": "ui.ship.sloop"
+    }
+  },
+  {
+    "id": "ship.barque",
+    "family": "merchant",
+    "nameKey": "ship.barque.name",
+    "rig": "mixed",
+    "guns": 8,
+    "maxCrew": 60,
+    "minCrew": 10,
+    "cargo": 120,
+    "speed": 7,
+    "turn": 6,
+    "draft": 2,
+    "hull": 60,
+    "polar": "polar.square",
+    "price": 4000,
+    "eras": [
+      "1560",
+      "1600",
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.fluyt.world",
+      "combat": "ship.fluyt.combat",
+      "icon": "ui.ship.fluyt"
+    }
+  },
+  {
+    "id": "ship.merchantman",
+    "family": "merchant",
+    "nameKey": "ship.merchantman.name",
+    "rig": "square",
+    "guns": 16,
+    "maxCrew": 120,
+    "minCrew": 24,
+    "cargo": 240,
+    "speed": 6,
+    "turn": 4,
+    "draft": 3,
+    "hull": 90,
+    "polar": "polar.square",
+    "price": 9000,
+    "eras": [
+      "1600",
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.fluyt.world",
+      "combat": "ship.fluyt.combat",
+      "icon": "ui.ship.fluyt"
+    }
+  },
+  {
+    "id": "ship.brigantine",
+    "family": "brig",
+    "nameKey": "ship.brigantine.name",
+    "rig": "mixed",
+    "guns": 14,
+    "maxCrew": 125,
+    "minCrew": 22,
+    "cargo": 90,
+    "speed": 8,
+    "turn": 7,
+    "draft": 2,
+    "hull": 75,
+    "polar": "polar.square",
+    "price": 5500,
+    "eras": [
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.brig.world",
+      "combat": "ship.brig.combat",
+      "icon": "ui.ship.brig"
+    }
+  },
+  {
+    "id": "ship.ship_of_the_line",
+    "family": "frigate",
+    "nameKey": "ship.ship_of_the_line.name",
+    "rig": "square",
+    "guns": 44,
+    "maxCrew": 400,
+    "minCrew": 100,
+    "cargo": 160,
+    "speed": 6,
+    "turn": 3,
+    "draft": 3,
+    "hull": 180,
+    "polar": "polar.square",
+    "price": 30000,
+    "eras": [
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.frigate.world",
+      "combat": "ship.frigate.combat",
+      "icon": "ui.ship.frigate"
+    }
+  },
+  {
+    "id": "ship.galleon",
+    "family": "galleon",
+    "nameKey": "ship.galleon.name",
+    "rig": "square",
+    "guns": 32,
+    "maxCrew": 300,
+    "minCrew": 70,
+    "cargo": 300,
+    "speed": 5,
+    "turn": 3,
+    "draft": 3,
+    "hull": 160,
+    "polar": "polar.square",
+    "price": 20000,
+    "eras": [
+      "1560",
+      "1600",
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.frigate.world",
+      "combat": "ship.frigate.combat",
+      "icon": "ui.ship.frigate"
+    }
+  },
+  {
+    "id": "ship.treasure_galleon",
+    "family": "galleon",
+    "nameKey": "ship.treasure_galleon.name",
+    "rig": "square",
+    "guns": 36,
+    "maxCrew": 350,
+    "minCrew": 80,
+    "cargo": 400,
+    "speed": 5,
+    "turn": 2,
+    "draft": 3,
+    "hull": 180,
+    "polar": "polar.square",
+    "price": 26000,
+    "eras": [
+      "1560",
+      "1600",
+      "1620",
+      "1640",
+      "1660",
+      "1680"
+    ],
+    "sprites": {
+      "world": "ship.frigate.world",
+      "combat": "ship.frigate.combat",
+      "icon": "ui.ship.frigate"
+    }
   }
 ]

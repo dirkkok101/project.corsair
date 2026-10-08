@@ -25,6 +25,7 @@ import {
   plunderShares,
   repairCost,
   sellDepth,
+  shipsForSale,
   contractsAt,
   famine,
   plagued,
@@ -38,7 +39,7 @@ import {
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 import { shipTitle } from './hail';
-import { Art, GoodIcon } from './ui-art';
+import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
 
 export interface PortProps {
@@ -547,11 +548,11 @@ function FleetList({ content, state, shipId, send }: { content: ContentPack; sta
               : berths - stats.maxCrew < crew
                 ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
                 : undefined;
-          const kind = f.classId.replace(/^ship\./, '');
+          const kind = shipKind(f.classId);
           return (
             <tr key={f.id}>
               <td>
-                <Art id={`ui.ship.${kind}`} class="fleet-ship" /> {f.name} <span class="port-sub">({kind})</span>
+                <Art id={shipIcon(content, f.classId)} class="fleet-ship" /> {f.name} <span class="port-sub">({kind})</span>
               </td>
               <td class="port-sub">
                 hull {Math.round(f.hull)} / {stats.hullMax} · sails {Math.round(f.sailCondition)}% · hold {cls.cargo} · speed {stats.speed}
@@ -570,6 +571,60 @@ function FleetList({ content, state, shipId, send }: { content: ContentPack; sta
   );
 }
 
+/**
+ * The yard's new ships (PRD section 7), each with what she carries, mounts, needs and makes, and her price; buying
+ * one adds her to the fleet. A ship the captain can't take yet says why. The great ships are never for sale.
+ */
+function ShipsForSale({ content, state, town, shipId, send }: { content: ContentPack; state: WorldState; town: PlacedSettlement; shipId: string; send: PortProps['send'] }) {
+  const forSale = shipsForSale(content, town);
+  if (!forSale.length) return <div class="port-sub ships-for-sale-none">No shipyard in a hamlet: new ships are built in towns and cities.</div>;
+  const ship = state.ships[shipId]!;
+  const fleet = fleetOf(state);
+  const crew = crewOf(content, ship);
+  const gold = state.captain?.gold ?? 0;
+  const max = content.combat.fleet.maxShips;
+  return (
+    <>
+      <div class="port-sub ships-for-sale-head">
+        New ships from the yard. Each joins your fleet at once (her hold and berths count); make her your flagship to fight in her. The great ships (galleons, the ship of the line) are
+        built in Europe: take one.
+      </div>
+      <table class="fleet-list ships-for-sale">
+        <tbody>
+          {forSale.map((id) => {
+            const cls = content.ships[id]!;
+            const need = fleetMinCrew(content, [...fleet, { classId: id }], ship);
+            const why =
+              fleet.length + 2 > max
+                ? `Your fleet is full (${max} ships): sell one first.`
+                : crew < need
+                  ? `Too few men to sail her too: the fleet would need ${need}, you have ${crew}. Sign on more at the tavern.`
+                  : gold < cls.price
+                    ? `Not enough gold: she costs ${cls.price.toLocaleString()}.`
+                    : undefined;
+            const guns = Math.floor(cls.guns * content.combat.shipyard.gunsShare);
+            return (
+              <tr key={id}>
+                <td>
+                  <Art id={shipIcon(content, id)} class="fleet-ship" /> {shipKind(id)}
+                </td>
+                <td class="port-sub">
+                  hold {cls.cargo} · {guns} of {cls.guns} guns · crew {cls.minCrew} to {cls.maxCrew} · speed {cls.speed} · hull {cls.hull}
+                </td>
+                <td class="actions">
+                  <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'BuyShip', shipId, classId: id })}>
+                    Buy · {cls.price.toLocaleString()} gold
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 /** Ships of the player's retaken from pirates and laid up here: take her back into the fleet, salvage paid. */
 function LaidUp({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
   const ship = state.ships[shipId]!;
@@ -582,7 +637,7 @@ function LaidUp({ content, state, shipId, send }: { content: ContentPack; state:
     <table class="fleet-list laid-up">
       <tbody>
         {here.map((l) => {
-          const kind = l.classId.replace(/^ship\./, '');
+          const kind = shipKind(l.classId);
           const why =
             fleet.length + 2 > content.combat.fleet.maxShips
               ? `Your fleet is full (${content.combat.fleet.maxShips} ships): sell one first.`
@@ -594,7 +649,7 @@ function LaidUp({ content, state, shipId, send }: { content: ContentPack; state:
           return (
             <tr key={l.id}>
               <td>
-                <Art id={`ui.ship.${kind}`} class="fleet-ship" /> Your {kind} {l.name} lies here, retaken from pirates
+                <Art id={shipIcon(content, l.classId)} class="fleet-ship" /> Your {kind} {l.name} lies here, retaken from pirates
               </td>
               <td class="port-sub">
                 hull {Math.round(l.hull)} · sails {Math.round(l.sailCondition)}%
@@ -728,6 +783,7 @@ function Shipwright({
       </div>
       <LaidUp content={content} state={state} shipId={shipId} send={send} />
       <FleetList content={content} state={state} shipId={shipId} send={send} />
+      <ShipsForSale content={content} state={state} town={town} shipId={shipId} send={send} />
       <div class="shipwright-row">
         <span>
           Guns {stats.guns} / {stats.maxGuns}

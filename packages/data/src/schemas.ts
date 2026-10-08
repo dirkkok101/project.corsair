@@ -22,7 +22,8 @@ export const shipClassSchema = z.object({
   /** What a shipwright reckons her worth when sound (she sells for less by her condition). */
   price: z.number().positive(),
   polar: z.string(),
-  sprites: z.object({ world: z.string(), combat: z.string().optional() }),
+  /** Her sprites, and her ship-card portrait (`ui.ship.<class>` when absent): a class not yet painted borrows another's. */
+  sprites: z.object({ world: z.string(), combat: z.string().optional(), icon: z.string().optional() }),
 });
 
 export const polarSchema = z
@@ -432,6 +433,12 @@ export const combatSchema = z.object({
     /** A shipwright pays this share of a ship's class price (by her condition): prizes help, they don't flood the purse. */
     sellShare: z.number().positive().max(1),
   }),
+  /** Ships for sale at a shipwright, by port size, and the share of her battery a new ship comes with. */
+  shipyard: z.object({
+    town: z.array(z.string()),
+    city: z.array(z.string()),
+    gunsShare: z.number().min(0).max(1),
+  }),
   /** Ships that change hands: prizes a pirate keeps in tow, when she sells them, and the salvage on one freed. */
   prizes: z.object({
     max: z.number().int().min(0),
@@ -504,9 +511,10 @@ export const politicsSchema = z.object({
 export const trafficSchema = z.object({
   population: z.number().int().min(0),
   roles: z.object({
-    merchant: z.object({ share: z.number().min(0).max(1), classId: z.string() }),
-    patrol: z.object({ share: z.number().min(0).max(1), classId: z.string() }),
-    pirate: z.object({ share: z.number().min(0).max(1), classId: z.string() }),
+    // `classId` is the role's own class (the debug spawn's); `classes`, when given, the mix she is drawn from, by weight.
+    merchant: z.object({ share: z.number().min(0).max(1), classId: z.string(), classes: z.record(z.string(), z.number().min(0)).optional() }),
+    patrol: z.object({ share: z.number().min(0).max(1), classId: z.string(), classes: z.record(z.string(), z.number().min(0)).optional() }),
+    pirate: z.object({ share: z.number().min(0).max(1), classId: z.string(), classes: z.record(z.string(), z.number().min(0)).optional() }),
   }),
   /** Most units a merchant buys per voyage. */
   voyageUnits: z.number().int().positive(),

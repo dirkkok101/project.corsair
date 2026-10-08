@@ -803,6 +803,36 @@ describe('the fleet', () => {
     expect(cargoUsed(player(sim.state))).toBeGreaterThan(brig.cargo);
   });
 
+  it('buys a new ship at the yard: she joins the fleet with half her battery, at her class price', () => {
+    const sim = withFluyt([], { crew: 100 });
+    const barque = content.ships['ship.barque']!;
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'BuyShip', shipId: 'player', classId: 'ship.barque' });
+    sim.applyCommands();
+    expect(sim.state.captain!.fleet).toMatchObject([{ classId: 'ship.barque', hull: barque.hull, sailCondition: 100, guns: barque.guns / 2 }]);
+    expect(sim.state.captain!.gold).toBe(gold - barque.price);
+    // Her pace holds the fleet: the barque is slower than the brig.
+    expect(shipStats(content, player(sim.state)).speed).toBe(barque.speed);
+    // Two bought in port (time stands still there) are two ships, not one.
+    sim.send({ type: 'BuyShip', shipId: 'player', classId: 'ship.sloop' });
+    sim.applyCommands();
+    const ids = sim.state.captain!.fleet!.map((f) => f.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("won't sell a great ship, nor one the crew can't sail or the purse can't pay", () => {
+    const refused = (classId: string, extra = {}, gold = 100_000) => {
+      const sim = withFluyt([], extra);
+      const run = createSim({ ...sim.state, captain: { ...sim.state.captain!, gold } }, [createEconomySystem(content, settlements)]);
+      run.send({ type: 'BuyShip', shipId: 'player', classId });
+      run.applyCommands();
+      return run.events().at(-1)!.payload.reason;
+    };
+    expect(refused('ship.galleon', { crew: 150 })).toBe('not-built-here');
+    expect(refused('ship.frigate', { crew: 40 })).toBe('too-few-men');
+    expect(refused('ship.frigate', { crew: 150 }, 100)).toBe('not-enough-gold');
+  });
+
   it('keeps the pace of its slowest ship', () => {
     const sim = withFluyt();
     expect(shipStats(content, player(sim.state)).speed).toBe(content.ships['ship.fluyt']!.speed);

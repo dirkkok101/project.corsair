@@ -346,6 +346,31 @@ full, no sea under her, no flag on any mast; the game draws flags):
 - **`ui.ship.frigate`**
   > A three-masted frigate of the 1660s, side view: long hull with two rows of gun ports, tall square
   > sails on all three masts, a carved stern.
+- **`ui.ship.war_sloop`**
+  > A single-masted gaff-rigged war sloop of the 1660s, side view: a longer, heavier sloop hull with a
+  > full row of gun ports, a big fore-and-aft mainsail, a square topsail above it, a jib, a long bowsprit.
+- **`ui.ship.royal_sloop`**
+  > A sleek single-masted naval sloop of the 1660s, side view: a long low hull painted blue and gold with a
+  > row of gun ports and a carved stern, a tall fore-and-aft mainsail with a square topsail, two jibs.
+- **`ui.ship.barque`**
+  > A small three-masted merchant barque of the 1660s, side view: a plain broad hull with a few gun ports,
+  > square sails on the fore and main masts, a fore-and-aft sail on the mizzen.
+- **`ui.ship.merchantman`**
+  > A large three-masted armed merchantman of the 1660s, side view: a deep, full-bellied hull with a row of
+  > gun ports, a raised stern castle, square sails on all three masts.
+- **`ui.ship.brigantine`**
+  > A two-masted brigantine of the 1660s, side view: a lean hull with a row of gun ports, square sails on
+  > the foremast, a big fore-and-aft sail on the mainmast, a jib.
+- **`ui.ship.ship_of_the_line`**
+  > A great three-masted ship of the line of the 1660s, side view: a towering hull with three rows of gun
+  > ports, gilded carving at the stern, tall square sails on all three masts.
+- **`ui.ship.galleon`**
+  > A three-masted Spanish galleon of the 1660s, side view: a high castled stern and a raised forecastle,
+  > two rows of gun ports, square sails on the fore and main masts, a lateen sail on the mizzen.
+- **`ui.ship.treasure_galleon`**
+  > A huge three-masted Spanish treasure galleon of the 1660s, side view: a very high, richly gilded stern
+  > castle, a deep hull with two rows of gun ports, square sails on the fore and main masts, a lateen
+  > mizzen.
 
 **Icons** (1:1, one icon per image, the object filling about 70% of the frame):
 

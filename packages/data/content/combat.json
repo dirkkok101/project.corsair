@@ -128,6 +128,27 @@
     "maxShips": 8,
     "sellShare": 0.35
   },
+  "shipyard": {
+    "$comment": "Ships for sale at a shipwright (PRD section 7), by the port's size: a hamlet builds none, a town the small ones, a city most. The great ships (the ship of the line, the galleons) are built in Europe: the only way to one is to take her. A ship bought comes new, at her class's price, with 'gunsShare' of her battery mounted (more at 150 gold a gun).",
+    "town": [
+      "ship.sloop",
+      "ship.war_sloop",
+      "ship.barque",
+      "ship.brigantine"
+    ],
+    "city": [
+      "ship.sloop",
+      "ship.war_sloop",
+      "ship.royal_sloop",
+      "ship.barque",
+      "ship.fluyt",
+      "ship.brigantine",
+      "ship.brig",
+      "ship.merchantman",
+      "ship.frigate"
+    ],
+    "gunsShare": 0.5
+  },
   "prizes": {
     "$comment": "Ships that change hands: a pirate who wins keeps the beaten ship in tow (up to 'max'), her hold adding to hers and her pace holding her back; she sells them at her haven 'sellDays' after taking them. Beaten by a pirate, the player loses the most valuable ship of the fleet (never the flagship). A ship of the player's freed by a patrol lies at that nation's nearest port, to be taken back for 'salvage' of her value.",
     "max": 2,

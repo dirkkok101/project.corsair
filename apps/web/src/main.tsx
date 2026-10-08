@@ -20,6 +20,7 @@ import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
 import { Hud } from './hud';
+import { shipIcon, shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
 import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
@@ -491,7 +492,7 @@ async function main() {
         // A ship of the player's retaken from pirates waits here: marked, so she isn't forgotten once the news fades.
         (sim.state.captain?.laidUp ?? [])
           .filter((l) => l.settlementId === id)
-          .map((l) => ` · your ${l.classId.replace(/^ship\./, '')} ${l.name} lies here`)
+          .map((l) => ` · your ${shipKind(l.classId)} ${l.name} lies here`)
           .join('')
       }`;
     },
@@ -918,6 +919,7 @@ async function main() {
             return {
               name: 'Your ship',
               classId: me.classId,
+              icon: shipIcon(content, me.classId),
               hull: p.hull,
               hullMax: p.hullMax,
               sails: p.sailCondition,
@@ -950,7 +952,8 @@ async function main() {
       const each = Math.floor(stats.guns / 2);
       render(
         <ShipPanel
-            name={me.classId.replace(/^ship\./, '').replace(/^./, (c) => c.toUpperCase())}
+            name={shipKind(me.classId).replace(/^./, (c) => c.toUpperCase())}
+            icon={shipIcon(content, me.classId)}
             classId={me.classId}
             hull={me.hull ?? stats.hullMax}
             hullMax={stats.hullMax}
@@ -962,7 +965,7 @@ async function main() {
             morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
             foodDays={foodDays(content, me)}
             purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: fleetHold(content, sim.state, me) }}
-            fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, speed: fleetShipPace(content, f), damaged: fleetShipPace(content, f) < shipStats(content, f).speed }))}
+            fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, icon: shipIcon(content, f.classId), speed: fleetShipPace(content, f), damaged: fleetShipPace(content, f) < shipStats(content, f).speed }))}
             pace={me.fleetSpeed !== undefined && me.fleetSpeed < shipStats(content, { ...me, fleetSpeed: undefined }).speed ? me.fleetSpeed : undefined}
             mounted={{ guns: stats.guns, of: stats.maxGuns }}
             setSails={me.docked ? undefined : (sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}

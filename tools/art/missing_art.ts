@@ -28,8 +28,10 @@ for (const file of readdirSync(src).filter((f) => /\.tsx?$/.test(f))) {
 // ...and those it builds from content.
 const goods: { id: string; staple?: boolean }[] = json('goods.json').goods;
 for (const g of goods) ask(`ui.icon.good.${g.id}`, 'each good (merchant, plunder, planner)');
-const ships: { id: string }[] = json('ships.json');
+const ships: { id: string; sprites: { world: string } }[] = json('ships.json');
 for (const s of ships) ask(`ui.ship.${s.id.replace(/^ship\./, '')}`, 'each ship class (ship card)');
+// A class not yet rendered borrows another's world and battle sprites (ships.json sprites).
+const borrowed = ships.filter((s) => s.sprites.world !== `${s.id}.world`).map((s) => `${s.id.replace(/^ship\./, '')} (as ${s.sprites.world.split('.')[1]})`);
 for (const shot of ['round', 'chain', 'grape']) ask(`ui.icon.${shot}_shot`, 'each shot (ship card)');
 for (const mark of ['hamlet', 'town', 'city', 'haven', 'you', 'compass']) ask(`ui.chart.${mark}`, 'the sea chart');
 const settlements: { nation: string; size: string; type: string }[] = json('maps/caribbean/settlements.json');
@@ -64,6 +66,9 @@ const STAND_INS = [
   'Wreckage after a sinking: barrels and men in the water (drawn as pixels)',
   "Ships seen on the chart: a diamond in the nation's colour (a painted mark was too dark on the sea)",
   'Battle effects: gunsmoke, splashes, splinters, shot in flight (drawn as pixels)',
+  ...(borrowed.length
+    ? [`Ship classes not rendered yet, drawn at sea and in battle as another (tools/art/render_ships.py): ${borrowed.join(', ')}`]
+    : []),
 ];
 
 const missing = [...asked].filter(([id]) => !have.has(id));

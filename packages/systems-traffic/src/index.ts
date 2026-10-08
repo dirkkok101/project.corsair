@@ -1120,7 +1120,8 @@ export function createTrafficSystem(
         const route = from && to ? lanes.route(from.id, to.id) : undefined;
         if (!from || !to || !route) return undefined;
         const rng = rngStream(state.rng?.traffic ?? seedRng(0, 'traffic'));
-        const made = spawn(content, state, command.role, from, lanes.mooring(from.id)!, rng, state.tick);
+        // A debug spawn sails her role's own class, so a test knows what it is getting.
+        const made = spawn(content, state, command.role, from, lanes.mooring(from.id)!, rng, state.tick, t.roles[command.role].classId);
         const ship: Ship = { ...made.ship, ai: { ...made.ship.ai!, to: to.id, route, waitUntil: undefined } };
         return {
           state: { ...made.state, ships: { ...made.state.ships, [ship.id]: ship }, rng: { ...made.state.rng, traffic: rng.state() } },
@@ -1311,12 +1312,15 @@ function spawn(
   at: [number, number],
   rng: Rng,
   tick: number,
+  only?: string,
 ): { state: WorldState; ship: Ship } {
   const t = content.traffic;
   const nation: Nation = role === 'pirate' ? 'pirate' : home.nation;
   const names = t.names[nation] ?? t.names.pirate!;
   const n = state.nextShipId ?? 0;
-  const classId = t.roles[role].classId;
+  // Her class from the role's mix, from her own stream so the draw moves nothing else.
+  const mix = t.roles[role].classes;
+  const classId = only ?? (mix ? rngStream(seedRng(n, 'class')).weighted(mix) : t.roles[role].classId);
   const [lo, hi] = content.combat.crew[role];
   const [gold0, gold1] = content.combat.purse[role];
   // A pirate's temperament and nerve, and whether she sails a bigger ship (more likely the stronger the

@@ -423,6 +423,8 @@ export type Command =
   /** At the shipwright: sell a ship of the fleet, or make one the flagship. */
   | { type: 'SellShip'; shipId: string; fleetId: string }
   | { type: 'MakeFlagship'; shipId: string; fleetId: string }
+  /** Buy a new ship of a class the port's shipwright builds; she joins the fleet. */
+  | { type: 'BuyShip'; shipId: string; classId: string }
   /** Take back a ship of the player's laid up in this port. */
   | { type: 'ReclaimShip'; shipId: string; laidUpId: string }
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */

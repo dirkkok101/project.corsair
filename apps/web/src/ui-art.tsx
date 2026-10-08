@@ -1,3 +1,4 @@
+import type { ContentPack } from '@corsair/data';
 // The painted UI kit (art/sources/paintings/README.md, imported by tools/art/import_ui.ts): the ship panel's
 // portraits, frame and icons, and the crew and goods icons the HUD and the port, battle and plunder screens use.
 
@@ -7,6 +8,12 @@ export const ART = Object.fromEntries(
     url,
   ]),
 );
+
+/** "war sloop": a ship class as the player reads it. */
+export const shipKind = (classId: string) => classId.replace(/^ship\./, '').replace(/_/g, ' ');
+
+/** A ship class's portrait: her own, or the class she borrows until she is painted (ships.json sprites.icon). */
+export const shipIcon = (content: ContentPack, classId: string) => content.ships[classId]?.sprites.icon ?? `ui.ship.${classId.replace(/^ship\./, '')}`;
 
 /** A UI kit image, drawn pixel for pixel. */
 export function Art({ id, class: cls, title }: { id: string; class?: string; title?: string }) {

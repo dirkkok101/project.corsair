@@ -4,14 +4,15 @@
 // The art is the painted UI kit (./ui-art).
 
 import type { SailSetting } from '@corsair/core';
-import { ART, Art } from './ui-art';
+import { ART, Art, shipKind } from './ui-art';
 
 export type Shot = 'round' | 'chain' | 'grape';
 
 export interface ShipPanelProps {
   name: string;
-  /** Her class (ship.brig), for the portrait. */
+  /** Her class (ship.brig), and her portrait (her own, or the one her class borrows until painted). */
   classId: string;
+  icon: string;
   hull: number;
   hullMax: number;
   /** Sail condition, 0 to 100. */
@@ -26,7 +27,7 @@ export interface ShipPanelProps {
   /** Guns mounted against the most she can carry (at sea and in port). */
   mounted?: { guns: number; of: number };
   /** The rest of her fleet, and the pace its slowest ship holds her to (when it does). */
-  fleet?: { name: string; classId: string; speed: number; damaged: boolean }[];
+  fleet?: { name: string; classId: string; icon: string; speed: number; damaged: boolean }[];
   pace?: number;
   sailSetting: SailSetting;
   /** Guns per broadside, and how many of them are loaded now (all of them at sea). */
@@ -62,13 +63,19 @@ function Bar({ label, icon, value, max, lowIsBad = true }: { label: string; icon
 }
 
 /** One broadside's guns as little cannon, lit when loaded. */
+/** Most gun icons a side fits on the card: a bigger battery shows each icon for several guns. */
+const GUN_ICONS = 11;
+
 function Battery({ label, loaded, of }: { label: string; loaded: number; of: number }) {
+  const per = Math.max(1, Math.ceil(of / GUN_ICONS));
   return (
     <div class="panel-battery" title={`${label}: ${loaded} of ${of} guns loaded`}>
       <span class="panel-bar-label">{label}</span>
-      {Array.from({ length: of }, (_, i) => (
-        <Art key={i} id={i < loaded ? 'ui.icon.cannon_loaded' : 'ui.icon.cannon_empty'} class="panel-gun" />
+      {Array.from({ length: Math.ceil(of / per) }, (_, i) => (
+        // Loaded once every gun it stands for is (the last icon may stand for fewer).
+        <Art key={i} id={loaded >= Math.min(of, (i + 1) * per) ? 'ui.icon.cannon_loaded' : 'ui.icon.cannon_empty'} class="panel-gun" />
       ))}
+      {per > 1 ? <span class="panel-gun-per">×{per}</span> : null}
     </div>
   );
 }
@@ -77,7 +84,7 @@ export function ShipPanel(p: ShipPanelProps) {
   return (
     <div class="ship-panel" style={{ borderImageSource: `url(${ART['ui.panel.frame']})` }}>
       <div class="panel-top">
-        <Art id={`ui.ship.${p.classId.replace(/^ship\./, '')}`} class="panel-ship" />
+        <Art id={p.icon} class="panel-ship" />
         <div class="panel-name">
           {p.name}
           {p.mounted ? <div class="panel-sub">{`${p.mounted.guns} of ${p.mounted.of} guns`}</div> : null}
@@ -116,14 +123,14 @@ export function ShipPanel(p: ShipPanelProps) {
       ) : null}
       {p.fleet?.length ? (
         // The rest of the fleet sails with her off the map: only the flagship is drawn at sea, so this is where it shows.
-        <div class="panel-fleet" title={p.fleet.map((f) => `${f.name} (${f.classId.replace(/^ship\./, '')}${f.damaged ? ', damaged' : ''})`).join(', ')}>
+        <div class="panel-fleet" title={p.fleet.map((f) => `${f.name} (${shipKind(f.classId)}${f.damaged ? ', damaged' : ''})`).join(', ')}>
           <span>Fleet of {p.fleet.length + 1}:</span>
           {p.fleet.map((f) => (
             <Art
               key={f.name}
-              id={`ui.ship.${f.classId.replace(/^ship\./, '')}`}
+              id={f.icon}
               class={`panel-fleet-ship${f.damaged ? ' damaged' : ''}`}
-              title={`${f.name} (${f.classId.replace(/^ship\./, '')}${f.damaged ? ', damaged: a shipwright mends her' : ''})`}
+              title={`${f.name} (${shipKind(f.classId)}${f.damaged ? ', damaged: a shipwright mends her' : ''})`}
             />
           ))}
           {p.pace !== undefined
@@ -131,7 +138,7 @@ export function ShipPanel(p: ShipPanelProps) {
                 const slowest = [...p.fleet].sort((a, b) => a.speed - b.speed)[0]!;
                 return (
                   <span class="panel-fleet-pace">
-                    held to {p.pace} by the {slowest.classId.replace(/^ship\./, '')}
+                    held to {p.pace} by the {shipKind(slowest.classId)}
                     {slowest.damaged ? "'s damage: mend her at a shipwright" : ''}
                   </span>
                 );

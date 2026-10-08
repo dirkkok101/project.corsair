@@ -861,10 +861,10 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
-  await expect(page.locator('.fleet-list')).toContainText('fluyt');
+  await expect(page.locator('.fleet-list:not(.ships-for-sale):not(.laid-up)')).toContainText('fluyt');
   await page.screenshot({ path: 'test-results/fleet-shipwright.png' });
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
-  await page.locator('.fleet-list').getByRole('button', { name: /^Sell/ }).click();
+  await page.locator('.fleet-list:not(.ships-for-sale):not(.laid-up)').getByRole('button', { name: /^Sell/ }).click();
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBeGreaterThan(gold);
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(0);
   expect(errors).toEqual([]);
@@ -933,3 +933,22 @@ test('ships change hands: a pirate takes your fleet ship, shows her in tow, and 
   expect(await fleet()).toEqual([kept]);
   expect(errors).toEqual([]);
 });
+
+test('the shipyard: new ships for sale, and why one can\'t be bought yet', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // A new career starts in Port Royal's harbour, a city: its yard builds most classes.
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  const yard = page.locator('.ships-for-sale');
+  await expect(yard).toContainText('war sloop');
+  await expect(yard).toContainText('merchantman');
+  await expect(yard).not.toContainText('galleon');
+  await page.screenshot({ path: 'test-results/shipyard.png' });
+  // A new career's purse (1,000 gold) buys no ship yet, and the button says so (buying is the economy tests').
+  const barque = yard.locator('tr', { hasText: 'barque' }).getByRole('button');
+  await expect(barque).toBeDisabled();
+  await expect(barque).toHaveAttribute('title', /Not enough gold/);
+  expect(errors).toEqual([]);
+});
+

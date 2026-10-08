@@ -50,6 +50,17 @@ describe('ships at sea', () => {
     for (const s of ships.filter((x) => x.ai!.role === 'pirate')) expect(s.ai!.nation).toBe('pirate');
   });
 
+  it('each role sails a mix of classes, from her own', () => {
+    const ships = ai(world(1).state);
+    for (const role of ['merchant', 'patrol', 'pirate'] as const) {
+      const mix = Object.keys(content.traffic.roles[role].classes!);
+      const sailed = new Set(ships.filter((s) => s.ai!.role === role).map((s) => s.classId));
+      // A pirate grown big sails a brig (biggerPirates), whatever her mix.
+      for (const c of sailed) expect([...mix, content.traffic.biggerPirates.classId], `${role} ${c}`).toContain(c);
+    }
+    expect(new Set(ships.filter((s) => s.ai!.role === 'merchant').map((s) => s.classId)).size).toBeGreaterThan(1);
+  });
+
   it('sail a season on water, making voyages, with markets in bounds, and replay exactly', () => {
     const run = () => {
       const sim = world(7);

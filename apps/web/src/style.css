@@ -1583,7 +1583,8 @@ body {
 }
 
 .upgrades button:disabled,
-.shipwright-row button:disabled {
+.shipwright-row button:disabled,
+.fleet-list button:disabled {
   color: #577277;
   background: transparent;
   border-color: #394a50;
@@ -1814,6 +1815,13 @@ body {
   color: #090a14;
   background: #e8c170;
   border-color: #e8c170;
+}
+
+/* A big battery: each gun icon stands for this many guns. */
+.panel-gun-per {
+  margin-left: 2px;
+  font-size: 10px;
+  color: #a8b5b2;
 }
 
 .panel-modes button:disabled {

@@ -1,6 +1,7 @@
 import type { Ship, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import { newsText } from '@corsair/systems-economy';
+import { shipKind } from './ui-art';
 
 export const NATION_ADJECTIVE: Record<string, string> = {
   spain: 'Spanish',
@@ -40,7 +41,7 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
       ? `${goods.length ? `Laden with ${goods.join(' and ')}` : 'Sailing light, in ballast'}, bound for ${name(ai.to)}.`
       : ai.role === 'patrol'
         ? `A man-of-war on patrol, bound for ${name(ai.to)}. Her gunports are closed.`
-        : 'A lean, fast sloop with a hard-looking crew. She keeps a wary distance and answers short.';
+        : `A ${shipKind(ship.classId)} with a hard-looking crew. She keeps a wary distance and answers short.`;
   const prizes = ai.prizes ?? [];
   const mine = prizes.filter((p) => p.takenFrom === 'player');
   const kind = (classId: string) => classId.replace(/^ship\./, '').replace(/_/g, ' ');

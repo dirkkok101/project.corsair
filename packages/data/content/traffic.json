@@ -1,18 +1,34 @@
 {
-  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share; each role sails one class. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Every ship on screen is drawn; sightTiles (from the player's ship, times nightSight after dark) only decides what the chart and minimap remember, and covers the whole screen with a margin. Hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles; each ship keeps her own line up to laneSpreadTiles to one side of a lane, so ships sharing it sail side by side. Ships lie in port portDays before sailing on. Pirates mark ports near their haven (by size, interest halving at pirateRangeTiles) and lie in wait lurkDays on the lane. Convoys (PRD section 6, slice 2): each line sails on a timetable (every everyDays from firstDay): from the Atlantic entry off the map's east edge (or from a port, for the treasure ship) to one of its ports in turn, bringing goods and settlers (people: a share of the port's people), then loading what it takes and sailing home. Its coming is news. Merchants never call at the ports of a nation at war with theirs. A patrol at war sails to blockade an enemy port with chance blockade.chance, lying within blockade.tiles for blockade.days; otherwise patrols head for their ports where merchants have been lost in the last patrolLosses.days days.",
+  "$comment": "AI ships at sea (PRD sections 4 and 6). About 'population' ships sail at once, by role share. A merchant buys at most voyageUnits a voyage, and only while the far port pays minMargin over its price; no more than maxPerRoute sail the same port pair at once. They skim a trade rather than flood it, so prices move without the player's routes drying up (checked by a route probe). Every ship on screen is drawn; sightTiles (from the player's ship, times nightSight after dark) only decides what the chart and minimap remember, and covers the whole screen with a margin. Hailing works within hailTiles. Lanes are found on a grid of laneCell x laneCell tiles; each ship keeps her own line up to laneSpreadTiles to one side of a lane, so ships sharing it sail side by side. Ships lie in port portDays before sailing on. Pirates mark ports near their haven (by size, interest halving at pirateRangeTiles) and lie in wait lurkDays on the lane. Convoys (PRD section 6, slice 2): each line sails on a timetable (every everyDays from firstDay): from the Atlantic entry off the map's east edge (or from a port, for the treasure ship) to one of its ports in turn, bringing goods and settlers (people: a share of the port's people), then loading what it takes and sailing home. Its coming is news. Merchants never call at the ports of a nation at war with theirs. A patrol at war sails to blockade an enemy port with chance blockade.chance, lying within blockade.tiles for blockade.days; otherwise patrols head for their ports where merchants have been lost in the last patrolLosses.days days. Each role draws her class from 'classes' by weight (her own stream, so the draw moves nothing else); the debug spawn sails the role's classId. Convoys sail merchantmen, the Spanish flota a galleon, the treasure ship a treasure galleon.",
   "population": 34,
   "roles": {
     "merchant": {
       "share": 0.5,
-      "classId": "ship.fluyt"
+      "classId": "ship.fluyt",
+      "classes": {
+        "ship.fluyt": 6,
+        "ship.barque": 3,
+        "ship.merchantman": 1
+      }
     },
     "patrol": {
       "share": 0.18,
-      "classId": "ship.frigate"
+      "classId": "ship.frigate",
+      "classes": {
+        "ship.frigate": 5,
+        "ship.brigantine": 3,
+        "ship.war_sloop": 2,
+        "ship.ship_of_the_line": 0.5
+      }
     },
     "pirate": {
       "share": 0.32,
-      "classId": "ship.sloop"
+      "classId": "ship.sloop",
+      "classes": {
+        "ship.sloop": 6,
+        "ship.war_sloop": 2,
+        "ship.brigantine": 1
+      }
     }
   },
   "voyageUnits": 20,
@@ -107,7 +123,7 @@
         ],
         "everyDays": 90,
         "firstDay": 20,
-        "classId": "ship.fluyt",
+        "classId": "ship.galleon",
         "brings": {
           "luxuries": 60
         },
@@ -131,7 +147,7 @@
         ],
         "everyDays": 60,
         "firstDay": 10,
-        "classId": "ship.fluyt",
+        "classId": "ship.merchantman",
         "brings": {
           "luxuries": 50
         },
@@ -155,7 +171,7 @@
         ],
         "everyDays": 60,
         "firstDay": 30,
-        "classId": "ship.fluyt",
+        "classId": "ship.merchantman",
         "brings": {
           "luxuries": 50
         },
@@ -179,7 +195,7 @@
         ],
         "everyDays": 60,
         "firstDay": 45,
-        "classId": "ship.fluyt",
+        "classId": "ship.merchantman",
         "brings": {
           "luxuries": 50
         },
@@ -203,7 +219,7 @@
         ],
         "everyDays": 180,
         "firstDay": 60,
-        "classId": "ship.frigate",
+        "classId": "ship.treasure_galleon",
         "brings": {
           "silver": 40
         },
