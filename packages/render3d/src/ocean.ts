@@ -264,10 +264,16 @@ void main() {
   col += uSunColor * pow(max(dot(n, h), 0.0), 60.0) * 0.12 * uLight;
   // Sun sparkle at two sizes: fine specks close in, coarser ones that still show zoomed out (the sea glitters
   // all over, a pixel or two in a hundred), each fading out before it would be smaller than a pixel.
+  // Each glint is a small round point at a random spot in its cell, about a pixel and a half across, never
+  // the whole cell (which would show as a square).
   vec2 cell = floor(vWorld.xz * 7.0);
-  float wink = step(0.975, hash(cell + floor(uTime * 3.0 + hash(cell) * 7.0))) * (1.0 - smoothstep(0.05, 0.13, footprint));
+  vec2 spot = vec2(hash(cell + 3.1), hash(cell + 7.7)) * 0.6 + 0.2;
+  float dot1 = 1.0 - smoothstep(0.0, footprint * 7.0 * 0.9 + 0.04, length(fract(vWorld.xz * 7.0) - spot));
+  float wink = step(0.975, hash(cell + floor(uTime * 3.0 + hash(cell) * 7.0))) * dot1 * (1.0 - smoothstep(0.05, 0.13, footprint));
   vec2 cell2 = floor(vWorld.xz * 1.6);
-  float wink2 = step(0.97, hash(cell2 + 17.0 + floor(uTime * 2.0 + hash(cell2) * 5.0))) * smoothstep(0.08, 0.2, footprint) * (1.0 - smoothstep(0.6, 1.4, footprint));
+  vec2 spot2 = vec2(hash(cell2 + 5.3), hash(cell2 + 9.1)) * 0.6 + 0.2;
+  float dot2 = 1.0 - smoothstep(0.0, footprint * 1.6 * 0.9, length(fract(vWorld.xz * 1.6) - spot2));
+  float wink2 = step(0.97, hash(cell2 + 17.0 + floor(uTime * 2.0 + hash(cell2) * 5.0))) * dot2 * smoothstep(0.08, 0.2, footprint) * (1.0 - smoothstep(0.6, 1.4, footprint));
   col += uSunColor * (wink + wink2) * uLight * 0.85;
 
   // Wind streaks: long thin white lines laid along the wind across open water (Pirates!'s sea map).

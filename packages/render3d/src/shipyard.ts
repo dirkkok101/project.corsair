@@ -492,7 +492,7 @@ function flagMaterial(texture: THREE.Texture): THREE.MeshStandardMaterial & { us
 
 /** Each nation's colours, drawn: Spain's Burgundy cross, England's red ensign, France's white, the Dutch tricolour, the pirates' black. */
 const FLAGS = new Map<string, THREE.CanvasTexture>();
-function flagTexture(nation: string): THREE.CanvasTexture {
+export function flagTexture(nation: string): THREE.CanvasTexture {
   const cached = FLAGS.get(nation);
   if (cached) return cached;
   const c = document.createElement('canvas');

@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 // The 3D sea map (?renderer=3d, being built): it draws over the 2D view at sea, zooms on the wheel and
 // switches to a view from astern on C, and goes away in port.
 test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to the harbour', async ({ page }) => {
+  // Headless browsers draw WebGL on the CPU; a full 3D island with its jungle takes seconds a frame there.
+  test.setTimeout(150_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -31,6 +33,8 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
 });
 
 test('the 3D sky keeps its own slow day: sunset and a moonlit night, for review', async ({ page }) => {
+  // Headless browsers draw WebGL on the CPU; a full 3D island with its jungle takes seconds a frame there.
+  test.setTimeout(150_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   for (const hour of [17.8, 23]) {

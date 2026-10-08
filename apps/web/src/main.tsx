@@ -256,7 +256,20 @@ async function main() {
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
   // The 3D sea map draws over the 2D one at sea; port scenes and battles are still the 2D renderer's.
-  const sea3d = RENDER_3D ? await createSeaRenderer(content, map, { playerId: def.start.shipId, settlements, windAt }) : undefined;
+  const sea3d = RENDER_3D ? await createSeaRenderer(content, map, {
+          playerId: def.start.shipId,
+          settlements,
+          windAt,
+          townLine: (s, state) => {
+            // "Prosperous English Capital": the town's trend, nation and kind, and anything ailing it.
+            const t = townOf(content, state, s);
+            const trend = t.trend > 0 ? 'Prosperous ' : t.trend < 0 ? 'Struggling ' : '';
+            const nation = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch', pirate: 'Pirate' }[s.nation] ?? '';
+            const kind = s.type === 'capital' ? 'Capital' : s.type === 'haven' ? 'Haven' : s.type === 'mission' ? 'Mission' : s.size === 'hamlet' ? 'Settlement' : s.size === 'city' ? 'City' : 'Town';
+            const woes = [t.blockaded ? 'blockaded' : '', plagued(state, s.id) ? 'plague' : '', famine(content, state, s.id) ? 'famine' : ''].filter(Boolean);
+            return `${trend}${nation} ${kind}${woes.length ? ` · ${woes.join(', ')}` : ''}`;
+          },
+        }) : undefined;
   if (sea3d) {
     viewport.appendChild(sea3d.canvas);
     // For review and tests: the 3D renderer's showcase and sky controls.

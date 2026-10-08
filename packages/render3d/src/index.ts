@@ -11,7 +11,7 @@ import { normalizeDeg } from '@corsair/systems-navigation';
 import { createOcean, seaHeight } from './ocean';
 import type { SeaState } from './ocean';
 import { RIGS } from './rigs';
-import { buildShip, makeFlag } from './shipyard';
+import { buildShip, flagTexture, makeFlag } from './shipyard';
 import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
@@ -21,10 +21,15 @@ import { createWakes } from './wakes';
 // y up; the camera follows the player's ship and zooms from her deck to the whole region (the mouse wheel),
 // overhead by default or from astern (C). Only drawing: the simulation, input and UI are the game's.
 
-/** One model unit in tiles, so a ship stands as big as her 2D sprite (96 px over 3.7 units, 24 px a tile). */
-const MODEL_SCALE = 96 / 3.7 / 24;
+/**
+ * Ships are drawn larger than the map's own proportion (Pirates! 2004 draws a ship nearly the size of a small
+ * island): this many times her 2D sprite's size. Drawing only; the world and its distances are unchanged.
+ */
+const SHIP_SCALE = 1.6;
+/** One model unit in tiles: a ship as big as her 2D sprite (96 px over 3.7 units, 24 px a tile), times SHIP_SCALE. */
+const MODEL_SCALE = (96 / 3.7 / 24) * SHIP_SCALE;
 /** Camera distance from the ship, in tiles: from close aboard to the whole region. */
-const ZOOM = { min: 6, max: 420, start: 22 };
+const ZOOM = { min: 9, max: 420, start: 32 };
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
 const CLOUDS_FROM = [70, 160];
 /** Town names show within this many tiles of the camera's target. */
@@ -32,7 +37,7 @@ const NAMES_WITHIN = 160;
 /** Far out, ships grow so they stay readable (as Pirates! draws them), up to this many times life. */
 const FAR_SHIP_SCALE = 4;
 /** A ship's length in tiles at model scale (the brig's hull, 2.4 model units). */
-const SHIP_LENGTH = 2.4 * (96 / 3.7 / 24);
+const SHIP_LENGTH = 2.4 * MODEL_SCALE;
 /** How fast a ship eases into the swell's pitch and roll (per second): slow, so she rocks rather than bounces. */
 const RIDE_EASE = 1.1;
 
@@ -94,6 +99,8 @@ export async function createSeaRenderer(
     playerId: string;
     settlements: PlacedSettlement[];
     windAt: (state: WorldState, x: number, y: number) => Wind;
+    /** A town's line under its name ("Prosperous English Capital"), from the game's state. */
+    townLine?: (s: PlacedSettlement, state: WorldState) => string;
   },
 ): Promise<SeaRenderer> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -137,12 +144,13 @@ export async function createSeaRenderer(
   scene.add(ocean.mesh);
 
   // Towns: houses in the nation's style up from the shore, a church, a fort with its flag, a pier; the name over it.
-  const names: { sprite: THREE.Sprite; x: number; y: number }[] = [];
+  const names: { sprite: THREE.Sprite; x: number; y: number; s: PlacedSettlement; banner: Banner }[] = [];
   const towns = createTowns(options.settlements, ground.heightAt, makeFlag, (s) => {
-    const sprite = label(s.name ?? s.id, PENNANT[s.nation] ?? '#ffffff');
-    names.push({ sprite, x: s.x, y: s.y });
-    return sprite;
+    const banner = createBanner(s.name ?? s.id, s.nation);
+    names.push({ sprite: banner.sprite, x: s.x, y: s.y, s, banner });
+    return banner.sprite;
   });
+  let bannersAt = -Infinity;
   scene.add(towns.object);
 
   // Clouds: soft white puffs drifting downwind (Pirates!: white clouds are wind, dark ones a storm).
@@ -225,7 +233,7 @@ export async function createSeaRenderer(
     light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, distance)) ** 0.5;
 
     // Ships: each at her place, riding the swell, heeled by the wind on her beam, her sails for the wind.
-    const farScale = THREE.MathUtils.clamp(distance / 90, 1, FAR_SHIP_SCALE);
+    const farScale = THREE.MathUtils.clamp(distance / 140, 1, FAR_SHIP_SCALE);
     const seen = new Set<string>();
     for (const s of Object.values(state.ships)) {
       const m = shipFor(s);
@@ -278,6 +286,11 @@ export async function createSeaRenderer(
     // Clouds drift with the wind where the player is, and show only from afar.
     cloudMat.opacity = 0.85 * THREE.MathUtils.smoothstep(distance, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!);
     for (const n of names) n.sprite.visible = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
+    // Each town's line, from the game's state, freshened every couple of seconds (redrawn only when it changes).
+    if (options.townLine && nowMs - bannersAt > 2000) {
+      bannersAt = nowMs;
+      for (const n of names) if (n.sprite.visible) n.banner.setLine(options.townLine(n.s, state));
+    }
     const drift = strengthOf(wind) * 1.6 * dt;
     const to = ((wind.fromDeg + 180) * Math.PI) / 180;
     for (const c of clouds) {
@@ -348,30 +361,65 @@ export async function createSeaRenderer(
   };
 }
 
-/** A town's name over it, the same size on screen at every zoom. */
-function label(text: string, colour: string): THREE.Sprite {
+interface Banner {
+  sprite: THREE.Sprite;
+  /** Sets the line under the name (redrawn only when it changes). */
+  setLine(line: string): void;
+}
+
+/**
+ * A town's banner over it, the same size on screen at every zoom (Pirates! 2004 shows the nation's colours, the
+ * name and a line on the town's state): the nation's flag, the name in a serif, and the line beneath.
+ */
+function createBanner(name: string, nation: string): Banner {
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d')!;
-  const font = '600 44px Georgia, serif';
-  ctx.font = font;
-  c.width = Math.ceil(ctx.measureText(text).width) + 40;
-  c.height = 64;
-  ctx.font = font;
-  ctx.fillStyle = 'rgba(21, 29, 40, 0.72)';
-  ctx.beginPath();
-  ctx.roundRect(0, 6, c.width, 52, 10);
-  ctx.fill();
-  ctx.fillStyle = colour === '#090a14' ? '#d0d0d0' : colour;
-  ctx.fillRect(10, 14, 6, 36);
-  ctx.fillStyle = '#f4ead2';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 26, 33);
+  const nameFont = '600 46px Georgia, serif';
+  const lineFont = 'italic 26px Georgia, serif';
+  const flag = flagTexture(nation).image as HTMLCanvasElement;
   const texture = new THREE.CanvasTexture(c);
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, fog: false }));
-  sprite.scale.set((c.width / c.height) * 0.034, 0.034, 1);
   sprite.renderOrder = 10;
-  return sprite;
+  let shown: string | undefined;
+  const draw = (line: string) => {
+    ctx.font = nameFont;
+    const nameW = ctx.measureText(name).width;
+    ctx.font = lineFont;
+    const lineW = line ? ctx.measureText(line).width : 0;
+    const flagW = 74;
+    c.width = Math.ceil(Math.max(nameW, lineW) + flagW + 44);
+    c.height = line ? 104 : 72;
+    ctx.fillStyle = 'rgba(16, 24, 36, 0.66)';
+    ctx.beginPath();
+    ctx.roundRect(0, 4, c.width, c.height - 8, 12);
+    ctx.fill();
+    // The nation's flag, with a thin gilt frame.
+    ctx.fillStyle = '#e6bf6a';
+    ctx.fillRect(12, 14, flagW - 8 + 4, 42 + 4);
+    ctx.drawImage(flag, 14, 16, flagW - 8, 42);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f7eedb';
+    ctx.font = nameFont;
+    ctx.fillText(name, flagW + 22, 38);
+    if (line) {
+      ctx.fillStyle = '#e6c98a';
+      ctx.font = lineFont;
+      ctx.fillText(line, flagW + 24, 78);
+    }
+    texture.needsUpdate = true;
+    const h = line ? 0.05 : 0.036;
+    sprite.scale.set((c.width / c.height) * h, h, 1);
+  };
+  draw('');
+  return {
+    sprite,
+    setLine(line) {
+      if (line === shown) return;
+      shown = line;
+      draw(line);
+    },
+  };
 }
 
 /** A sprite animation name (`sail_full_beam_s`) as the builder's setting, point of sail, and wind side (+1 starboard). */

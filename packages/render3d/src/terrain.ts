@@ -270,7 +270,8 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
           // A clump of canopy, darker and denser in the jungle, sparser on the heights.
           canopy.push(m.compose(new THREE.Vector3(px, g + 0.05, py), q, new THREE.Vector3(s, s * (0.8 + r * 0.6), s)).clone());
           const v = hash2(Math.round(px * 5), Math.round(py * 5));
-          tint.push(new THREE.Color().setHSL(0.27 + v * 0.07, 0.55 + v * 0.15, 0.22 + v * 0.12 + Math.min(0.12, g * 0.02)));
+          // A pale tint over the tree's own colours, so neighbours differ in shade.
+          tint.push(new THREE.Color().setHSL(0.2 + v * 0.12, 0.3, 0.72 + v * 0.22));
         }
       }
     }
@@ -404,7 +405,7 @@ function treeKit() {
   }
   const trunk = mergeGeometries(trunkParts)!;
   const frondParts: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 11; i++) {
     // A frond: a long narrow leaf, arched up then drooping.
     const leaf = new THREE.BufferGeometry();
     const pts: number[] = [];
@@ -420,7 +421,7 @@ function treeKit() {
     for (let s = 0; s < steps; s++) idx.push(s * 2, s * 2 + 1, s * 2 + 2, s * 2 + 1, s * 2 + 3, s * 2 + 2);
     leaf.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     leaf.setIndex(idx);
-    leaf.rotateY((i / 8) * Math.PI * 2 + i * 0.3);
+    leaf.rotateY((i / 11) * Math.PI * 2 + i * 0.3);
     leaf.translate(segments * 0.012, segments * 0.155 + 0.02, 0);
     frondParts.push(leaf);
   }
@@ -434,21 +435,49 @@ function treeKit() {
   const palm = mergeGeometries([colour(trunk.toNonIndexed(), '#8a6a45'), colour(fronds.toNonIndexed(), '#3f8f2c')])!;
   palm.computeVertexNormals();
   palm.scale(2.2, 2.2, 2.2);
-  const canopy = new THREE.IcosahedronGeometry(0.32, 1);
-  // Flattened and lumpy, so a stand of them reads as a jungle canopy rather than balls.
-  const p = canopy.getAttribute('position') as THREE.BufferAttribute;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i);
-    const y = p.getY(i);
-    const z = p.getZ(i);
-    const bump = 1 + (hash2(Math.round(x * 50), Math.round(z * 50 + y * 30)) - 0.5) * 0.35;
-    p.setXYZ(i, x * bump, Math.max(-0.1, y * 0.7 * bump) + 0.18, z * bump);
-  }
-  canopy.computeVertexNormals();
+  // A broadleaf jungle tree: a short trunk under a crown of overlapping leafy lobes, each lumpy, lit lighter on
+  // top and darker beneath, so a stand of them reads as rich canopy rather than balls.
+  const lobes: THREE.BufferGeometry[] = [];
+  const trunkGeo = new THREE.CylinderGeometry(0.025, 0.04, 0.3, 6);
+  trunkGeo.translate(0, 0.15, 0);
+  trunkGeo.deleteAttribute('uv');
+  lobes.push(colour(trunkGeo.toNonIndexed(), '#5e4630'));
+  const spots: [number, number, number, number][] = [
+    [0, 0.42, 0, 0.21],
+    [0.13, 0.36, 0.05, 0.16],
+    [-0.11, 0.35, 0.09, 0.15],
+    [0.03, 0.34, -0.13, 0.15],
+    [0.02, 0.5, 0.04, 0.15],
+  ];
+  spots.forEach(([x, y, z, r], k) => {
+    const lobe = new THREE.IcosahedronGeometry(r, 1);
+    const p = lobe.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < p.count; i++) {
+      const bump = 1 + (hash2(Math.round(p.getX(i) * 60) + k * 7, Math.round(p.getZ(i) * 60 + p.getY(i) * 40)) - 0.5) * 0.4;
+      p.setXYZ(i, p.getX(i) * bump, p.getY(i) * 0.82 * bump, p.getZ(i) * bump);
+    }
+    lobe.translate(x, y, z);
+    lobe.deleteAttribute('uv');
+    const flat = lobe.toNonIndexed();
+    flat.computeVertexNormals();
+    // Lighter on top, darker beneath, a shade varying lobe to lobe.
+    const pos = flat.getAttribute('position');
+    const col = new Float32Array(pos.count * 3);
+    const base = new THREE.Color().setHSL(0.27 + (k % 3) * 0.015, 0.62, 0.3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const up = THREE.MathUtils.clamp((pos.getY(i) - (y - r)) / (2 * r), 0, 1);
+      c.copy(base).offsetHSL(0, 0, -0.1 + up * 0.18);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    flat.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    lobes.push(flat);
+  });
+  const canopy = mergeGeometries(lobes)!;
   return {
     palm,
     palmMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }),
     canopy,
-    canopyMaterial: new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: false }),
+    canopyMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
   };
 }
