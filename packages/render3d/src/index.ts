@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { sailAnim } from '@corsair/render/sails';
@@ -9,6 +14,7 @@ import type { SeaState } from './ocean';
 import { loadShipModels, makeShip } from './ships';
 import type { ShipModel } from './ships';
 import { createGround } from './terrain';
+import { createWakes } from './wakes';
 
 // The 3D sea map (art direction: Sid Meier's Pirates! 2004, in HD): the world in map tiles, x east and z south,
 // y up; the camera follows the player's ship and zooms from her deck to the whole region (the mouse wheel),
@@ -25,18 +31,55 @@ const NAMES_WITHIN = 160;
 /** Far out, ships grow so they stay readable (as Pirates! draws them), up to this many times life. */
 const FAR_SHIP_SCALE = 4;
 const TOWN_COUNT: Record<string, number> = { hamlet: 4, town: 9, city: 16 };
+/** A ship's length in tiles at model scale (the brig's hull, 2.4 model units). */
+const SHIP_LENGTH = 2.4 * (96 / 3.7 / 24);
+/** How fast a ship eases into the swell's pitch and roll (per second): slow, so she rocks rather than bounces. */
+const RIDE_EASE = 1.1;
+
+/**
+ * The sky keeps its own slow day, not the game clock's (a game day passes in under half a minute): a long
+ * bright day, golden sunrise and sunset, a short moonlit night (docs/reference/pirates-3d-style.md). Each
+ * phase: real seconds at sea, and the hours it shows.
+ */
+const SKY_PHASES: [number, number, number][] = [
+  [120, 5, 8],
+  [840, 8, 16.5],
+  [120, 16.5, 19.5],
+  [120, 19.5, 29],
+];
+const SKY_CYCLE = SKY_PHASES.reduce((n, [s]) => n + s, 0);
+/** The sky starts mid-morning. */
+const SKY_START = 300;
+
+function skyHour(seconds: number): number {
+  let s = seconds % SKY_CYCLE;
+  for (const [length, from, to] of SKY_PHASES) {
+    if (s < length) return (from + ((to - from) * s) / length) % 24;
+    s -= length;
+  }
+  return 12;
+}
+
+const DAY_SUN = new THREE.Color('#fff4d6');
+const GOLD_SUN = new THREE.Color('#ffa860');
+const MOON = new THREE.Color('#8aa4ff');
+const DAY_SKY = new THREE.Color('#9fd3f0');
+const GOLD_SKY = new THREE.Color('#f2a679');
+const NIGHT_SKY = new THREE.Color('#2c4670');
 const PENNANT: Record<string, string> = { spain: '#e8c170', england: '#a53030', france: '#ebede9', netherlands: '#de9e41', pirate: '#090a14' };
 
 export interface SeaRenderer {
   canvas: HTMLCanvasElement;
-  /** Draws the sea map for this state; `hour` is the time of day (0-24), `nowMs` the frame time. */
-  render(state: WorldState, nowMs: number, hour: number): void;
+  /** Draws the sea map for this state; `nowMs` is the frame time (the sky keeps its own slow day). */
+  render(state: WorldState, nowMs: number): void;
   /** CSS size of the view; the canvas renders at the device's pixel ratio. */
   resize(width: number, height: number): void;
   /** Zoom by wheel steps (positive out). */
   zoom(steps: number): void;
   /** Overhead or from astern. */
   toggleChase(): void;
+  /** Sets the sky to an hour of its day (for reviewing sunrise, sunset and night). */
+  setSkyHour(hour: number): void;
 }
 
 export async function createSeaRenderer(
@@ -60,7 +103,15 @@ export async function createSeaRenderer(
   canvas.className = 'sea3d';
 
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color();
   const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 4000);
+  // The finished image: soft bloom on sun, sails and foam (Pirates!'s glow), anti-aliased, tone-mapped last.
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1920, 1080), 0.32, 0.5, 0.86);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  composer.addPass(new SMAAPass());
 
   // Sky and light: a clear Caribbean sky, the sun (with a shadow near the player), a soft fill from the sky.
   const sky = new Sky();
@@ -147,6 +198,7 @@ export async function createSeaRenderer(
     scene.add(c);
   }
 
+  const wakes = createWakes(scene);
   const models = await loadShipModels(options.models);
   const ships = new Map<string, ShipModel & { classId: string }>();
   const shipFor = (s: Ship) => {
@@ -171,32 +223,43 @@ export async function createSeaRenderer(
   const light = { sunDir, sun: new THREE.Color(), sky: new THREE.Color(), level: 1, fog: new THREE.Color(), fogDensity: 0.002 };
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
+  let skySeconds = SKY_START;
+  // Each ship's ride: her height on the swell and her pitch and roll, eased toward the sea's each frame.
+  const rides = new Map<string, { bob: number; pitch: number; roll: number }>();
 
-  const render = (state: WorldState, nowMs: number, hour: number) => {
+  const render = (state: WorldState, nowMs: number) => {
     const t = nowMs / 1000;
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
+    skySeconds += dt;
+    const hour = skyHour(skySeconds);
     const me = state.ships[options.playerId];
     if (!me) return;
     const wind = options.windAt(state, me.x, me.y);
     const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
 
-    // Time of day: the sun's arc from 6 to 18, a low blue moon at night.
-    const day = Math.sin(((hour - 6) / 12) * Math.PI);
-    const elevation = Math.max(-0.15, day) * 70;
+    // The sun's arc from 6 to 18; light, sky and sea blend smoothly by its height: golden low, moonlit blue at night.
+    const e = Math.sin(((hour - 6) / 12) * Math.PI);
+    const dayness = THREE.MathUtils.smoothstep(e, 0.05, 0.4);
+    const night = 1 - THREE.MathUtils.smoothstep(e, -0.14, 0.02);
+    const elevation = Math.max(4, e * 70);
     const azimuth = ((hour - 6) / 12) * 180 + 90;
-    sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - Math.max(elevation, 4)), THREE.MathUtils.degToRad(azimuth));
+    sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elevation), THREE.MathUtils.degToRad(azimuth));
     su.sunPosition!.value.copy(sunDir);
-    // Night is moonlit and readable, not black.
-    const level = THREE.MathUtils.clamp(0.42 + day * 0.7, 0.42, 1);
+    // Bright through the golden hours (a Technicolor sunset, not a dim one); a readable moonlit night.
+    const level = THREE.MathUtils.lerp(0.55, 1, THREE.MathUtils.smoothstep(e, -0.12, 0.08));
     light.level = level;
-    light.sun.set(day > 0.25 ? '#fff4d6' : day > 0 ? '#ffb070' : '#8aa4ff').multiplyScalar(day > 0 ? 1 : 0.3);
-    light.sky.set(day > 0.2 ? '#9fd3f0' : day > 0 ? '#e8a87c' : '#2c4670');
-    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), day > 0.2 ? 0.25 : 0);
-    sun.intensity = day > 0 ? day * 2.6 : 0.5;
+    light.sun.copy(GOLD_SUN).lerp(DAY_SUN, dayness).lerp(MOON.clone().multiplyScalar(0.6), night);
+    light.sky.copy(GOLD_SKY).lerp(DAY_SKY, dayness).lerp(NIGHT_SKY, night);
+    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.25 * dayness);
+    // At night the sky dome (sun below the horizon) gives way to a moonlit blue.
+    sky.visible = night < 0.5;
+    (scene.background as THREE.Color).copy(light.sky);
+    sun.intensity = THREE.MathUtils.lerp(0.9, 2.6, THREE.MathUtils.smoothstep(e, -0.05, 0.12));
     sun.color.copy(light.sun);
-    fill.intensity = 0.35 + level * 0.6;
-    renderer.toneMappingExposure = 0.55 + level * 0.4;
+    fill.intensity = 0.55 + level * 0.5;
+    fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);
+    renderer.toneMappingExposure = 0.7 + level * 0.3;
     light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, distance)) ** 0.5;
 
     // Ships: each at her place, riding the swell, heeled by the wind on her beam, her sails for the wind.
@@ -207,24 +270,48 @@ export async function createSeaRenderer(
       seen.add(s.id);
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
-      const bob = seaHeight(sea, s.x, s.y, t);
-      const fore = seaHeight(sea, s.x + Math.sin((s.headingDeg * Math.PI) / 180), s.y - Math.cos((s.headingDeg * Math.PI) / 180), t);
+      // The swell under her whole hull (bow and stern, both sides), so she rides it rather than every ripple.
+      const len = SHIP_LENGTH * farScale;
+      const r = (s.headingDeg * Math.PI) / 180;
+      const fx = Math.sin(r);
+      const fz = -Math.cos(r);
+      const at = (along: number, abeam: number) => seaHeight(sea, s.x + fx * along - fz * abeam, s.y + fz * along + fx * abeam, t);
+      const bow = at(len * 0.4, 0);
+      const stern = at(-len * 0.4, 0);
+      const port = at(0, -len * 0.12);
+      const starboard = at(0, len * 0.12);
       let rel = normalizeDeg(w.fromDeg - s.headingDeg);
       if (rel > 180) rel -= 360;
       const press = s.sails === 'furled' ? 0 : (s.sails === 'full' ? 1 : 0.6) * strengthOf(w);
-      const heel = Math.sin((rel * Math.PI) / 180) * press * 0.14 + Math.sin(t * 1.3 + s.x) * 0.02;
-      m.root.position.set(s.x, bob, s.y);
+      const heel = Math.sin((rel * Math.PI) / 180) * press * 0.12;
+      const ride = rides.get(s.id) ?? { bob: 0, pitch: 0, roll: 0 };
+      const ease = 1 - Math.exp(-dt * RIDE_EASE);
+      ride.bob += ((bow + stern + port + starboard) / 4 - ride.bob) * ease;
+      ride.pitch += (Math.atan2(bow - stern, len * 0.8) - ride.pitch) * ease;
+      ride.roll += (Math.atan2(starboard - port, len * 0.24) * 0.5 + heel - ride.roll) * ease;
+      rides.set(s.id, ride);
+      m.root.position.set(s.x, ride.bob, s.y);
       m.root.rotation.set(0, 0, 0);
-      m.root.rotateY((-s.headingDeg * Math.PI) / 180);
-      m.root.rotateX((fore - bob) * 0.8);
-      m.root.rotateZ(-heel);
+      m.root.rotateY(-r);
+      m.root.rotateX(ride.pitch);
+      m.root.rotateZ(-ride.roll);
       m.root.scale.setScalar(MODEL_SCALE * farScale);
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
       scene.remove(m.root);
       ships.delete(id);
+      rides.delete(id);
     }
+    // Wakes behind the ships near the camera (far out they'd be finer than a pixel).
+    wakes.update(
+      Object.values(state.ships)
+        .filter((s) => Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
+        .map((s) => ({ id: s.id, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed, length: SHIP_LENGTH * farScale })),
+      dt,
+      t,
+      light.level,
+    );
 
     // Clouds drift with the wind where the player is, and show only from afar.
     cloudMat.opacity = 0.85 * THREE.MathUtils.smoothstep(distance, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!);
@@ -248,7 +335,7 @@ export async function createSeaRenderer(
     sun.position.copy(target).addScaledVector(sunDir, 200);
     sun.target.position.copy(target);
     ocean.update(target, sea, t, light);
-    renderer.render(scene, camera);
+    composer.render(dt);
   };
 
   return {
@@ -256,6 +343,8 @@ export async function createSeaRenderer(
     render,
     resize(width, height) {
       renderer.setSize(width, height);
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     },
@@ -264,6 +353,18 @@ export async function createSeaRenderer(
     },
     toggleChase() {
       chase = !chase;
+    },
+    setSkyHour(hour) {
+      // The first moment in the sky's cycle that shows this hour.
+      let at = 0;
+      for (const [length, from, to] of SKY_PHASES) {
+        const h = hour < from ? hour + 24 : hour;
+        if (h >= from && h <= to) {
+          skySeconds = at + ((h - from) / (to - from)) * length;
+          return;
+        }
+        at += length;
+      }
     },
   };
 }

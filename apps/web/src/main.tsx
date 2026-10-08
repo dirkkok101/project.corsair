@@ -264,6 +264,9 @@ async function main() {
   // The 3D sea map draws over the 2D one at sea; port scenes and battles are still the 2D renderer's.
   const sea3d = RENDER_3D ? await createSeaRenderer(content, map, { playerId: def.start.shipId, settlements, windAt, models: shipModels }) : undefined;
   if (sea3d) viewport.appendChild(sea3d.canvas);
+  // ?sky=17.5 starts the 3D sky at that hour, for reviewing sunrise, sunset and night.
+  const skyHour = Number(new URLSearchParams(location.search).get('sky'));
+  if (sea3d && Number.isFinite(skyHour) && skyHour > 0) sea3d.setSkyHour(skyHour);
   // At sea in 3D the wheel and the trackpad's pinch zoom the map, from anywhere on the screen (the HUD too).
   if (sea3d) {
     window.addEventListener('wheel', (e) => {
@@ -1093,7 +1096,7 @@ async function main() {
       const atSea = !fight && !renderer.harbour.visible;
       sea3d.canvas.style.display = atSea ? '' : 'none';
       viewport.classList.toggle('three-d', atSea);
-      if (atSea) sea3d.render(sim.state, now, hourOf(sim.state.tick, content.calendar.ticksPerDay));
+      if (atSea) sea3d.render(sim.state, now);
     }
     labels.update(renderer.camera(), renderer.view(), scale);
     shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
@@ -1265,7 +1268,7 @@ async function main() {
                 ? 'Music off · N'
                 : audio.nowPlaying && `♪ ${audio.nowPlaying}`
         }
-        time={`${String(Math.floor(hour)).padStart(2, '0')}:00`}
+        time={RENDER_3D ? undefined : `${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
         prompt={

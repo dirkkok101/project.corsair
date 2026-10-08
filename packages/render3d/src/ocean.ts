@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
-// The sea (art direction: Sid Meier's Pirates! 2004, a bright "Technicolor" sea): a few Gerstner waves rolled
-// downwind, aqua over the shallows and deep blue offshore, surf where it meets the land, whitecaps in a
-// blow, the sky's colour at a glancing angle and the sun's glint. One plane that follows the camera.
+// The sea (art direction: Sid Meier's Pirates! 2004, a bright "Technicolor" sea, docs/reference/pirates-3d-style.md):
+// long swells rolled downwind, fine ripples over them, aqua over the shallows with the sand showing through and
+// light dappling it, surf rolling in along the depth contours, long white streaks of wind across open water,
+// whitecaps in a blow, sun sparkle, and the sky's colour at a glancing angle. One plane that follows the camera.
 // Distances are in map tiles (one tile is about 2.5 km; ships and swells are drawn far larger than life).
 
 /** One swell: its direction off the wind (degrees), wavelength and height in tiles, and steepness. */
@@ -12,15 +13,19 @@ interface Swell {
   amp: number;
   steep: number;
 }
+// A calm, painterly sea (Pirates! ships glide): low, long swells; the fine chop is only in the shading.
 const SWELLS: Swell[] = [
-  { offDeg: 0, length: 9, amp: 0.07, steep: 0.5 },
-  { offDeg: 28, length: 5.3, amp: 0.045, steep: 0.45 },
-  { offDeg: -36, length: 3.1, amp: 0.025, steep: 0.4 },
-  { offDeg: 64, length: 1.7, amp: 0.012, steep: 0.35 },
+  { offDeg: 0, length: 11, amp: 0.045, steep: 0.45 },
+  { offDeg: 28, length: 6.5, amp: 0.025, steep: 0.4 },
+  { offDeg: -36, length: 3.1, amp: 0.012, steep: 0.35 },
+  { offDeg: 64, length: 1.7, amp: 0.006, steep: 0.3 },
 ];
 const GRAVITY = 9.8;
 /** Swell speed is scaled down from deep-water physics to read as a lazy roll at this scale. */
 const SPEED = 0.12;
+// The mesh carries only the swells long enough for its grid (shorter ones would alias into stripes); the
+// fragment shader lights every swell, per pixel, fading the short ones out with distance.
+const MESH_SWELLS = 2;
 
 /** The sea's state: swells blow toward `toDeg` (where the wind goes), their height scaled by `strength`. */
 export interface SeaState {
@@ -34,10 +39,10 @@ const swellDir = (sea: SeaState, s: Swell) => {
   return [Math.sin(a), -Math.cos(a)] as const;
 };
 
-/** The sea's height at a point and time, for ships riding it (the shader's displacement, vertically). */
+/** The height of the long swells (the ones the mesh rolls) at a point and time, for ships riding them. */
 export function seaHeight(sea: SeaState, x: number, z: number, t: number): number {
   let y = 0;
-  for (const s of SWELLS) {
+  for (const s of SWELLS.slice(0, MESH_SWELLS)) {
     const [dx, dz] = swellDir(sea, s);
     const k = (2 * Math.PI) / s.length;
     const c = Math.sqrt(GRAVITY / k) * SPEED;
@@ -46,9 +51,69 @@ export function seaHeight(sea: SeaState, x: number, z: number, t: number): numbe
   return y;
 }
 
-// The mesh carries only the swells long enough for its grid (shorter ones would alias into stripes); the
-// fragment shader lights every swell, per pixel, fading the short ones out with distance.
-const MESH_SWELLS = 2;
+/**
+ * Fine ripples, drawn once: a tiling normal map of a few octaves of periodic noise (so it wraps seamlessly),
+ * read twice in the shader at two scales drifting different ways. Alpha holds the height, for patterns.
+ */
+function rippleTexture(size = 256): THREE.DataTexture {
+  const grid = (cells: number, seed: number) => {
+    const g = new Float32Array(cells * cells);
+    let s = seed;
+    for (let i = 0; i < g.length; i++) {
+      s = (s * 16807) % 2147483647;
+      g[i] = s / 2147483647;
+    }
+    return g;
+  };
+  const octaves = [
+    { cells: 8, amp: 1, g: grid(8, 11) },
+    { cells: 16, amp: 0.5, g: grid(16, 23) },
+    { cells: 32, amp: 0.25, g: grid(32, 37) },
+    { cells: 64, amp: 0.12, g: grid(64, 41) },
+  ];
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const wrap = (i: number, n: number) => ((i % n) + n) % n;
+  const heightAt = (x: number, y: number) => {
+    let h = 0;
+    for (const o of octaves) {
+      const fx = (x / size) * o.cells;
+      const fy = (y / size) * o.cells;
+      const ix = Math.floor(fx);
+      const iy = Math.floor(fy);
+      const tx = smooth(fx - ix);
+      const ty = smooth(fy - iy);
+      const at = (a: number, b: number) => o.g[wrap(b, o.cells) * o.cells + wrap(a, o.cells)]!;
+      const top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * tx;
+      const bottom = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * tx;
+      h += (top + (bottom - top) * ty) * o.amp;
+    }
+    return h / 1.87;
+  };
+  const heights = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) heights[y * size + x] = heightAt(x, y);
+  const data = new Uint8Array(size * size * 4);
+  const h = (x: number, y: number) => heights[wrap(y, size) * size + wrap(x, size)]!;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (h(x + 1, y) - h(x - 1, y)) * 6;
+      const dy = (h(x, y + 1) - h(x, y - 1)) * 6;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * size + x) * 4;
+      data[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
+      data[i + 1] = Math.round(((-dy / len) * 0.5 + 0.5) * 255);
+      data[i + 2] = Math.round(((1 / len) * 0.5 + 0.5) * 255);
+      data[i + 3] = Math.round(Math.min(1, h(x, y)) * 255);
+    }
+  }
+  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
 
 const VERT = /* glsl */ `
 uniform float uTime;
@@ -59,8 +124,6 @@ varying float vCrest;
 void main() {
   vec4 world = modelMatrix * vec4(position, 1.0);
   vec3 p = world.xyz;
-  vec3 tangent = vec3(1.0, 0.0, 0.0);
-  vec3 binormal = vec3(0.0, 0.0, 1.0);
   float crest = 0.0;
   for (int i = 0; i < ${MESH_SWELLS}; i++) {
     vec2 d = uSwell[i].xy;
@@ -82,10 +145,14 @@ void main() {
 
 const FRAG = /* glsl */ `
 uniform float uTime;
-uniform sampler2D uDepth;     // the sea floor: 0 deep .. 1 at the shore and above (see depthTexture)
+uniform sampler2D uDepth;     // the sea floor: 0 deep .. 1 at the shore and above (see Ground.depth)
+uniform sampler2D uRipple;    // tiling ripple normals (rgb) and heights (a)
 uniform vec2 uMapSize;
+uniform vec2 uWindDir;        // where the wind blows to, in the xz plane
 uniform vec3 uDeep;
+uniform vec3 uMid;
 uniform vec3 uShallow;
+uniform vec3 uSand;
 uniform vec3 uSky;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -106,7 +173,10 @@ float noise(vec2 p) {
 
 void main() {
   float dist = length(cameraPosition - vWorld);
-  // The surface's slope from every swell, the short ones fading out with distance (they'd shimmer).
+  // How many tiles one pixel spans here: detail finer than a pixel fades out rather than shimmering.
+  float footprint = length(fwidth(vWorld.xz));
+
+  // The surface's slope from every swell, the short ones fading out with distance.
   vec2 slope = vec2(0.0);
   for (int i = 0; i < ${SWELLS.length}; i++) {
     vec2 d = uSwell[i].xy;
@@ -116,24 +186,55 @@ void main() {
     float fade = 1.0 - smoothstep(uSwell[i].z * 6.0, uSwell[i].z * 30.0, dist);
     slope += d * k * uSwell[i].w * cos(f) * fade;
   }
+  // Fine ripples on top, two layers drifting downwind at different scales.
+  vec2 drift = uWindDir * uTime;
+  vec3 r1 = texture2D(uRipple, vWorld.xz * 0.9 + drift * 0.06).xyz * 2.0 - 1.0;
+  vec3 r2 = texture2D(uRipple, vWorld.xz * 2.3 - drift.yx * 0.09 + 0.37).xyz * 2.0 - 1.0;
+  float rippleFade = (1.0 - smoothstep(0.08, 0.6, footprint)) * (0.35 + 0.65 * uStrength);
+  slope += (r1.xy * 0.22 + r2.xy * 0.12) * rippleFade;
   vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
   vec3 v = normalize(cameraPosition - vWorld);
+
   float floorUp = texture2D(uDepth, vWorld.xz / uMapSize).r;
-  // Deep blue offshore, bright aqua over the shallows (Pirates!'s Caribbean).
-  vec3 water = mix(uDeep, uShallow, smoothstep(0.35, 0.8, floorUp));
-  // The sky in the water at a glancing angle, and the sun's glint.
+  // Deep cerulean offshore, a brighter blue over the banks, aqua over the shallows (Pirates!'s Caribbean).
+  vec3 water = mix(uDeep, uMid, smoothstep(0.15, 0.55, floorUp));
+  water = mix(water, uShallow, smoothstep(0.55, 0.82, floorUp));
+  // The sand showing through the shallowest water, dappled by the light through the ripples.
+  float sandy = smoothstep(0.82, 0.97, floorUp);
+  float caustic = smoothstep(0.55, 0.85, texture2D(uRipple, vWorld.xz * 1.6 + drift * 0.03).a) * (1.0 - smoothstep(0.1, 0.5, footprint));
+  water = mix(water, uSand, sandy * 0.55) + vec3(caustic * smoothstep(0.6, 0.9, floorUp) * 0.12);
+
+  // The water takes the light's colour: golden at sunrise and sunset, blue under the moon.
+  vec3 tint = uSunColor / max(max(uSunColor.r, uSunColor.g), max(uSunColor.b, 0.001));
+  water *= mix(vec3(1.0), tint, 0.4);
+  // The sky in the water at a glancing angle.
   float fresnel = pow(1.0 - max(dot(n, v), 0.0), 4.0);
-  vec3 col = mix(water * uLight, uSky, fresnel * 0.55);
-  // Sun sparkle, not a mirrored sun: points of light winking on the ripples (Pirates!'s glittering sea),
-  // faded out once a point would be smaller than a pixel (they'd blur into a glare).
+  vec3 col = mix(water * uLight, uSky, fresnel * 0.5);
+  // A broad, soft sheen from the sun across the swell (no mirrored disc).
+  vec3 h = normalize(uSunDir + v);
+  col += uSunColor * pow(max(dot(n, h), 0.0), 60.0) * 0.12 * uLight;
+  // Sun sparkle: points of light winking on the ripples, fading once a point would be smaller than a pixel.
   vec2 cell = floor(vWorld.xz * 7.0);
   float wink = step(0.992, hash(cell + floor(uTime * 3.0 + hash(cell) * 7.0)));
-  float pixel = length(fwidth(vWorld.xz)) * 7.0;
-  col += uSunColor * wink * uLight * (1.0 - smoothstep(0.35, 0.9, pixel)) * 0.9;
-  // Surf along the shore, broken up and drifting; whitecaps on the crests in a blow.
-  float shore = smoothstep(0.84, 0.97, floorUp) * (0.55 + 0.45 * noise(vWorld.xz * 2.2 + uTime * 0.35));
-  float caps = smoothstep(0.08, 0.16, vCrest) * smoothstep(0.85, 1.0, uStrength) * noise(vWorld.xz * 3.0 - uTime * 0.2);
-  col = mix(col, vec3(0.95) * max(uLight, 0.25), clamp(shore + caps * 0.7, 0.0, 1.0));
+  col += uSunColor * wink * uLight * (1.0 - smoothstep(0.05, 0.13, footprint)) * 0.9;
+
+  // Wind streaks: long thin white lines laid along the wind across open water (Pirates!'s sea map).
+  vec2 across = vec2(-uWindDir.y, uWindDir.x);
+  vec2 w = vec2(dot(vWorld.xz, uWindDir), dot(vWorld.xz, across));
+  // Short, soft and broken: a few tiles long, scattered in patches, never a ruled line.
+  float streak = smoothstep(0.72, 0.9, noise(vec2(w.x * 0.35 - uTime * 0.12, w.y * 2.2)));
+  streak *= smoothstep(0.55, 0.85, noise(vec2(w.x * 0.06, w.y * 0.25)));
+  streak *= 0.6 + 0.4 * noise(vWorld.xz * 4.0 + uTime * 0.2);
+  streak *= (1.0 - smoothstep(0.35, 0.6, floorUp)) * (0.4 + 0.6 * uStrength) * (1.0 - smoothstep(0.04, 0.18, footprint));
+  // Surf: bands of foam rolling in along the depth contours, broken up, densest at the waterline.
+  float band = 0.5 + 0.5 * sin(floorUp * 46.0 - uTime * 1.6 + noise(vWorld.xz * 0.6) * 4.0);
+  float surf = smoothstep(0.86, 0.97, floorUp) * smoothstep(0.55, 1.0, band) * (0.5 + 0.5 * noise(vWorld.xz * 3.0 + uTime * 0.3));
+  float shoreline = smoothstep(0.955, 0.995, floorUp);
+  // Whitecaps on the swell's crests in a blow.
+  float caps = smoothstep(0.08, 0.15, vCrest) * smoothstep(0.85, 1.0, uStrength) * noise(vWorld.xz * 3.0 - uTime * 0.2);
+  float foam = clamp(streak * 0.2 + surf * 0.8 + shoreline * 0.9 + caps * 0.6, 0.0, 1.0);
+  col = mix(col, vec3(0.96, 0.98, 1.0) * max(uLight, 0.3), foam);
+
   float fog = 1.0 - exp(-pow(uFogDensity * dist, 2.0));
   gl_FragColor = vec4(mix(col, uFogColor, fog), 1.0);
   #include <tonemapping_fragment>
@@ -145,10 +246,19 @@ void main() {
 const SIZE = 900;
 const SEGMENTS = 512;
 
+export interface SeaLight {
+  sunDir: THREE.Vector3;
+  sun: THREE.Color;
+  sky: THREE.Color;
+  level: number;
+  fog: THREE.Color;
+  fogDensity: number;
+}
+
 export interface Ocean {
   mesh: THREE.Mesh;
-  /** Each frame: follow the camera's target, set the swell to the wind, light the water for the hour. */
-  update(at: THREE.Vector3, sea: SeaState, t: number, light: { sunDir: THREE.Vector3; sun: THREE.Color; sky: THREE.Color; level: number; fog: THREE.Color; fogDensity: number }): void;
+  /** Each frame: follow the camera's target, set the swell and ripples to the wind, light the water. */
+  update(at: THREE.Vector3, sea: SeaState, t: number, light: SeaLight): void;
 }
 
 export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): Ocean {
@@ -162,9 +272,13 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): O
       uSwell: { value: SWELLS.map(() => new THREE.Vector4()) },
       uSteep: { value: SWELLS.map((s) => s.steep) },
       uDepth: { value: depth },
+      uRipple: { value: rippleTexture() },
       uMapSize: { value: new THREE.Vector2(mapW, mapH) },
-      uDeep: { value: new THREE.Color('#1a6cb5') },
-      uShallow: { value: new THREE.Color('#2fd0cf') },
+      uWindDir: { value: new THREE.Vector2(0, 1) },
+      uDeep: { value: new THREE.Color('#1462ad') },
+      uMid: { value: new THREE.Color('#2a86c9') },
+      uShallow: { value: new THREE.Color('#33cbd0') },
+      uSand: { value: new THREE.Color('#d9e8c4') },
       uSky: { value: new THREE.Color('#9fd3f0') },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uSunColor: { value: new THREE.Color('#fff4d6') },
@@ -189,6 +303,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number): O
         const [dx, dz] = swellDir(sea, s);
         (u.uSwell!.value as THREE.Vector4[])[i]!.set(dx, dz, s.length, s.amp * sea.strength);
       });
+      const a = (sea.toDeg * Math.PI) / 180;
+      (u.uWindDir!.value as THREE.Vector2).set(Math.sin(a), -Math.cos(a));
       u.uStrength!.value = sea.strength;
       (u.uSunDir!.value as THREE.Vector3).copy(light.sunDir);
       (u.uSunColor!.value as THREE.Color).copy(light.sun);

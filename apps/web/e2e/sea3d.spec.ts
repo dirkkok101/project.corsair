@@ -15,8 +15,8 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await expect(sea).toBeVisible();
-  // Out of the harbour a little way, under sail, by the next midday.
-  await page.evaluate(() => window.__corsair.sim.step(920));
+  // Out of the harbour a little way, under sail.
+  await page.evaluate(() => window.__corsair.sim.step(300));
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/sea3d-near.png' });
   await page.mouse.move(960, 540);
@@ -27,5 +27,22 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
   await page.keyboard.press('c');
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/sea3d-astern.png' });
+  expect(errors).toEqual([]);
+});
+
+test('the 3D sky keeps its own slow day: sunset and a moonlit night, for review', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  for (const hour of [17.8, 23]) {
+    await page.goto(`/?seed=3&renderer=3d&sky=${hour}`);
+    await page.waitForFunction(() => Boolean(window.__corsair));
+    await page.evaluate(() => window.__corsair.sim.pause());
+    await page.keyboard.press('e');
+    await page.evaluate(() => window.__corsair.sim.step(300));
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `test-results/sea3d-sky-${hour}.png` });
+  }
+  // The HUD shows the date only in 3D: the sky's hour isn't the game clock's.
+  await expect(page.locator('.hud-date').first()).not.toContainText(':00');
   expect(errors).toEqual([]);
 });
