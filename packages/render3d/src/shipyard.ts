@@ -1647,6 +1647,11 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   }
 
   for (const g of deckGuns) for (const c of g.crew) gunnerSpots.push({ x: c.x, y: g.carriage.position.y, z: c.z, turn: c.turn, side: g.side });
+  // Men standing about the deck keep clear of the guns and their crews.
+  for (let i = spots.length - 1; i >= 0; i--) {
+    const sp = spots[i]!;
+    if (deckGuns.some((g) => Math.hypot(sp.x - g.out, sp.z - g.carriage.position.z) < 0.14) || gunnerSpots.some((c) => Math.hypot(sp.x - c.x, sp.z - c.z) < 0.06)) spots.splice(i, 1);
+  }
 
   // Colours: an ensign at the stern, a long pennant at the main masthead.
   const stern = stationOf(h, 0.02);
