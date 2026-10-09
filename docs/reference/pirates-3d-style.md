@@ -119,6 +119,9 @@ own off a real island, at every zoom, hour and wind.
   - The stern gallery's windows (leaded panes in carved, worn gilt frames) glow with lamplight from dusk to dawn.
   - A weathered deck: planks with tarred seams and trenails, worn paler where the crew walk, stained, in relief;
     hatch gratings fore and aft of amidships. Old gilt dulled by salt rather than mirror-bright.
+  - Fittings: a carved figurehead on a scrolled bracket with gilt trailboards; rounded quarter galleries with domed
+    roofs and drops; deadeyes and chain plates where the shrouds come down; the ship's boat stowed keel-up on
+    chocks amidships, a capstan, and the wheel aft.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of

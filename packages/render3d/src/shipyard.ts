@@ -695,20 +695,102 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
   const bow = stationOf(plan, 1);
   const beak = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.2), wale);
   beak.position.set(0, bow.h * 0.72, -plan.length / 2 - 0.08);
-  const figure = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), gilt);
-  figure.scale.set(0.8, 1.2, 2.2);
-  figure.position.set(0, bow.h * 0.62, -plan.length / 2 - 0.13);
-  figure.rotation.x = 0.5;
+  // The figurehead: a carved figure (a lion or a crowned bust, as the yards carved them) leaning out from the
+  // stem under the beakhead, on a scrolled bracket, its body tapering into the stem.
+  const figure = new THREE.Group();
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.034, 0.13, 10), gilt);
+  torso.position.set(0, 0.05, 0);
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 10), gilt);
+  chest.scale.set(1, 0.9, 1.1);
+  chest.position.set(0, 0.12, -0.006);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), gilt);
+  head.position.set(0, 0.17, -0.012);
+  // A crown of points (a mane for a lion, seen at this size).
+  const crown = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.03, 8, 1, true), gilt);
+  crown.position.set(0, 0.197, -0.012);
+  const scroll = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 6, 14, Math.PI * 1.4), gilt);
+  scroll.rotation.y = Math.PI / 2;
+  scroll.position.set(0, -0.02, 0.01);
+  figure.add(torso, chest, head, crown, scroll);
+  figure.rotation.x = -0.75;
+  figure.position.set(0, bow.h * 0.5, -plan.length / 2 - 0.1);
+  // Trailboards: carved, gilt-edged boards running back from the figure along each side of the stem.
+  for (const side of [-1, 1]) {
+    const trail = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.035, 0.16), gilt);
+    trail.position.set(side * 0.02, bow.h * 0.5, -plan.length / 2 - 0.02);
+    trail.rotation.x = 0.35;
+    group.add(trail);
+  }
   const cutwater = new THREE.Mesh(new THREE.BoxGeometry(0.03, bow.h + 0.2, 0.12), wale);
   cutwater.position.set(0, (bow.h - 0.2) / 2, -plan.length / 2 - 0.02);
   group.add(beak, figure, cutwater);
   // The stern: quarter galleries on either side, three lanterns on the taffrail.
   const aft = stationOf(plan, 0.05);
   for (const side of [-1, 1]) {
-    const gallery = new THREE.Mesh(new THREE.BoxGeometry(0.05, aft.h * 0.38, 0.22), stern);
-    gallery.position.set(side * (aft.w + 0.02), aft.h * 0.72, plan.length / 2 - 0.16);
-    group.add(gallery);
+    // A rounded bay standing out from the quarter, its windows (the stern's panes) round it, a domed roof and a
+    // drop below, each with a turned finial.
+    const height = aft.h * 0.38;
+    const bay = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, height, 14, 1, false, side > 0 ? 0 : Math.PI, Math.PI), stern);
+    bay.scale.set(0.9, 1, 1.9);
+    bay.position.set(side * (aft.w - 0.01), aft.h * 0.72, plan.length / 2 - 0.16);
+    const roof = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 6, side > 0 ? 0 : Math.PI, Math.PI, 0, Math.PI / 2), gilt);
+    roof.scale.set(0.9, 0.7, 1.9);
+    roof.position.set(bay.position.x, aft.h * 0.72 + height / 2, bay.position.z);
+    const drop = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.09, 14, 1, false, side > 0 ? 0 : Math.PI, Math.PI), gilt);
+    drop.rotation.x = Math.PI;
+    drop.scale.set(0.9, 1, 1.9);
+    drop.position.set(bay.position.x, aft.h * 0.72 - height / 2 - 0.045, bay.position.z);
+    group.add(bay, roof, drop);
   }
+
+  // On deck: the ship's boat stowed keel-up amidships on chocks, the capstan, and the wheel aft.
+  const boatWood = new THREE.MeshStandardMaterial({ color: '#5e3f2a', roughness: 0.8 });
+  const mid = stationOf(plan, 0.5);
+  const boatLen = plan.length * 0.2;
+  const boat = new THREE.Group();
+  // Her hull, upturned: a half-ellipsoid, fuller aft, with a keel along the top.
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), boatWood);
+  shell.scale.set(mid.w * 0.3, 0.05, boatLen / 2);
+  shell.castShadow = true;
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.01, boatLen * 0.95), wale);
+  keel.position.y = 0.05;
+  boat.add(shell, keel);
+  for (const dz of [-0.3, 0.3]) {
+    const chock = new THREE.Mesh(new THREE.BoxGeometry(mid.w * 0.66, 0.02, 0.03), wale);
+    chock.position.set(0, -0.005, dz * boatLen);
+    boat.add(chock);
+  }
+  boat.position.set(0, mid.h - 0.05 + 0.02, plan.length / 2 - 0.47 * plan.length);
+  group.add(boat);
+  const capstan = new THREE.Group();
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.036, 0.07, 12), wale);
+  drum.position.y = 0.035;
+  const head2 = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 12), boatWood);
+  head2.position.y = 0.075;
+  capstan.add(drum, head2);
+  for (let k = 0; k < 4; k++) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.008, 0.008), boatWood);
+    bar.position.y = 0.075;
+    bar.rotation.y = (k * Math.PI) / 4;
+    capstan.add(bar);
+  }
+  const capAt = stationOf(plan, 0.3);
+  capstan.position.set(0, capAt.h - 0.05, plan.length / 2 - 0.3 * plan.length);
+  group.add(capstan);
+  const wheelAt = stationOf(plan, 0.12);
+  const wheel = new THREE.Group();
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 6, 18), boatWood);
+  wheel.add(rim);
+  for (let k = 0; k < 8; k++) {
+    const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.11, 4), boatWood);
+    spoke.rotation.z = (k * Math.PI) / 8;
+    wheel.add(spoke);
+  }
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.07, 0.02), wale);
+  post.position.set(0, -0.045, 0.015);
+  wheel.add(post);
+  wheel.position.set(0, wheelAt.h - 0.05 + 0.075, plan.length / 2 - 0.12 * plan.length);
+  group.add(wheel);
   const lantern = new THREE.MeshStandardMaterial({ color: '#ffd77a', emissive: '#ffb84a', emissiveIntensity: 1.6, roughness: 0.3 });
   const s0top = stationOf(plan, 0);
   for (const [x, lift] of [[-s0top.w * 0.6, 0.1], [0, 0.16], [s0top.w * 0.6, 0.1]] as const) {
@@ -724,6 +806,9 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
 
 const SPAR = new THREE.MeshStandardMaterial({ color: '#4a2f22', roughness: 0.8 });
 const BLACK = new THREE.MeshStandardMaterial({ color: '#1d1a19', roughness: 0.6, metalness: 0.3 });
+/** A deadeye (the block a shroud's lanyard is rove through) and the iron chain plate under it. */
+const DEADEYE = new THREE.CylinderGeometry(0.014, 0.014, 0.008, 10);
+const CHAIN_PLATE = new THREE.BoxGeometry(0.006, 0.12, 0.006);
 /** Tarred rope: dark, a little sheen. */
 const ROPE = new THREE.MeshStandardMaterial({ color: '#2b2420', roughness: 0.7 });
 /** A rope's thickness (model units): fine against the hull, but solid enough to catch the light close in. */
@@ -1112,6 +1197,16 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const chain = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.3), SPAR);
       chain.position.set(s * (rail.w + 0.025), rail.h - 0.05, z + 0.16);
       root.add(chain);
+      // A deadeye at each shroud's foot on the chainwale, its chain plate running down the side to the wale.
+      for (let k = 0; k < 3; k++) {
+        const eye = new THREE.Mesh(DEADEYE, SPAR);
+        eye.rotation.z = Math.PI / 2;
+        eye.position.set(s * (rail.w + 0.03), rail.h - 0.035, z + 0.08 + k * 0.08);
+        root.add(eye);
+        const plate = new THREE.Mesh(CHAIN_PLATE, BLACK);
+        plate.position.set(s * (rail.w + 0.03), rail.h - 0.1, z + 0.08 + k * 0.08);
+        root.add(plate);
+      }
     }
   }
   // Stays: each masthead forward to the next mast's foot, the foremast's to the bowsprit's end.
