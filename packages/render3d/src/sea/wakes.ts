@@ -49,6 +49,8 @@ interface TrailPoint {
   x: number;
   z: number;
   born: number;
+  /** Her pace when she passed: the water she churned stays as white as she made it, if she slows or stops. */
+  pace: number;
 }
 
 interface Trail {
@@ -174,7 +176,7 @@ export function createWakes(): Wakes {
       const pace = THREE.MathUtils.clamp(s.pace, 0, 1);
       const halfBeam = s.length * HALF_BEAM;
       // From her stern (while she's here) back along where she has been.
-      const path: TrailPoint[] = live ? [{ x: s.x - fx * s.length * 0.42, z: s.z - fz * s.length * 0.42, born: clock }, ...trail.points] : trail.points;
+      const path: TrailPoint[] = live ? [{ x: s.x - fx * s.length * 0.42, z: s.z - fz * s.length * 0.42, born: clock, pace }, ...trail.points] : trail.points;
       let along = 0;
       const first = v;
       for (let i = 0; i < path.length; i++) {
@@ -196,7 +198,7 @@ export function createWakes(): Wakes {
         const half = (halfBeam + along * V_SLOPE) * WAKE_MARGIN;
         const age = (clock - p.born) / WAKE_LIFE;
         // Fades with age (gone at WAKE_LIFE), and eases in over the first stretch behind her stern.
-        const white = pace * Math.pow(Math.max(0, 1 - age), 1.6) * THREE.MathUtils.smoothstep(along, 0, s.length * 0.25 + 0.01);
+        const white = p.pace * Math.pow(Math.max(0, 1 - age), 1.6) * THREE.MathUtils.smoothstep(along, 0, s.length * 0.25 + 0.01);
         for (let c = 0; c <= COLUMNS; c++) {
           const side = (c / COLUMNS) * 2 - 1;
           trailPos.set([p.x - tz * half * side, 0, p.z + tx * half * side], v * 3);
@@ -253,7 +255,7 @@ export function createWakes(): Wakes {
         const sz = s.z + Math.cos(r) * s.length * 0.42;
         const head = trail.points[0];
         if (!head || Math.hypot(head.x - sx, head.z - sz) > s.length * SPACING) {
-          trail.points.unshift({ x: sx, z: sz, born: clock });
+          trail.points.unshift({ x: sx, z: sz, born: clock, pace: THREE.MathUtils.clamp(s.pace, 0, 1) });
           if (trail.points.length > MAX_POINTS) trail.points.length = MAX_POINTS;
         }
       }
