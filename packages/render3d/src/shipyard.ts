@@ -799,6 +799,53 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
   const cutwater = new THREE.Mesh(new THREE.BoxGeometry(0.03, bow.h + 0.2, 0.12), wale);
   cutwater.position.set(0, (bow.h - 0.2) / 2, -plan.length / 2 - 0.02);
   group.add(beak, figure, cutwater);
+  // Head rails: curved rails sweeping back and up from the figurehead to the bow on each side, two to a side.
+  const stem = -plan.length / 2;
+  const shoulder = stationOf(plan, 0.93);
+  for (const side of [-1, 1]) {
+    for (const [lift, out] of [
+      [0, 1],
+      [0.05, 0.85],
+    ] as const) {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, bow.h * 0.5 + lift, stem - 0.1),
+        new THREE.Vector3(side * 0.035 * out, bow.h * 0.62 + lift, stem - 0.04),
+        new THREE.Vector3(side * shoulder.w * 0.7 * out, bow.h * 0.78 + lift, stem + 0.12),
+        new THREE.Vector3(side * shoulder.w * out, shoulder.h * 0.85 + lift * 0.5, stem + 0.24),
+      ]);
+      const railTube = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.007, 5), gilt);
+      group.add(railTube);
+    }
+    // A cathead: a stout beam out over the bow, an anchor hung from it, stock up and flukes down.
+    const cat = stationOf(plan, 0.9);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.022, 0.022), wale);
+    head.position.set(side * (cat.w + 0.05), cat.h - 0.01, stem + 0.24);
+    head.rotation.y = side * 0.4;
+    group.add(head);
+    const anchor = new THREE.Group();
+    const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.13, 6), BLACK);
+    shank.position.y = -0.065;
+    const stock = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 6), wale);
+    stock.rotation.x = Math.PI / 2;
+    const arms = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.005, 5, 10, Math.PI), BLACK);
+    arms.rotation.z = Math.PI;
+    arms.position.y = -0.11;
+    anchor.add(shank, stock, arms);
+    anchor.position.set(side * (cat.w + 0.11), cat.h - 0.03, stem + 0.24 + 0.03);
+    anchor.rotation.y = Math.PI / 2;
+    group.add(anchor);
+  }
+  // Steps up her side amidships, from near the water to the rail, on both sides.
+  const entry = stationOf(plan, 0.52);
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 6; k++) {
+      const s = 0.38 + (k / 6) * 0.58;
+      const y = KEEL + (entry.h - KEEL) * s;
+      const step = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.008, 0.05), wale);
+      step.position.set(side * (sideAt(entry.w, s, 0.52, plan) + 0.012), y, plan.length / 2 - 0.52 * plan.length);
+      group.add(step);
+    }
+  }
   // The stern: quarter galleries on either side, three lanterns on the taffrail.
   const aft = stationOf(plan, 0.05);
   for (const side of [-1, 1]) {
@@ -873,6 +920,21 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
     l.scale.y = 1.4;
     l.position.set(x, s0top.h + lift, plan.length / 2 + 0.01);
     group.add(l);
+  }
+  // A great ship carries a great stern lantern on the taffrail, in a gilt cage on a bracket.
+  if (plan.castle > 0.2) {
+    const great = new THREE.Group();
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.1, 8), lantern);
+    glass.position.y = 0.05;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.05, 8), gilt);
+    cap.position.y = 0.125;
+    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 5), gilt);
+    finial.position.y = 0.16;
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.08), gilt);
+    bracket.position.set(0, -0.005, -0.03);
+    great.add(glass, cap, finial, bracket);
+    great.position.set(0, s0top.h + 0.2, plan.length / 2 + 0.04);
+    group.add(great);
   }
   return group;
 }

@@ -142,6 +142,8 @@ own off a real island, at every zoom, hour and wind.
     full topsides; castled ships (galleons, ships of the line) have a strong tumblehome.
   - Castles rise in a step from the waist, not a ramp: a bulkhead across the deck at each (painted, with doors
     and small windows) and a balustrade of turned posts along its edge.
+  - At the bow, gilt head rails sweeping back from the figurehead, and a cathead each side with an anchor hung
+    from it; steps up her side amidships; a great stern lantern in a gilt cage on the big ships.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
     slightly different bolts with raised seams, soft creases, reef bands and a bolt rope in relief (a normal map),
