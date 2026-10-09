@@ -82,6 +82,10 @@ own off a real island, at every zoom, hour and wind.
   sunrise and sunset, a short moonlit night); the HUD shows the date only in 3D. A painted dome, deep blue
   overhead and pale at the horizon, with a soft sun glow (a physical sky's glare washed out a low camera).
   Clouds drift downwind and show only from afar.
+  The weather sets it too (after Black Flag): by the wind's strength where the camera is, and deepest in and
+  near a storm, a lid of drifting grey cloud spreads over the sky, the sun fades behind it, the light flattens
+  and dims, the horizon closes in, the clouds darken and the sea turns grey-green. It rolls in and clears over
+  some seconds; a fight keeps the weather it began in.
 - **Sea** (`sea/`; how it is drawn: `ocean-renderer.md`), after Black Flag:
   - A real sea of 24 waves running with the wind (Gerstner, crests sharpened), its size set by the weather: a
     gentle swell in light air, a lively sea in a fresh breeze, big rolling seas in a gale. Ships ride it.

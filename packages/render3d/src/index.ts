@@ -99,6 +99,17 @@ const NIGHT_SKY = new THREE.Color('#2c4670');
 const DAY_ZENITH = new THREE.Color('#2f7fcf');
 const GOLD_ZENITH = new THREE.Color('#5568a8');
 const NIGHT_ZENITH = new THREE.Color('#0d1a33');
+// Overcast and storm (Black Flag: a lid of grey cloud, flat grey-green light, the horizon closing in).
+const STORM_HORIZON = new THREE.Color('#6f7a80');
+const STORM_ZENITH = new THREE.Color('#3b434b');
+const STORM_SUN = new THREE.Color('#c9d0d4');
+/**
+ * How overcast the weather makes it, 0 clear .. 1 a storm: by the wind's strength where the camera is, and
+ * deepest inside a storm (and closing in as one nears, from half again its radius).
+ */
+const GLOOM_BY_WIND: Record<string, number> = { calm: 0, light: 0, fresh: 0.12, strong: 0.4, gale: 0.7 };
+/** How fast the sky clouds over or clears, per second: a squall rolls in over some seconds, not in a frame. */
+const GLOOM_EASE = 0.35;
 const PENNANT: Record<string, string> = { spain: '#e8c170', england: '#a53030', france: '#ebede9', netherlands: '#de9e41', pirate: '#090a14' };
 
 export interface SeaRenderer {
@@ -233,12 +244,17 @@ export async function createSeaRenderer(
     zenith,
     ambient: new THREE.Color(),
     level: 1,
+    overcast: 0,
     fog: new THREE.Color(),
     fogDensity: 0.002,
   };
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
   let skySeconds = SKY_START;
+  /** The weather's overcast, eased toward `gloomWant`. */
+  let gloom = 0;
+  let gloomWant = 0;
+  let gloomSeen = false;
   // Each ship's ride: her height on the swell and her pitch and roll, eased toward the sea's each frame.
   const rides = new Map<string, { bob: number; pitch: number; roll: number; lean: number; heading: number }>();
 
@@ -248,6 +264,11 @@ export async function createSeaRenderer(
     lastMs = nowMs;
     skySeconds += dt;
     const hour = skyHour(skySeconds);
+    // The weather's overcast, easing in and out (the first frame takes it as it is).
+    gloom = gloomSeen ? gloom + (gloomWant - gloom) * (1 - Math.exp(-dt * GLOOM_EASE)) : gloomWant;
+    gloomSeen = true;
+    const g = THREE.MathUtils.smoothstep(gloom, 0, 1);
+    light.overcast = g;
     // The sun's arc from 6 to 18; golden low, moonlit blue at night.
     const e = Math.sin(((hour - 6) / 12) * Math.PI);
     const dayness = THREE.MathUtils.smoothstep(e, 0.05, 0.4);
@@ -260,21 +281,29 @@ export async function createSeaRenderer(
     light.level = level;
     light.sun.copy(GOLD_SUN).lerp(DAY_SUN, dayness).lerp(MOON.clone().multiplyScalar(0.6), night);
     light.sky.copy(GOLD_SKY).lerp(DAY_SKY, dayness).lerp(NIGHT_SKY, night);
-    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.08 * dayness);
     // The dome: deep blue overhead, the horizon in the hour's colour.
     zenith.copy(GOLD_ZENITH).lerp(DAY_ZENITH, dayness).lerp(NIGHT_ZENITH, night);
+    // Overcast: the sky greys toward a lid of cloud (darker by night), the sun turns pale and weak behind it.
+    const dim = THREE.MathUtils.lerp(0.35, 1, level);
+    light.sky.lerp(STORM_HORIZON.clone().multiplyScalar(dim), g * 0.9);
+    zenith.lerp(STORM_ZENITH.clone().multiplyScalar(dim), g * 0.9);
+    light.sun.lerp(STORM_SUN.clone().multiplyScalar(dim), g * 0.8);
+    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.08 * dayness * (1 - g));
     (scene.background as THREE.Color).copy(light.sky);
-    sun.intensity = THREE.MathUtils.lerp(0.9, 2.6, THREE.MathUtils.smoothstep(e, -0.05, 0.12));
+    sun.intensity = THREE.MathUtils.lerp(0.9, 2.6, THREE.MathUtils.smoothstep(e, -0.05, 0.12)) * (1 - 0.72 * g);
     sun.color.copy(light.sun);
     // Sails catch the light: a touch of the sky's colour in their glow (lavender and gold at dusk, blue at night).
     SAIL_GLOW.set('#fffaf0').lerp(light.sky, 0.18 + 0.3 * (1 - dayness)).lerp(light.sun, 0.12);
-    fill.intensity = 0.55 + level * 0.5;
+    fill.intensity = (0.55 + level * 0.5) * (1 - 0.25 * g);
     fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);
     // The water is lit as the scene is: the sun's power, and the sky's light over it.
     light.power = sun.intensity;
     light.ambient.copy(fill.color).multiplyScalar(fill.intensity);
-    renderer.toneMappingExposure = 0.7 + level * 0.3;
-    light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, view)) ** 0.5;
+    renderer.toneMappingExposure = (0.7 + level * 0.3) * (1 - 0.12 * g);
+    // The horizon closes in under the cloud, and the clouds themselves darken.
+    light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, view)) ** 0.5 * (1 + 2.2 * g);
+    cloudMat.color.setScalar(1 - 0.55 * g);
+    sky.setOvercast(g, nowMs / 1000);
     return dt;
   };
 
@@ -418,10 +447,25 @@ export async function createSeaRenderer(
     worldShips.visible = true;
   };
 
+  /** The overcast at a point: the wind's strength there, deepest within a storm. */
+  const gloomAt = (state: WorldState, x: number, y: number) => {
+    const byWind = GLOOM_BY_WIND[options.windAt(state, x, y).strength] ?? 0;
+    let byStorm = 0;
+    for (const s of state.weather?.storms ?? []) {
+      const d = Math.hypot(s.x - x, s.y - y);
+      byStorm = Math.max(byStorm, 1 - THREE.MathUtils.smoothstep(d, s.radius * 0.7, s.radius * 1.5));
+    }
+    battleStorm = byStorm;
+    return Math.max(byWind, byStorm);
+  };
+  /** The storm's share of the overcast where the player last was (a fight joined there keeps it). */
+  let battleStorm = 0;
+
   const render = (state: WorldState, nowMs: number) => {
     if (inBattle) leaveBattle();
     const me = state.ships[options.playerId];
     if (!me) return;
+    gloomWant = gloomAt(state, me.x, me.y);
     const dt = beginFrame(nowMs, distance);
     const t = nowMs / 1000;
     const wind = options.windAt(state, me.x, me.y);
@@ -491,6 +535,8 @@ export async function createSeaRenderer(
     const apart = Math.hypot(enemy.x - player.x, enemy.y - player.y);
     // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close.
     const want = THREE.MathUtils.clamp(apart * 1.3 + 6, BATTLE_VIEW.min, BATTLE_VIEW.max) * battleZoom;
+    // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
+    gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
     const dt = beginFrame(nowMs, battleView || want);
     const t = nowMs / 1000;
     battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;

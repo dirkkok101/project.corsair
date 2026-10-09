@@ -41,6 +41,8 @@ export interface SeaLight {
   ambient?: THREE.Color;
   /** 0..1, night to full day. */
   level: number;
+  /** 0 clear .. 1 a storm's overcast: the water greys under the cloud. */
+  overcast?: number;
   fog: THREE.Color;
   fogDensity: number;
 }
@@ -61,6 +63,7 @@ export interface Ocean {
 // scatter: the green-turquoise glow in thin, backlit crests; the shallows' turquoise and sand; foam's albedo.
 const COLOURS = {
   deep: new THREE.Color('#0d3f5c'),
+  stormDeep: new THREE.Color('#1c3238'),
   scatter: new THREE.Color('#2bb3a0'),
   shallow: new THREE.Color('#3fc7c0'),
   sand: new THREE.Color('#cfe3c0'),
@@ -553,6 +556,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       shipsThisFrame = [];
 
       // The light, as the scene has it (linear).
+      // Under cloud the deep water loses its blue to a grey-green.
+      uniforms.uDeep.value.copy(COLOURS.deep).lerp(COLOURS.stormDeep, (light.overcast ?? 0) * 0.85);
       uniforms.uSunDir.value.copy(light.sunDir);
       uniforms.uSun.value.copy(light.sun).multiplyScalar(light.power ?? 2);
       uniforms.uHorizon.value.copy(light.sky);
