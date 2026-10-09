@@ -142,9 +142,12 @@ own off a real island, at every zoom, hour and wind.
   - The compass top-left (the wind's red arrow, heading, knots), as at sea.
   - The camera frames both ships, high and oblique, closer as they close; the wheel zooms, C views from astern.
 - **Image:** bloom, SMAA and ACES tone mapping.
-- **Compass** (HUD, top-right): a gilt rose on a sea-blue face, north-up; the wind a red arrow through it to where
-  it blows, longer and bolder the harder it blows; the heading a gold mark on the rim; speed in knots beneath, with
-  the point of sail. Behind the rose, quietly, the speed for every heading and the no-go zone on the ring.
+- **Compass** (HUD, top-right): a gilt rose on a sea-blue face, turned with the view (north-up overhead, her bow up
+  from astern), so it matches the sea on screen; the wind a red arrow through it to where it blows, longer and
+  bolder the harder it blows; her hull in the middle pointing her way, outlined green at her best point of sail,
+  amber pinching or running, red in irons; the heading a gold mark on the rim; speed in knots beneath, the point of
+  sail, and a bar for how well the wind fills her sails. Behind the rose, quietly, the speed for every heading and
+  the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
   - bow spray;

@@ -957,13 +957,16 @@ async function main() {
               : undefined
           }
           advice={fight.report ? repairAdvice() : undefined}
-          compass={compassProps(
-            content,
-            bs.ships.player,
-            bs.wind,
-            // The battle's speeds run on their own scale: as speed points, then as the sea map's tiles a second.
-            (bs.ships.player.speed / content.combat.battle.tilesPerSecondPerSpeedPoint) * content.navigation.tilesPerSecondPerSpeedPoint * knotsPerTilePerSecond,
-          )}
+          compass={{
+            ...compassProps(
+              content,
+              bs.ships.player,
+              bs.wind,
+              // The battle's speeds run on their own scale: as speed points, then as the sea map's tiles a second.
+              (bs.ships.player.speed / content.combat.battle.tilesPerSecondPerSpeedPoint) * content.navigation.tilesPerSecondPerSpeedPoint * knotsPerTilePerSecond,
+            ),
+            viewDeg: sea3d?.viewDeg(),
+          }}
           board={{ odds: fight.battle.boardingOdds(), active: Boolean(bs.boarding) }}
           onPlunder={takePlunder}
           reloadSeconds={gunnery.reloadSeconds}
@@ -1297,6 +1300,7 @@ async function main() {
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
         knotsPerTilePerSecond={knotsPerTilePerSecond}
+        viewDeg={sea3d?.viewDeg()}
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`

@@ -373,6 +373,23 @@ body {
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
 }
 
+/* How well the wind fills her sails: a bar under the compass, green at her best point of sail. */
+.compass-sailing {
+  width: 96px;
+  height: 6px;
+  margin-top: 3px;
+  background: rgb(19 44 71 / 0.85);
+  border: 1px solid #9a6e34;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.compass-sailing span {
+  display: block;
+  height: 100%;
+  transition: width 0.3s, background 0.3s;
+}
+
 .hud-prompt {
   position: absolute;
   left: 50%;

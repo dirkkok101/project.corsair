@@ -128,6 +128,8 @@ export interface SeaRenderer {
   zoom(steps: number): void;
   /** Overhead or from astern. */
   toggleChase(): void;
+  /** Which way is up the screen (degrees clockwise from north): 0 overhead, her heading from astern. */
+  viewDeg(): number;
   /** Sets the sky to an hour of its day (for reviewing sunrise, sunset and night). */
   setSkyHour(hour: number): void;
   /** For review: a row of these classes under sail, abeam of the player, drawn only (not in the world). */
@@ -237,6 +239,8 @@ export async function createSeaRenderer(
 
   let distance = ZOOM.start;
   let chase = false;
+  /** The heading the camera from astern looks along (the player's, at sea or in battle). */
+  let viewHeading = 0;
   const target = new THREE.Vector3();
   const sunDir = new THREE.Vector3();
   const zenith = new THREE.Color();
@@ -570,6 +574,7 @@ export async function createSeaRenderer(
     target.set(me.x, 0, me.y);
     const zt = Math.log(distance / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
     const pitch = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
+    viewHeading = me.headingDeg;
     finishFrame(distance, pitch, chase ? (-me.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
   };
 
@@ -682,6 +687,7 @@ export async function createSeaRenderer(
     target.set(player.x + (enemy.x - player.x) * 0.45, 0, player.y + (enemy.y - player.y) * 0.45);
     if (chase) target.set(player.x, 0, player.y);
     const pitch = THREE.MathUtils.degToRad(chase ? 24 : 52);
+    viewHeading = player.headingDeg;
     finishFrame(chase ? Math.min(battleView, 30) : battleView, pitch, chase ? (-player.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
   };
 
@@ -701,6 +707,7 @@ export async function createSeaRenderer(
       if (inBattle) battleZoom = THREE.MathUtils.clamp(battleZoom * Math.pow(1.12, steps), BATTLE_ZOOM.min, BATTLE_ZOOM.max);
       else distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
     },
+    viewDeg: () => (chase ? viewHeading : 0),
     toggleChase() {
       chase = !chase;
     },

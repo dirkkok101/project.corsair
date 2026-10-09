@@ -19,6 +19,10 @@ export interface CompassProps {
   knots: number;
   /** Her point of sail ("Beam reach"). */
   pointName: string;
+  /** How well the wind drives her on this heading, 0 (in irons) .. 1 (her best point of sail). */
+  sailing: number;
+  /** The view's turn (degrees clockwise from north up the screen): the rose turns with it, so it matches the sea. */
+  viewDeg?: number;
   className?: string;
 }
 
@@ -37,6 +41,8 @@ export function Compass({
   scale,
   knots,
   pointName,
+  sailing,
+  viewDeg = 0,
   className,
 }: CompassProps) {
   // Its gradients' ids are its own: another compass (the sea HUD's, hidden in battle) can't lend them.
@@ -72,9 +78,27 @@ export function Compass({
   const head = `${pt(to, reach + 8)} ${pt(to + 24, reach - 6)} ${pt(to - 24, reach - 6)}`;
   const flight = (side: number) => `${pt(windFromDeg + side * 14, reach * 0.85 + 6)} ${pt(windFromDeg, reach * 0.85 - 4)} ${pt(windFromDeg + side * 4, reach * 0.85 + 8)}`;
   const [hx, hy] = at(headingDeg, ROSE.ring - 3);
+  // Her hull in the middle, pointing her way: the wind's arrow against her shows at a glance where it takes her.
+  const hull = [
+    [0, 30],
+    [7, 14],
+    [8, -6],
+    [6, -22],
+    [-6, -22],
+    [-8, -6],
+    [-7, 14],
+  ]
+    .map(([x, y]) => {
+      const r = (headingDeg * Math.PI) / 180;
+      return `${c + Math.cos(r) * x! + Math.sin(r) * y!},${c + Math.sin(r) * x! - Math.cos(r) * y!}`;
+    })
+    .join(' ');
+  // How well the wind drives her: green at her best, amber when pinching or running, red in irons.
+  const drawing = sailing > 0.75 ? '#7fcf6a' : sailing > 0.4 ? '#e6bf4a' : '#d8352a';
   return (
     <div class={`hud-rose${className ? ` ${className}` : ''}`} title="Compass: the red arrow is the wind, the gold mark your heading">
       <svg width={ROSE.size} height={ROSE.size} viewBox={`0 0 ${ROSE.size} ${ROSE.size}`}>
+        <g transform={`rotate(${-viewDeg} ${c} ${c})`}>
         <defs>
           <radialGradient id={`${uid}-face`} cx="50%" cy="45%" r="60%">
             <stop offset="0" stop-color="#2a5d8c" />
@@ -102,7 +126,6 @@ export function Compass({
           return <line key={d} x1={ax} y1={ay} x2={bx} y2={by} stroke="#7a2a24" stroke-width="4" />;
         })}
         {star}
-        <circle cx={c} cy={c} r="5" fill={GILT} stroke={GILT_DARK} />
         {/* North: a fleur-de-lis above the ring. */}
         <path
           d={`M${c},${c - ROSE.ring - 14} q-5,6 0,13 q5,-7 0,-13 M${c - 10},${c - ROSE.ring - 2} q3,-9 10,-4 q7,-5 10,4`}
@@ -118,13 +141,19 @@ export function Compass({
           <polygon points={flight(1)} fill={WIND_RED} />
           <polygon points={flight(-1)} fill={WIND_RED} />
         </g>
+        {/* Her hull, her way, over the arrow, lit by how well she sails. */}
+        <polygon points={hull} fill="#3a2418" stroke={drawing} stroke-width="2.5" stroke-linejoin="round" />
         {/* Her heading: a gold mark on the rim. */}
         <circle cx={hx} cy={hy} r="4.5" fill="#fff1c4" stroke={GILT_DARK} stroke-width="1.5" />
+        </g>
       </svg>
       <div class="compass-speed">
         {Math.round(knots)} {Math.round(knots) === 1 ? 'knot' : 'knots'}
       </div>
       <div class="compass-point">{pointName}</div>
+      <div class="compass-sailing" title="How well the wind fills your sails on this heading">
+        <span style={{ width: `${Math.round(sailing * 100)}%`, background: drawing }} />
+      </div>
     </div>
   );
 }
@@ -143,6 +172,7 @@ export function compassProps(content: ContentPack, ship: { classId: string; head
     scale: drive / strongest,
     knots,
     pointName: pointOfSail(content, angleOffWind(ship.headingDeg, wind.fromDeg)).name,
+    sailing: polarAt(polar, angleOffWind(ship.headingDeg, wind.fromDeg)) / Math.max(...polar.values),
   };
 }
 
@@ -171,6 +201,8 @@ export interface HudProps {
   saved?: boolean;
   /** Knots for a speed of one tile a second (from the map's scale and the game's clock). */
   knotsPerTilePerSecond: number;
+  /** The view's turn (degrees clockwise): the 3D camera from astern turns with her, and the compass with it. */
+  viewDeg?: number;
 }
 
 export function Hud({
@@ -188,6 +220,7 @@ export function Hud({
   timeScale,
   saved,
   knotsPerTilePerSecond,
+  viewDeg,
 }: HudProps) {
   const ship = state.ships.player;
   if (!ship) return null;
@@ -242,7 +275,7 @@ export function Hud({
           {ship.blocked ? ' · aground' : ''}
         </div>
       </div>
-      <Compass {...compassProps(content, ship, wind, ship.speed * knotsPerTilePerSecond)} />
+      <Compass {...compassProps(content, ship, wind, ship.speed * knotsPerTilePerSecond)} viewDeg={viewDeg} />
       {sound ? <div class="hud-sound">{sound}</div> : null}
       {prompt ? <div class="hud-prompt">{prompt}</div> : null}
       {saved ? <div class="hud-saved">Saved</div> : null}

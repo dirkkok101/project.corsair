@@ -322,8 +322,26 @@ void main() {
   caps *= 1.0 - smoothstep(0.12, 0.35, footprint);
   foam = max(foam, caps * uShowFlecks * (1.0 - smoothstep(0.6, 0.85, shallow)));
 
+  // Foam the ships churn (waves.ts): white and finely broken while fresh, thinning to lace as it ages and spreads.
+  // It lies on the water as a white surface does, lit by the sky and the sun.
+  vec4 gs = texture2D(uWaves, gv) * ge.x * ge.y * uShowWaves;
+  float simFoam = 0.0;
+  if (gs.b > 0.01) {
+    float fine = texture2D(uDetail, uv / 0.45 + vec2(0.13, 0.71)).a;
+    float lace = texture2D(uDetail, uv / 1.6 + vec2(0.57, 0.29)).a * 0.65 + fine * 0.35;
+    float freshW = smoothstep(0.0, 0.6, gs.a);
+    // Never solid: even the densest churn shows water through it (Black Flag's wake is a lace of white over
+    // the sea, whitest just astern), and old foam is a thin net.
+    float threshold = mix(0.93 - gs.b * 0.6, 0.8 - gs.b * 0.5, freshW);
+    float pattern = mix(lace, fine * 0.5 + lace * 0.5, freshW);
+    simFoam = smoothstep(threshold, threshold + mix(0.06, 0.12, freshW), pattern) * mix(0.55, 0.95, freshW) * smoothstep(0.0, 0.15, gs.b);
+  }
+  // Where the foam is simulated (close in, round the camera), it takes the place of the painted wake below.
+  float simulated = ge.x * ge.y * uShowWaves * (1.0 - smoothstep(0.06, 0.12, length(fwidth(xz))));
+  foam = max(foam, simFoam);
+
   // Wakes: read from the stamped target, and alive: wavelets on the V's arms, churned water fixed where she left
-  // it, the arms' crests breaking white, and the white water at her hull.
+  // it, the arms' crests breaking white, and the white water at her hull. Drawn where the foam isn't simulated.
   vec2 wuv = (xz - uWakeArea.xy) / uWakeArea.z;
   vec2 edge = smoothstep(0.0, 0.08, wuv) * smoothstep(0.0, 0.08, 1.0 - wuv);
   vec4 w = texture2D(uWake, wuv) * edge.x * edge.y;
@@ -346,7 +364,7 @@ void main() {
     float crests = smoothstep(0.5, 0.95, sin(divPhase)) * armZone * divFine * (1.0 - smoothstep(0.6, 2.4, behind)) * smoothstep(0.3, 0.6, boil);
     float spray = 0.5 + 0.8 * texture2D(uDetail, uv / 0.8 + 0.4 + turn * 0.5).a;
     float hull = w.a * smoothstep(0.15, 0.6, w.a * (0.4 + 0.85 * spray));
-    foam = max(foam, max(life * max(churn * 0.75, crests * 0.4), hull) * uShowWakes);
+    foam = max(foam, max(life * max(churn * 0.75, crests * 0.4), hull) * uShowWakes * (1.0 - simulated));
   }
 
   // Foam lies on the water, lit by the sky and the sun (as a white surface is: bright, never glowing).
