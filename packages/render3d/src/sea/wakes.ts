@@ -91,7 +91,8 @@ void main() {
   // The bow wave: two arms from the stem, sweeping aft and outward, softening as they spread.
   float behind = 0.47 - a;
   float arm = abs(b) - 0.07 - behind * 0.32;
-  float bow = exp(-arm * arm / (0.0012 + behind * 0.004)) * step(0.0, behind) * (1.0 - smoothstep(0.15, 0.8, behind));
+  // (Ahead of the stem, behind is negative: the spread is held at its stem width there, as step() zeroes the arm.)
+  float bow = exp(-arm * arm / (0.0012 + max(behind, 0.0) * 0.004)) * step(0.0, behind) * (1.0 - smoothstep(0.15, 0.8, behind));
   // And a little white heaped at the stem itself.
   bow += exp(-((a - 0.47) * (a - 0.47) + b * b) / 0.0015) * 0.7;
   gl_FragColor = vec4(0.0, 0.0, 0.0, clamp((hull * 0.8 + bow * 0.85) * pace, 0.0, 1.0));
