@@ -151,13 +151,13 @@ void main() {
   vec4 coastWide = texture2D(uCoast, (xz + vec2(wobble2, -wobble) * 1.4) / uMapSize);
   float floorH = coastNear.r;
   float shallow = coastWide.g;
-  float open = 1.0 - smoothstep(0.55, 0.8, shallow);
+  float open = 1.0 - smoothstep(0.5, 0.76, shallow);
   float linesWidth = fwidth(floorH) * 13.0;
 
   // The water's colour by depth: cerulean, a brighter shelf, the turquoise apron.
   vec3 col = uDeep;
-  col = mix(col, uShelf, smoothstep(0.42, 0.62, shallow));
-  col = mix(col, uApron, smoothstep(0.6, 0.8, shallow));
+  col = mix(col, uShelf, smoothstep(0.36, 0.56, shallow));
+  col = mix(col, uApron, smoothstep(0.52, 0.76, shallow));
 
   // The hammered surface: two scales of shallow dents, drifting with the water; fades out with distance on its own (mipmaps).
   float dents = (texture2D(uDetail, uv / 5.3).r - 0.5) * 0.6 + (texture2D(uDetail, uv / 2.2 + vec2(0.37, 0.61)).r - 0.5) * 0.4;
@@ -175,7 +175,7 @@ void main() {
 
   // Cloud shadows: large, very soft, a few percent darker, drifting with the clouds.
   float cloud = texture2D(uDetail, (xz + uCloudOffset) / 150.0).b;
-  col *= 1.0 - 0.08 * smoothstep(0.52, 0.74, cloud) * uShowShadows;
+  col *= 1.0 - 0.06 * smoothstep(0.45, 0.8, cloud) * uShowShadows;
 
   // Whitecap flecks: small soft flecks drawn out along the wind, showing in patches that come and go slowly
   // (the patches drift a little slower than the water, so each fleck fades in and out as it goes).
