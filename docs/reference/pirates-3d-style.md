@@ -77,6 +77,8 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   Clouds drift downwind and show only from afar.
 - **Sea:**
   - Calm and painterly: low, long swells, with the fine chop only in the shading.
+  - Everything on the water moves the wind's way, at speeds that belong together: swells within about 20° of
+    the wind, rolling slowly; ripples, flecks, gusts downwind; clouds and their shadows a little faster.
   - Ripple normals that also show as a soft, low-contrast hammered texture in the water's colour.
   - Flecks of whitecap lying along the wind, coming and going, more in a blow, gathered in gusty patches; three
     sizes so they stay about the same on screen at every zoom (Pirates! has no long wind streaks). Slow and
@@ -102,7 +104,11 @@ All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets th
   - Each ship rides the swell smoothly (her pitch and roll eased, averaged over the hull), heels with the wind
     on her beam, and leans outward in a turn (Pirates!: masts well over in a hard turn, upright as she steadies;
     harder the faster she goes).
-  - A wake from the bow: a bow wave along her sides opening into a V astern.
+  - The water she works, laid on the swell so a crest never buries it: a wake of fine combed streaks fanning
+    into a V astern (fixed in the water where she left it, each stretch fading out over six seconds, so it
+    trails her and dies away rather than drawing a line on the sea), churned water just aft of her, a
+    foam line at her waterline, and a bow wave: white water at her stem curling back along both sides. All of
+    it whiter the faster she goes; the bow foam flows aft at exactly her speed.
   - Decks a weathered, oiled reddish brown (a pale deck reads as a tan slab from the overhead camera).
 - **Sea battles** (`battle.ts`): fought on the same 3D sea as the map, its positions being world tiles.
   - The two ships at their true size (the map's 1.6x enlargement would leave no sea between them), so they

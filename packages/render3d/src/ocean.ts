@@ -14,19 +14,21 @@ interface Swell {
   amp: number;
   steep: number;
 }
-// A calm, painterly sea (Pirates! ships glide): low, long swells; the fine chop is only in the shading.
+// A calm, painterly sea (Pirates! ships glide): low, long swells; the fine chop is only in the shading. All run
+// close to the wind's own way (swells crossing at wide angles drift across it and read as a sea at odds with
+// the wind).
 const SWELLS: Swell[] = [
   { offDeg: 0, length: 11, amp: 0.045, steep: 0.45 },
-  { offDeg: 28, length: 6.5, amp: 0.025, steep: 0.4 },
-  { offDeg: -36, length: 3.1, amp: 0.012, steep: 0.35 },
-  { offDeg: 64, length: 1.7, amp: 0.006, steep: 0.3 },
+  { offDeg: 12, length: 6.5, amp: 0.025, steep: 0.4 },
+  { offDeg: -16, length: 3.1, amp: 0.012, steep: 0.35 },
+  { offDeg: 22, length: 1.7, amp: 0.006, steep: 0.3 },
 ];
 const GRAVITY = 9.8;
 /**
  * Clouds and their shadows drift downwind this many tiles a second at full strength: slowly (an unhurried
- * drift across the view, not a sweep), so the wind reads without hurrying the eye.
+ * drift across the view, not a sweep, near the sea's own pace), so the wind reads without hurrying the eye.
  */
-export const CLOUD_SPEED = 0.5;
+export const CLOUD_SPEED = 0.25;
 /** Swell speed, scaled well down from deep-water physics: crossing swells moving faster read as a restless shimmer. */
 const SPEED = 0.045;
 // The mesh carries only the swells long enough for its grid (shorter ones would alias into stripes); the
@@ -217,8 +219,10 @@ void main() {
   }
   // Fine ripples on top, two layers drifting downwind at different scales.
   vec2 drift = uWindDir * uTime;
-  vec4 t1 = texture2D(uRipple, vWorld.xz * 0.9 + drift * 0.06);
-  vec4 t2 = texture2D(uRipple, vWorld.xz * 2.3 - drift.yx * 0.09 + 0.37);
+  vec4 t1 = texture2D(uRipple, vWorld.xz * 0.9 - drift * 0.06);
+  // Both downwind (the second slower and finer): ripples that ran another way would set the sea at odds
+  // with the wind.
+  vec4 t2 = texture2D(uRipple, vWorld.xz * 2.3 - drift * 0.06 + 0.37);
   vec3 r1 = t1.xyz * 2.0 - 1.0;
   vec3 r2 = t2.xyz * 2.0 - 1.0;
   float rippleFade = (1.0 - smoothstep(0.08, 0.6, footprint)) * (0.35 + 0.65 * uStrength);
@@ -237,7 +241,7 @@ void main() {
   water = mix(water, mix(uShallow, vec3(0.82, 0.93, 0.92), 0.25), smoothstep(0.15, 0.85, near) * 0.55);
   // The sand showing through the shallowest water, dappled by the light through the ripples.
   float sandy = smoothstep(0.82, 0.97, floorUp);
-  float caustic = smoothstep(0.55, 0.85, texture2D(uRipple, vWorld.xz * 1.6 + drift * 0.03).a) * (1.0 - smoothstep(0.1, 0.5, footprint));
+  float caustic = smoothstep(0.55, 0.85, texture2D(uRipple, vWorld.xz * 1.6 - drift * 0.03).a) * (1.0 - smoothstep(0.1, 0.5, footprint));
   water = mix(water, uSand, sandy * 0.55) + vec3(caustic * smoothstep(0.6, 0.9, floorUp) * 0.12);
   // The ripples show in the water's colour too: a soft, low-contrast hammered texture all over.
   float hammer = (t1.a - 0.5) * 0.16 + (t2.a - 0.5) * 0.08;

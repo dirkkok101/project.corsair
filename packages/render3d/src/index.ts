@@ -46,6 +46,8 @@ const SHIP_LENGTH = 2.4 * MODEL_SCALE;
 const RIDE_EASE = 1.1;
 /** A fast ship's speed in speed points, for how hard a ship heels in a turn. */
 const FAST_SHIP = 7;
+/** The speed in speed points at which the water round a ship is at its whitest (an ordinary good pace). */
+const BRISK = 4.5;
 /** The battle camera's distance in tiles, framing both ships, before the player's own zoom (a factor). */
 const BATTLE_VIEW = { min: 9, max: 90 };
 /**
@@ -436,10 +438,19 @@ export async function createSeaRenderer(
     wakes.update(
       Object.values(state.ships)
         .filter((s) => shown('wakes') && Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
-        .map((s) => ({ id: s.id, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed, length: SHIP_LENGTH * farScale })),
+        .map((s) => ({
+          id: s.id,
+          x: s.x,
+          z: s.y,
+          headingDeg: s.headingDeg,
+          speed: s.speed,
+          pace: Math.min(1, s.speed / content.navigation.tilesPerSecondPerSpeedPoint / BRISK),
+          length: SHIP_LENGTH * farScale,
+        })),
       dt,
       t,
       light.level,
+      (x, z) => seaHeight(sea, x, z, t),
     );
 
     for (const n of names) n.inRange = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
@@ -532,9 +543,9 @@ export async function createSeaRenderer(
         sails: tallest * 0.6 * BATTLE_MODEL_SCALE,
         masts: f.plan.masts.map((m) => ({ along: m.at / f!.plan.hull.length, height: m.height * BATTLE_MODEL_SCALE })),
       };
-      if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, length });
+      if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, pace: Math.min(1, (pace * FAST_SHIP) / BRISK), length });
     }
-    wakes.update(wakeShips, dt, t, light.level);
+    wakes.update(wakeShips, dt, t, light.level, (x, z) => seaHeight(sea, x, z, t));
     fallsSeen = Math.max(fallsSeen, ...view.effects.map((e) => e.at));
     for (const n of names) n.inRange = false;
 
