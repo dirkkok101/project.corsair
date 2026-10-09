@@ -26,8 +26,9 @@ export interface BattleViewShip {
   hullMax?: number;
   /** Each mast's strength, fore to aft (0: gone by the board). */
   masts?: number[];
-  /** Her men aboard. */
+  /** Her men aboard, and her guns still mounted. */
   crew?: number;
+  guns?: number;
 }
 /** Where a ball struck her: along her length (bow positive, -0.5 .. 0.5), and in what. */
 export interface BattleViewPlace {

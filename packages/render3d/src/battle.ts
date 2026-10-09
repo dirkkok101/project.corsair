@@ -147,7 +147,8 @@ export function createBattleFx() {
   const glow = pointLayer(true);
 
   // Splinters and scraps of canvas: little solid pieces tumbling.
-  const debris = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.04, 0.05), new THREE.MeshStandardMaterial({ roughness: 0.8 }), MAX_DEBRIS);
+  // (Sized against a ship a few tiles long: a splinter a few hundredths of a tile, a scrap of canvas a little more.)
+  const debris = new THREE.InstancedMesh(new THREE.BoxGeometry(0.045, 0.01, 0.014), new THREE.MeshStandardMaterial({ roughness: 0.8 }), MAX_DEBRIS);
   debris.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   debris.frustumCulled = false;
   object.add(debris);
@@ -427,7 +428,7 @@ export function createBattleFx() {
           e.set(pt.spin, pt.spin * 0.7, pt.spin * 1.3);
           q.setFromEuler(e);
           const fade = 1 - THREE.MathUtils.smoothstep(age, 0.8, 1);
-          sc.set(pt.kind === 'canvas' ? 1.4 * fade : fade, fade, pt.kind === 'canvas' ? 4 * fade : fade);
+          sc.set(pt.kind === 'canvas' ? 0.9 * fade : fade, fade, pt.kind === 'canvas' ? 1.8 * fade : fade);
           m.compose(p.set(pt.x, pt.y, pt.z), q, sc);
           debris.setMatrixAt(nd, m);
           debris.setColorAt(nd, tints[pt.kind]);

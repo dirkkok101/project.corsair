@@ -122,9 +122,13 @@ own off a real island, at every zoom, hour and wind.
   - Fittings: a carved figurehead on a scrolled bracket with gilt trailboards; rounded quarter galleries with domed
     roofs and drops; deadeyes and chain plates where the shrouds come down; the ship's boat stowed keel-up on
     chocks amidships, a capstan, and the wheel aft.
-  - Crew on deck (Pirates!): up to 24 sailors in linen, red, blue and tarred jackets, at the rails and amidships,
-    as many as she has men for. In battle grapeshot thins them: the men lost fall where they stood and are gone,
+  - Crew on deck (Pirates!): up to 24 sailors at the rails and amidships, as many as she has men for, simply made
+    but plainly men (legs, torso, arms swinging as they haul or stand by, head, hat), in their nation's working
+    dress: English blue jackets and white breeches, Spanish dark tunics with red and gold, French blue and white
+    with red caps, Dutch browns with orange, pirates ragged and bare-armed in bandanas. In battle grapeshot thins them: the men lost fall where they stood and are gone,
     so a sweep of grape reads at a glance.
+  - Round shot shows where it struck: a splintered hole in her side (on the side facing the shooter, where the
+    battle placed the hit), and an empty port for each gun knocked out.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
@@ -166,8 +170,6 @@ own off a real island, at every zoom, hour and wind.
   the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
-  - what round shot does, seen: holes in her hull and a gun visibly dismounted where the battle's `gunLoss`
-    takes one (grapeshot's toll on her crew and chain's on her sails show already);
   - bow spray;
   - real town and fort models;
   - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);

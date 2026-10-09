@@ -636,9 +636,20 @@ export async function createSeaRenderer(
       f.built.setCrew(view.wreck && side === 'enemy' ? 0 : (s.crew ?? maxCrew * 0.7) / maxCrew, nowMs);
       // Masts shot away: each comes down over her side when it goes, and stays down.
       for (const e of view.effects) {
-        if (e.kind !== 'mast' || e.ship !== side || e.at <= fallsSeen || e.mast === undefined) continue;
-        falls.set(`${side}:${e.mast}`, { from: t, towardDeg: fallSide(s.headingDeg, e.towardDeg ?? s.headingDeg + 90) });
+        if (e.ship !== side || e.at <= fallsSeen) continue;
+        if (e.kind === 'mast' && e.mast !== undefined) {
+          falls.set(`${side}:${e.mast}`, { from: t, towardDeg: fallSide(s.headingDeg, e.towardDeg ?? s.headingDeg + 90) });
+        } else if (e.kind === 'hit' && e.place?.part === 'hull') {
+          // Round shot through her side: a hole on the side facing the ship that fired.
+          const foe = side === 'player' ? enemy : player;
+          const r = (s.headingDeg * Math.PI) / 180;
+          const starboard = (foe.x - s.x) * Math.cos(r) + (foe.y - s.y) * Math.sin(r);
+          f.built.hole(e.place.along, starboard >= 0 ? 1 : -1, 0.25 + Math.random() * 0.6);
+        }
       }
+      // Guns knocked out show as empty ports.
+      const battery = content.ships[s.classId]?.guns;
+      if (battery && s.guns !== undefined) f.built.setGuns(s.guns / battery);
       (s.masts ?? []).forEach((m, i) => {
         const fall = falls.get(`${side}:${i}`);
         if (fall) f!.built.setMast(i, (t - fall.from) / MAST_FALL_SECONDS, fall.towardDeg);

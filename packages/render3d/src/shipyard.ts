@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // HD ships, built in code from each class's plan (rigs.ts) rather than exported from Blender, so the sails can
 // be cloth: they belly to leeward with the wind, luff in irons, furl and reef, and later tear; masts are
@@ -806,16 +807,81 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
 
 const SPAR = new THREE.MeshStandardMaterial({ color: '#4a2f22', roughness: 0.8 });
 const BLACK = new THREE.MeshStandardMaterial({ color: '#1d1a19', roughness: 0.6, metalness: 0.3 });
-/** A sailor: a body (shirt, breeches) and a head, the size of a man against the hull (a brig ~ 30 m in 2.4 units). */
-const SAILOR_BODY = new THREE.CapsuleGeometry(0.018, 0.075, 3, 6).translate(0, 0.055, 0);
-const SAILOR_HEAD = new THREE.SphereGeometry(0.016, 8, 6).translate(0, 0.122, 0);
+/**
+ * A sailor, simply made but plainly a man (a brig ~ 30 m in 2.4 units, a man ~ 0.14): legs in breeches, a torso
+ * in shirt or jacket, arms that swing as he works (each hung from its shoulder), a head and a hat. Each part is
+ * one instanced draw for the whole crew, coloured per man.
+ */
+const SAILOR = (() => {
+  const legs = mergeGeometries([
+    new THREE.CylinderGeometry(0.008, 0.007, 0.06, 6).translate(-0.008, 0.03, 0),
+    new THREE.CylinderGeometry(0.008, 0.007, 0.06, 6).translate(0.008, 0.03, 0),
+  ])!;
+  const torso = new THREE.CapsuleGeometry(0.016, 0.03, 3, 8).scale(1.1, 1, 0.75).translate(0, 0.078, 0);
+  // An arm hangs from its shoulder (the geometry's origin), to be swung there.
+  const arm = new THREE.CylinderGeometry(0.0058, 0.005, 0.05, 6).translate(0, -0.025, 0);
+  const head = new THREE.SphereGeometry(0.0125, 10, 8).translate(0, 0.123, 0);
+  const hat = new THREE.CylinderGeometry(0.0125, 0.014, 0.009, 10).translate(0, 0.134, 0);
+  return { legs, torso, arm, head, hat };
+})();
 const SAILOR_CLOTH = new THREE.MeshStandardMaterial({ roughness: 0.9 });
-const SAILOR_SKIN = new THREE.MeshStandardMaterial({ color: '#b4825e', roughness: 0.8 });
-/** Shirts and jackets: undyed linen, faded red and blue, striped grey, a tarred jacket. */
-const SAILOR_COLOURS = ['#e3dccb', '#d8cfb8', '#8a2f2a', '#3c4f6e', '#7d7f80', '#2e2a28', '#c9b48a'].map((c) => new THREE.Color(c));
+/** Where the shoulders are on a standing man. */
+const SHOULDER = { x: 0.022, y: 0.1 };
+
+/**
+ * What a crew wears, by nation (all period working dress, not uniforms: navies wouldn't issue those for decades):
+ * each man drawn from these shirts or jackets, breeches, hats or caps, and how many go bare-armed.
+ */
+interface Dress {
+  tops: string[];
+  breeches: string[];
+  hats: string[];
+  bareArms: number;
+}
+const DRESS: Record<string, Dress> = {
+  england: { tops: ['#2e3f63', '#3a4c72', '#e6e0cf', '#7d2f2a'], breeches: ['#e8e2d2', '#d8d2c2', '#5a5048'], hats: ['#1e1c1b', '#2e3f63', '#e6e0cf'], bareArms: 0.1 },
+  spain: { tops: ['#3a2a22', '#8a2a24', '#c9a54a', '#e2d8c2'], breeches: ['#3a2a22', '#5a4a3a', '#2a2622'], hats: ['#8a2a24', '#2a2622', '#c9a54a'], bareArms: 0.15 },
+  france: { tops: ['#2f4a7a', '#e9e6dc', '#e9e6dc', '#3a5a8a'], breeches: ['#e9e6dc', '#2f4a7a', '#8a8070'], hats: ['#b5302a', '#b5302a', '#2a2a2e'], bareArms: 0.15 },
+  netherlands: { tops: ['#6a5640', '#7d7f80', '#d9773a', '#4a4a48'], breeches: ['#4a4038', '#6a5640', '#2e2a26'], hats: ['#2a2622', '#d9773a', '#5a4a3a'], bareArms: 0.1 },
+  pirate: { tops: ['#8a2a24', '#2a2622', '#c9b48a', '#3c4f6e', '#6a7a3a', '#e6dccb'], breeches: ['#3a3430', '#5a4a3a', '#7d5a3a', '#2a2622'], hats: ['#a5302a', '#1e1c1b', '#c9b48a', '#2a4a6a'], bareArms: 0.5 },
+  player: { tops: ['#e3dccb', '#d8cfb8', '#8a2f2a', '#3c4f6e', '#7d7f80', '#2e2a28'], breeches: ['#5a5048', '#3a3430', '#d8d2c2'], hats: ['#2e2a28', '#8a2f2a', '#c9b48a'], bareArms: 0.25 },
+};
+/** Skin, varied man to man. */
+const SKINS = ['#c99a74', '#b4825e', '#9a6a48', '#7a5034', '#d8ac88'].map((c) => new THREE.Color(c));
+
 /** Most men a ship shows on deck (the rest are below, aloft or at the guns), and seconds a fallen man lies. */
 const MAX_SAILORS = 24;
 const FALLEN_SECONDS = 2.5;
+/** Shot holes: a splintered dark hole with torn planking round it, laid on the hull's side. */
+const HOLE = (() => {
+  if (typeof document === 'undefined') return new THREE.MeshBasicMaterial();
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  // Splinters: pale torn wood in jagged spikes round the hole.
+  g.fillStyle = 'rgba(196,160,110,0.95)';
+  g.beginPath();
+  for (let k = 0; k <= 18; k++) {
+    const a = (k / 18) * Math.PI * 2;
+    const r = k % 2 ? 14 + (k * 7) % 9 : 24 + (k * 5) % 7;
+    g.lineTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r);
+  }
+  g.fill();
+  // Scorch round it, and the black hole itself.
+  const burn = g.createRadialGradient(32, 32, 6, 32, 32, 22);
+  burn.addColorStop(0, 'rgba(15,10,6,1)');
+  burn.addColorStop(0.55, 'rgba(15,10,6,1)');
+  burn.addColorStop(1, 'rgba(40,25,12,0)');
+  g.fillStyle = burn;
+  g.beginPath();
+  g.arc(32, 32, 22, 0, Math.PI * 2);
+  g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ map: t, transparent: true, alphaTest: 0.2, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -4 });
+})();
+const HOLE_GEO = new THREE.PlaneGeometry(0.075, 0.075);
+const MAX_HOLES = 40;
 /** A deadeye (the block a shroud's lanyard is rove through) and the iron chain plate under it. */
 const DEADEYE = new THREE.CylinderGeometry(0.014, 0.014, 0.008, 10);
 const CHAIN_PLATE = new THREE.BoxGeometry(0.006, 0.12, 0.006);
@@ -1082,6 +1148,13 @@ export interface BuiltShip {
    */
   setCrew(share: number, nowMs: number): void;
   /**
+   * A round shot through her side: a splintered hole at `along` her length (bow +0.5 .. stern -0.5), on her
+   * starboard side (`side` +1) or port (-1), `up` her side (0 the waterline .. 1 the rail).
+   */
+  hole(along: number, side: number, up: number): void;
+  /** Her guns still mounted, as a share of her battery: the muzzles of guns knocked out are gone from their ports. */
+  setGuns(share: number): void;
+  /**
    * A mast (fore to aft) going by the board: `fallen` 0 standing .. 1 gone (over the side and under), toppling
    * toward `towardDeg` on her own bearings (0 her bow, 90 to starboard).
    */
@@ -1286,17 +1359,43 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       spots.push({ x: across * st.w, y: st.h - 0.05, z: h.length / 2 - t * h.length, turn: rand() * Math.PI * 2 });
     }
   }
-  const bodies = new THREE.InstancedMesh(SAILOR_BODY, SAILOR_CLOTH, spots.length);
-  const heads = new THREE.InstancedMesh(SAILOR_HEAD, SAILOR_SKIN, spots.length);
-  spots.forEach((_, i) => bodies.setColorAt(i, SAILOR_COLOURS[i % SAILOR_COLOURS.length]!));
-  for (const m of [bodies, heads]) {
+  // Each man's dress, from his nation's (a merchant crew dresses as the player's would).
+  const dress = DRESS[nation] ?? DRESS.player!;
+  const men = spots.map((_, i) => {
+    const rand = seeded(i * 101 + nation.length * 7 + 1);
+    const pick = (list: string[]) => new THREE.Color(list[Math.floor(rand() * list.length)]!);
+    const skin = SKINS[Math.floor(rand() * SKINS.length)]!;
+    const top = pick(dress.tops);
+    return {
+      top,
+      sleeve: rand() < dress.bareArms ? skin : top,
+      breeches: pick(dress.breeches),
+      hat: rand() < 0.15 ? skin : pick(dress.hats),
+      skin,
+      // What he is about: hauling on a line (arms up and working), or standing by (arms down, a little sway).
+      hauling: rand() < 0.4,
+      phase: rand() * Math.PI * 2,
+    };
+  });
+  const parts = {
+    legs: new THREE.InstancedMesh(SAILOR.legs, SAILOR_CLOTH, spots.length),
+    torso: new THREE.InstancedMesh(SAILOR.torso, SAILOR_CLOTH, spots.length),
+    left: new THREE.InstancedMesh(SAILOR.arm, SAILOR_CLOTH, spots.length),
+    right: new THREE.InstancedMesh(SAILOR.arm, SAILOR_CLOTH, spots.length),
+    head: new THREE.InstancedMesh(SAILOR.head, SAILOR_CLOTH, spots.length),
+    hat: new THREE.InstancedMesh(SAILOR.hat, SAILOR_CLOTH, spots.length),
+  };
+  const all = Object.values(parts);
+  for (const m of all) {
     m.count = 0;
     m.frustumCulled = false;
+    m.castShadow = true;
     root.add(m);
   }
   let shownCrew = -1;
   const fallen = new Map<number, number>();
   const pose = new THREE.Matrix4();
+  const limb = new THREE.Matrix4();
   const rot = new THREE.Quaternion();
   const at = new THREE.Vector3();
   const one = new THREE.Vector3(1, 1, 1);
@@ -1306,6 +1405,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
     let n = 0;
     for (let i = 0; i < spots.length; i++) {
       const sp = spots[i]!;
+      const man = men[i]!;
       const fell = fallen.get(i);
       if (i >= count && fell === undefined) continue;
       if (fell !== undefined && t - fell > FALLEN_SECONDS) continue;
@@ -1315,17 +1415,41 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       rot.setFromEuler(tip);
       at.set(sp.x, sp.y, sp.z);
       pose.compose(at, rot, one);
-      bodies.setMatrixAt(n, pose);
-      heads.setMatrixAt(n, pose);
-      bodies.setColorAt(n, SAILOR_COLOURS[i % SAILOR_COLOURS.length]!);
+      parts.legs.setMatrixAt(n, pose);
+      parts.torso.setMatrixAt(n, pose);
+      parts.head.setMatrixAt(n, pose);
+      parts.hat.setMatrixAt(n, pose);
+      // Arms: hauling men reach up and pull, hand over hand; the rest hang at their sides, swinging a little.
+      const working = fell === undefined;
+      for (const [side, mesh] of [
+        [-1, parts.left],
+        [1, parts.right],
+      ] as const) {
+        const pull = man.hauling && working ? 2.2 + Math.sin(t * 2.6 + man.phase + (side > 0 ? Math.PI : 0)) * 0.6 : 0.1 + Math.sin(t * 0.9 + man.phase + side) * 0.08;
+        tip.set(-pull, 0, side * 0.12, 'XYZ');
+        rot.setFromEuler(tip);
+        limb.compose(at.set(side * SHOULDER.x, SHOULDER.y, 0), rot, one);
+        mesh.setMatrixAt(n, limb.premultiply(pose));
+        mesh.setColorAt(n, man.sleeve);
+      }
+      parts.legs.setColorAt(n, man.breeches);
+      parts.torso.setColorAt(n, man.top);
+      parts.head.setColorAt(n, man.skin);
+      parts.hat.setColorAt(n, man.hat);
       n++;
     }
-    bodies.count = heads.count = n;
-    bodies.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
-    if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+    for (const m of all) {
+      m.count = n;
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
   };
 
   // Cannon muzzles out of the lowest row of ports.
+  const muzzles: THREE.Mesh[] = [];
+  // Which guns go first as they are knocked out: scattered along both sides, the same for every ship of a class.
+  const losing: number[] = [];
+  const holes: THREE.Mesh[] = [];
   const row = h.ports[0];
   if (row) {
     const muzzle = new THREE.CylinderGeometry(0.018, 0.022, 0.08, 8);
@@ -1338,6 +1462,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
         const m = new THREE.Mesh(muzzle, BLACK);
         m.position.set(s * (st.w * 0.97 + 0.03), y, h.length / 2 - t * h.length);
         root.add(m);
+        muzzles.push(m);
       }
     }
   }
@@ -1398,6 +1523,29 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const axis = new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)).normalize();
       m.stick.quaternion.setFromAxisAngle(axis, k * k * 1.75);
       m.stick.position.y = m.foot - k * k * 0.25;
+    },
+    hole(along, side, up) {
+      if (holes.length >= MAX_HOLES) return;
+      const t = THREE.MathUtils.clamp(0.5 - along, 0.04, 0.96);
+      const st = stationOf(h, t);
+      // Up her side from the waterline (y 0) to the rail, where the hull's surface stands there.
+      const y = THREE.MathUtils.lerp(0.03, st.h - 0.03, THREE.MathUtils.clamp(up, 0, 1));
+      const s = (y - KEEL) / (st.h - KEEL);
+      const hole = new THREE.Mesh(HOLE_GEO, HOLE);
+      hole.position.set(side * (sideAt(st.w, s) + 0.003), y, h.length / 2 - t * h.length);
+      hole.rotation.set(0, (side * Math.PI) / 2, Math.random() * Math.PI * 2, 'YXZ');
+      hole.scale.setScalar(0.7 + Math.random() * 0.6);
+      root.add(hole);
+      holes.push(hole);
+    },
+    setGuns(share) {
+      if (!losing.length) {
+        const rand = seeded(muzzles.length * 17 + 5);
+        const order = muzzles.map((_, i) => [rand(), i] as const).sort((a, b) => a[0] - b[0]);
+        losing.push(...order.map(([, i]) => i));
+      }
+      const gone = muzzles.length - Math.round(THREE.MathUtils.clamp(share, 0, 1) * muzzles.length);
+      muzzles.forEach((m, i) => (m.visible = !losing.slice(0, gone).includes(i)));
     },
     setCrew(share, nowMs) {
       const count = Math.round(THREE.MathUtils.clamp(share, 0, 1) * spots.length);
