@@ -9,8 +9,8 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from '@corsair/render/battle';
 import { sailAnim } from '@corsair/render/sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
-import { CLOUD_SPEED, createOcean, seaHeight } from './ocean';
-import type { SeaState } from './ocean';
+import { CLOUD_SPEED, createOcean } from './sea/ocean';
+import type { SeaState, WakeShip } from './sea/ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
 import type { BuiltShip, ShipPlan } from './shipyard';
@@ -19,7 +19,6 @@ import type { BattleHull } from './battle';
 import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
-import { createWakes } from './wakes';
 
 // The 3D sea map (art direction: Sid Meier's Pirates! 2004, in HD): the world in map tiles, x east and z south,
 // y up; the camera follows the player's ship and zooms from her deck to the whole region (the mouse wheel),
@@ -202,7 +201,6 @@ export async function createSeaRenderer(
     scene.add(c);
   }
 
-  const wakes = createWakes(scene);
   const worldShips = new THREE.Group();
   scene.add(worldShips);
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; classId: string }>();
@@ -276,8 +274,6 @@ export async function createSeaRenderer(
     root: THREE.Object3D,
     s: { x: number; y: number; headingDeg: number; sails: string },
     w: Wind,
-    sea: SeaState,
-    t: number,
     dt: number,
     scale: number,
     /** Her speed as a share of a fast ship's (0..1): she heels in a turn only as hard as she is going. */
@@ -288,7 +284,7 @@ export async function createSeaRenderer(
     const r = (s.headingDeg * Math.PI) / 180;
     const fx = Math.sin(r);
     const fz = -Math.cos(r);
-    const at = (along: number, abeam: number) => seaHeight(sea, s.x + fx * along - fz * abeam, s.y + fz * along + fx * abeam, t);
+    const at = (along: number, abeam: number) => ocean.heightAt(s.x + fx * along - fz * abeam, s.y + fz * along + fx * abeam);
     const bow = at(len * 0.4, 0);
     const stern = at(-len * 0.4, 0);
     const port = at(0, -len * 0.12);
@@ -426,7 +422,7 @@ export async function createSeaRenderer(
       seen.add(s.id);
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
-      placeShip(s.id, m.root, s, w, sea, t, dt, farScale, s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP);
+      placeShip(s.id, m.root, s, w, dt, farScale, s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP);
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
@@ -435,7 +431,7 @@ export async function createSeaRenderer(
       rides.delete(id);
     }
     // Wakes behind the ships near the camera (far out they'd be finer than a pixel).
-    wakes.update(
+    ocean.ships(
       Object.values(state.ships)
         .filter((s) => shown('wakes') && Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
         .map((s) => ({
@@ -447,10 +443,6 @@ export async function createSeaRenderer(
           pace: Math.min(1, s.speed / content.navigation.tilesPerSecondPerSpeedPoint / BRISK),
           length: SHIP_LENGTH * farScale,
         })),
-      dt,
-      t,
-      light.level,
-      (x, z) => seaHeight(sea, x, z, t),
     );
 
     for (const n of names) n.inRange = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
@@ -491,7 +483,7 @@ export async function createSeaRenderer(
     battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;
 
     const hulls: Partial<Record<'player' | 'enemy', BattleHull>> = {};
-    const wakeShips: Parameters<typeof wakes.update>[0] = [];
+    const wakeShips: WakeShip[] = [];
     for (const [side, s] of [['player', player], ['enemy', enemy]] as const) {
       let f = fighters.get(side);
       if (f && f.classId !== s.classId) {
@@ -518,7 +510,7 @@ export async function createSeaRenderer(
       });
       f.built.setSails(...sailsOf(sailAnim(content, s, wind, nowMs)), nowMs);
       const pace = (s.speed ?? 0) / content.combat.battle.tilesPerSecondPerSpeedPoint / FAST_SHIP;
-      const length = placeShip(`battle.${side}`, f.built.root, s, wind, sea, t, dt, 1 / SHIP_SCALE, pace, BATTLE_MODEL_SCALE);
+      const length = placeShip(`battle.${side}`, f.built.root, s, wind, dt, 1 / SHIP_SCALE, pace, BATTLE_MODEL_SCALE);
       // Going down: she settles by the stern, rolls and is gone under the sea.
       if (side === 'enemy' && view.wreck) {
         if (sinkingFrom === undefined) {
@@ -545,7 +537,7 @@ export async function createSeaRenderer(
       };
       if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, pace: Math.min(1, (pace * FAST_SHIP) / BRISK), length });
     }
-    wakes.update(wakeShips, dt, t, light.level, (x, z) => seaHeight(sea, x, z, t));
+    ocean.ships(wakeShips);
     fallsSeen = Math.max(fallsSeen, ...view.effects.map((e) => e.at));
     for (const n of names) n.inRange = false;
 
@@ -554,7 +546,7 @@ export async function createSeaRenderer(
       dt,
       view,
       hulls: { player: hulls.player!, enemy: hulls.enemy },
-      seaAt: (x, z) => seaHeight(sea, x, z, t),
+      seaAt: (x, z) => ocean.heightAt(x, z),
       windToDeg: sea.toDeg,
       windStrength: sea.strength,
       level: light.level,
