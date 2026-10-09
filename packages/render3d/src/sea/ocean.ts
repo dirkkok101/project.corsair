@@ -187,6 +187,7 @@ uniform vec2 uCloudOffset;
 uniform vec2 uWindDir;
 uniform float uStrength;
 uniform float uHs;
+uniform float uFoamLight;     // foam's brightness by the hour: full by day, a grey glimmer under the moon
 uniform vec3 uDeep, uScatter, uShallow, uSand, uFoam;
 uniform vec3 uSun;
 uniform vec3 uSunDir;
@@ -368,7 +369,7 @@ void main() {
   }
 
   // Foam lies on the water, lit by the sky and the sun (as a white surface is: bright, never glowing).
-  col = mix(col, uFoam * min(lit * 0.5, vec3(1.15)), clamp(foam, 0.0, 1.0));
+  col = mix(col, uFoam * min(lit * 0.5, vec3(1.15)) * uFoamLight, clamp(foam, 0.0, 1.0));
 
   // Haze toward the horizon.
   float dist = length(cameraPosition - vWorld);
@@ -443,6 +444,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
     uWindDir: { value: new THREE.Vector2(0, -1) },
     uStrength: { value: 0.5 },
     uHs: { value: 0.1 },
+    uFoamLight: { value: 1 },
     uDeep: { value: COLOURS.deep.clone() },
     uScatter: { value: COLOURS.scatter.clone() },
     uShallow: { value: COLOURS.shallow.clone() },
@@ -586,6 +588,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       uniforms.uAmbient.value.copy(light.ambient ?? light.sky);
       uniforms.uFogColor.value.copy(light.fog);
       uniforms.uFogDensity.value = light.fogDensity;
+      uniforms.uFoamLight.value = THREE.MathUtils.lerp(0.35, 1, THREE.MathUtils.smoothstep(light.level, 0.6, 0.95));
     },
     ships(ships) {
       shipsThisFrame = ships;

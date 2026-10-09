@@ -301,54 +301,146 @@ function sternGlowTexture(): THREE.CanvasTexture {
   for (let i = 0; i < 5; i++) {
     g.fillStyle = i % 2 ? '#ffd890' : '#ffe6a8';
     g.fillRect(34 + i * 42, 42, 22, 40);
+    // The leading of the panes stays dark against the lamplight.
+    g.fillStyle = '#000';
+    for (let k = 1; k < 4; k++) g.fillRect(34 + i * 42, 42 + k * 10, 22, 1);
+    g.fillRect(44 + i * 42, 42, 1, 40);
   }
   return finish(c, 1);
 }
 
-/** The transom: windows of the stern gallery in a gilt frame. */
+/**
+ * The transom: the stern gallery's windows in carved, gilded frames, weathered: the paint dulled and streaked,
+ * the gilt worn to the wood in places, small leaded panes.
+ */
 function sternTexture(plan: HullPlan): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 256;
   const g = c.getContext('2d')!;
+  const rand = seeded(plan.length * 13 + 5);
   g.fillStyle = plan.paint.hull;
   g.fillRect(0, 0, 256, 256);
   g.fillStyle = plan.paint.band;
   g.fillRect(0, 0, 256, 120);
+  g.fillStyle = 'rgba(55,40,28,0.3)';
+  g.fillRect(0, 0, 256, 120);
+  // The carved frame: gilt with worn, dark edges.
   g.fillStyle = plan.paint.trim;
   g.fillRect(20, 30, 216, 64);
+  g.fillStyle = 'rgba(60,40,20,0.45)';
+  g.fillRect(20, 30, 216, 4);
+  g.fillRect(20, 90, 216, 4);
   for (let i = 0; i < 5; i++) {
-    g.fillStyle = '#f4d488';
-    g.fillRect(30 + i * 42, 38, 30, 48);
-    g.fillStyle = '#5a7fa0';
+    g.fillStyle = 'rgba(60,40,20,0.5)';
+    g.fillRect(28 + i * 42, 36, 34, 52);
+    // Leaded panes: dark glass that catches a little sky.
+    g.fillStyle = '#2a3a48';
     g.fillRect(34 + i * 42, 42, 22, 40);
+    g.fillStyle = 'rgba(160,190,210,0.25)';
+    g.fillRect(34 + i * 42, 42, 22, 12);
+    g.fillStyle = 'rgba(20,15,10,0.8)';
+    for (let k = 1; k < 4; k++) g.fillRect(34 + i * 42, 42 + k * 10, 22, 1);
+    g.fillRect(44 + i * 42, 42, 1, 40);
   }
   g.fillStyle = plan.paint.trim;
   g.fillRect(0, 110, 256, 8);
-  return finish(c, 1);
+  // Weather: grime streaked down, the gilt rubbed through to dark wood here and there.
+  for (let i = 0; i < 60; i++) {
+    const x = rand() * 256;
+    const top = rand() * 120;
+    const grad = g.createLinearGradient(0, top, 0, top + 60);
+    grad.addColorStop(0, `rgba(25,18,10,${0.1 + rand() * 0.15})`);
+    grad.addColorStop(1, 'rgba(25,18,10,0)');
+    g.fillStyle = grad;
+    g.fillRect(x, top, 2 + rand() * 3, 60);
+  }
+  for (let i = 0; i < 50; i++) {
+    g.fillStyle = 'rgba(70,45,25,0.35)';
+    g.fillRect(rand() * 256, 30 + rand() * 90, 2 + rand() * 8, 2 + rand() * 3);
+  }
+  return finish(c, 2);
 }
 
-/** Deck planks, fore and aft. */
-function deckTexture(plan: HullPlan): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
-  const g = c.getContext('2d')!;
+/**
+ * The deck, weathered: planks fore and aft (along v) paying with tarred seams, each a shade apart with a grain;
+ * worn paler down the middle where the crew walk, stained, and darker toward the waterways at the sides. With a
+ * relief (the seams sunk, the trenails) and a roughness (scrubbed boards matte, the tar a little glossy).
+ */
+function deckSurface(plan: HullPlan): Surface {
+  const S = 512;
+  const sf = surface(S, S);
+  const { colour: g, height: hg, rough: rg } = sf;
+  const rand = seeded(plan.length * 77 + 3);
   g.fillStyle = plan.paint.deck;
-  g.fillRect(0, 0, 256, 256);
-  // Weathered and oiled: a warm dark wash, since the deck faces the sun full on and would otherwise read as
-  // a pale tan slab from above (Pirates!'s decks are a deep reddish brown), and each plank a shade apart.
-  g.fillStyle = 'rgba(70, 32, 14, 0.4)';
-  g.fillRect(0, 0, 256, 256);
-  for (let x = 0; x < 256; x += 16) {
-    g.fillStyle = `rgba(40, 18, 8, ${((x * 37) % 5) * 0.03})`;
-    g.fillRect(x, 0, 16, 256);
+  g.fillRect(0, 0, S, S);
+  g.fillStyle = 'rgba(70, 40, 20, 0.45)';
+  g.fillRect(0, 0, S, S);
+  rg.fillStyle = 'rgb(225,225,225)';
+  rg.fillRect(0, 0, S, S);
+  const plank = 24;
+  for (let x = 0; x < S; x += plank) {
+    // Each plank's own shade, and its butt joints, staggered.
+    const tone = (rand() - 0.5) * 0.14;
+    g.fillStyle = tone > 0 ? `rgba(255,230,190,${tone})` : `rgba(25,12,4,${-tone})`;
+    g.fillRect(x, 0, plank, S);
+    for (let k = 0; k < 10; k++) {
+      g.fillStyle = `rgba(${rand() < 0.5 ? '0,0,0' : '255,235,200'},${0.03 + rand() * 0.04})`;
+      g.fillRect(x + rand() * plank, rand() * S, 1, 40 + rand() * 160);
+    }
+    for (let y = rand() * 200; y < S; y += 180 + rand() * 160) {
+      g.fillStyle = 'rgba(20,10,4,0.3)';
+      g.fillRect(x, y, plank, 2);
+      hg.fillStyle = 'rgb(80,80,80)';
+      hg.fillRect(x, y, plank, 2);
+      // Trenails either side of the joint.
+      for (const dy of [-6, 6]) {
+        g.fillStyle = 'rgba(30,15,6,0.5)';
+        g.fillRect(x + 6, y + dy, 3, 3);
+        g.fillRect(x + plank - 9, y + dy, 3, 3);
+      }
+    }
+    // The tarred seam.
+    g.fillStyle = 'rgba(12,8,6,0.75)';
+    g.fillRect(x, 0, 2, S);
+    hg.fillStyle = 'rgb(50,50,50)';
+    hg.fillRect(x, 0, 2, S);
+    rg.fillStyle = 'rgb(120,120,120)';
+    rg.fillRect(x, 0, 2, S);
   }
-  for (let x = 0; x < 256; x += 16) {
-    g.fillStyle = 'rgba(0,0,0,0.18)';
-    g.fillRect(x, 0, 1.5, 256);
-    for (let y = (x * 13) % 90; y < 256; y += 90) g.fillRect(x, y, 16, 1.5);
+  // Worn paler down the middle, darker toward the sides.
+  const wear = g.createLinearGradient(0, 0, S, 0);
+  wear.addColorStop(0, 'rgba(20,10,4,0.35)');
+  wear.addColorStop(0.3, 'rgba(255,240,215,0.06)');
+  wear.addColorStop(0.5, 'rgba(255,240,215,0.12)');
+  wear.addColorStop(0.7, 'rgba(255,240,215,0.06)');
+  wear.addColorStop(1, 'rgba(20,10,4,0.35)');
+  g.fillStyle = wear;
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = `rgba(30,18,8,${0.05 + rand() * 0.1})`;
+    g.beginPath();
+    g.ellipse(rand() * S, rand() * S, 8 + rand() * 40, 6 + rand() * 30, rand() * 3, 0, Math.PI * 2);
+    g.fill();
   }
+  return sf;
+}
+
+/** A hatch grating: a lattice of bars over the dark hold, in a coaming. */
+function gratingTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#120c08';
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#6b4a30';
+  for (let i = 0; i < 128; i += 16) {
+    g.fillRect(i, 0, 6, 128);
+    g.fillRect(0, i, 128, 6);
+  }
+  g.strokeStyle = '#4a3020';
+  g.lineWidth = 10;
+  g.strokeRect(5, 5, 118, 118);
   return finish(c, 4);
 }
 
@@ -583,8 +675,19 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
   deckGeo.setIndex(deckIdx);
   deckGeo.computeVertexNormals();
   group.add(new THREE.Mesh(deckGeo, deck));
+  // Hatch gratings in their coamings, fore and aft of amidships.
+  const grating = new THREE.MeshStandardMaterial({ map: gratingTexture(), roughness: 0.85 });
+  const coaming = new THREE.MeshStandardMaterial({ color: plan.paint.wale, roughness: 0.8 });
+  for (const t of [0.38, 0.62]) {
+    const { w, h } = stationOf(plan, t);
+    const z = plan.length / 2 - t * plan.length;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(w * 0.7, 0.03, plan.length * 0.08), [coaming, coaming, grating, coaming, coaming, coaming]);
+    box.position.set(0, h - 0.035, z);
+    group.add(box);
+  }
 
-  const gilt = new THREE.MeshStandardMaterial({ color: plan.paint.trim, roughness: 0.4, metalness: 0.6 });
+  // Old gilt, worn and dulled by salt: a muted gold, more wood than mirror.
+  const gilt = new THREE.MeshStandardMaterial({ color: new THREE.Color(plan.paint.trim).multiplyScalar(0.72), roughness: 0.62, metalness: 0.35 });
   const wale = new THREE.MeshStandardMaterial({ color: plan.paint.wale, roughness: 0.7 });
   // Raised wales: a heavy one below the painted band, a lighter one along the waterline; the rail capped in gilt.
   group.add(strake(plan, 0.64, 0.035, 0.012, wale), strake(plan, 0.42, 0.025, 0.008, wale), strake(plan, 1, 0.022, 0.006, gilt));
@@ -906,7 +1009,15 @@ function kitFor(plan: ShipPlan): ClassKit {
       roughness: 1,
     }),
     new THREE.MeshStandardMaterial({ map: sternTexture(plan.hull), roughness: 0.7, emissive: WINDOW_GLOW, emissiveMap: sternGlowTexture() }),
-    new THREE.MeshStandardMaterial({ map: deckTexture(plan.hull), roughness: 0.85 }),
+    (() => {
+      const deck = deckSurface(plan.hull);
+      const map = finish(deck.colour.canvas, 8);
+      const normal = normalMap(deck.height, 2.5);
+      const rough = valueMap(deck.rough.canvas, 8);
+      // Planks run the length in four repeats: the texture tiles both ways.
+      for (const t of [map, normal, rough]) t.wrapT = THREE.RepeatWrapping;
+      return new THREE.MeshStandardMaterial({ map, normalMap: normal, roughnessMap: rough, roughness: 1 });
+    })(),
   );
   const kit = { hull };
   KITS.set(plan, kit);

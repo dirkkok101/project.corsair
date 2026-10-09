@@ -116,7 +116,9 @@ own off a real island, at every zoom, hour and wind.
     unevenly, grime streaked down from the rail and below each port, salt bleaching, a dark wet band and green
     weed at the waterline, a tarred bottom; a normal map for the seams and grain and a roughness map (dry wood
     matte, the wet waterline glossy).
-  - The stern gallery's windows glow with lamplight from dusk to dawn.
+  - The stern gallery's windows (leaded panes in carved, worn gilt frames) glow with lamplight from dusk to dawn.
+  - A weathered deck: planks with tarred seams and trenails, worn paler where the crew walk, stained, in relief;
+    hatch gratings fore and aft of amidships. Old gilt dulled by salt rather than mirror-bright.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
@@ -158,6 +160,10 @@ own off a real island, at every zoom, hour and wind.
   the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
+  - crew on deck (Pirates!): figures working the ship, so a fight shows what each shot does at a glance:
+    grapeshot cuts down men on her deck (fewer figures as her crew falls), chain shot shreds her sails (built),
+    round shot holes her hull and knocks out her guns (a gun visibly dismounted where the battle's `gunLoss`
+    takes one);
   - bow spray;
   - real town and fort models;
   - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);
