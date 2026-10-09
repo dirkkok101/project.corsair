@@ -115,6 +115,13 @@ own off a real island, at every zoom, hour and wind.
   - Vegetation (leaf-textured cards, instanced): palms with ringed trunks, coconuts and fronds of leaflets
     yellowing at the tips; jungle trees, a forked trunk under a crown of leaf clusters; shrubs and ferns under
     the trees and along the top of the beach; grey rocks along the waterline, more on a steep shore.
+- **Towns** (`towns.ts`): by size and nation, climbing from the shore. Houses of weathered plaster with shuttered
+  windows and a door (some of two storeys), tiled roofs, balconies on Spanish and French houses, chimneys on
+  English and Dutch ones, stepped Dutch gables, thatched shacks at a pirate haven. A church with an open belfry
+  under a spire (a dome for the Spanish and French), the governor's house; a battlemented fort of dressed stone
+  with bastions, guns, a gate and a keep (a stake palisade at a haven), sized by the town's strength, set on dry
+  ground along the shore (none on a spit too small for one); a wharf with a landing stage, cargo and boats. On a
+  small island the houses pack onto what dry ground there is.
 - **Ships** (`shipyard.ts`, each class's plan in `rigs.ts`):
   - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery. Weathered to sit
     on the realistic sea: long planks of varied tone with a grain and staggered butt joints, the paint dulled
@@ -195,7 +202,6 @@ own off a real island, at every zoom, hour and wind.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
   - bow spray;
-  - real town and fort models;
   - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);
   - the course line;
   - region names on the sea.
