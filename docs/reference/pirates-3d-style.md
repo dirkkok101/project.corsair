@@ -4,6 +4,12 @@ Decided 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Mei
 resolution for modern hardware. The minimum target is a GeForce RTX 3070 (developed on an Apple M5). Pixel art is no
 longer kept for these views. Harbour and port paintings, the sea chart, the minimap and every menu stay 2D.
 
+**Changed 2026-10-09:** the sea, sky and light now aim for the realism of Assassin's Creed IV: Black Flag
+(Ubisoft, 2013), replacing the painterly Pirates! sea: a real, rolling sea whose state follows the weather, gentle
+swells in fair weather and big breaking seas in a gale. Ships, islands and towns keep their models, lit to match.
+Everything else here (camera, proportions, readability, the battle effects) still follows Pirates!. All assets stay
+original.
+
 The references are the user's Pirates! (2004) screenshots (sea map close and wide, the Straits overview, several
 broadsides, an explosion) and the 1987 MicroProse map "The Spanish Main 1560-1700". Save new reference images to
 `docs/reference/pirates-2004/` so later work can be compared against them.
@@ -76,18 +82,16 @@ own off a real island, at every zoom, hour and wind.
   sunrise and sunset, a short moonlit night); the HUD shows the date only in 3D. A painted dome, deep blue
   overhead and pale at the horizon, with a soft sun glow (a physical sky's glare washed out a low camera).
   Clouds drift downwind and show only from afar.
-- **Sea** (`sea/`; how it is drawn: `ocean-renderer.md`):
-  - One soft, even cerulean, painted in screen colours and carried back through the tone curve, so it shows as
-    measured (hue 209, saturation 0.52, value 0.76 at midday). A fine, low-contrast hammered texture and pale
-    flecks along the wind, more in a blow. No glitter and no mirrored sun.
-  - Low, long swells for the ships to ride, shaded so faintly they never read as stripes.
-  - Everything drifts the one way, downwind and slowly: the texture, the flecks and the wakes together, and the
-    cloud shadows a little faster, with the clouds.
-  - Turquoise aprons round the islands, sand showing through near the beach, white surf on the shore, and soft
-    broken wave lines rolling in across the shallows (strongest on a windward shore).
-  - The water keeps its hues through the day, warming a touch at sunset and dimming to a moonlit blue.
-  - Every fine pattern is a mipmapped texture or fades out before it gets finer than a couple of pixels, so the
-    sea stays calm and clean at every zoom.
+- **Sea** (`sea/`; how it is drawn: `ocean-renderer.md`), after Black Flag:
+  - A real sea of 24 waves running with the wind (Gerstner, crests sharpened), its size set by the weather: a
+    gentle swell in light air, a lively sea in a fresh breeze, big rolling seas in a gale. Ships ride it.
+  - Lit physically: deep blue-green water, the sky mirrored at grazing angles, the sun's path across it, light
+    glowing through the steep crests, a fine chop on top. No speckled glitter: the highlight is kept broad.
+  - Whitecaps where crests are sharpest for that sea: rare in a breeze, widespread in a gale, frayed into streaks
+    along the wind, and faded out far off before they'd make a speckled pattern.
+  - Turquoise shallows round the islands, sand showing through near the beach, white surf on the shore, and broken
+    wave lines rolling in across the shallows (strongest on a windward shore).
+  - Cloud shadows dim the sun's light on the water as they drift by.
   - The water ships push (`sea/waves.ts`): a wave simulation round the camera, where each hull heaps water at
     her bow and draws a hollow at her stern, so her bow waves and the V of her wake are real ridges of water
     that light with the sea, run into other ships' and fade within a few seconds. Shot falling in the sea, a

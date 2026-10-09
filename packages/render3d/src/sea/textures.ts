@@ -179,3 +179,55 @@ function blur(a: Float32Array, w: number, h: number, r: number): Float32Array {
   }
   return out;
 }
+
+/**
+ * The fine chop, as a tiling normal map (R, G: the slope along and across the wind, 0.5 flat; B: the height),
+ * mipmapped so it averages to a flat sea in the distance instead of sparkling. A sum of many small waves whose
+ * wavevectors are whole numbers of cycles across the tile (so it tiles seamlessly), most of them running near
+ * the wind's way (along +u), their heights falling off with frequency as a real sea's do.
+ */
+export function chopTexture(size = 256): THREE.DataTexture {
+  const rand = random(1702);
+  const waves: [kx: number, ky: number, amp: number, phase: number][] = [];
+  for (let n = 0; n < 96; n++) {
+    const k = 3 + Math.floor(rand() * rand() * 40);
+    // Mostly within ±50° of the wind, a few cross waves.
+    const spread = rand() < 0.8 ? (rand() - 0.5) * 1.75 : (rand() - 0.5) * Math.PI * 2;
+    const kx = Math.round(Math.cos(spread) * k);
+    const ky = Math.round(Math.sin(spread) * k);
+    if (!kx && !ky) continue;
+    waves.push([kx, ky, 1 / Math.pow(Math.hypot(kx, ky), 1.6), rand() * Math.PI * 2]);
+  }
+  const h = new Float32Array(size * size);
+  let peak = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let v = 0;
+      for (const [kx, ky, a, p] of waves) v += a * Math.sin(((kx * x + ky * y) / size) * Math.PI * 2 + p);
+      h[y * size + x] = v;
+      peak = Math.max(peak, Math.abs(v));
+    }
+  }
+  const data = new Uint8Array(size * size * 4);
+  const at = (x: number, y: number) => h[((y + size) % size) * size + ((x + size) % size)]! / peak;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      // Slopes per texel, scaled so the steepest chop reaches the encoding's edge.
+      const sx = (at(x + 1, y) - at(x - 1, y)) * 6;
+      const sy = (at(x, y + 1) - at(x, y - 1)) * 6;
+      const i = (y * size + x) * 4;
+      data[i] = Math.round(255 * THREE.MathUtils.clamp(0.5 + sx * 0.5, 0, 1));
+      data[i + 1] = Math.round(255 * THREE.MathUtils.clamp(0.5 + sy * 0.5, 0, 1));
+      data[i + 2] = Math.round(255 * (0.5 + at(x, y) * 0.5));
+      data[i + 3] = 255;
+    }
+  }
+  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}

@@ -33,7 +33,7 @@ Project Corsair is a browser-based, single-player pirate career sim set in the 1
 ### Non-goals for v1.0
 
 - Multiplayer or shared worlds.
-- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D.
+- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). Changed again 2026-10-09: the sea, sky and light aim for the realism of Assassin's Creed IV: Black Flag, the sea's state following the weather. The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D.
 - Monetisation, accounts or cloud saves. Saves live in browser storage with file export.
 - Historical accuracy beyond flavour. Fun wins over realism.
 

@@ -224,8 +224,18 @@ export async function createSeaRenderer(
   let chase = false;
   const target = new THREE.Vector3();
   const sunDir = new THREE.Vector3();
-  const light = { sunDir, sun: new THREE.Color(), sky: new THREE.Color(), level: 1, fog: new THREE.Color(), fogDensity: 0.002 };
   const zenith = new THREE.Color();
+  const light = {
+    sunDir,
+    sun: new THREE.Color(),
+    power: 2,
+    sky: new THREE.Color(),
+    zenith,
+    ambient: new THREE.Color(),
+    level: 1,
+    fog: new THREE.Color(),
+    fogDensity: 0.002,
+  };
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
   let skySeconds = SKY_START;
@@ -260,6 +270,9 @@ export async function createSeaRenderer(
     SAIL_GLOW.set('#fffaf0').lerp(light.sky, 0.18 + 0.3 * (1 - dayness)).lerp(light.sun, 0.12);
     fill.intensity = 0.55 + level * 0.5;
     fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);
+    // The water is lit as the scene is: the sun's power, and the sky's light over it.
+    light.power = sun.intensity;
+    light.ambient.copy(fill.color).multiplyScalar(fill.intensity);
     renderer.toneMappingExposure = 0.7 + level * 0.3;
     light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, view)) ** 0.5;
     return dt;

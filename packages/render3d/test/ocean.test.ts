@@ -18,14 +18,21 @@ function ocean() {
 }
 
 describe('the sea ships ride', () => {
-  it('stays within the swell heights the wind allows', () => {
-    const sea = ocean();
-    const at = new THREE.Vector3();
-    sea.update(at, { toDeg: 90, strength: 1 }, 0, light);
-    let max = 0;
-    for (let x = -40; x <= 40; x += 0.7) for (let z = -40; z <= 40; z += 0.7) max = Math.max(max, Math.abs(sea.heightAt(x, z)));
-    expect(max).toBeGreaterThan(0.02);
-    expect(max).toBeLessThanOrEqual(0.07 + 0.04 + 0.022 + 1e-9);
+  it('follows the weather: a gentle sea in light air, a big one in a gale, never beyond its waves', () => {
+    const peak = (strength: number) => {
+      const sea = ocean();
+      const at = new THREE.Vector3();
+      sea.update(at, { toDeg: 90, strength }, 0, light);
+      let max = 0;
+      for (let x = -40; x <= 40; x += 0.7) for (let z = -40; z <= 40; z += 0.7) max = Math.max(max, Math.abs(sea.heightAt(x, z)));
+      return max;
+    };
+    const light_ = peak(0.5);
+    const gale = peak(1.1);
+    expect(light_).toBeGreaterThan(0.02);
+    expect(gale).toBeGreaterThan(light_ * 4);
+    // No higher than every wave cresting at once (the significant height times the spectrum's spread, about 2.5).
+    expect(gale).toBeLessThan((0.04 + 0.62 * 1.1 ** 3) * 2.5);
   });
 
   it('moves downwind, slowly', () => {

@@ -1,18 +1,19 @@
 import * as THREE from 'three';
-import { coastTexture, detailTexture } from './textures';
-import { screen, SCREEN_TO_SCENE, toScreen } from './tone';
+import { chopTexture, coastTexture, detailTexture } from './textures';
 import { createWakes, WAKE_MARGIN, WAKE_WIDENING } from './wakes';
-import { createWaves, WAVE_CELL, WAVE_GRID } from './waves';
 import type { WakeShip } from './wakes';
+import { createWaves, WAVE_CELL, WAVE_GRID } from './waves';
 
-// The sea (art direction: Sid Meier's Pirates! 2004, in HD; see docs/reference/ocean-renderer.md): one soft,
-// even cerulean with a fine hammered texture and pale flecks along the wind, turquoise shallows round the
-// islands with surf on the shore, and ships' wakes, all on one camera-following mesh and worked out in its
-// fragment shader. The mesh carries only a few long, low swells for the ships to ride.
+// The sea (art direction: Assassin's Creed IV: Black Flag; see docs/reference/ocean-renderer.md): a real, rolling
+// sea whose state follows the weather, from gentle swells in fair weather to big, breaking seas in a gale. One
+// camera-following mesh carries a spectrum of Gerstner waves running with the wind (their crests sharpened, the
+// same waves ships ride), and its fragment shader lights the water physically: the sky mirrored at grazing angles
+// (Fresnel), the sun's path across it, light glowing through the backs of the crests, foam where they break,
+// turquoise over the shallows and white surf on the shore. Ships' wakes and the water they push lie in the same
+// surface.
 //
-// Two rules keep it calm and clean at every zoom. Every pattern finer than the mesh comes from a mipmapped
-// texture or is faded out (fwidth) before it gets finer than a couple of pixels, so nothing aliases into stripes
-// or shimmers. And everything on the water drifts the one way, downwind, at speeds that belong together.
+// Kept from the first seas: every pattern finer than the mesh is a mipmapped texture or fades out (fwidth) before
+// it gets finer than a few pixels, so nothing shimmers; and everything moves coherently with the wind.
 
 export type { WakeShip } from './wakes';
 
@@ -22,7 +23,7 @@ export type { WakeShip } from './wakes';
  */
 export const CLOUD_SPEED = 0.25;
 
-/** The sea's state: it moves toward `toDeg` (where the wind goes, clockwise from north), as hard as `strength` (0..1). */
+/** The sea's state: it moves toward `toDeg` (where the wind goes, clockwise from north), as hard as `strength` (0..~1.1). */
 export interface SeaState {
   toDeg: number;
   strength: number;
@@ -30,8 +31,14 @@ export interface SeaState {
 
 export interface SeaLight {
   sunDir: THREE.Vector3;
+  /** The sun's (or moon's) colour, and its intensity as the scene's directional light has it. */
   sun: THREE.Color;
+  power?: number;
+  /** The sky at the horizon, and overhead. */
   sky: THREE.Color;
+  zenith?: THREE.Color;
+  /** The light from the whole sky (the hemisphere's), for the water's body and the foam. */
+  ambient?: THREE.Color;
   /** 0..1, night to full day. */
   level: number;
   fog: THREE.Color;
@@ -42,125 +49,226 @@ export interface Ocean {
   mesh: THREE.Mesh;
   /** Each frame: follow the camera's target, move the sea with the wind, light the water. */
   update(at: THREE.Vector3, sea: SeaState, t: number, light: SeaLight): void;
-  /** Each frame: the ships whose wakes, bow waves and hull foam to draw. */
+  /** Each frame: the ships whose wakes, bow waves and hull foam to draw, and who push the water. */
   ships(ships: WakeShip[]): void;
-  /** The height of the water (the swell the mesh rolls) at a point, as of the last update, for ships riding it. */
+  /** The height of the water at a point (the waves ships ride), as of the last update. */
   heightAt(x: number, z: number): number;
   /** Something fell into the sea here (a cannonball, a mast, a ship going down): rings run out from it. `size` in tiles. */
   splash(x: number, z: number, size: number): void;
 }
 
-
-// The palette, as it should look on screen at midday (measured from the reference footage: the open sea about
-// hue 209, saturation 0.52, value 0.76; the shallows a bright turquoise with sand showing through).
-const PALETTE = {
-  deep: '#5d91c2',
-  shelf: '#4fa8d0',
-  apron: '#3fcdd3',
-  shallow: '#8fe3d8',
-  sand: '#d8ecd0',
-  foam: '#e8f4f7',
+// The water's colours, linear. Deep: a dark blue-green that the sky's reflection lightens toward the horizon;
+// scatter: the green-turquoise glow in thin, backlit crests; the shallows' turquoise and sand; foam's albedo.
+const COLOURS = {
+  deep: new THREE.Color('#0d3f5c'),
+  scatter: new THREE.Color('#2bb3a0'),
+  shallow: new THREE.Color('#3fc7c0'),
+  sand: new THREE.Color('#cfe3c0'),
+  foam: new THREE.Color('#e9f2f2'),
 };
 
-/** Swells: wavelength (tiles), height at full strength (tiles), angle off the wind (degrees), speed (tiles a second). */
-const SWELLS: [length: number, height: number, offDeg: number, speed: number][] = [
-  [26, 0.07, 0, 0.42],
-  [15, 0.04, 17, 0.3],
-  [9.5, 0.022, -21, 0.24],
-];
+/**
+ * The sea state by the wind's strength `s` (0.15 calm .. 1.1 gale): the dominant wavelength and the significant
+ * height (tiles; at the ships' scale a tile is about ten metres). Fair weather is a gentle swell, a fresh breeze a
+ * lively sea, a gale big rolling seas.
+ */
+const PEAK_LENGTH = (s: number) => 3.5 + 10 * s * s;
+const SIGNIFICANT_HEIGHT = (s: number) => 0.04 + 0.62 * s * s * s;
+/** How sharp the crests are (Gerstner choppiness, summed over the waves; 1 would fold them over). */
+const CHOPPY = (s: number) => 0.45 + 0.35 * Math.min(1, s);
+/** Gravity in tiles a second squared (a tile about ten metres), and the waves' pace as a share of a real sea's. */
+const GRAVITY = 0.98;
+const PACE = 0.75;
+
+/** The spectrum's waves: wavelength as a share of the peak's, angle off the wind (radians), and starting phase. */
+const COUNT = 24;
+const SPECTRUM = (() => {
+  let seed = 4111;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  return Array.from({ length: COUNT }, (_, i) => {
+    // Lengths spread evenly on a log scale, each nudged a little so no two line up.
+    const ratio = 1.4 * Math.pow(1 / 12, (i + rand() * 0.6) / COUNT);
+    // Every wave within ±55° of the wind, alternating sides, so no two run parallel and their crests never line
+    // up into stripes.
+    const spread = (i % 2 ? 1 : -1) * (0.08 + rand() * 0.88);
+    // Height in proportion to length up to the peak (every wave about as steep as the next, as in a real sea's
+    // wind-wave range), falling off above it: texture at every scale, no single wave carrying the sea.
+    const weight = ratio <= 1 ? ratio : ratio * Math.exp(-(ratio - 1) * 2.5);
+    return { ratio, off: spread, weight, phase: rand() * Math.PI * 2 };
+  });
+})();
+// Normalised so the waves' heights add to the significant height: Hs = 4 * sqrt(sum(a^2) / 2).
+const WEIGHT_NORM = 1 / (4 * Math.sqrt(SPECTRUM.reduce((n, w) => n + w.weight * w.weight, 0) / 2));
+
 /**
  * The grid: polar round the camera's target, its spacing growing with the radius (RING_STEP + RING_GROWTH * r)
- * out to the horizon. A swell is rolled only where the grid has at least six points to its wavelength, so it
- * fades out with distance before it could alias.
+ * out to the horizon. A wave is rolled in the mesh only where the grid has at least six points to its wavelength
+ * (shorter ones are drawn by the fragment shader alone), so none aliases.
  */
 const SEGMENTS = 256;
-const RING_STEP = 0.35;
-const RING_GROWTH = 0.03;
+const RING_STEP = 0.3;
+const RING_GROWTH = 0.028;
 const RADIUS = 3000;
-/** The surface drift (tiles a second), at no wind and at full strength: the texture, flecks and wakes all move at it. */
+/** The surface drift (tiles a second), at no wind and at full strength: the chop, foam and wakes move at it. */
 const DRIFT = [0.025, 0.09];
-/** How fast the swell turns to a new wind, and grows or dies with it (per second): slowly, as a sea does. */
+/** How fast the sea turns to a new wind, and grows or dies with it (per second): slowly, as a sea does. */
 const SEA_EASE = 0.08;
 /** The wakes' area round the target, in camera distances, and its limits (tiles). */
 const WAKE_AREA = { perDistance: 2.4, min: 30, max: 260 };
 
+const WAVES_GLSL = /* glsl */ `
+uniform vec4 uWave[${COUNT}];    // direction (x, z), wavenumber, height
+uniform float uQ[${COUNT}];      // choppiness
+uniform float uPhase[${COUNT}];
+`;
+
 const VERT = /* glsl */ `
+${WAVES_GLSL}
 uniform vec2 uCenter;
-uniform vec4 uSwell[3];
-uniform float uPhase[3];
-uniform vec2 uSwellFade[3];
+uniform vec2 uFade[${COUNT}];
 uniform sampler2D uCoast;
 uniform vec2 uMapSize;
 uniform sampler2D uWaves;
 uniform vec3 uWaveArea;
 uniform float uShowWaves;
+uniform float uShowSwell;
 varying vec3 vWorld;
+varying vec2 vParam;
 varying float vRadius;
 void main() {
   vec2 xz = position.xz + uCenter;
   float r = length(position.xz);
-  // No swell on the beach itself, so the waterline stays where the land has it.
+  // The waves die on the beach itself, so the waterline stays where the land has it.
   float beach = 1.0 - smoothstep(0.9, 0.985, texture2D(uCoast, xz / uMapSize).r);
-  float h = 0.0;
-  for (int i = 0; i < 3; i++) {
-    float fade = 1.0 - smoothstep(uSwellFade[i].x, uSwellFade[i].y, r);
-    h += uSwell[i].w * fade * sin(dot(uSwell[i].xy, xz) * uSwell[i].z - uPhase[i]);
+  vec3 p = vec3(0.0);
+  for (int i = 0; i < ${COUNT}; i++) {
+    float a = uWave[i].w * (1.0 - smoothstep(uFade[i].x, uFade[i].y, r)) * uShowSwell;
+    float arg = uWave[i].z * dot(uWave[i].xy, xz) - uPhase[i];
+    float c = cos(arg);
+    p.x += uQ[i] * a * uWave[i].x * c;
+    p.z += uQ[i] * a * uWave[i].y * c;
+    p.y += a * sin(arg);
   }
-  // The water ships push (waves.ts), smoothed over a few cells, as the mesh is coarser than its grid; faded out
-  // toward the grid's edges.
+  // The water ships push (waves.ts), smoothed over a few cells, as the mesh is coarser than its grid.
   vec2 wv = (xz - uWaveArea.xy) / uWaveArea.z;
   if (wv.x > 0.0 && wv.y > 0.0 && wv.x < 1.0 && wv.y < 1.0) {
     float o = 2.0 / ${WAVE_GRID.toFixed(1)};
     float wh = texture2D(uWaves, wv).r * 2.0 + texture2D(uWaves, wv + vec2(o, 0.0)).r + texture2D(uWaves, wv - vec2(o, 0.0)).r
       + texture2D(uWaves, wv + vec2(0.0, o)).r + texture2D(uWaves, wv - vec2(0.0, o)).r;
     vec2 we = smoothstep(0.0, 0.12, wv) * smoothstep(0.0, 0.12, 1.0 - wv);
-    h += wh / 6.0 * we.x * we.y * uShowWaves;
+    p.y += wh / 6.0 * we.x * we.y * uShowWaves;
   }
-  vec3 world = vec3(xz.x, h * beach, xz.y);
+  vec3 world = vec3(xz.x + p.x * beach, p.y * beach, xz.y + p.z * beach);
   vWorld = world;
+  vParam = xz;
   vRadius = r;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;
 
 const FRAG = /* glsl */ `
-${SCREEN_TO_SCENE}
+${WAVES_GLSL}
 uniform sampler2D uCoast;
 uniform sampler2D uDetail;
+uniform sampler2D uChop;
 uniform sampler2D uWake;
 uniform vec3 uWakeArea;
 uniform sampler2D uWaves;
 uniform vec3 uWaveArea;
-uniform float uShowWaves;
-uniform float uShowWakes;
 uniform vec2 uMapSize;
 uniform float uTime;
-uniform vec4 uSwell[3];
-uniform float uPhase[3];
-uniform vec2 uSwellFade[3];
-// The wind's frame for the texture: rows along and across the wind, and its drifting offset.
+// The wind's frame for the textures: rows along and across the wind, and its drifting offset.
 uniform vec4 uFrame;
 uniform vec2 uOffset;
 uniform vec2 uCloudOffset;
 uniform vec2 uWindDir;
 uniform float uStrength;
-uniform vec3 uDeep, uShelf, uApron, uShallow, uSand, uFoam;
-uniform vec3 uLight;
-uniform vec3 uSkyLit;
-uniform vec2 uSunFlat;
+uniform float uHs;
+uniform vec3 uDeep, uScatter, uShallow, uSand, uFoam;
+uniform vec3 uSun;
+uniform vec3 uSunDir;
+uniform vec3 uAmbient;
+uniform vec3 uZenith;
+uniform vec3 uHorizon;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
-// Layers, for review: swell, ripples, flecks, shadows, surf (1 shown, 0 hidden).
-uniform float uShowSwell, uShowRipples, uShowFlecks, uShowShadows, uShowSurf;
+// Layers, for review: swell, ripples (the fine chop), flecks (whitecaps), shadows, surf, waves, wakes.
+uniform float uShowSwell, uShowRipples, uShowFlecks, uShowShadows, uShowSurf, uShowWaves, uShowWakes;
 varying vec3 vWorld;
+varying vec2 vParam;
 varying float vRadius;
 
 void main() {
-  vec2 xz = vWorld.xz;
+  vec2 xz = vParam;
   vec2 uv = vec2(dot(uFrame.xy, xz), dot(uFrame.zw, xz)) + uOffset;
-  // Detail stays to about nine texture reads a pixel on open water (CPU-rendered WebGL must keep up too); the
-  // shallows and the wakes read more only where they are. Their branches start and end where what they add is
-  // nil, and every screen-space derivative is taken before them.
+
+  // The waves, per pixel (each one fading out before it gets finer than a few pixels): the surface's tilt, how
+  // far up a crest this is, and how pinched (the Gerstner Jacobian, low where a crest is about to break).
+  vec3 n = vec3(0.0, 1.0, 0.0);
+  float crest = 0.0;
+  float pinch = 1.0;
+  float spread = 0.0;
+  for (int i = 0; i < ${COUNT}; i++) {
+    float arg = uWave[i].z * dot(uWave[i].xy, xz) - uPhase[i];
+    float fine = 1.0 - smoothstep(0.8, 1.6, fwidth(arg));
+    float wa = uWave[i].z * uWave[i].w * fine * uShowSwell;
+    float c = cos(arg);
+    float s = sin(arg);
+    n.x -= uWave[i].x * wa * c;
+    n.z -= uWave[i].y * wa * c;
+    n.y -= uQ[i] * wa * s;
+    pinch -= uQ[i] * wa * s;
+    spread += uQ[i] * wa * uQ[i] * wa;
+    crest += uWave[i].w * s * fine;
+  }
+  // The fine chop, two scales drifting with the wind, stronger in a blow; in the wind's frame, turned to the world's.
+  vec3 c1 = texture2D(uChop, uv / 2.6 + vec2(uTime * 0.014, 0.0)).rgb;
+  vec3 c2 = texture2D(uChop, uv / 0.95 + vec2(uTime * 0.025, 0.37)).rgb;
+  vec2 chop = ((c1.rg - 0.5) * 0.6 + (c2.rg - 0.5) * 0.4) * (0.18 + 0.32 * uStrength) * uShowRipples;
+  n.xz -= uFrame.xy * chop.x + uFrame.zw * chop.y;
+
+  // The water ships push (waves.ts): its slopes tilt the surface too.
+  vec2 gv = (xz - uWaveArea.xy) / uWaveArea.z;
+  vec2 ge = smoothstep(0.0, 0.12, gv) * smoothstep(0.0, 0.12, 1.0 - gv);
+  float gc = 1.0 / ${WAVE_GRID.toFixed(1)};
+  vec2 waveSlope = vec2(
+    texture2D(uWaves, gv + vec2(gc, 0.0)).r - texture2D(uWaves, gv - vec2(gc, 0.0)).r,
+    texture2D(uWaves, gv + vec2(0.0, gc)).r - texture2D(uWaves, gv - vec2(0.0, gc)).r
+  ) / ${(2 * WAVE_CELL).toFixed(4)} * ge.x * ge.y * uShowWaves;
+  n.xz -= waveSlope;
+  vec3 N = normalize(n);
+
+  // Light.
+  vec3 V = normalize(cameraPosition - vWorld);
+  vec3 L = normalize(uSunDir);
+  float NdV = max(dot(N, V), 0.0);
+  float NdL = max(dot(N, L), 0.0);
+  // Cloud shadows: large soft patches where the sun is dimmed, drifting with the clouds.
+  float cloud = texture2D(uDetail, (xz + uCloudOffset) / 150.0).b;
+  float sunlit = 1.0 - 0.45 * smoothstep(0.45, 0.8, cloud) * uShowShadows;
+  vec3 sun = uSun * sunlit * step(0.0, L.y);
+
+  // The sky mirrored (Fresnel): little looking down, most at a grazing angle. Reflections never look into the sea.
+  float F = 0.02 + 0.98 * pow(1.0 - NdV, 5.0);
+  vec3 R = reflect(-V, N);
+  R.y = abs(R.y);
+  vec3 sky = mix(uHorizon, uZenith, pow(clamp(R.y, 0.0, 1.0), 0.45));
+  // The sun's path across the water: a tight highlight on a calm sea, broader and broken up in a blow (the
+  // normals are filtered, so far out it spreads into a soft glow rather than sparkling).
+  vec3 H = normalize(L + V);
+  // (Kept broad and soft: a sharper highlight breaks into specks that flicker as the waves move.)
+  float shine = mix(420.0, 220.0, clamp(uStrength, 0.0, 1.0));
+  float spec = pow(max(dot(N, H), 0.0), shine) * (shine + 8.0) / 25.1 * F * 0.45;
+
+  // The water's body: deep blue-green, lit by the sky and a little by the sun; light glowing green-turquoise
+  // through the thin backs of the crests, most when looking toward the sun.
+  float up = clamp(crest / (uHs * 0.6 + 0.001) * 0.5 + 0.5, 0.0, 1.0);
+  // (The sun's share by the slope's tilt to it: faces toward it lit, the backs of the waves in shade.)
+  vec3 body = uDeep * (uAmbient * 0.8 + sun * (0.05 + 0.6 * NdL));
+  float through = pow(clamp(dot(V, -vec3(L.x, 0.0, L.z) * 0.8 + vec3(0.0, -0.2, 0.0)) * 0.5 + 0.5, 0.0, 1.0), 3.0);
+  // (Only the steep tops: the crests pinch there, so the glow follows the crest lines, never a whole long wave.)
+  float tops = smoothstep(0.8, 0.45, pinch) * up;
+  body += uScatter * sun * tops * (through * 0.3 + 0.03) * uShowSwell;
 
   // Shallows: the floor's height, its smoothed shallowness, and the way to the shore. The lookups wander a
   // little with a medium noise, so the map's one-texel-a-tile grid never shows in the coast.
@@ -171,136 +279,95 @@ void main() {
   vec4 coastWide = texture2D(uCoast, (xz + vec2(wobble2, -wobble) * 1.4) / uMapSize);
   float floorH = coastNear.r;
   float shallow = coastWide.g;
-  float open = 1.0 - smoothstep(0.5, 0.76, shallow);
   float linesWidth = fwidth(floorH) * 13.0;
-
-  // The water's colour by depth: cerulean, a brighter shelf, the turquoise apron.
-  vec3 col = uDeep;
-  col = mix(col, uShelf, smoothstep(0.36, 0.56, shallow));
-  col = mix(col, uApron, smoothstep(0.52, 0.76, shallow));
-
-  // The hammered surface: two scales of shallow dents, drifting with the water; fades out with distance on its own (mipmaps).
-  float dents = (texture2D(uDetail, uv / 5.3).r - 0.5) * 0.6 + (texture2D(uDetail, uv / 2.2 + vec2(0.37, 0.61)).r - 0.5) * 0.4;
-  col *= 1.0 + dents * 0.075 * uShowRipples * mix(0.6, 1.0, open);
-
-  // The swell's own light: brighter on faces toward the sun, worked out per pixel.
-  vec2 slope = vec2(0.0);
-  for (int i = 0; i < 3; i++) {
-    float phase = dot(uSwell[i].xy, xz) * uSwell[i].z - uPhase[i];
-    // Gone before a wavelength spans fewer than about 150 pixels: any shorter and a swell reads as stripes.
-    float fine = 1.0 - smoothstep(0.025, 0.045, fwidth(phase));
-    slope += uSwell[i].xy * uSwell[i].z * uSwell[i].w * cos(phase) * fine;
-  }
-  col *= 1.0 + dot(slope, uSunFlat) * 1.6 * uShowSwell;
-
-  // The water ships push (waves.ts): lit by its slopes, so every ripple a hull throws shows, catching the light
-  // on the faces toward the sun; a touch of white where it heaps up steepest.
-  vec2 gv = (xz - uWaveArea.xy) / uWaveArea.z;
-  vec2 ge = smoothstep(0.0, 0.12, gv) * smoothstep(0.0, 0.12, 1.0 - gv);
-  float gc = 1.0 / ${WAVE_GRID.toFixed(1)};
-  vec2 waveSlope = vec2(
-    texture2D(uWaves, gv + vec2(gc, 0.0)).r - texture2D(uWaves, gv - vec2(gc, 0.0)).r,
-    texture2D(uWaves, gv + vec2(0.0, gc)).r - texture2D(uWaves, gv - vec2(0.0, gc)).r
-  ) / ${(2 * WAVE_CELL).toFixed(4)} * ge.x * ge.y * uShowWaves;
-  col *= 1.0 + dot(waveSlope, uSunFlat) * 2.2 + length(waveSlope) * 0.25;
-
-  // Cloud shadows: large, very soft, a few percent darker, drifting with the clouds.
-  float cloud = texture2D(uDetail, (xz + uCloudOffset) / 150.0).b;
-  col *= 1.0 - 0.06 * smoothstep(0.45, 0.8, cloud) * uShowShadows;
-
-  // Whitecap flecks: small soft flecks drawn out along the wind, showing in patches that come and go slowly
-  // (the patches drift a little slower than the water, so each fleck fades in and out as it goes).
-  float fleck = texture2D(uDetail, vec2(uv.x / 24.0, uv.y / 9.0)).g;
-  float patches = smoothstep(0.62 - uStrength * 0.16, 0.78 - uStrength * 0.08, texture2D(uDetail, uv / 47.0 + vec2(uTime * 0.0011, 0.21)).b);
-  float whitecap = fleck * patches * smoothstep(0.2, 1.0, uStrength) * 0.8 * open * uShowFlecks;
-  col = mix(col, uFoam, clamp(whitecap, 0.0, 1.0));
-
-  // Near the shore: sand showing through, white water on the beach, gently breathing, and soft broken wave
-  // lines rolling in across the shallows, strongest where the wind blows onshore.
+  vec3 lit = uAmbient * 0.9 + sun * (0.35 + 0.65 * NdL);
+  // Over the shallows the water clears to turquoise, then shows the sand.
+  body = mix(body, uShallow * lit * 0.35, smoothstep(0.5, 0.82, shallow));
+  vec3 col = mix(body, sky, F) + sun * spec;
+  float foam = 0.0;
   if (floorH > 0.6) {
-    col = mix(col, uShallow, smoothstep(0.83, 0.96, floorH + wobble * 0.05));
     float ribs = texture2D(uDetail, uv / 3.1 + 0.5).a;
-    col = mix(col, uSand, smoothstep(0.93, 0.99, floorH + (ribs - 0.5) * 0.04));
+    col = mix(col, uSand * lit * 0.6, smoothstep(0.88, 0.99, floorH + (ribs - 0.5) * 0.04) * (1.0 - F));
     float breathe = sin(uTime * 0.5 + wobble * 9.0) * 0.006;
     float surf = smoothstep(0.952, 0.982, floorH + wobble * 0.025 + breathe) * (0.75 + 0.25 * ribs);
     vec2 toShore = coastWide.ba * 2.0 - 1.0;
     float onshore = mix(0.35, 1.0, smoothstep(-0.2, 0.6, dot(uWindDir, toShore)));
     float lines = floorH * 13.0 - uTime * 0.06;
-    float crest = fract(lines);
-    float line = smoothstep(0.0, 0.1, crest) * (1.0 - smoothstep(0.1, 0.45, crest));
+    float crestLine = fract(lines);
+    float line = smoothstep(0.0, 0.1, crestLine) * (1.0 - smoothstep(0.1, 0.45, crestLine));
     line *= 1.0 - smoothstep(0.12, 0.3, linesWidth);
     float broken = smoothstep(0.45, 0.62, texture2D(uDetail, xz / 15.0 + vec2(lines * 0.012, 0.0)).a);
     float waves = line * broken * smoothstep(0.62, 0.8, floorH) * (1.0 - smoothstep(0.93, 0.96, floorH)) * onshore * 0.55;
-    col = mix(col, uFoam, clamp(max(surf, waves) * uShowSurf, 0.0, 1.0));
+    foam = max(foam, max(surf, waves) * uShowSurf);
   }
 
-  // Wakes: read from the stamped target, and alive. Three parts:
-  // - ripples: Kelvin wavelets along the V's arms whose crests run outward from her track as time goes on,
-  //   and transverse waves astern; they light the water (bright crests, darker troughs) rather than paint it;
-  // - churned water down her track: boiling foam fixed in the water where she left it (it drifts with the
-  //   sea, not with her), churning slowly and breaking up into patches as it ages, then gone;
-  // - the arms' crests breaking white close behind her.
-  // Every derivative is taken here, before the branch.
+  // Whitecaps: foam where the crests pinch to breaking, more the harder it blows, broken into streaks along the
+  // wind.
+  float breakup = texture2D(uDetail, vec2(uv.x / 9.0, uv.y / 4.0) + vec2(uTime * 0.006, 0.0)).a;
+  // How near breaking: how many standard deviations this crest's sharpness stands above the sea's (so it holds
+  // at every zoom, however many of the short waves have faded out). Only the sharpest few percent break in a
+  // fresh breeze, a good share of the sea in a gale.
+  float breaking = (1.0 - pinch) / max(sqrt(spread * 0.5), 1e-4);
+  float caps = smoothstep(mix(2.6, 1.5, smoothstep(0.5, 1.1, uStrength)), mix(3.4, 2.4, smoothstep(0.5, 1.1, uStrength)), breaking) * smoothstep(0.35, 0.7, uStrength);
+  // Broken into the streaks and flecks of real whitecaps, drawn out along the wind, never a solid patch.
+  // Two fine scales of broken foam: the core of a breaking crest stays fairly whole, its edges fray to flecks.
+  float fray = texture2D(uDetail, vec2(uv.x / 1.4, uv.y / 0.55) + vec2(uTime * 0.012, 0.0)).a * 0.6
+    + texture2D(uDetail, vec2(uv.x / 0.5, uv.y / 0.22) + vec2(uTime * 0.02, 0.43)).a * 0.4;
+  caps = smoothstep(0.7, 0.85, fray + caps * 0.35) * smoothstep(0.05, 0.5, caps) * 0.85;
+  // Gone before a whitecap would be a pixel or two (far out they'd make a speckled pattern, not a sea).
+  float footprint = length(fwidth(xz));
+  caps *= 1.0 - smoothstep(0.12, 0.35, footprint);
+  foam = max(foam, caps * uShowFlecks * (1.0 - smoothstep(0.6, 0.85, shallow)));
+
+  // Wakes: read from the stamped target, and alive: wavelets on the V's arms, churned water fixed where she left
+  // it, the arms' crests breaking white, and the white water at her hull.
   vec2 wuv = (xz - uWakeArea.xy) / uWakeArea.z;
   vec2 edge = smoothstep(0.0, 0.08, wuv) * smoothstep(0.0, 0.08, 1.0 - wuv);
   vec4 w = texture2D(uWake, wuv) * edge.x * edge.y;
-  // Across the wake (0 her track .. 1 the V's arms), and how far behind her, in her lengths.
-  float n = (1.0 - w.g) * ${WAKE_MARGIN.toFixed(3)};
+  float wn = (1.0 - w.g) * ${WAKE_MARGIN.toFixed(3)};
   float behind = w.b;
-  // The arms' wavelets: crests slanting back from her track like a feather, running outward.
-  float divPhase = (n * 7.0 - behind * 1.3) * 6.2832 - uTime * 2.4;
+  float divPhase = (wn * 7.0 - behind * 1.3) * 6.2832 - uTime * 2.4;
   float divFine = 1.0 - smoothstep(0.6, 1.2, fwidth(divPhase));
-  // Transverse waves astern: crests across her track, spaced about half her length, easing aft.
-  float trPhase = behind * 11.4 - uTime * 0.5;
-  float trFine = 1.0 - smoothstep(0.6, 1.2, fwidth(trPhase));
   if (w.r + w.a > 0.002) {
     float life = w.r;
-    float beams = n * (1.0 + behind * ${WAKE_WIDENING.toFixed(4)});
-    float armZone = smoothstep(0.3, 0.7, n) * (1.0 - smoothstep(1.05, 1.35, n));
-    float far = 1.0 - smoothstep(2.0, 5.0, behind);
-    float div = sin(divPhase) * armZone * divFine;
-    float tr = sin(trPhase) * (1.0 - smoothstep(0.25, 0.75, n)) * smoothstep(0.1, 0.5, behind) * trFine;
-    col *= 1.0 + (div * 0.7 + tr * 0.4) * life * far * 0.17 * uShowWakes;
-    // The churn, in the water's own drifting frame, two layers turning over against each other.
+    float beams = wn * (1.0 + behind * ${WAKE_WIDENING.toFixed(4)});
+    float armZone = smoothstep(0.3, 0.7, wn) * (1.0 - smoothstep(1.05, 1.35, wn));
     vec2 turn = vec2(uTime * 0.045, uTime * 0.029);
     float boil = texture2D(uDetail, uv / 1.3 + turn).a * 0.6 + texture2D(uDetail, uv / 0.55 - turn * 1.7 + 0.31).a * 0.4;
     float track = (1.0 - smoothstep(0.25, 1.1 + behind * 0.9, beams)) * (1.0 - smoothstep(1.0, 3.2, behind));
-    // Fresh foam is nearly solid; as it ages it breaks into patches and then into flecks.
     float erode = mix(0.22, 0.72, 1.0 - life);
     float churn = track * smoothstep(erode, erode + 0.16, boil);
     float crests = smoothstep(0.5, 0.95, sin(divPhase)) * armZone * divFine * (1.0 - smoothstep(0.6, 2.4, behind)) * smoothstep(0.3, 0.6, boil);
-    float wake = life * max(churn * 0.95, crests * 0.6);
-    // The white water at her hull, broken by a pattern in the water she sails through (so it streams aft past her).
     float spray = 0.5 + 0.8 * texture2D(uDetail, uv / 0.8 + 0.4 + turn * 0.5).a;
     float hull = w.a * smoothstep(0.15, 0.6, w.a * (0.4 + 0.85 * spray));
-    col = mix(col, uFoam, clamp(max(wake, hull), 0.0, 1.0) * uShowWakes);
+    foam = max(foam, max(life * max(churn * 0.95, crests * 0.6), hull) * uShowWakes);
   }
 
-  // Painted, not mirrored: lit by the hour, the sky's colour creeping in toward the horizon, then the haze;
-  // all in screen colours, carried back to the scene's linear light at the end.
-  col *= uLight;
-  vec3 view = normalize(cameraPosition - vWorld);
-  float fresnel = pow(1.0 - max(view.y, 0.0), 5.0);
-  col = mix(col, uSkyLit, fresnel * 0.35);
+  // Foam lies on the water, lit by the sky and the sun (as a white surface is: bright, never glowing).
+  col = mix(col, uFoam * min(lit * 0.5, vec3(1.15)), clamp(foam, 0.0, 1.0));
+
+  // Haze toward the horizon.
   float dist = length(cameraPosition - vWorld);
   float fog = 1.0 - exp(-pow(dist * uFogDensity, 2.0));
   col = mix(col, uFogColor, fog);
-  gl_FragColor = vec4(screenToScene(col), 1.0);
+  gl_FragColor = vec4(col, 1.0);
 }
 `;
 
-interface Swell {
+interface Wave {
   dir: THREE.Vector2;
   k: number;
   height: number;
+  q: number;
   phase: number;
+  omega: number;
 }
 
 /**
  * The sea over a map of `mapW` x `mapH` tiles; `depth` is the game's sea-floor texture (one texel a tile: R the
  * floor's height, 0 deep .. 1 at the shoreline; G nearness to land). For review, `shown` hides layers by name
- * (`?sea=plain,flecks`): swell, ripples (the hammered texture), flecks, shadows (the clouds'), surf, waves (the
- * water ships push).
+ * (`?sea=plain,flecks`): swell (the waves), ripples (the fine chop), flecks (whitecaps), shadows (the clouds'),
+ * surf, waves (the water ships push), wakes.
  */
 export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, shown: (layer: string) => boolean = () => true): Ocean {
   // The grid: rings out to the horizon, spaced as RING_STEP + RING_GROWTH * r.
@@ -326,46 +393,42 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setIndex(index);
 
-  const swells: Swell[] = SWELLS.map(([length, height]) => ({ dir: new THREE.Vector2(0, -1), k: (Math.PI * 2) / length, height, phase: 0 }));
-  // Where each swell must be gone by: the radius at which the grid has six points to its wavelength.
-  const fadeAt = SWELLS.map(([length]) => {
-    const r = (length / 6 - RING_STEP) / RING_GROWTH;
-    return new THREE.Vector2(r * 0.6, r);
-  });
+  const waves: Wave[] = SPECTRUM.map((s) => ({ dir: new THREE.Vector2(0, -1), k: 1, height: 0, q: 0, phase: s.phase, omega: 0 }));
   const detail = detailTexture();
   const wakes = createWakes();
-  const waves = createWaves();
+  const pushed = createWaves();
   const show = (layer: string) => (shown(layer) ? 1 : 0);
   const uniforms = {
     uCenter: { value: new THREE.Vector2() },
-    uSwell: { value: swells.map(() => new THREE.Vector4()) },
-    uPhase: { value: swells.map(() => 0) },
-    uSwellFade: { value: fadeAt },
+    uWave: { value: waves.map(() => new THREE.Vector4()) },
+    uQ: { value: waves.map(() => 0) },
+    uPhase: { value: waves.map(() => 0) },
+    uFade: { value: waves.map(() => new THREE.Vector2()) },
     uCoast: { value: coastTexture(depth, mapW, mapH) },
     uMapSize: { value: new THREE.Vector2(mapW, mapH) },
     uDetail: { value: detail },
+    uChop: { value: chopTexture() },
     uWake: { value: wakes.texture },
     uWakeArea: { value: wakes.area },
-    uWaves: { value: waves.texture },
-    uWaveArea: { value: waves.area },
-    uShowWaves: { value: show('waves') },
-    uShowWakes: { value: show('wakes') },
+    uWaves: { value: pushed.texture },
+    uWaveArea: { value: pushed.area },
     uTime: { value: 0 },
     uFrame: { value: new THREE.Vector4(0, -1, 1, 0) },
     uOffset: { value: new THREE.Vector2() },
     uCloudOffset: { value: new THREE.Vector2() },
     uWindDir: { value: new THREE.Vector2(0, -1) },
     uStrength: { value: 0.5 },
-    uDeep: { value: screen(PALETTE.deep) },
-    uShelf: { value: screen(PALETTE.shelf) },
-    uApron: { value: screen(PALETTE.apron) },
-    uShallow: { value: screen(PALETTE.shallow) },
-    uSand: { value: screen(PALETTE.sand) },
-    uFoam: { value: screen(PALETTE.foam) },
-    uLight: { value: new THREE.Color(1, 1, 1) },
-    uSkyLit: { value: new THREE.Color() },
-    uExposure: { value: 1 },
-    uSunFlat: { value: new THREE.Vector2() },
+    uHs: { value: 0.1 },
+    uDeep: { value: COLOURS.deep.clone() },
+    uScatter: { value: COLOURS.scatter.clone() },
+    uShallow: { value: COLOURS.shallow.clone() },
+    uSand: { value: COLOURS.sand.clone() },
+    uFoam: { value: COLOURS.foam.clone() },
+    uSun: { value: new THREE.Color(2, 2, 2) },
+    uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+    uAmbient: { value: new THREE.Color(0.6, 0.7, 0.8) },
+    uZenith: { value: new THREE.Color(0.1, 0.3, 0.7) },
+    uHorizon: { value: new THREE.Color(0.6, 0.75, 0.9) },
     uFogColor: { value: new THREE.Color() },
     uFogDensity: { value: 0 },
     uShowSwell: { value: show('swell') },
@@ -373,6 +436,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
     uShowFlecks: { value: show('flecks') },
     uShowShadows: { value: show('shadows') },
     uShowSurf: { value: show('surf') },
+    uShowWaves: { value: show('waves') },
+    uShowWakes: { value: show('wakes') },
   };
   const material = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms });
   const mesh = new THREE.Mesh(geometry, material);
@@ -388,21 +453,12 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
   const drift = new THREE.Vector2();
   const along = new THREE.Vector2();
   const across = new THREE.Vector2();
-  const swellOn = shown('swell') ? 1 : 0;
-  // Midday's light, so the palette shows as authored at noon.
-  const NOON_SUN = new THREE.Color('#fff4d6');
-  const NOON_SKY = new THREE.Color('#9fd3f0');
-  const SUN_SHARE = 0.65;
-  /** How much of the hour's colour the water takes, and how bright it is at night (share of noon, on screen). */
-  const TINT = 0.2;
-  const NIGHT_VALUE = 0.45;
-  const NOON = NOON_SUN.clone().multiplyScalar(SUN_SHARE * Math.sin((70 * Math.PI) / 180)).add(NOON_SKY.clone().multiplyScalar(1 - SUN_SHARE));
   let shipsThisFrame: WakeShip[] = [];
-  // The water's step waits for the renderer (it draws into its own targets): the frame's time and ships.
-  let waveDt = 0;
-  let waveShips: WakeShip[] = [];
+  // The water ships push steps when the renderer draws (it draws into its own targets): the frame's time and ships.
+  let pushDt = 0;
+  let pushShips: WakeShip[] = [];
 
-  /** Turns the texture's frame to a new heading, keeping it still at the anchor (else far water would race round). */
+  /** Turns the textures' frame to a new heading, keeping them still at the anchor (else far water would race round). */
   const setFrame = (to: number) => {
     const before = new THREE.Vector2(along.dot(anchor), across.dot(anchor));
     along.set(Math.sin(to), -Math.cos(to));
@@ -412,13 +468,26 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
     uniforms.uFrame.value.set(along.x, along.y, across.x, across.y);
   };
 
+  /** The waves' horizontal push and height at a point of the undisturbed surface. */
+  const gerstner = (x: number, z: number) => {
+    let dx = 0;
+    let dz = 0;
+    let h = 0;
+    for (const w of waves) {
+      const arg = w.k * (w.dir.x * x + w.dir.y * z) - w.phase;
+      const c = Math.cos(arg);
+      dx += w.q * w.height * w.dir.x * c;
+      dz += w.q * w.height * w.dir.y * c;
+      h += w.height * Math.sin(arg);
+    }
+    return [dx, dz, h] as const;
+  };
+
   mesh.onBeforeRender = (renderer, _scene, camera) => {
-    uniforms.uExposure.value = renderer.toneMappingExposure;
-    // Before the water draws: step the water ships push, round the target.
-    waves.step(renderer, anchor.x, anchor.y, waveDt, waveShips);
-    uniforms.uWaves.value = waves.texture;
-    waveDt = 0;
-    // Before the water draws: stamp the wakes round the target, over an area that grows with the view.
+    // Before the water draws: step the water ships push, and stamp the wakes, round the target.
+    pushed.step(renderer, anchor.x, anchor.y, pushDt, pushShips);
+    uniforms.uWaves.value = pushed.texture;
+    pushDt = 0;
     const view = camera.position.distanceTo(new THREE.Vector3(anchor.x, 0, anchor.y));
     wakes.render(renderer, anchor.x, anchor.y, THREE.MathUtils.clamp(view * WAKE_AREA.perDistance, WAKE_AREA.min, WAKE_AREA.max));
   };
@@ -429,7 +498,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       const dt = last === undefined ? 0 : THREE.MathUtils.clamp(t - last, 0, 0.1);
       last = t;
       anchor.set(at.x, at.z);
-      // Ease toward the wind (the short way round); the swell and texture turn about the camera's target.
+      // Ease toward the wind (the short way round); the waves and textures turn about the camera's target.
       const want = (sea.toDeg * Math.PI) / 180;
       if (heading === undefined) {
         heading = want;
@@ -439,66 +508,77 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
         heading += turn * (1 - Math.exp(-dt * SEA_EASE));
         strength += (sea.strength - strength) * (1 - Math.exp(-dt * SEA_EASE));
       }
-      for (let i = 0; i < swells.length; i++) {
-        const s = swells[i]!;
-        const [, height, offDeg, speed] = SWELLS[i]!;
-        const a = heading + (offDeg * Math.PI) / 180;
+      const swellOn = shown('swell') ? 1 : 0;
+      const peak = PEAK_LENGTH(strength);
+      const hs = SIGNIFICANT_HEIGHT(strength);
+      const heights = SPECTRUM.map((s) => s.weight * WEIGHT_NORM * hs * swellOn);
+      const choppy = CHOPPY(strength);
+      const sumKA = SPECTRUM.reduce((n, s, i) => n + ((Math.PI * 2) / (peak * s.ratio)) * heights[i]!, 0) || 1;
+      waves.forEach((w, i) => {
+        const s = SPECTRUM[i]!;
+        const k = (Math.PI * 2) / (peak * s.ratio);
+        const a = heading! + s.off;
         const dir = new THREE.Vector2(Math.sin(a), -Math.cos(a));
-        // Keep the swell's phase where the camera is as it turns.
-        s.phase += s.k * (dir.dot(anchor) - s.dir.dot(anchor));
-        s.dir.copy(dir);
-        s.phase += s.k * speed * dt;
-        s.height = height * (0.25 + 0.75 * strength) * swellOn;
-        uniforms.uSwell.value[i]!.set(s.dir.x, s.dir.y, s.k, s.height);
-        uniforms.uPhase.value[i] = s.phase;
-      }
+        // Keep each wave's phase where the camera is as the sea turns and grows (else the water there would jump).
+        w.phase += k * dir.dot(anchor) - w.k * w.dir.dot(anchor);
+        w.k = k;
+        w.dir.copy(dir);
+        w.omega = Math.sqrt(GRAVITY * k) * PACE;
+        w.phase = (w.phase + w.omega * dt) % (Math.PI * 2);
+        w.height = heights[i]!;
+        // Choppiness shared out by each wave's steepness, so all of them together sharpen the crests by `choppy`.
+        w.q = choppy / sumKA;
+        uniforms.uWave.value[i]!.set(w.dir.x, w.dir.y, w.k, w.height);
+        uniforms.uQ.value[i] = w.q;
+        uniforms.uPhase.value[i] = w.phase;
+        // Rolled in the mesh only where its grid has six points to the wavelength.
+        const fadeAt = ((peak * s.ratio) / 6 - RING_STEP) / RING_GROWTH;
+        uniforms.uFade.value[i]!.set(Math.max(0, fadeAt * 0.6), Math.max(0.001, fadeAt));
+      });
+      uniforms.uHs.value = hs;
       setFrame(heading);
-      // The texture drifts downwind: in the wind's frame, along its first axis.
-      const pace = THREE.MathUtils.lerp(DRIFT[0]!, DRIFT[1]!, strength);
+      // The textures drift downwind: in the wind's frame, along its first axis.
+      const pace = THREE.MathUtils.lerp(DRIFT[0]!, DRIFT[1]!, Math.min(1, strength));
       uniforms.uOffset.value.x -= pace * dt;
       drift.set(along.x * pace, along.y * pace);
       uniforms.uCloudOffset.value.addScaledVector(along, -strength * CLOUD_SPEED * dt);
       uniforms.uWindDir.value.copy(along);
       uniforms.uStrength.value = strength;
       uniforms.uTime.value = t;
-      // The grid follows the target, snapped so its points don't slide over the swell.
+      // The grid follows the target, snapped so its points don't slide over the waves.
       uniforms.uCenter.value.set(Math.round(at.x * 2) / 2, Math.round(at.z * 2) / 2);
       wakes.update(shipsThisFrame, dt, drift);
-      waveDt += dt;
-      waveShips = shipsThisFrame;
+      pushDt += dt;
+      pushShips = shipsThisFrame;
       shipsThisFrame = [];
 
-      // The hour's light, as a share of noon's, so midday shows the palette as authored.
-      const sunUp = Math.max(0, light.sunDir.y);
-      const lit = light.sun.clone().multiplyScalar(SUN_SHARE * sunUp).add(light.sky.clone().multiplyScalar(1 - SUN_SHARE));
-      // Painted light: the water keeps its own hues (a sunset sea is still blue, not grey), taking a touch of the
-      // hour's colour as a share of noon's, and dims toward a moonlit night that still reads.
-      const r = lit.r / NOON.r;
-      const g = lit.g / NOON.g;
-      const b = lit.b / NOON.b;
-      const peak = Math.max(r, g, b) || 1;
-      const bright = THREE.MathUtils.lerp(NIGHT_VALUE, 1, THREE.MathUtils.smoothstep(light.level, 0.55, 1));
-      uniforms.uLight.value.setRGB(1 + (r / peak - 1) * TINT, 1 + (g / peak - 1) * TINT, 1 + (b / peak - 1) * TINT).multiplyScalar(bright);
-      // The sky and the haze as the dome shows them on screen, so the water meets the horizon in its colour.
-      const exposure = uniforms.uExposure.value;
-      toScreen(light.sky, exposure, uniforms.uSkyLit.value);
-      uniforms.uSunFlat.value.set(light.sunDir.x, light.sunDir.z);
-      if (uniforms.uSunFlat.value.lengthSq() > 1e-6) uniforms.uSunFlat.value.normalize();
-      toScreen(light.fog, exposure, uniforms.uFogColor.value);
+      // The light, as the scene has it (linear).
+      uniforms.uSunDir.value.copy(light.sunDir);
+      uniforms.uSun.value.copy(light.sun).multiplyScalar(light.power ?? 2);
+      uniforms.uHorizon.value.copy(light.sky);
+      uniforms.uZenith.value.copy(light.zenith ?? light.sky.clone().multiplyScalar(0.5));
+      uniforms.uAmbient.value.copy(light.ambient ?? light.sky);
+      uniforms.uFogColor.value.copy(light.fog);
       uniforms.uFogDensity.value = light.fogDensity;
     },
     ships(ships) {
       shipsThisFrame = ships;
     },
     splash(x, z, size) {
-      waves.splash(x, z, size);
+      pushed.splash(x, z, size);
     },
-    // The full swell everywhere: the mesh fades it out far from the target (where its grid gets coarse), but
-    // ships that far off are drawn too small for the difference to show.
+    // The surface under a point: the waves push the water sideways as well as up, so find which undisturbed point
+    // lands here (two steps of refinement are plenty), then take its height. The mesh fades the shortest waves out
+    // far from the target, but ships that far off are drawn too small for the difference to show.
     heightAt(x, z) {
-      let h = 0;
-      for (const s of swells) h += s.height * Math.sin((s.dir.x * x + s.dir.y * z) * s.k - s.phase);
-      return h;
+      let px = x;
+      let pz = z;
+      for (let i = 0; i < 2; i++) {
+        const [dx, dz] = gerstner(px, pz);
+        px = x - dx;
+        pz = z - dz;
+      }
+      return gerstner(px, pz)[2];
     },
   };
 }
