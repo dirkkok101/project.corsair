@@ -29,6 +29,8 @@ export interface BattleViewShip {
   /** Her men aboard, and her guns still mounted. */
   crew?: number;
   guns?: number;
+  /** Seconds until each broadside is loaded again. */
+  reload?: { port: number; starboard: number };
 }
 /** Where a ball struck her: along her length (bow positive, -0.5 .. 0.5), in what, how high and how far out (tiles). */
 export interface BattleViewPlace {

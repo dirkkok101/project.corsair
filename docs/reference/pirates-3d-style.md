@@ -132,6 +132,8 @@ own off a real island, at every zoom, hour and wind.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Running rigging on each yard, bracing round with it: lifts from the yard's arms to the mast above, a footrope
     sagging under it, and sheets from the sail's clews down to the yard below or the rail.
+  - Her guns recoil inboard when that broadside fires and are hauled out again as she reloads, so a side's reload
+    shows on her hull.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
     slightly different bolts with raised seams, soft creases, reef bands and a bolt rope in relief (a normal map),

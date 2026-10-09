@@ -1190,6 +1190,11 @@ export interface BuiltShip {
   hole(along: number, side: number, up: number): void;
   /** Her guns still mounted, as a share of her battery: the muzzles of guns knocked out are gone from their ports. */
   setGuns(share: number): void;
+  /**
+   * How far each broadside's guns are run out (0 just fired, recoiled inboard .. 1 loaded and run out), port and
+   * starboard: the reload shows on her side.
+   */
+  setRunOut(port: number, starboard: number): void;
   /** A ball through her rigging at a point in her own frame (model units: y up from the water, z along, bow -z). */
   sailHole(y: number, z: number): void;
   /**
@@ -1517,6 +1522,8 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       for (const s of [-1, 1]) {
         const m = new THREE.Mesh(muzzle, BLACK);
         m.position.set(s * (st.w * 0.97 + 0.03), y, h.length / 2 - t * h.length);
+        m.userData.out = m.position.x;
+        m.userData.side = s;
         root.add(m);
         muzzles.push(m);
       }
@@ -1581,6 +1588,14 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const axis = new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)).normalize();
       m.stick.quaternion.setFromAxisAngle(axis, k * k * 1.75);
       m.stick.position.y = m.foot - k * k * 0.25;
+    },
+    setRunOut(port, starboard) {
+      for (const m of muzzles) {
+        const share = THREE.MathUtils.clamp(m.userData.side > 0 ? starboard : port, 0, 1);
+        // Recoiled back inboard (her muzzle gone into the port), then hauled out again as she is loaded.
+        const ease = share * share * (3 - 2 * share);
+        m.position.x = m.userData.out - m.userData.side * 0.07 * (1 - ease);
+      }
     },
     sailHole(y, z) {
       const u = sailMat.userData.uniforms;

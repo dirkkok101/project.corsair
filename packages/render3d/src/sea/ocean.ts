@@ -328,8 +328,9 @@ void main() {
   vec4 gs = texture2D(uWaves, gv) * ge.x * ge.y * uShowWaves;
   float simFoam = 0.0;
   if (gs.b > 0.01) {
-    float fine = texture2D(uDetail, uv / 0.45 + vec2(0.13, 0.71)).a;
-    float lace = texture2D(uDetail, uv / 1.6 + vec2(0.57, 0.29)).a * 0.65 + fine * 0.35;
+    // Fine enough that close in it reads as lace and flecks of foam, never as blobs.
+    float fine = texture2D(uDetail, uv / 0.2 + vec2(0.13, 0.71)).a;
+    float lace = texture2D(uDetail, uv / 0.7 + vec2(0.57, 0.29)).a * 0.6 + fine * 0.4;
     float freshW = smoothstep(0.0, 0.6, gs.a);
     // Never solid: even the densest churn shows water through it (Black Flag's wake is a lace of white over
     // the sea, whitest just astern), and old foam is a thin net.
