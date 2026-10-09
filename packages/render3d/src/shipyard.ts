@@ -427,6 +427,39 @@ function deckSurface(plan: HullPlan): Surface {
   return sf;
 }
 
+/** A castle bulkhead's face: planked in the band's colour, two doors in gilt-edged frames, small windows above. */
+function bulkheadTexture(plan: HullPlan): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = plan.paint.band;
+  g.fillRect(0, 0, 256, 128);
+  g.fillStyle = 'rgba(55,40,28,0.35)';
+  g.fillRect(0, 0, 256, 128);
+  for (let x = 0; x < 256; x += 16) {
+    g.fillStyle = 'rgba(20,10,4,0.3)';
+    g.fillRect(x, 0, 1.5, 128);
+  }
+  for (const x of [54, 172]) {
+    g.fillStyle = plan.paint.trim;
+    g.fillRect(x - 3, 40, 36, 88);
+    g.fillStyle = '#2a1a10';
+    g.fillRect(x, 44, 30, 84);
+    g.fillStyle = 'rgba(255,255,255,0.08)';
+    g.fillRect(x + 4, 50, 2, 70);
+  }
+  for (const x of [20, 120, 220]) {
+    g.fillStyle = plan.paint.trim;
+    g.fillRect(x - 2, 10, 20, 18);
+    g.fillStyle = '#2a3a48';
+    g.fillRect(x, 12, 16, 14);
+  }
+  g.fillStyle = plan.paint.trim;
+  g.fillRect(0, 0, 256, 5);
+  return finish(c, 4);
+}
+
 /** A hatch grating: a lattice of bars over the dark hold, in a coaming. */
 function gratingTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -570,8 +603,9 @@ function stationOf(plan: HullPlan, t: number): { w: number; h: number } {
   if (t < 0.3) w = plan.beam * (plan.sternWidth + (1 - plan.sternWidth) * Math.sin((Math.PI / 2) * (t / 0.3)) ** 0.8);
   else if (t < midTo) w = plan.beam;
   else w = plan.beam * Math.sqrt(Math.max(0, 1 - ((t - midTo) / (1 - midTo)) ** (1.6 + plan.fullness * 1.8)));
-  const castle = plan.castle * THREE.MathUtils.smoothstep(plan.castleTo - t, -0.02, 0.04);
-  const fore = plan.forecastle * THREE.MathUtils.smoothstep(t - plan.forecastleFrom, -0.02, 0.04);
+  // Each castle rises in a step at its bulkhead (a deck above the waist), not a ramp.
+  const castle = plan.castle * THREE.MathUtils.smoothstep(plan.castleTo - t, -0.006, 0.006);
+  const fore = plan.forecastle * THREE.MathUtils.smoothstep(t - plan.forecastleFrom, -0.006, 0.006);
   const h = plan.rail + plan.sheerStern * (1 - t) ** 3 + plan.sheerBow * t ** 4 + castle + fore;
   return { w: Math.max(w, 0.004), h };
 }
@@ -682,6 +716,40 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
   deckGeo.setIndex(deckIdx);
   deckGeo.computeVertexNormals();
   group.add(new THREE.Mesh(deckGeo, deck));
+  // Each castle's bulkhead across the deck where it rises (painted, with doors in, and windows in a tall one), and
+  // a balustrade of turned posts along its edge.
+  const bulkheadMat = new THREE.MeshStandardMaterial({ map: bulkheadTexture(plan), roughness: 0.75 });
+  const baluster = new THREE.CylinderGeometry(0.006, 0.008, 0.05, 6).translate(0, 0.025, 0);
+  const railWood = new THREE.MeshStandardMaterial({ color: plan.paint.wale, roughness: 0.75 });
+  for (const [rise, at, faces] of [
+    [plan.castle, plan.castleTo, -1],
+    [plan.forecastle, plan.forecastleFrom, 1],
+  ] as const) {
+    if (rise < 0.04) continue;
+    const t = at;
+    const z = plan.length / 2 - t * plan.length;
+    // The waist's deck just off the step, and the castle's on it.
+    const low = stationOf(plan, t + faces * -0.03).h - 0.05;
+    const high = stationOf(plan, t - faces * -0.03).h - 0.05;
+    const w = Math.min(stationOf(plan, t + 0.012).w, stationOf(plan, t - 0.012).w) * 0.88 * 2;
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(w, high - low), bulkheadMat);
+    wall.position.set(0, (low + high) / 2, z);
+    // Facing the waist (forward for the stern castle, aft for the forecastle).
+    wall.rotation.y = faces < 0 ? Math.PI : 0;
+    group.add(wall);
+    const n = Math.max(4, Math.round(w / 0.07));
+    const posts = new THREE.InstancedMesh(baluster, railWood, n);
+    const m4 = new THREE.Matrix4();
+    for (let i = 0; i < n; i++) {
+      m4.makeTranslation(-w / 2 + (w * (i + 0.5)) / n, high, z + faces * -0.004);
+      posts.setMatrixAt(i, m4);
+    }
+    group.add(posts);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(w, 0.01, 0.016), railWood);
+    rail.position.set(0, high + 0.052, z);
+    group.add(rail);
+  }
+
   // Hatch gratings in their coamings, fore and aft of amidships.
   const grating = new THREE.MeshStandardMaterial({ map: gratingTexture(), roughness: 0.85 });
   const coaming = new THREE.MeshStandardMaterial({ color: plan.paint.wale, roughness: 0.8 });

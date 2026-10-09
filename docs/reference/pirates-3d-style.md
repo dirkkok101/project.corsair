@@ -140,6 +140,8 @@ own off a real island, at every zoom, hour and wind.
     gun crews as she has men for. Blocks where the running rigging is rove on the yards.
   - Her lines: the hull fines into a V below the water toward bow and stern (a sharp entry, a clean run) under
     full topsides; castled ships (galleons, ships of the line) have a strong tumblehome.
+  - Castles rise in a step from the waist, not a ramp: a bulkhead across the deck at each (painted, with doors
+    and small windows) and a balustrade of turned posts along its edge.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
     slightly different bolts with raised seams, soft creases, reef bands and a bolt rope in relief (a normal map),
