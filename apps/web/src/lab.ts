@@ -10,7 +10,7 @@ import { createWorld } from '@corsair/systems-navigation';
 //   ?zoom=close|sail|region|<tiles>  ?mode=map|battle  ?wind=<from deg>  ?strength=calm|light|fresh|strong|gale
 //   ?hour=<0..24>  ?sea=plain,flecks,...  ?at=<x>,<y>  ?chase (from astern)  ?pace=<speed points>
 //   ?manual (no animation loop; drive it with __lab.frame)  ?ui=0  ?course=straight (east and back round)
-//   ?storm (a storm over the stand-in: rain, lightning, spray)
+//   ?storm (a storm over the stand-in: rain, lightning, spray)  ?class=ship.galleon (the stand-ins' class)
 
 const params = new URLSearchParams(location.search);
 const ZOOMS: Record<string, number> = { close: 9, sail: 32, region: 420 };
@@ -104,7 +104,7 @@ const at = (ms: number) => {
       const run = ((((a - phase) * r) % (r * 4)) + r * 4) % (r * 4);
       return {
         id,
-        classId: 'ship.brig',
+        classId: params.get('class') ?? 'ship.brig',
         x: center.x - r * 2 + run,
         y: center.y + (phase ? r * 0.6 : 0),
         headingDeg: 90,
@@ -118,7 +118,7 @@ const at = (ms: number) => {
     }
     return {
       id,
-      classId: 'ship.brig',
+      classId: params.get('class') ?? 'ship.brig',
       x: center.x + Math.sin(a) * r,
       y: center.y - Math.cos(a) * r,
       headingDeg: ((((a * 180) / Math.PI + dir * 90) % 360) + 360) % 360,

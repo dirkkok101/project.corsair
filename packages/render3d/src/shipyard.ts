@@ -581,10 +581,16 @@ const STATIONS = 96;
 const SECTION = 20;
 
 /** How far out the hull side stands at a height `s` up it (keel 0 .. rail 1), for a half-width `w`. */
-function sideAt(w: number, s: number): number {
+function sideAt(w: number, s: number, t = 0.5, plan?: HullPlan): number {
   const bilge = Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, s * 1.6)) ** 2));
-  const tumble = 1 - 0.12 * Math.max(0, (s - 0.7) / 0.3) ** 2;
-  return w * bilge * tumble;
+  // Tumblehome: the topsides lean in toward the rail, much more on a castled ship (a galleon, a ship of the line).
+  const tumbles = plan && plan.castle > 0.2 ? 0.24 : 0.12;
+  const tumble = 1 - tumbles * Math.max(0, (s - 0.62) / 0.38) ** 2;
+  // Her lines: toward bow and stern the hull fines away below the water into a V (a sharp entry and a clean run),
+  // while the topsides stay full and flare out over it.
+  const end = Math.max(0, Math.abs(t - 0.5) * 2 - 0.3) / 0.7;
+  const fine = 1 - 0.62 * end ** 1.4 * (1 - Math.min(1, s * 1.15)) ** 1.1;
+  return w * bilge * tumble * fine;
 }
 
 /** A strip along both sides of the hull at height `s`: a wale (out from the side) or the rail's cap. */
@@ -596,7 +602,7 @@ function strake(plan: HullPlan, s: number, height: number, out: number, material
     const { w, h } = stationOf(plan, t);
     const z = plan.length / 2 - t * plan.length;
     const y = KEEL + (h - KEEL) * s;
-    const x = sideAt(w, s) + out;
+    const x = sideAt(w, s, t, plan) + out;
     pos.push(x, y - height / 2, z, x, y + height / 2, z, -x, y - height / 2, z, -x, y + height / 2, z);
     if (i < STATIONS) {
       const a = i * 4;
@@ -626,7 +632,7 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
       for (let j = 0; j <= SECTION; j++) {
         const s = j / SECTION;
         const y = KEEL + (h - KEEL) * s;
-        pos.push(side * sideAt(w, s), y, z);
+        pos.push(side * sideAt(w, s, t, plan), y, z);
         // u once along the length (so the painted ports meet the muzzles), v up the side (keel 0 .. rail 1).
         uv.push(t, (y - KEEL) / (h - KEEL));
       }
@@ -882,6 +888,12 @@ const HOLE = (() => {
 })();
 const HOLE_GEO = new THREE.PlaneGeometry(0.075, 0.075);
 const MAX_HOLES = 40;
+/** A gun on her weather deck: its wooden carriage, and the barrel on it. */
+const CARRIAGE = new THREE.BoxGeometry(0.07, 0.035, 0.05);
+const CARRIAGE_WOOD = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.85 });
+const GUN_BARREL = new THREE.CylinderGeometry(0.012, 0.017, 0.11, 8);
+/** A rigging block: a small rounded wooden shell (a sheave inside), where a rope is rove. */
+const BLOCK = new THREE.SphereGeometry(0.011, 8, 6).scale(0.75, 1.25, 0.6);
 /** A deadeye (the block a shroud's lanyard is rove through) and the iron chain plate under it. */
 const DEADEYE = new THREE.CylinderGeometry(0.014, 0.014, 0.008, 10);
 const CHAIN_PLATE = new THREE.BoxGeometry(0.006, 0.12, 0.006);
@@ -1342,6 +1354,18 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
         sq.wb / 2, sq.zb, 0, sq.wb * 0.42, clewTo, 0.12,
       ];
       group.add(ropes(running));
+      // Blocks where the running rigging is rove: at each yard arm (lift, brace, sheet) and at the slings.
+      for (const [bx, by] of [
+        [-arm, sq.zt],
+        [arm, sq.zt],
+        [-arm * 0.92, sq.zt - 0.035],
+        [arm * 0.92, sq.zt - 0.035],
+        [0, sq.zt + 0.04],
+      ] as const) {
+        const block = new THREE.Mesh(BLOCK, SPAR);
+        block.position.set(bx, by, 0.015);
+        group.add(block);
+      }
       // A fighting top under each upper yard.
       if (i === m.squares.length - 1 && m.squares.length > 1) {
         const top = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.03, 10), SPAR);
@@ -1450,9 +1474,13 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       spots.push({ x: across * st.w, y: st.h - 0.05, z: h.length / 2 - t * h.length, turn: rand() * Math.PI * 2 });
     }
   }
+  // The gun crews stand at their guns (after the guns are placed below; spots filled in once they are).
+  const gunnerSpots: { x: number; y: number; z: number; turn: number; side: number }[] = [];
+  /** How far each broadside is from loaded (0 loaded .. 1 just fired): its gunners work while it isn't. */
+  const reloading = { port: 0, starboard: 0 };
   // Each man's dress, from his nation's (a merchant crew dresses as the player's would).
   const dress = DRESS[nation] ?? DRESS.player!;
-  const men = spots.map((_, i) => {
+  const men = Array.from({ length: MAX_SAILORS + 32 }, (_, i) => {
     const rand = seeded(i * 101 + nation.length * 7 + 1);
     const pick = (list: string[]) => new THREE.Color(list[Math.floor(rand() * list.length)]!);
     const skin = SKINS[Math.floor(rand() * SKINS.length)]!;
@@ -1469,12 +1497,12 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
     };
   });
   const parts = {
-    legs: new THREE.InstancedMesh(SAILOR.legs, SAILOR_CLOTH, spots.length),
-    torso: new THREE.InstancedMesh(SAILOR.torso, SAILOR_CLOTH, spots.length),
-    left: new THREE.InstancedMesh(SAILOR.arm, SAILOR_CLOTH, spots.length),
-    right: new THREE.InstancedMesh(SAILOR.arm, SAILOR_CLOTH, spots.length),
-    head: new THREE.InstancedMesh(SAILOR.head, SAILOR_CLOTH, spots.length),
-    hat: new THREE.InstancedMesh(SAILOR.hat, SAILOR_CLOTH, spots.length),
+    legs: new THREE.InstancedMesh(SAILOR.legs, SAILOR_CLOTH, MAX_SAILORS + 32),
+    torso: new THREE.InstancedMesh(SAILOR.torso, SAILOR_CLOTH, MAX_SAILORS + 32),
+    left: new THREE.InstancedMesh(SAILOR.arm, SAILOR_CLOTH, MAX_SAILORS + 32),
+    right: new THREE.InstancedMesh(SAILOR.arm, SAILOR_CLOTH, MAX_SAILORS + 32),
+    head: new THREE.InstancedMesh(SAILOR.head, SAILOR_CLOTH, MAX_SAILORS + 32),
+    hat: new THREE.InstancedMesh(SAILOR.hat, SAILOR_CLOTH, MAX_SAILORS + 32),
   };
   const all = Object.values(parts);
   for (const m of all) {
@@ -1529,6 +1557,38 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       parts.hat.setColorAt(n, man.hat);
       n++;
     }
+    // Gunners: two men a deck gun, the share of them her crew allows; ramming and hauling while their side
+    // reloads, standing by when it is loaded.
+    const manned = Math.min(32, Math.round(gunnerSpots.length * Math.min(1, count / Math.max(1, spots.length))));
+    for (let g = 0; g < manned; g++) {
+      const sp = gunnerSpots[g]!;
+      const man = men[spots.length + g]!;
+      const busy = (sp.side > 0 ? reloading.starboard : reloading.port) > 0.02;
+      tip.set(busy ? 0.35 + Math.sin(t * 6 + man.phase) * 0.15 : 0, sp.turn, 0, 'YXZ');
+      rot.setFromEuler(tip);
+      at.set(sp.x, sp.y, sp.z);
+      pose.compose(at, rot, one);
+      parts.legs.setMatrixAt(n, pose);
+      parts.torso.setMatrixAt(n, pose);
+      parts.head.setMatrixAt(n, pose);
+      parts.hat.setMatrixAt(n, pose);
+      for (const [side, mesh] of [
+        [-1, parts.left],
+        [1, parts.right],
+      ] as const) {
+        const reach = busy ? 1.3 + Math.sin(t * 7 + man.phase + (side > 0 ? 1.4 : 0)) * 0.6 : 0.15;
+        tip.set(-reach, 0, side * 0.12, 'XYZ');
+        rot.setFromEuler(tip);
+        limb.compose(at.set(side * SHOULDER.x, SHOULDER.y, 0), rot, one);
+        mesh.setMatrixAt(n, limb.premultiply(pose));
+        mesh.setColorAt(n, man.sleeve);
+      }
+      parts.legs.setColorAt(n, man.breeches);
+      parts.torso.setColorAt(n, man.top);
+      parts.head.setColorAt(n, man.skin);
+      parts.hat.setColorAt(n, man.hat);
+      n++;
+    }
     for (const m of all) {
       m.count = n;
       m.instanceMatrix.needsUpdate = true;
@@ -1538,6 +1598,8 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
 
   // Cannon muzzles out of the lowest row of ports.
   const muzzles: THREE.Mesh[] = [];
+  /** Guns worked from her weather deck: carriages behind the ports, each with two men at it. */
+  const deckGuns: { carriage: THREE.Group; side: number; out: number; crew: { x: number; z: number; turn: number }[] }[] = [];
   // Which guns go first as they are knocked out: scattered along both sides, the same for every ship of a class.
   const losing: number[] = [];
   const holes: THREE.Mesh[] = [];
@@ -1556,9 +1618,35 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
         m.userData.side = s;
         root.add(m);
         muzzles.push(m);
+        // Where the ports open just under the rail (a brig's, a sloop's), her guns stand on the weather deck: a
+        // carriage on trucks, and two men at it, one at the breech and one at the side tackle.
+        const deckY = st.h - 0.05;
+        if (deckY - y < 0.09) {
+          const carriage = new THREE.Group();
+          const bed = new THREE.Mesh(CARRIAGE, CARRIAGE_WOOD);
+          bed.position.set(0, 0.018, 0);
+          const barrel = new THREE.Mesh(GUN_BARREL, BLACK);
+          barrel.rotation.z = Math.PI / 2;
+          barrel.position.set(s * 0.03, 0.04, 0);
+          carriage.add(bed, barrel);
+          const inboard = s * (st.w * 0.62);
+          carriage.position.set(inboard, deckY, h.length / 2 - t * h.length);
+          root.add(carriage);
+          deckGuns.push({
+            carriage,
+            side: s,
+            out: inboard,
+            crew: [
+              { x: inboard - s * 0.11, z: h.length / 2 - t * h.length + 0.03, turn: s > 0 ? -Math.PI / 2 : Math.PI / 2 },
+              { x: inboard - s * 0.05, z: h.length / 2 - t * h.length - 0.06, turn: s > 0 ? -Math.PI / 2 + 0.6 : Math.PI / 2 - 0.6 },
+            ],
+          });
+        }
       }
     }
   }
+
+  for (const g of deckGuns) for (const c of g.crew) gunnerSpots.push({ x: c.x, y: g.carriage.position.y, z: c.z, turn: c.turn, side: g.side });
 
   // Colours: an ensign at the stern, a long pennant at the main masthead.
   const stern = stationOf(h, 0.02);
@@ -1626,6 +1714,14 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       m.stick.position.y = m.foot - k * k * 0.25;
     },
     setRunOut(port, starboard) {
+      reloading.port = 1 - THREE.MathUtils.clamp(port, 0, 1);
+      reloading.starboard = 1 - THREE.MathUtils.clamp(starboard, 0, 1);
+      // The deck guns recoil and run out with their muzzles.
+      for (const g of deckGuns) {
+        const share = THREE.MathUtils.clamp(g.side > 0 ? starboard : port, 0, 1);
+        const ease = share * share * (3 - 2 * share);
+        g.carriage.position.x = g.out - g.side * 0.07 * (1 - ease);
+      }
       for (const m of muzzles) {
         const share = THREE.MathUtils.clamp(m.userData.side > 0 ? starboard : port, 0, 1);
         // Recoiled back inboard (her muzzle gone into the port), then hauled out again as she is loaded.
@@ -1649,7 +1745,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const y = THREE.MathUtils.lerp(0.03, st.h - 0.03, THREE.MathUtils.clamp(up, 0, 1));
       const s = (y - KEEL) / (st.h - KEEL);
       const hole = new THREE.Mesh(HOLE_GEO, HOLE);
-      hole.position.set(side * (sideAt(st.w, s) + 0.003), y, h.length / 2 - t * h.length);
+      hole.position.set(side * (sideAt(st.w, s, t, h) + 0.003), y, h.length / 2 - t * h.length);
       hole.rotation.set(0, (side * Math.PI) / 2, Math.random() * Math.PI * 2, 'YXZ');
       hole.scale.setScalar(0.7 + Math.random() * 0.6);
       root.add(hole);
