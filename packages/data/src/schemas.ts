@@ -381,6 +381,8 @@ export const combatSchema = z.object({
      */
     spread: z.number().min(0),
     spreadPerTile: z.number().min(0),
+    /** Grape's scatter as a share of round shot's: a tighter cone. */
+    grapeSpread: z.number().min(0),
     arcPerTile: z.number().min(0),
     /** Chance a shot hits at point blank and at full range; raking fire (along the target's length) is surer. */
   }),

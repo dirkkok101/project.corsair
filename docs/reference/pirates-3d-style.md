@@ -130,6 +130,8 @@ own off a real island, at every zoom, hour and wind.
   - Round shot shows where it struck: a splintered hole in her side (on the side facing the shooter, where the
     battle placed the hit), and an empty port for each gun knocked out.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
+  - Running rigging on each yard, bracing round with it: lifts from the yard's arms to the mast above, a footrope
+    sagging under it, and sheets from the sail's clews down to the yard below or the rail.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
     slightly different bolts with raised seams, soft creases, reef bands and a bolt rope in relief (a normal map),
@@ -150,7 +152,8 @@ own off a real island, at every zoom, hour and wind.
   - Sails shot through show it: round holes in more and more of the cloth, then the foot torn into rags.
   - Balls really fly (the battle simulates them): one a gun, each from its own port, the gunners leading her and
     aiming for her hull (round), her rigging (chain) or her deck (grape), scattering more the longer the range,
-    at half the old speed (about a second at gun range). Each is tested against the other ship's shape as she is
+    at half the old speed (about a second at gun range). Grape flies as a tight knot of small shot, opening a
+    little as it goes, and scatters under half as much as round shot. Each is tested against the other ship's shape as she is
     then (her hull to the rail, her rigging to her masts' tops and yards' ends); what it meets it strikes there,
     so a ship that turns or changes pace after a broadside is fired can dodge some of it. A ball through her
     rigging punches a ragged hole through the canvas it crossed.

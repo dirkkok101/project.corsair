@@ -308,7 +308,7 @@ export function createBattleFx() {
   const scatter = (t: number, x: number, y: number, z: number) => {
     for (let k = 0; k < 12; k++) {
       const a = rand() * Math.PI * 2;
-      spawn('spark', t, x + Math.cos(a) * rand() * 0.6, y, z + Math.sin(a) * rand() * 0.6, [Math.cos(a) * 1.2, 0.8 + rand(), Math.sin(a) * 1.2], 0.3, [0.25, 0.15]);
+      spawn('spark', t, x + Math.cos(a) * rand() * 0.2, y, z + Math.sin(a) * rand() * 0.2, [Math.cos(a) * 0.5, 0.6 + rand() * 0.6, Math.sin(a) * 0.5], 0.25, [0.12, 0.08]);
     }
   };
 
@@ -478,7 +478,9 @@ export function createBattleFx() {
           ball(x + dx, y, z + dz, 0.7);
           ball(x - dx, y, z - dz, 0.7);
         } else if (s.ammo === 'grape') {
-          for (let j = 0; j < 5; j++) ball(x + Math.cos(j * 1.3 + s.flight) * 0.05, y + Math.sin(j * 2.1) * 0.03, z + Math.sin(j * 1.9 + s.flight) * 0.05, 0.4);
+          // A tight knot of small shot, opening a little as it flies (a cone from the muzzle).
+          const open = 0.015 + 0.04 * Math.min(1, 1 - s.t / s.flight);
+          for (let j = 0; j < 5; j++) ball(x + Math.cos(j * 1.3 + s.flight) * open, y + Math.sin(j * 2.1) * open * 0.6, z + Math.sin(j * 1.9 + s.flight) * open, 0.35);
         } else ball(x, y, z, 1);
       }
       balls.count = nb;

@@ -1297,6 +1297,24 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       furl.visible = false;
       group.add(furl);
       sails.push({ mesh, furl, course: i === m.squares.length - 1 });
+      // Running rigging on the yard (it braces round with it): lifts from the yard's arms up to the mast above,
+      // a footrope sagging under it for the men to stand on, and the sheets from the sail's clews down toward
+      // the deck (a course's to the rail, an upper sail's to the yard below).
+      const arm = (sq.wt + 0.1) / 2;
+      const above = Math.min(m.height, sq.zt + 0.35);
+      const below = m.squares[i + 1];
+      const clewTo = below ? below.zt + 0.02 : railAt(m.at).h + 0.02;
+      const running = [
+        -arm, sq.zt, 0, 0, above, 0,
+        arm, sq.zt, 0, 0, above, 0,
+        -arm, sq.zt - 0.03, 0.02, -arm * 0.5, sq.zt - 0.07, 0.02,
+        -arm * 0.5, sq.zt - 0.07, 0.02, 0, sq.zt - 0.08, 0.02,
+        0, sq.zt - 0.08, 0.02, arm * 0.5, sq.zt - 0.07, 0.02,
+        arm * 0.5, sq.zt - 0.07, 0.02, arm, sq.zt - 0.03, 0.02,
+        -sq.wb / 2, sq.zb, 0, -sq.wb * 0.42, clewTo, 0.12,
+        sq.wb / 2, sq.zb, 0, sq.wb * 0.42, clewTo, 0.12,
+      ];
+      group.add(ropes(running));
       // A fighting top under each upper yard.
       if (i === m.squares.length - 1 && m.squares.length > 1) {
         const top = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.03, 10), SPAR);

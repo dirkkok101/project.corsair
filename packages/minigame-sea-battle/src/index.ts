@@ -294,7 +294,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const flight = d / c.guns.shotTilesPerSecond;
     const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
     const aimH = ship.ammo === 'chain' ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
-    const sigma = c.guns.spread + c.guns.spreadPerTile * d;
+    // Grape leaves the muzzle as a tight cone of small shot: it holds together over its short reach.
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1);
     // A normal scatter from two uniform draws (Box-Muller).
     const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
     const shots: Shot[] = [];
