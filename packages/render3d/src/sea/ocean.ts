@@ -337,13 +337,16 @@ void main() {
     float armZone = smoothstep(0.3, 0.7, wn) * (1.0 - smoothstep(1.05, 1.35, wn));
     vec2 turn = vec2(uTime * 0.045, uTime * 0.029);
     float boil = texture2D(uDetail, uv / 1.3 + turn).a * 0.6 + texture2D(uDetail, uv / 0.55 - turn * 1.7 + 0.31).a * 0.4;
-    float track = (1.0 - smoothstep(0.25, 1.1 + behind * 0.9, beams)) * (1.0 - smoothstep(1.0, 3.2, behind));
-    float erode = mix(0.22, 0.72, 1.0 - life);
-    float churn = track * smoothstep(erode, erode + 0.16, boil);
+    // The churned track: about her own width (no wider than the water her hull parted), whitest at its middle,
+    // never solid: even fresh it is a lace of foam over the water, breaking up as it ages and gone within a
+    // couple of her lengths (a wide, solid slab read as a road behind her from astern).
+    float track = (1.0 - smoothstep(0.1, 0.65 + behind * 0.45, beams)) * (1.0 - smoothstep(0.5, 2.2, behind));
+    float erode = mix(0.4, 0.78, 1.0 - life);
+    float churn = track * smoothstep(erode, erode + 0.12, boil) * mix(1.0, 0.55, smoothstep(0.0, 1.2, behind));
     float crests = smoothstep(0.5, 0.95, sin(divPhase)) * armZone * divFine * (1.0 - smoothstep(0.6, 2.4, behind)) * smoothstep(0.3, 0.6, boil);
     float spray = 0.5 + 0.8 * texture2D(uDetail, uv / 0.8 + 0.4 + turn * 0.5).a;
     float hull = w.a * smoothstep(0.15, 0.6, w.a * (0.4 + 0.85 * spray));
-    foam = max(foam, max(life * max(churn * 0.95, crests * 0.6), hull) * uShowWakes);
+    foam = max(foam, max(life * max(churn * 0.75, crests * 0.4), hull) * uShowWakes);
   }
 
   // Foam lies on the water, lit by the sky and the sun (as a white surface is: bright, never glowing).
