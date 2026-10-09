@@ -639,6 +639,11 @@ export async function createSeaRenderer(
         if (e.ship !== side || e.at <= fallsSeen) continue;
         if (e.kind === 'mast' && e.mast !== undefined) {
           falls.set(`${side}:${e.mast}`, { from: t, towardDeg: fallSide(s.headingDeg, e.towardDeg ?? s.headingDeg + 90) });
+        } else if (e.place?.part === 'rigging' && e.place.up !== undefined) {
+          // Through her rigging: a hole in the canvas where the ball crossed it (in her own frame).
+          const sz = content.ships[s.classId]?.size;
+          const along = e.place.along * (sz ? sz.length : f.plan.hull.length * BATTLE_MODEL_SCALE);
+          f.built.sailHole(e.place.up / BATTLE_MODEL_SCALE, -along / BATTLE_MODEL_SCALE);
         } else if (e.kind === 'hit' && e.place?.part === 'hull') {
           // Round shot through her side: a hole on the side facing the ship that fired.
           const foe = side === 'player' ? enemy : player;

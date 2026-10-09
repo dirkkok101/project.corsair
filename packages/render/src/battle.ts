@@ -30,17 +30,20 @@ export interface BattleViewShip {
   crew?: number;
   guns?: number;
 }
-/** Where a ball struck her: along her length (bow positive, -0.5 .. 0.5), and in what. */
+/** Where a ball struck her: along her length (bow positive, -0.5 .. 0.5), in what, how high and how far out (tiles). */
 export interface BattleViewPlace {
   along: number;
   part: 'hull' | 'rigging' | 'deck';
+  up?: number;
+  across?: number;
 }
 export interface BattleViewState {
   tick: number;
   wind: Wind;
   ships: { player: BattleViewShip; enemy: BattleViewShip };
   /** Balls in flight; `hit` ones end on her (the 3D view lands them on her rail or sails, misses in the sea). */
-  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape'; hit?: boolean; place?: BattleViewPlace }[];
+  /** Balls in flight, one a gun: where each is now (x, y, height in tiles), from its gun toward its aim point. */
+  shots: { x: number; y: number; tx: number; ty: number; t: number; flight: number; ammo?: 'round' | 'chain' | 'grape'; at?: [number, number, number] }[];
   /** A hit's ship and place on her; a mast going by the board, which and the way it fell. */
   effects: {
     kind: 'smoke' | 'splash' | 'hit' | 'sail' | 'grape' | 'mast';

@@ -91,8 +91,6 @@ export function fallSide(headingDeg: number, towardDeg: number): number {
 }
 const MAX_DEBRIS = 400;
 const MAX_BALLS = 400;
-/** How high a ball climbs over its flight, per tile it travels: a flat arc, as a gun's is. */
-const ARC_RISE = 0.06;
 const BALL = '#15171c';
 const GOLD = '#e8c170';
 const PALE = '#ebede9';
@@ -346,7 +344,8 @@ export function createBattleFx() {
       for (const fx of view.effects) {
         if (fx.at <= seenAt) continue;
         const h = (fx.ship && hulls[fx.ship]) || hullAt(fx.x, fx.y);
-        const at = fx.place ? placeOn(h, fx.place, rand()) : { x: fx.x, y: 0, z: fx.y };
+        // Where the ball struck (the battle reports the point and how high); else placed on her by its part.
+        const at = fx.place?.up !== undefined ? { x: fx.x, y: fx.place.up, z: fx.y } : fx.place ? placeOn(h, fx.place, rand()) : { x: fx.x, y: 0, z: fx.y };
         if (fx.kind === 'smoke') broadside(t, h, h === hulls.player ? hulls.enemy : hulls.player);
         else if (fx.kind === 'splash') splash(t, fx.x, f.seaAt(fx.x, fx.y), fx.y);
         else if (fx.kind === 'mast') fallen(t, h, fx.mast ?? 0, fx.towardDeg ?? 0);
@@ -460,52 +459,27 @@ export function createBattleFx() {
       debris.instanceMatrix.needsUpdate = true;
       if (debris.instanceColor) debris.instanceColor.needsUpdate = true;
 
-      // Balls on their arcs: from her side to where they fall (a hit ends at her rail or her sails, a miss in the sea).
-      // Each of the battle's shots is drawn as a few balls from guns along her side, landing a little apart, so a
-      // broadside streams across as a loose spray of shot (as Pirates! draws it).
+      // Balls in flight: one a gun, drawn where the battle has each.
       let nb = 0;
-      const shotHash = (s: { flight: number; tx: number; ty: number }, k: number) => {
-        const v = Math.sin(s.flight * 91.7 + s.tx * 12.3 + s.ty * 7.1 + k * 17.31) * 43758.5453;
-        return v - Math.floor(v);
-      };
       const ball = (x: number, y: number, z: number, s: number) => {
         if (nb >= MAX_BALLS) return;
         m.compose(p.set(x, y, z), q.identity(), sc.setScalar(s));
         balls.setMatrixAt(nb++, m);
       };
       for (const s of view.shots) {
-        const from = hullAt(s.x, s.y);
-        const target = hullAt(s.tx, s.ty);
-        const fr = THREE.MathUtils.degToRad(from.headingDeg);
-        const tr = THREE.MathUtils.degToRad(target.headingDeg);
-        const y0 = from.deck * 0.7;
-        const end = s.hit && s.place ? placeOn(target, s.place, shotHash(s, 3)) : undefined;
-        const y1 = end ? end.y : s.hit ? (s.ammo === 'chain' ? target.sails : target.deck * (s.ammo === 'grape' ? 1.1 : 0.7)) : f.seaAt(s.tx, s.ty);
-        const rise = Math.hypot(s.tx - s.x, s.ty - s.y) * ARC_RISE;
-        for (let b = 0; b < (s.ammo === 'grape' ? 1 : 3); b++) {
-          // Out of a port along her side, into her length (or the sea about her), each a moment apart.
-          const along = (shotHash(s, b) - 0.5) * from.length * 0.6;
-          // A hit goes where the sim placed it (the balls of a shot landing close together); a miss about her.
-          const into = end ? 0 : (shotHash(s, b + 5) - 0.5) * (s.hit ? target.length * 0.5 : 0.8);
-          const k = THREE.MathUtils.clamp(1 - s.t / s.flight + (shotHash(s, b + 9) - 0.5) * 0.06, 0, 1);
-          const sx = s.x + Math.sin(fr) * along;
-          const sz = s.y - Math.cos(fr) * along;
-          const ex = end ? end.x + (shotHash(s, b + 5) - 0.5) * 0.12 : s.tx + Math.sin(tr) * into;
-          const ez = end ? end.z + (shotHash(s, b + 7) - 0.5) * 0.12 : s.ty - Math.cos(tr) * into;
-          const x = sx + (ex - sx) * k;
-          const z = sz + (ez - sz) * k;
-          const y = y0 + (y1 - y0) * k + rise * 4 * k * (1 - k);
-          if (s.ammo === 'chain') {
-            // Two balls whirling on their chain.
-            const spin = t * 18 + s.flight * 10;
-            const dx = Math.cos(spin) * 0.16;
-            const dz = Math.sin(spin) * 0.16;
-            ball(x + dx, y, z + dz, 0.9);
-            ball(x - dx, y, z - dz, 0.9);
-          } else if (s.ammo === 'grape') {
-            for (let j = 0; j < 6; j++) ball(x + Math.cos(j * 1.3 + s.flight) * 0.14, y + Math.sin(j * 2.1) * 0.08, z + Math.sin(j * 1.9 + s.flight) * 0.14, 0.6);
-          } else ball(x, y, z, 1);
-        }
+        // One ball a gun, where the battle has it (it flies for real: what it meets, it strikes).
+        if (!s.at) continue;
+        const [x, z, y] = s.at;
+        if (s.ammo === 'chain') {
+          // Two balls whirling on their chain.
+          const spin = t * 18 + s.flight * 10;
+          const dx = Math.cos(spin) * 0.07;
+          const dz = Math.sin(spin) * 0.07;
+          ball(x + dx, y, z + dz, 0.7);
+          ball(x - dx, y, z - dz, 0.7);
+        } else if (s.ammo === 'grape') {
+          for (let j = 0; j < 5; j++) ball(x + Math.cos(j * 1.3 + s.flight) * 0.05, y + Math.sin(j * 2.1) * 0.03, z + Math.sin(j * 1.9 + s.flight) * 0.05, 0.4);
+        } else ball(x, y, z, 1);
       }
       balls.count = nb;
       balls.instanceMatrix.needsUpdate = true;

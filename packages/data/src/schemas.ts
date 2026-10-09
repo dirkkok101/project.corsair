@@ -12,6 +12,11 @@ export const shipClassSchema = z.object({
   turn: z.number().min(1).max(10),
   /** Her masts, fore to aft: each one's place along her length from the middle (bow positive, -0.5 .. 0.5). */
   masts: z.array(z.number().min(-0.5).max(0.5)).min(1),
+  /**
+   * Her size in battle, tiles (as the 3D view draws her): length, half-beam, rail height above the water, the
+   * tallest mast's height, and the half-span of her widest yard. Balls are tested against this shape.
+   */
+  size: z.object({ length: z.number().positive(), beam: z.number().positive(), rail: z.number().positive(), mast: z.number().positive(), yard: z.number().positive() }),
   draft: z.number(),
   hull: z.number(),
   /** Hold capacity in units of cargo. */
@@ -369,10 +374,15 @@ export const combatSchema = z.object({
     /** Men a gun needs for full-speed reloading; fewer and every broadside reloads slower. */
     crewPerGun: z.number().positive(),
     shotTilesPerSecond: z.number().positive(),
+    /**
+     * Aim: the gunners lead her (where she will be when the ball arrives); each ball's scatter about that point
+     * (tiles, standard deviation) is `spread` plus `spreadPerTile` for every tile of range. How high a ball
+     * climbs over its flight per tile of range.
+     */
+    spread: z.number().min(0),
+    spreadPerTile: z.number().min(0),
+    arcPerTile: z.number().min(0),
     /** Chance a shot hits at point blank and at full range; raking fire (along the target's length) is surer. */
-    hitNear: share,
-    hitFar: share,
-    rakeBonus: z.number().min(0),
   }),
   ammo: z.record(
     z.enum(['round', 'chain', 'grape']),

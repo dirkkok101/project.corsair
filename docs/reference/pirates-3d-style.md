@@ -148,8 +148,12 @@ own off a real island, at every zoom, hour and wind.
   - The two ships at their true size (the map's 1.6x enlargement would leave no sea between them), so they
     trade broadsides across a couple of lengths of water, as in Pirates!.
   - Sails shot through show it: round holes in more and more of the cloth, then the foot torn into rags.
-  - Each broadside streams across as a loose spray of small balls on flat arcs (hits land on her rail or sails,
-    misses in the sea); chain whirls, grape scatters.
+  - Balls really fly (the battle simulates them): one a gun, each from its own port, the gunners leading her and
+    aiming for her hull (round), her rigging (chain) or her deck (grape), scattering more the longer the range,
+    at half the old speed (about a second at gun range). Each is tested against the other ship's shape as she is
+    then (her hull to the rail, her rigging to her masts' tops and yards' ends); what it meets it strikes there,
+    so a ship that turns or changes pace after a broadside is fired can dodge some of it. A ball through her
+    rigging punches a ragged hole through the canvas it crossed.
   - A small white puff at each gunport (the ship is never lost in smoke), dark smoke trailing from a hit,
     splashes, splinters, torn canvas, grape sparks.
   - A hurt hull smokes, and below a quarter she burns.

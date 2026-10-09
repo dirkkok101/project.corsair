@@ -414,8 +414,11 @@ describe('sea battle', () => {
         const before = battle.state.ships.enemy;
         battle.step(1, 'cautious');
         const s = battle.state;
-        for (const shot of s.shots) expect(Boolean(shot.place)).toBe(shot.hit);
-        for (const shot of s.shots.filter((x) => x.place)) expect(Math.abs(shot.place!.along)).toBeLessThanOrEqual(0.5);
+        // Every hit carries where it went in: along her length, how high, how far out.
+        for (const e of s.effects.filter((x) => x.place && x.at === s.tick / 30)) {
+          expect(Math.abs(e.place!.along)).toBeLessThanOrEqual(0.5);
+          expect(e.place!.up).toBeGreaterThan(-0.06);
+        }
         const fell = s.effects.find((e) => e.kind === 'mast' && e.ship === 'enemy' && e.at === s.tick / 30);
         if (!fell) continue;
         const after = s.ships.enemy;
@@ -432,5 +435,45 @@ describe('sea battle', () => {
       }
     }
     expect(seen).toBeGreaterThan(0);
+  });
+
+  it('balls really fly: one a gun, and a ship that turns hard after a broadside is fired at her dodges some of it', () => {
+    // A frigate fires her loaded broadside at a brig lying beam-on four tiles off; then the brig either holds her
+    // course or puts her helm hard over and runs, and we count the balls that strike her.
+    const strikes = (dodge: boolean) => {
+      let hits = 0;
+      let fired = 0;
+      for (let seed = 1; seed <= 12; seed++) {
+        const battle = createBattle(content, {
+          map,
+          wind: { fromDeg: 0, strength: 'fresh' },
+          player: { ...ship('ship.brig', undefined, 0.9), headingDeg: 90 },
+          enemy: { ...ship('ship.frigate', 'patrol', 0.9), headingDeg: 90 },
+          seed,
+          bearingDeg: 180,
+        });
+        const st = battle.state as unknown as { ships: Record<string, { x: number; y: number; speed: number; reload: Record<string, number> }> };
+        // Seat the frigate 4 tiles south of the brig, both heading east, the brig at speed.
+        st.ships.enemy!.x = st.ships.player!.x;
+        st.ships.enemy!.y = st.ships.player!.y + 4;
+        st.ships.player!.speed = 2.4;
+        // Her AI fires the broadside that bears at once: one ball a gun on that side.
+        for (let i = 0; i < 60 && !battle.state.shots.some((s) => s.from === 'enemy'); i++) battle.step(1);
+        const balls = battle.state.shots.filter((s) => s.from === 'enemy');
+        fired += balls.length;
+        expect(balls.length).toBe(Math.floor(battle.state.ships.enemy.guns / 2));
+        if (dodge) battle.send({ type: 'SetHelm', shipId: 'player', helm: -1 });
+        for (let i = 0; i < 90 && battle.state.shots.some((s) => s.from === 'enemy'); i++) {
+          battle.step(1);
+          hits += battle.state.effects.filter((e) => e.ship === 'player' && e.place && e.at === battle.state.tick / 30).length;
+        }
+      }
+      return { hits, fired };
+    };
+    const held = strikes(false);
+    const dodged = strikes(true);
+    process.stderr.write(`DODGE held ${JSON.stringify(held)} dodged ${JSON.stringify(dodged)}\n`);
+    expect(held.fired).toBeGreaterThan(0);
+    expect(dodged.hits).toBeLessThan(held.hits);
   });
 });

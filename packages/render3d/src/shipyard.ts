@@ -939,7 +939,19 @@ function spar(r0: number, r1: number, length: number): THREE.Mesh {
  * sheet, 1 in the middle of the cloth), and the shader pushes it along the sail's own z by the ship's belly,
  * rippling it when the sail luffs.
  */
-type SailUniforms = { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform; uTatter: THREE.IUniform };
+type SailUniforms = {
+  uBelly: THREE.IUniform;
+  uLuff: THREE.IUniform;
+  uTime: THREE.IUniform;
+  uTatter: THREE.IUniform;
+  /** Shot holes: where balls went through her rigging (her own frame: y up, z along), and how big. */
+  uHoles: THREE.IUniform<THREE.Vector4[]>;
+  uHoleCount: THREE.IUniform<number>;
+  /** From the world back to her own frame (her root's inverse). */
+  uShipInverse: THREE.IUniform<THREE.Matrix4>;
+};
+/** The most shot holes a ship's canvas shows. */
+const SAIL_HOLES = 32;
 /** The sails' own glow, shared by every sail and tinted by the renderer with the light: warm at dusk, blue by moonlight. */
 export const SAIL_GLOW = new THREE.Color('#fffaf0');
 function sailMaterial(cloth: { map: THREE.Texture; normal: THREE.Texture }, shared?: SailUniforms): THREE.MeshStandardMaterial & { userData: { uniforms: SailUniforms } } {
@@ -957,19 +969,31 @@ function sailMaterial(cloth: { map: THREE.Texture; normal: THREE.Texture }, shar
   }) as THREE.MeshStandardMaterial & {
     userData: { uniforms: SailUniforms };
   };
-  const uniforms = shared ?? { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 }, uTatter: { value: 0 } };
+  const uniforms = shared ?? {
+    uBelly: { value: 1 },
+    uLuff: { value: 0 },
+    uTime: { value: 0 },
+    uTatter: { value: 0 },
+    uHoles: { value: Array.from({ length: SAIL_HOLES }, () => new THREE.Vector4()) },
+    uHoleCount: { value: 0 },
+    uShipInverse: { value: new THREE.Matrix4() },
+  };
   m.emissive = SAIL_GLOW;
   m.userData.uniforms = uniforms;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aFree;\nattribute float aDepth;\nattribute float aAbeam;\nuniform float uBelly;\nuniform float uLuff;\nuniform float uTime;')
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute float aFree;\nattribute float aDepth;\nattribute float aAbeam;\nuniform float uBelly;\nuniform float uLuff;\nuniform float uTime;\nuniform mat4 uShipInverse;\nvarying vec3 vShip;',
+      )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 float wave = sin((position.x + position.z) * 9.0 + uTime * 11.0) * sin(position.y * 6.0 - uTime * 7.0);
 vec3 belly = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), aAbeam);
-transformed += belly * aFree * (aDepth * uBelly + wave * uLuff * 0.05);`,
+transformed += belly * aFree * (aDepth * uBelly + wave * uLuff * 0.05);
+vShip = (uShipInverse * modelMatrix * vec4(transformed, 1.0)).xyz;`,
       );
     // Shot through (uTatter 0 whole .. 1 in rags): round holes in more and more of the cloth, then the foot
     // torn away in ragged tongues, so a beaten ship's canvas shows it (Pirates! draws hers as rags).
@@ -978,11 +1002,23 @@ transformed += belly * aFree * (aDepth * uBelly + wave * uLuff * 0.05);`,
         '#include <common>',
         `#include <common>
 uniform float uTatter;
+uniform vec4 uHoles[${SAIL_HOLES}];
+uniform int uHoleCount;
+varying vec3 vShip;
 float tatterHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`,
       )
       .replace(
         '#include <map_fragment>',
-        `if (uTatter > 0.0) {
+        `// A ball through her rigging went clean through every sail in its path (it flew across her): a hole where the
+// cloth crosses its line, ragged at the edge.
+for (int i = 0; i < ${SAIL_HOLES}; i++) {
+  if (i >= uHoleCount) break;
+  vec2 d = vShip.yz - uHoles[i].yz;
+  float a = atan(d.y, d.x);
+  float rag = 1.0 + 0.3 * sin(a * 7.0 + uHoles[i].x * 13.0) * sin(a * 3.0 + uHoles[i].x * 5.0);
+  if (length(d) < uHoles[i].w * rag) discard;
+}
+if (uTatter > 0.0) {
   vec2 cells = vMapUv * vec2(7.0, 6.0);
   vec2 cell = floor(cells);
   vec2 spot = vec2(tatterHash(cell + 1.7), tatterHash(cell + 5.3)) * 0.6 + 0.2;
@@ -1154,6 +1190,8 @@ export interface BuiltShip {
   hole(along: number, side: number, up: number): void;
   /** Her guns still mounted, as a share of her battery: the muzzles of guns knocked out are gone from their ports. */
   setGuns(share: number): void;
+  /** A ball through her rigging at a point in her own frame (model units: y up from the water, z along, bow -z). */
+  sailHole(y: number, z: number): void;
   /**
    * A mast (fore to aft) going by the board: `fallen` 0 standing .. 1 gone (over the side and under), toppling
    * toward `towardDeg` on her own bearings (0 her bow, 90 to starboard).
@@ -1488,6 +1526,8 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const p = POINTS[point] ?? POINTS.beam!;
       const t = nowMs / 1000;
       const u = sailMat.userData.uniforms;
+      root.updateMatrixWorld();
+      u.uShipInverse.value.copy(root.matrixWorld).invert();
       u.uTime.value = t;
       u.uBelly.value = point === 'irons' ? 0.1 : p.belly;
       u.uLuff.value = point === 'irons' ? 1 : 0;
@@ -1523,6 +1563,14 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const axis = new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)).normalize();
       m.stick.quaternion.setFromAxisAngle(axis, k * k * 1.75);
       m.stick.position.y = m.foot - k * k * 0.25;
+    },
+    sailHole(y, z) {
+      const u = sailMat.userData.uniforms;
+      const n = u.uHoleCount.value;
+      // The oldest hole is patched over to make room (a ship this shot through is in rags anyway).
+      const slot = n < SAIL_HOLES ? n : Math.floor(Math.random() * SAIL_HOLES);
+      u.uHoles.value[slot]!.set(Math.random() * 10, y, z, 0.035 + Math.random() * 0.02);
+      u.uHoleCount.value = Math.min(SAIL_HOLES, n + 1);
     },
     hole(along, side, up) {
       if (holes.length >= MAX_HOLES) return;

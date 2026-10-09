@@ -31,10 +31,10 @@
     "grapeTiles": 4,
     "reloadSeconds": 4,
     "crewPerGun": 4,
-    "shotTilesPerSecond": 12,
-    "hitNear": 0.85,
-    "hitFar": 0.25,
-    "rakeBonus": 0.4
+    "shotTilesPerSecond": 6,
+    "spread": 0.12,
+    "spreadPerTile": 0.16,
+    "arcPerTile": 0.04
   },
   "ammo": {
     "round": {

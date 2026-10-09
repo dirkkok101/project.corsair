@@ -38,13 +38,24 @@ export interface BattleShip extends Ship {
   masts: number[];
 }
 
-/** Where a ball strikes her: along her length (from the middle, bow positive, -0.5 .. 0.5), and in what. */
+/**
+ * Where a ball struck her: along her length (from the middle, bow positive, -0.5 .. 0.5), and in what; how high
+ * (tiles above the water) and how far out from her centreline (tiles, starboard positive) it went in.
+ */
 export interface HitPlace {
   along: number;
   part: 'hull' | 'rigging' | 'deck';
+  up: number;
+  across: number;
 }
 
-/** A ball in flight: it lands at (tx, ty) after `t` seconds, and hits only if `hit`. */
+/**
+ * A ball in flight, really flying: from her gun port (x, y, at height `h0`) toward where her gunners aimed (tx,
+ * ty, at height `h1`), rising `rise` at the top of its arc, over `flight` seconds; `t` seconds of that are left
+ * (it flies on past its aim point and falls into the sea if nothing stops it). Each step it is tested against
+ * the other ship as she is then: a ship that has turned or changed her pace since the broadside was fired may
+ * not be where the ball goes. `at` is where it is now (x, y, height).
+ */
 export interface Shot {
   from: Side;
   x: number;
@@ -53,10 +64,16 @@ export interface Shot {
   ty: number;
   t: number;
   flight: number;
-  hit: boolean;
+  h0: number;
+  h1: number;
+  rise: number;
+  at: [number, number, number];
   ammo: Ammo;
-  /** A hit's place on her, chosen as the guns fire. */
-  place?: HitPlace;
+}
+
+/** Where a ball is `k` of the way along its flight (0 at the gun, 1 at its aim point, on beyond). */
+export function shotAt(s: Pick<Shot, 'x' | 'y' | 'tx' | 'ty' | 'h0' | 'h1' | 'rise'>, k: number): [number, number, number] {
+  return [s.x + (s.tx - s.x) * k, s.y + (s.ty - s.y) * k, s.h0 + (s.h1 - s.h0) * k + s.rise * 4 * k * (1 - k)];
 }
 
 /** Something for the view to draw for a moment: smoke at the guns, a splash, splinters, a mast going. */
@@ -264,33 +281,32 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const target = state.ships[side === 'player' ? 'enemy' : 'player'];
     const d = distance();
     if (aim(side, broadside) !== 'ready') return;
-    // Raking fire runs along the target's length (bow or stern on), where a ball does the most harm.
-    const along = Math.abs(Math.cos(((bearing(ship, target) - target.headingDeg) * Math.PI) / 180));
-    const near = 1 - Math.min(1, d / reach(ship, 'round'));
-    const hitChance = Math.min(0.95, (c.guns.hitFar + (c.guns.hitNear - c.guns.hitFar) * near) * (1 + c.guns.rakeBonus * along));
-    const shots: Shot[] = [];
+    // One ball a gun on this side, each from its own port along her side. Her gunners lead the target (where she
+    // will be when the ball gets there, at her present course and pace) and aim for her hull, or her rigging with
+    // chain, or her deck with grape; each ball scatters about that point, more the longer the range.
+    const size = content.ships[ship.classId]!.size;
+    const theirs = content.ships[target.classId]!.size;
+    const r = (ship.headingDeg * Math.PI) / 180;
+    const fwd = [Math.sin(r), -Math.cos(r)] as const;
+    const stbd = [Math.cos(r), Math.sin(r)] as const;
+    const out = broadside === 'starboard' ? 1 : -1;
+    const tr = (target.headingDeg * Math.PI) / 180;
     const flight = d / c.guns.shotTilesPerSecond;
-    // Where each hit lands on her, from a stream of its own for this broadside: the fight's own rolls (hits,
-    // damage, the AI) run exactly as they would without it.
-    const aimRng = rngStream(seedRng(setup.seed, `place:${state.tick}:${side}`));
-    for (let g = 0; g < Math.floor(ship.guns / 2); g++) {
-      const hit = rng.float() < hitChance;
-      const along = aimRng.float() - 0.5;
-      const high = aimRng.float() < c.masts.rigging[ship.ammo]!;
-      // Misses fall short, long or wide by up to a tile and a half.
-      const spread = hit ? 0.4 : 1.5;
-      shots.push({
-        from: side,
-        x: ship.x,
-        y: ship.y,
-        tx: target.x + (rng.float() - 0.5) * 2 * spread,
-        ty: target.y + (rng.float() - 0.5) * 2 * spread,
-        t: flight,
-        flight,
-        hit,
-        ammo: ship.ammo,
-        ...(hit ? { place: { along, part: ship.ammo === 'grape' ? 'deck' : high ? 'rigging' : 'hull' } as HitPlace } : {}),
-      });
+    const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
+    const aimH = ship.ammo === 'chain' ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
+    const sigma = c.guns.spread + c.guns.spreadPerTile * d;
+    // A normal scatter from two uniform draws (Box-Muller).
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
+    const shots: Shot[] = [];
+    const n = Math.floor(ship.guns / 2);
+    for (let g = 0; g < n; g++) {
+      const along = ((g + 0.5) / n - 0.5) * size.length * 0.6;
+      const x = ship.x + fwd[0] * along + stbd[0] * size.beam * out;
+      const y = ship.y + fwd[1] * along + stbd[1] * size.beam * out;
+      const tx = lead[0] + gauss() * sigma;
+      const ty = lead[1] + gauss() * sigma;
+      const shot = { from: side, x, y, tx, ty, t: flight, flight, h0: size.rail * 0.55, h1: aimH, rise: d * c.guns.arcPerTile, ammo: ship.ammo } as Omit<Shot, 'at'>;
+      shots.push({ ...shot, at: shotAt(shot, 0) });
     }
     state = {
       ...state,
@@ -551,20 +567,40 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           };
         }
 
-        // Balls land: a hit does its ammo's damage, a miss throws up a splash.
+        // Balls fly on: each is tested against the other ship as she is now (her hull up to the rail, her
+        // rigging up to her masts' tops and out to her yards' ends). A ball that meets her strikes there; one
+        // that meets nothing falls into the sea.
         const flying: Shot[] = [];
         const effects = state.effects.filter((e) => seconds() - e.at < EFFECT_SECONDS);
         for (const shot of state.shots) {
           const t = shot.t - DT;
-          if (t > 0) {
-            flying.push({ ...shot, t });
-            continue;
-          }
+          const k = 1 - t / shot.flight;
+          const at = shotAt(shot, k);
           const victimSide: Side = shot.from === 'player' ? 'enemy' : 'player';
-          if (!shot.hit) {
-            effects.push({ kind: 'splash', x: shot.tx, y: shot.ty, at: seconds() });
+          const vs = state.ships[victimSide];
+          const sz = content.ships[vs.classId]!.size;
+          const vr = (vs.headingDeg * Math.PI) / 180;
+          const rx = at[0] - vs.x;
+          const ry = at[1] - vs.y;
+          const along = rx * Math.sin(vr) - ry * Math.cos(vr);
+          const across = rx * Math.cos(vr) + ry * Math.sin(vr);
+          const half = sz.length / 2;
+          // Her waterline narrows toward bow and stern.
+          const width = sz.beam * Math.sqrt(Math.max(0, 1 - (along / half) ** 2)) + 0.04;
+          const inHull = Math.abs(along) <= half && Math.abs(across) <= width && at[2] <= sz.rail && at[2] > -0.05;
+          const inRig = !state.wreck && Math.abs(along) <= half * 0.85 && Math.abs(across) <= sz.yard && at[2] > sz.rail && at[2] <= sz.mast;
+          if (!inHull && !inRig) {
+            if (at[2] <= 0 || k > 2) effects.push({ kind: 'splash', x: at[0], y: at[1], at: seconds() });
+            else flying.push({ ...shot, t, at });
             continue;
           }
+          if (victimSide === 'enemy' && state.wreck) continue;
+          const place: HitPlace = {
+            along: Math.max(-0.5, Math.min(0.5, along / sz.length)),
+            part: inRig ? 'rigging' : shot.ammo === 'grape' ? 'deck' : 'hull',
+            up: at[2],
+            across,
+          };
           const v = state.ships[victimSide];
           const a = c.ammo[shot.ammo]!;
           const guns = shot.ammo === 'round' && rng.float() < c.gunLoss ? Math.max(0, v.guns - 1) : v.guns;
@@ -575,10 +611,9 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
             crew: Math.max(0, v.crew - a.crew),
             guns,
           };
-          const place = shot.place;
-          effects.push({ kind: shot.ammo === 'grape' ? 'grape' : a.sails > a.hull ? 'sail' : 'hit', x: shot.tx, y: shot.ty, at: seconds(), ship: victimSide, ...(place ? { place } : {}) });
+          effects.push({ kind: shot.ammo === 'grape' ? 'grape' : place.part === 'rigging' ? 'sail' : 'hit', x: at[0], y: at[1], at: seconds(), ship: victimSide, place });
           // Into her rigging: the nearest standing mast takes it, and may go by the board.
-          if (place?.part === 'rigging') {
+          if (place.part === 'rigging') {
             const at = content.ships[v.classId]!.masts;
             const standing = hurt.masts.map((m, i) => (m > 0 ? i : -1)).filter((i) => i >= 0);
             const i = standing.sort((p, q) => Math.abs(at[p]! - place.along) - Math.abs(at[q]! - place.along))[0];
