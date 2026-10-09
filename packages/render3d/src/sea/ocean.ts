@@ -203,28 +203,44 @@ void main() {
     col = mix(col, uFoam, clamp(max(surf, waves) * uShowSurf, 0.0, 1.0));
   }
 
-  // Wakes: read from the stamped target. A churned white track straight behind her, the V's two arms, and
-  // faint combed streaks between them that run with her track and fan out as the wake widens.
+  // Wakes: read from the stamped target, and alive. Three parts:
+  // - ripples: Kelvin wavelets along the V's arms whose crests run outward from her track as time goes on,
+  //   and transverse waves astern; they light the water (bright crests, darker troughs) rather than paint it;
+  // - churned water down her track: boiling foam fixed in the water where she left it (it drifts with the
+  //   sea, not with her), churning slowly and breaking up into patches as it ages, then gone;
+  // - the arms' crests breaking white close behind her.
+  // Every derivative is taken here, before the branch.
   vec2 wuv = (xz - uWakeArea.xy) / uWakeArea.z;
   vec2 edge = smoothstep(0.0, 0.08, wuv) * smoothstep(0.0, 0.08, 1.0 - wuv);
   vec4 w = texture2D(uWake, wuv) * edge.x * edge.y;
-  float combWidth = fwidth(w.g) * ${(5 * WAKE_MARGIN).toFixed(3)};
+  // Across the wake (0 her track .. 1 the V's arms), and how far behind her, in her lengths.
+  float n = (1.0 - w.g) * ${WAKE_MARGIN.toFixed(3)};
+  float behind = w.b;
+  // The arms' wavelets: crests slanting back from her track like a feather, running outward.
+  float divPhase = (n * 7.0 - behind * 1.3) * 6.2832 - uTime * 2.4;
+  float divFine = 1.0 - smoothstep(0.6, 1.2, fwidth(divPhase));
+  // Transverse waves astern: crests across her track, spaced about half her length, easing aft.
+  float trPhase = behind * 11.4 - uTime * 0.5;
+  float trFine = 1.0 - smoothstep(0.6, 1.2, fwidth(trPhase));
   if (w.r + w.a > 0.002) {
-    // Across the wake (0 her track .. 1 the V's arms), and how far behind her, in her lengths.
-    float n = (1.0 - w.g) * ${WAKE_MARGIN.toFixed(3)};
-    float behind = w.b;
-    // Across in half-beams, for the churned track that stays about her width as the V opens round it.
+    float life = w.r;
     float beams = n * (1.0 + behind * ${WAKE_WIDENING.toFixed(4)});
-    vec4 churn = texture2D(uDetail, vec2(behind * 0.25, n * 0.08));
-    float mottle = texture2D(uDetail, vec2(behind * 0.9, n * 0.3) + 0.13).a;
-    float comb = n * 5.0 + (churn.a - 0.5) * 1.6;
-    float streak = pow(0.5 + 0.5 * cos(6.2832 * comb), 3.0) * smoothstep(0.35, 0.6, churn.b + 0.1);
-    streak = mix(streak, 0.12, smoothstep(0.15, 0.4, combWidth));
-    float arms = smoothstep(0.72, 0.92, n) * (1.0 - smoothstep(0.95, 1.2, n)) * (1.0 - smoothstep(1.5, 3.8, behind));
-    float track = (1.0 - smoothstep(0.2, 1.1 + behind * 0.9, beams)) * (1.0 - smoothstep(1.0, 3.0, behind));
-    float inside = 1.0 - smoothstep(0.95, 1.2, n);
-    float spray = 0.5 + 0.8 * texture2D(uDetail, xz / 0.8 + 0.4).a;
-    float wake = w.r * spray * max(track * smoothstep(0.1, 0.55, mottle + 0.4 * (1.0 - behind * 0.5)), max(arms * 0.5, streak * 0.45 * inside) * (0.5 + 0.6 * mottle));
+    float armZone = smoothstep(0.3, 0.7, n) * (1.0 - smoothstep(1.05, 1.35, n));
+    float far = 1.0 - smoothstep(2.0, 5.0, behind);
+    float div = sin(divPhase) * armZone * divFine;
+    float tr = sin(trPhase) * (1.0 - smoothstep(0.25, 0.75, n)) * smoothstep(0.1, 0.5, behind) * trFine;
+    col *= 1.0 + (div * 0.7 + tr * 0.4) * life * far * 0.17;
+    // The churn, in the water's own drifting frame, two layers turning over against each other.
+    vec2 turn = vec2(uTime * 0.045, uTime * 0.029);
+    float boil = texture2D(uDetail, uv / 1.3 + turn).a * 0.6 + texture2D(uDetail, uv / 0.55 - turn * 1.7 + 0.31).a * 0.4;
+    float track = (1.0 - smoothstep(0.25, 1.1 + behind * 0.9, beams)) * (1.0 - smoothstep(1.0, 3.2, behind));
+    // Fresh foam is nearly solid; as it ages it breaks into patches and then into flecks.
+    float erode = mix(0.22, 0.72, 1.0 - life);
+    float churn = track * smoothstep(erode, erode + 0.16, boil);
+    float crests = smoothstep(0.5, 0.95, sin(divPhase)) * armZone * divFine * (1.0 - smoothstep(0.6, 2.4, behind)) * smoothstep(0.3, 0.6, boil);
+    float wake = life * max(churn * 0.95, crests * 0.6);
+    // The white water at her hull, broken by a pattern in the water she sails through (so it streams aft past her).
+    float spray = 0.5 + 0.8 * texture2D(uDetail, uv / 0.8 + 0.4 + turn * 0.5).a;
     float hull = w.a * smoothstep(0.15, 0.6, w.a * (0.4 + 0.85 * spray));
     col = mix(col, uFoam, clamp(max(wake, hull), 0.0, 1.0));
   }

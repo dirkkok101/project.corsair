@@ -9,7 +9,7 @@ import { createWorld } from '@corsair/systems-navigation';
 // control is also a URL parameter, and `window.__lab` drives it from scripts (frames at exact times, for diffs):
 //   ?zoom=close|sail|region|<tiles>  ?mode=map|battle  ?wind=<from deg>  ?strength=calm|light|fresh|strong|gale
 //   ?hour=<0..24>  ?sea=plain,flecks,...  ?at=<x>,<y>  ?chase (from astern)  ?pace=<speed points>
-//   ?manual (no animation loop; drive it with __lab.frame)  ?ui=0
+//   ?manual (no animation loop; drive it with __lab.frame)  ?ui=0  ?course=straight (east and back round)
 
 const params = new URLSearchParams(location.search);
 const ZOOMS: Record<string, number> = { close: 9, sail: 32, region: 420 };
@@ -92,11 +92,29 @@ const at = (ms: number) => {
   const dt = lastMs === undefined ? 0 : Math.min(0.1, Math.max(0, (ms - lastMs) / 1000));
   lastMs = ms;
   const speed = lab.pace * content.navigation.tilesPerSecondPerSpeedPoint;
+  const straight = params.get('course') === 'straight';
   const ship = (id: string, r: number, phase: number, dir: number, v: number, extra: object = {}) => {
     // The map's ships and the fight's are kept apart by their circles.
     const key = `${id}:${r}`;
     const a = (travelled.get(key) ?? phase) + (dir * v * dt) / r;
     travelled.set(key, a);
+    if (straight) {
+      // East along a line through the centre, 4r long, then back to its start (a fresh wake).
+      const run = ((((a - phase) * r) % (r * 4)) + r * 4) % (r * 4);
+      return {
+        id,
+        classId: 'ship.brig',
+        x: center.x - r * 2 + run,
+        y: center.y + (phase ? r * 0.6 : 0),
+        headingDeg: 90,
+        speed: v,
+        helm: 0,
+        sails: 'full',
+        blocked: false,
+        cargo: {},
+        ...extra,
+      };
+    }
     return {
       id,
       classId: 'ship.brig',
