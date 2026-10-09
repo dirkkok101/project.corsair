@@ -341,7 +341,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
   const NOON_SKY = new THREE.Color('#9fd3f0');
   const SUN_SHARE = 0.65;
   /** How much of the hour's colour the water takes, and how bright it is at night (share of noon, on screen). */
-  const TINT = 0.3;
+  const TINT = 0.2;
   const NIGHT_VALUE = 0.45;
   const NOON = NOON_SUN.clone().multiplyScalar(SUN_SHARE * Math.sin((70 * Math.PI) / 180)).add(NOON_SKY.clone().multiplyScalar(1 - SUN_SHARE));
   let shipsThisFrame: WakeShip[] = [];
