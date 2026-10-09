@@ -893,8 +893,15 @@ const ROPE_UNIT = new THREE.CylinderGeometry(1, 1, 1, 5, 1).translate(0, 0.5, 0)
 
 /** Ropes along line segments (pairs of points, flat x, y, z), as one instanced draw of thin cylinders. */
 function ropes(lines: number[]): THREE.InstancedMesh {
+  const mesh = new THREE.InstancedMesh(ROPE_UNIT, ROPE, lines.length / 6);
+  layRopes(mesh, lines);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+/** Lays (or re-lays, as the yards swing) a rope mesh's instances along line segments. */
+function layRopes(mesh: THREE.InstancedMesh, lines: number[]): void {
   const n = lines.length / 6;
-  const mesh = new THREE.InstancedMesh(ROPE_UNIT, ROPE, n);
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
@@ -909,8 +916,7 @@ function ropes(lines: number[]): THREE.InstancedMesh {
     m.compose(a, q, new THREE.Vector3(ROPE_RADIUS, len, ROPE_RADIUS));
     mesh.setMatrixAt(i, m);
   }
-  mesh.castShadow = true;
-  return mesh;
+  mesh.instanceMatrix.needsUpdate = true;
 }
 /** Ratlines: rope rungs across the shrouds, drawn as a see-through ladder. */
 const RATLINES = (() => {
@@ -1256,6 +1262,22 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   // foot on deck, so a mast shot through can go by the board whole, leaving a stump. Each piece is built in
   // the ship's own coordinates inside a frame that undoes the pivot's offset.
   const yards: { group: THREE.Group; sails: { mesh: THREE.Mesh; furl: THREE.Mesh; course: boolean }[] }[] = [];
+  const braces: { mesh: THREE.InstancedMesh; arms: { arm: number; y: number }[]; z: number; to: { w: number; h: number; z: number } }[] = [];
+  /** Lays each mast's braces for her yards braced round `angle` (radians). */
+  const layBraces = (angle: number) => {
+    for (const b of braces) {
+      const lines: number[] = [];
+      for (const { arm, y } of b.arms) {
+        for (const s of [-1, 1]) {
+          // The yard's arm as braced (turned about the mast), to the rail on that side, aft.
+          const x = s * arm * Math.cos(angle);
+          const dz = -s * arm * Math.sin(angle);
+          lines.push(x, y, b.z + dz, s * b.to.w, b.to.h, b.to.z);
+        }
+      }
+      layRopes(b.mesh, lines);
+    }
+  };
   const sticks: { stick: THREE.Group; stump: THREE.Mesh; foot: number }[] = [];
   const frames: THREE.Group[] = [];
   const mastLines: number[][] = [];
@@ -1327,6 +1349,14 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
         frame.add(top);
       }
     });
+    // Braces: from each yard's arms aft and down to the rail (behind this mast), the ropes that swing the yards
+    // round; laid again whenever the yards are braced.
+    const braceTo = railAt(m.at - 0.5);
+    const yardArms = m.squares.map((sq) => ({ arm: (sq.wt + 0.1) / 2, y: sq.zt }));
+    const braceMesh = new THREE.InstancedMesh(ROPE_UNIT, ROPE, yardArms.length * 2);
+    braceMesh.castShadow = true;
+    frame.add(braceMesh);
+    braces.push({ mesh: braceMesh, arms: yardArms, z, to: { w: braceTo.w, h: braceTo.h, z: z + 0.5 } });
     yards.push({ group, sails });
     // Shrouds: from the masthead down to the chainwale either side, a little aft; ratlines across them, a
     // chainwale (a ledge outside the rail) where they come down.
@@ -1545,6 +1575,7 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   pennant.position.set(0, main.height + 0.02, -main.at);
   frames[plan.masts.indexOf(main)]!.add(pennant);
 
+  let lastBrace = Number.NaN;
   return {
     root,
     setSails(setting, point, side, nowMs) {
@@ -1558,8 +1589,13 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       u.uLuff.value = point === 'irons' ? 1 : 0;
       flagMat.userData.uniforms.uTime.value = t;
       // Yards braced round toward the wind's side; courses furled at half sail, everything at furled.
+      const braced = THREE.MathUtils.degToRad(setting === 'furled' ? 0 : side * p.brace);
+      if (braced !== lastBrace) {
+        lastBrace = braced;
+        layBraces(braced);
+      }
       for (const y of yards) {
-        y.group.rotation.y = THREE.MathUtils.degToRad(setting === 'furled' ? 0 : side * p.brace);
+        y.group.rotation.y = braced;
         for (const s of y.sails) {
           const set = setting === 'full' || (setting === 'half' && !s.course);
           s.mesh.visible = set;

@@ -131,7 +131,8 @@ own off a real island, at every zoom, hour and wind.
     battle placed the hit), and an empty port for each gun knocked out.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Running rigging on each yard, bracing round with it: lifts from the yard's arms to the mast above, a footrope
-    sagging under it, and sheets from the sail's clews down to the yard below or the rail.
+    sagging under it, and sheets from the sail's clews down to the yard below or the rail. Braces from each yard's arms
+    aft and down to the rail, re-laid as the yards are braced round to the wind.
   - Her guns recoil inboard when that broadside fires and are hauled out again as she reloads, so a side's reload
     shows on her hull.
   - Masts with fighting tops, yards, shrouds and stays.
