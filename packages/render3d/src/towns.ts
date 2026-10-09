@@ -83,6 +83,18 @@ const FACADE = () =>
       g.fillRect(x - 3, 50, 20, 3);
     }
   });
+/**
+ * Lamplight in the towns' windows, dark by day and warm from dusk (the renderer sets it with the light), and the
+ * window panes alone (one of each house's two lit, the door dark), as the emissive map for it.
+ */
+export const TOWN_GLOW = new THREE.Color(0, 0, 0);
+const FACADE_GLOW = () =>
+  canvasTexture(128, 128, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#ffcf80';
+    g.fillRect(26, 31, 12, 18);
+  });
 /** Roof tiles (grey, tinted by each roof's colour): rows of curved tiles, each a shade apart, mossy in places. */
 const TILES = () =>
   canvasTexture(128, 128, (g, rand) => {
@@ -282,7 +294,9 @@ export function createTowns(
 ): Towns {
   const object = new THREE.Group();
   // One material each for walls, roofs, stone and timber, every building tinted by its vertex colours.
-  const wallMat = new THREE.MeshStandardMaterial({ map: FACADE(), vertexColors: true, roughness: 0.92 });
+  const wallMat = new THREE.MeshStandardMaterial({ map: FACADE(), vertexColors: true, roughness: 0.92, emissiveMap: FACADE_GLOW() });
+  // Shared, not copied: the renderer lights the windows by changing this one colour.
+  wallMat.emissive = TOWN_GLOW;
   const roofMat = new THREE.MeshStandardMaterial({ map: TILES(), vertexColors: true, roughness: 0.85 });
   const stoneMat = new THREE.MeshStandardMaterial({ map: STONE(), vertexColors: true, roughness: 0.95 });
   const woodMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });

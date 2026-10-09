@@ -18,7 +18,7 @@ import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import { createStorm } from './storm';
 import type { SprayShip } from './storm';
 import type { BattleHull } from './battle';
-import { createTowns, TOWN_RADIUS } from './towns';
+import { createTowns, TOWN_GLOW, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
 
@@ -308,6 +308,7 @@ export async function createSeaRenderer(
     // Sails catch the light: a touch of the sky's colour in their glow (lavender and gold at dusk, blue at night).
     SAIL_GLOW.set('#fffaf0').lerp(light.sky, 0.18 + 0.3 * (1 - dayness)).lerp(light.sun, 0.12);
     // Lamps lit in the stern windows as the day goes: dark by day, warm at dusk and by night.
+    TOWN_GLOW.set('#ffb35c').multiplyScalar(1.4 * (1 - THREE.MathUtils.smoothstep(e, -0.05, 0.25)));
     WINDOW_GLOW.set('#ffb35c').multiplyScalar(1.6 * (1 - THREE.MathUtils.smoothstep(e, -0.05, 0.25)) + 0.15 * g);
     fill.intensity = (0.55 + level * 0.5) * (1 - 0.25 * g);
     fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);

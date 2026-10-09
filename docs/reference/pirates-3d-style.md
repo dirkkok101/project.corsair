@@ -121,7 +121,7 @@ own off a real island, at every zoom, hour and wind.
   under a spire (a dome for the Spanish and French), the governor's house; a battlemented fort of dressed stone
   with bastions, guns, a gate and a keep (a stake palisade at a haven), sized by the town's strength, set on dry
   ground along the shore (none on a spit too small for one); a wharf with a landing stage, cargo and boats. On a
-  small island the houses pack onto what dry ground there is.
+  small island the houses pack onto what dry ground there is. From dusk the houses' windows glow with lamplight.
 - **Ships** (`shipyard.ts`, each class's plan in `rigs.ts`):
   - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery. Weathered to sit
     on the realistic sea: long planks of varied tone with a grain and staggered butt joints, the paint dulled
