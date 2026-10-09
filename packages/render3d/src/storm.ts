@@ -293,7 +293,7 @@ export function createStorm(): Storm {
             ),
             born: t,
             life: 0.7 + Math.random() * 0.6,
-            size: s.length * (0.05 + Math.random() * 0.07),
+            size: s.length * (0.018 + Math.random() * 0.03),
           });
         }
         owed.set(i, Math.min(due, 4));

@@ -12,7 +12,7 @@ import { normalizeDeg } from '@corsair/systems-navigation';
 import { CLOUD_SPEED, createOcean } from './sea/ocean';
 import type { SeaState, WakeShip } from './sea/ocean';
 import { RIGS } from './rigs';
-import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
+import { buildShip, flagTexture, makeFlag, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
 import type { BuiltShip, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import { createStorm } from './storm';
@@ -302,6 +302,8 @@ export async function createSeaRenderer(
     sun.color.copy(light.sun);
     // Sails catch the light: a touch of the sky's colour in their glow (lavender and gold at dusk, blue at night).
     SAIL_GLOW.set('#fffaf0').lerp(light.sky, 0.18 + 0.3 * (1 - dayness)).lerp(light.sun, 0.12);
+    // Lamps lit in the stern windows as the day goes: dark by day, warm at dusk and by night.
+    WINDOW_GLOW.set('#ffb35c').multiplyScalar(1.6 * (1 - THREE.MathUtils.smoothstep(e, -0.05, 0.25)) + 0.15 * g);
     fill.intensity = (0.55 + level * 0.5) * (1 - 0.25 * g);
     fill.color.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.4);
     // The water is lit as the scene is: the sun's power, and the sky's light over it.
@@ -429,7 +431,8 @@ export async function createSeaRenderer(
       t,
       rain: THREE.MathUtils.smoothstep(gloom, 0.4, 0.85),
       lightning: THREE.MathUtils.smoothstep(stormShare, 0.5, 1),
-      rough: THREE.MathUtils.smoothstep(sea.strength, 0.5, 1.1),
+      // Spray only in a real blow (a strong wind or worse): a fresh breeze's bow wave is foam, not spray.
+      rough: THREE.MathUtils.smoothstep(sea.strength, 0.9, 1.1),
       windToDeg: sea.toDeg,
       windStrength: sea.strength,
       ships: sprayShips,

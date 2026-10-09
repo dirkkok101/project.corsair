@@ -111,9 +111,17 @@ own off a real island, at every zoom, hour and wind.
   - Ground painted by height and slope (beach, jungle, grass, tan rock).
   - Instanced palms along the shore and jungle canopy inland.
 - **Ships** (`shipyard.ts`, each class's plan in `rigs.ts`):
-  - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery.
+  - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery. Weathered to sit
+    on the realistic sea: long planks of varied tone with a grain and staggered butt joints, the paint dulled
+    unevenly, grime streaked down from the rail and below each port, salt bleaching, a dark wet band and green
+    weed at the waterline, a tarred bottom; a normal map for the seams and grain and a roughness map (dry wood
+    matte, the wet waterline glossy).
+  - The stern gallery's windows glow with lamplight from dusk to dawn.
+  - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Masts with fighting tops, yards, shrouds and stays.
-  - Cloth sails that belly with the wind, luff in irons, reef and furl, with a soft glow of their own.
+  - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
+    slightly different bolts with raised seams, soft creases, reef bands and a bolt rope in relief (a normal map),
+    greyed toward the foot and stained; only a faint glow of their own, so the sun gives them form.
   - A jib, spanker, gaff or lateen as the class carries.
   - The nation's ensign and a pennant, streaming.
   - Each ship rides the swell smoothly (her pitch and roll eased, averaged over the hull), heels with the wind

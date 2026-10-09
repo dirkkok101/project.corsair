@@ -74,51 +74,235 @@ const POINTS: Record<string, { brace: number; belly: number; swing: number }> = 
 
 // --- textures, drawn once per paint scheme --------------------------------------------------------------
 
-/** The hull's side: planking strakes, a painted upper band, a dark wale, gunports with gilt-edged lids. */
-function hullTexture(plan: HullPlan): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 1024;
-  c.height = 256;
-  const g = c.getContext('2d')!;
-  // v (canvas y) runs top (rail) to bottom (keel); u along the length.
-  const bandTop = 0;
-  const bandBottom = 256 * 0.34;
-  g.fillStyle = plan.paint.hull;
-  g.fillRect(0, 0, 1024, 256);
-  g.fillStyle = plan.paint.band;
-  g.fillRect(0, bandTop, 1024, bandBottom);
-  g.fillStyle = plan.paint.wale;
-  g.fillRect(0, bandBottom, 1024, 14);
-  // Strakes: thin dark seams and a little grain, so the hull reads as planked close up.
-  for (let y = 4; y < 256; y += 11) {
-    g.fillStyle = 'rgba(0,0,0,0.16)';
-    g.fillRect(0, y, 1024, 1.5);
-    for (let x = (y * 37) % 160; x < 1024; x += 160) g.fillRect(x, y - 10, 1.5, 10);
-  }
-  for (let i = 0; i < 600; i++) {
-    g.fillStyle = `rgba(${i % 2 ? '255,255,255' : '0,0,0'},0.05)`;
-    g.fillRect((i * 97) % 1024, (i * 53) % 256, 20 + (i % 30), 1);
-  }
-  // A gilt moulding along the rail.
-  g.fillStyle = plan.paint.trim;
-  g.fillRect(0, 0, 1024, 6);
-  return finish(c, 4);
+/** A seeded generator, so every ship of a class is weathered the same. */
+function seeded(seed: number) {
+  return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 }
 
-/** Gunport rows on the hull texture: drawn on a copy, since the hull's u runs over the whole length. */
-function addPorts(texture: THREE.CanvasTexture, plan: HullPlan): void {
-  const g = (texture.image as HTMLCanvasElement).getContext('2d')!;
-  for (const row of plan.ports) {
-    const v = 256 * (1 - row.at) * 0.62;
-    for (let i = 0; i < row.count; i++) {
-      const u = 1024 * (0.22 + (0.6 * (i + 0.5)) / row.count);
-      g.fillStyle = plan.paint.trim;
-      g.fillRect(u - 15, v - 13, 30, 26);
-      g.fillStyle = '#1a0f12';
-      g.fillRect(u - 12, v - 10, 24, 20);
+/** Surfaces drawn as canvases: its colour, and a height (grey) for its relief and a roughness (grey). */
+interface Surface {
+  colour: CanvasRenderingContext2D;
+  height: CanvasRenderingContext2D;
+  rough: CanvasRenderingContext2D;
+}
+function surface(w: number, h: number): Surface {
+  const make = () => {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c.getContext('2d')!;
+  };
+  const colour = make();
+  const height = make();
+  const rough = make();
+  height.fillStyle = 'rgb(128,128,128)';
+  height.fillRect(0, 0, w, h);
+  return { colour, height, rough };
+}
+
+/** A tangent-space normal map from a height canvas (`strength` steepens it), tiling along u. */
+function normalMap(height: CanvasRenderingContext2D, strength: number): THREE.DataTexture {
+  const { width: w, height: h } = height.canvas;
+  const px = height.getImageData(0, 0, w, h).data;
+  const at = (x: number, y: number) => px[(Math.min(h - 1, Math.max(0, y)) * w + ((x + w) % w)) * 4]! / 255;
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * w + x) * 4;
+      // Canvas y runs down the texture, its v up: the green (v) slope is flipped.
+      out[i] = Math.round((0.5 - dx / len / 2) * 255);
+      out[i + 1] = Math.round((0.5 + dy / len / 2) * 255);
+      out[i + 2] = Math.round((0.5 + 0.5 / len) * 255);
+      out[i + 3] = 255;
     }
   }
-  texture.needsUpdate = true;
+  const t = new THREE.DataTexture(out, w, h, THREE.RGBAFormat);
+  t.wrapS = THREE.RepeatWrapping;
+  t.flipY = true;
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+
+/** A grey canvas as a texture of plain values (not colour), for roughness. */
+function valueMap(c: HTMLCanvasElement, anisotropy: number): THREE.CanvasTexture {
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = anisotropy;
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+
+/** Where the waterline lies on the hull's texture, top (rail) 0 .. bottom (keel) 1: the hull meets the sea at y 0. */
+const waterlineV = (plan: HullPlan) => plan.rail / (plan.rail - KEEL);
+
+/**
+ * The hull's side, weathered: planked in strakes of varied tone with a grain, a painted upper band, a dark wale,
+ * grime streaked down from the ports and scuppers, a dark wet band and green weed at the waterline, a tarred
+ * bottom below it. With a relief (plank seams, butt joints, the grain) and a roughness (dry wood matte, the wet
+ * waterline glossy).
+ */
+function hullSurface(plan: HullPlan): Surface {
+  const W = 2048;
+  const H = 512;
+  const sf = surface(W, H);
+  const { colour: g, height: hg, rough: rg } = sf;
+  const rand = seeded(plan.length * 1000 + plan.beam * 97);
+  const band = H * 0.34;
+  const water = H * (1 - waterlineV(plan));
+  g.fillStyle = plan.paint.hull;
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = plan.paint.band;
+  g.fillRect(0, 0, W, band);
+  g.fillStyle = plan.paint.wale;
+  g.fillRect(0, band, W, 26);
+  // Strakes: each plank a shade apart, butted end to end, with a fine grain; seams sunk in the relief.
+  const strakeH = 22;
+  rg.fillStyle = 'rgb(205,205,205)';
+  rg.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += strakeH) {
+    let x = -rand() * 300;
+    while (x < W) {
+      // Long planks (a butt joint every so often, staggered strake to strake, never a brick pattern).
+      const len = 520 + rand() * 640;
+      const tone = (rand() - 0.5) * 0.16;
+      g.fillStyle = tone > 0 ? `rgba(255,235,200,${tone})` : `rgba(20,10,4,${-tone})`;
+      g.fillRect(x, y, len, strakeH);
+      // Grain: long faint streaks along the plank.
+      for (let k = 0; k < 7; k++) {
+        const gy = y + rand() * strakeH;
+        g.fillStyle = `rgba(${rand() < 0.5 ? '0,0,0' : '255,240,210'},${0.03 + rand() * 0.05})`;
+        g.fillRect(x + rand() * 20, gy, len * (0.4 + rand() * 0.6), 1);
+        hg.fillStyle = `rgba(${rand() < 0.5 ? '100,100,100' : '150,150,150'},0.5)`;
+        hg.fillRect(x + rand() * 20, gy, len * (0.4 + rand() * 0.6), 1);
+      }
+      // The butt joint.
+      g.fillStyle = 'rgba(10,5,2,0.16)';
+      g.fillRect(x, y, 2, strakeH);
+      hg.fillStyle = 'rgb(100,100,100)';
+      hg.fillRect(x, y, 2, strakeH);
+      x += len;
+    }
+    // The seam between strakes: dark, sunk, a little caulking.
+    g.fillStyle = 'rgba(10,5,2,0.45)';
+    g.fillRect(0, y, W, 2);
+    hg.fillStyle = 'rgb(55,55,55)';
+    hg.fillRect(0, y, W, 2);
+    // Each plank a little proud in its middle.
+    const grad = hg.createLinearGradient(0, y + 2, 0, y + strakeH);
+    grad.addColorStop(0, 'rgba(150,150,150,0.0)');
+    grad.addColorStop(0.5, 'rgba(160,160,160,0.6)');
+    grad.addColorStop(1, 'rgba(150,150,150,0.0)');
+    hg.fillStyle = grad;
+    hg.fillRect(0, y + 2, W, strakeH - 2);
+  }
+  // The wale stands out.
+  hg.fillStyle = 'rgb(175,175,175)';
+  hg.fillRect(0, band + 2, W, 22);
+  // Grime: streaks running down from the rail and from each scupper, rain-washed.
+  for (let i = 0; i < 260; i++) {
+    const x = rand() * W;
+    const top = rand() < 0.5 ? 0 : band + 26;
+    const len = 40 + rand() * 160;
+    const grad = g.createLinearGradient(0, top, 0, top + len);
+    grad.addColorStop(0, `rgba(25,18,10,${0.12 + rand() * 0.18})`);
+    grad.addColorStop(1, 'rgba(25,18,10,0)');
+    g.fillStyle = grad;
+    g.fillRect(x, top, 2 + rand() * 5, len);
+  }
+  // Paint long at sea: the band's colour dulled and darkened unevenly, as weathered paint is.
+  for (let i = 0; i < 140; i++) {
+    g.fillStyle = `rgba(${40 + rand() * 30},${30 + rand() * 20},${20 + rand() * 15},${0.08 + rand() * 0.12})`;
+    g.fillRect(rand() * W, rand() * band, 60 + rand() * 260, 6 + rand() * 24);
+  }
+  g.fillStyle = 'rgba(55,40,28,0.22)';
+  g.fillRect(0, 0, W, band);
+  // Salt and sun bleaching on the upper works, in patches.
+  for (let i = 0; i < 90; i++) {
+    g.fillStyle = `rgba(235,225,205,${0.03 + rand() * 0.05})`;
+    g.beginPath();
+    g.ellipse(rand() * W, rand() * band, 30 + rand() * 90, 6 + rand() * 18, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  // The waterline: below, a tarred bottom; along it, green weed and a dark wet band where the sea washes up.
+  g.fillStyle = 'rgba(18,14,12,0.78)';
+  g.fillRect(0, water, W, H - water);
+  const wet = g.createLinearGradient(0, water - 44, 0, water + 6);
+  wet.addColorStop(0, 'rgba(10,8,6,0)');
+  wet.addColorStop(1, 'rgba(10,8,6,0.55)');
+  g.fillStyle = wet;
+  g.fillRect(0, water - 44, W, 50);
+  for (let i = 0; i < 420; i++) {
+    g.fillStyle = `rgba(${40 + rand() * 30},${70 + rand() * 40},${30 + rand() * 20},${0.25 + rand() * 0.35})`;
+    g.fillRect(rand() * W, water - 6 + rand() * 18, 3 + rand() * 14, 2 + rand() * 6);
+  }
+  // Wet near the sea, glossy (low roughness); the tarred bottom a little glossy too.
+  const gloss = rg.createLinearGradient(0, water - 60, 0, water);
+  gloss.addColorStop(0, 'rgba(110,110,110,0)');
+  gloss.addColorStop(1, 'rgba(110,110,110,1)');
+  rg.fillStyle = gloss;
+  rg.fillRect(0, water - 60, W, 60);
+  rg.fillStyle = 'rgb(130,130,130)';
+  rg.fillRect(0, water, W, H - water);
+  // The painted band a little smoother than the bare planks.
+  rg.fillStyle = 'rgba(160,160,160,0.5)';
+  rg.fillRect(0, 0, W, band);
+  // A gilt moulding along the rail.
+  g.fillStyle = plan.paint.trim;
+  g.fillRect(0, 0, W, 10);
+  hg.fillStyle = 'rgb(190,190,190)';
+  hg.fillRect(0, 0, W, 10);
+  return sf;
+}
+
+/** Gunport rows on the hull: lids in a frame, the dark port sunk into the side, grime running down below each. */
+function addPorts(sf: Surface, plan: HullPlan): void {
+  const { colour: g, height: hg } = sf;
+  for (const row of plan.ports) {
+    const v = 512 * (1 - row.at) * 0.62;
+    for (let i = 0; i < row.count; i++) {
+      const u = 2048 * (0.22 + (0.6 * (i + 0.5)) / row.count);
+      const grime = g.createLinearGradient(0, v + 20, 0, v + 120);
+      grime.addColorStop(0, 'rgba(30,18,10,0.35)');
+      grime.addColorStop(1, 'rgba(30,18,10,0)');
+      g.fillStyle = grime;
+      g.fillRect(u - 14, v + 20, 28, 100);
+      g.fillStyle = plan.paint.trim;
+      g.fillRect(u - 30, v - 26, 60, 52);
+      g.fillStyle = '#1a0f12';
+      g.fillRect(u - 24, v - 20, 48, 40);
+      hg.fillStyle = 'rgb(200,200,200)';
+      hg.fillRect(u - 30, v - 26, 60, 52);
+      hg.fillStyle = 'rgb(40,40,40)';
+      hg.fillRect(u - 24, v - 20, 48, 40);
+    }
+  }
+}
+
+/**
+ * The stern windows' lamplight, shared by every ship: dark by day, warm by night (the renderer sets it with the
+ * light). The window panes are drawn into an emissive map, so only they glow.
+ */
+export const WINDOW_GLOW = new THREE.Color(0, 0, 0);
+
+/** The stern gallery's window panes alone, white on black: the emissive map for their lamplight. */
+function sternGlowTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5; i++) {
+    g.fillStyle = i % 2 ? '#ffd890' : '#ffe6a8';
+    g.fillRect(34 + i * 42, 42, 22, 40);
+  }
+  return finish(c, 1);
 }
 
 /** The transom: windows of the stern gallery in a gilt frame. */
@@ -173,55 +357,105 @@ function deckTexture(plan: HullPlan): THREE.CanvasTexture {
  * the head; a square sail can carry its nation's emblem (Pirates! paints the Spanish cross on Spanish canvas
  * and a skull on a pirate's).
  */
-const CLOTH = new Map<string, THREE.CanvasTexture>();
-function sailTexture(emblem: string): THREE.CanvasTexture {
+const CLOTH = new Map<string, { map: THREE.CanvasTexture; normal: THREE.DataTexture }>();
+function sailTexture(emblem: string): { map: THREE.CanvasTexture; normal: THREE.DataTexture } {
   const known = CLOTH.get(emblem);
   if (known) return known;
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#f6f2e6';
-  g.fillRect(0, 0, 256, 256);
-  for (let x = 0; x < 256; x += 21) {
-    g.fillStyle = 'rgba(120,100,70,0.16)';
-    g.fillRect(x, 0, 2, 256);
+  const S = 512;
+  const sf = surface(S, S);
+  const { colour: g, height: hg } = sf;
+  const rand = seeded(emblem.length * 131 + 7);
+  g.fillStyle = '#efe7d3';
+  g.fillRect(0, 0, S, S);
+  // The weave: a fine cross-hatch of warp and weft, barely there.
+  for (let i = 0; i < S; i += 2) {
+    g.fillStyle = `rgba(110,90,60,${0.025 + rand() * 0.03})`;
+    g.fillRect(i, 0, 1, S);
+    g.fillRect(0, i, S, 1);
+    hg.fillStyle = 'rgba(115,115,115,0.35)';
+    hg.fillRect(i, 0, 1, S);
+    hg.fillRect(0, i, S, 1);
   }
-  // Reef bands with their points.
-  for (const y of [46, 84]) {
-    g.fillStyle = 'rgba(120,100,70,0.3)';
-    g.fillRect(0, y, 256, 3);
-    for (let x = 8; x < 256; x += 16) g.fillRect(x, y + 3, 2, 7);
+  // Cloths of slightly different bolts, seamed: a doubled, raised stitch line between each.
+  for (let x = 0; x < S; x += 42) {
+    const tone = (rand() - 0.5) * 0.08;
+    g.fillStyle = tone > 0 ? `rgba(255,250,235,${tone})` : `rgba(80,65,40,${-tone})`;
+    g.fillRect(x, 0, 42, S);
+    g.fillStyle = 'rgba(120,100,70,0.28)';
+    g.fillRect(x, 0, 3, S);
+    hg.fillStyle = 'rgb(175,175,175)';
+    hg.fillRect(x, 0, 3, S);
   }
-  g.strokeStyle = 'rgba(120,100,70,0.4)';
-  g.lineWidth = 6;
-  g.strokeRect(3, 3, 250, 250);
+  // Soft creases where the cloth draws between yard and sheets: broad shallow troughs, slanting.
+  for (let i = 0; i < 26; i++) {
+    const y = rand() * S;
+    const grad = hg.createLinearGradient(0, y - 18, 0, y + 18);
+    grad.addColorStop(0, 'rgba(128,128,128,0)');
+    grad.addColorStop(0.5, `rgba(${rand() < 0.5 ? '95,95,95' : '160,160,160'},0.5)`);
+    grad.addColorStop(1, 'rgba(128,128,128,0)');
+    hg.save();
+    hg.translate(S / 2, y);
+    hg.rotate((rand() - 0.5) * 0.5);
+    hg.fillStyle = grad;
+    hg.fillRect(-S, -18, S * 2, 36);
+    hg.restore();
+  }
+  // Weathered: grey toward the foot, where the spray reaches, and a few stains.
+  const foot = g.createLinearGradient(0, S * 0.5, 0, S);
+  foot.addColorStop(0, 'rgba(90,80,60,0)');
+  foot.addColorStop(1, 'rgba(90,80,60,0.22)');
+  g.fillStyle = foot;
+  g.fillRect(0, S * 0.5, S, S * 0.5);
+  for (let i = 0; i < 30; i++) {
+    g.fillStyle = `rgba(110,90,60,${0.03 + rand() * 0.05})`;
+    g.beginPath();
+    g.ellipse(rand() * S, rand() * S, 10 + rand() * 40, 6 + rand() * 24, rand() * 3, 0, Math.PI * 2);
+    g.fill();
+  }
+  // Reef bands with their points, and the bolt rope round the edge, both raised.
+  for (const y of [92, 168]) {
+    g.fillStyle = 'rgba(120,100,70,0.38)';
+    g.fillRect(0, y, S, 6);
+    hg.fillStyle = 'rgb(185,185,185)';
+    hg.fillRect(0, y, S, 6);
+    for (let x = 16; x < S; x += 32) {
+      g.fillRect(x, y + 6, 3, 16);
+      hg.fillRect(x, y + 6, 3, 16);
+    }
+  }
+  g.strokeStyle = 'rgba(120,100,70,0.5)';
+  g.lineWidth = 12;
+  g.strokeRect(6, 6, S - 12, S - 12);
+  hg.strokeStyle = 'rgb(200,200,200)';
+  hg.lineWidth = 12;
+  hg.strokeRect(6, 6, S - 12, S - 12);
+  const k = S / 256;
   if (emblem === 'spain') {
     // The ragged red cross of Burgundy.
-    g.strokeStyle = 'rgba(176,36,40,0.9)';
-    g.lineWidth = 16;
+    g.strokeStyle = 'rgba(176,36,40,0.88)';
+    g.lineWidth = 16 * k;
     g.beginPath();
-    g.moveTo(60, 70);
-    g.lineTo(196, 216);
-    g.moveTo(196, 70);
-    g.lineTo(60, 216);
+    g.moveTo(60 * k, 70 * k);
+    g.lineTo(196 * k, 216 * k);
+    g.moveTo(196 * k, 70 * k);
+    g.lineTo(60 * k, 216 * k);
     g.stroke();
   } else if (emblem === 'pirate') {
     g.fillStyle = 'rgba(40,36,44,0.82)';
     g.beginPath();
-    g.arc(128, 128, 30, 0, Math.PI * 2);
+    g.arc(128 * k, 128 * k, 30 * k, 0, Math.PI * 2);
     g.fill();
-    g.fillRect(108, 150, 40, 18);
+    g.fillRect(108 * k, 150 * k, 40 * k, 18 * k);
     g.save();
-    g.translate(128, 188);
+    g.translate(128 * k, 188 * k);
     for (const a of [0.6, -0.6]) {
       g.rotate(a);
-      g.fillRect(-56, -6, 112, 12);
+      g.fillRect(-56 * k, -6 * k, 112 * k, 12 * k);
       g.rotate(-a);
     }
     g.restore();
   }
-  const t = finish(c, 1);
+  const t = { map: finish(g.canvas, 4), normal: normalMap(hg, 2.2) };
   CLOTH.set(emblem, t);
   return t;
 }
@@ -387,7 +621,33 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
 
 const SPAR = new THREE.MeshStandardMaterial({ color: '#4a2f22', roughness: 0.8 });
 const BLACK = new THREE.MeshStandardMaterial({ color: '#1d1a19', roughness: 0.6, metalness: 0.3 });
-const LINE = new THREE.LineBasicMaterial({ color: '#2a2220', transparent: true, opacity: 0.85 });
+/** Tarred rope: dark, a little sheen. */
+const ROPE = new THREE.MeshStandardMaterial({ color: '#2b2420', roughness: 0.7 });
+/** A rope's thickness (model units): fine against the hull, but solid enough to catch the light close in. */
+const ROPE_RADIUS = 0.0055;
+const ROPE_UNIT = new THREE.CylinderGeometry(1, 1, 1, 5, 1).translate(0, 0.5, 0);
+
+/** Ropes along line segments (pairs of points, flat x, y, z), as one instanced draw of thin cylinders. */
+function ropes(lines: number[]): THREE.InstancedMesh {
+  const n = lines.length / 6;
+  const mesh = new THREE.InstancedMesh(ROPE_UNIT, ROPE, n);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  const q = new THREE.Quaternion();
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < n; i++) {
+    a.fromArray(lines, i * 6);
+    b.fromArray(lines, i * 6 + 3);
+    const d = b.clone().sub(a);
+    const len = d.length();
+    q.setFromUnitVectors(up, d.divideScalar(len || 1));
+    m.compose(a, q, new THREE.Vector3(ROPE_RADIUS, len, ROPE_RADIUS));
+    mesh.setMatrixAt(i, m);
+  }
+  mesh.castShadow = true;
+  return mesh;
+}
 /** Ratlines: rope rungs across the shrouds, drawn as a see-through ladder. */
 const RATLINES = (() => {
   if (typeof document === 'undefined') return new THREE.MeshBasicMaterial();
@@ -418,9 +678,19 @@ function spar(r0: number, r1: number, length: number): THREE.Mesh {
 type SailUniforms = { uBelly: THREE.IUniform; uLuff: THREE.IUniform; uTime: THREE.IUniform; uTatter: THREE.IUniform };
 /** The sails' own glow, shared by every sail and tinted by the renderer with the light: warm at dusk, blue by moonlight. */
 export const SAIL_GLOW = new THREE.Color('#fffaf0');
-function sailMaterial(cloth: THREE.Texture, shared?: SailUniforms): THREE.MeshStandardMaterial & { userData: { uniforms: SailUniforms } } {
-  // A soft glow of their own, so sails stay bright white on the shadowed side too (Pirates!'s glowing canvas).
-  const m = new THREE.MeshStandardMaterial({ map: cloth, roughness: 0.92, side: THREE.DoubleSide, emissive: '#fffaf0', emissiveIntensity: 0.38, emissiveMap: cloth }) as THREE.MeshStandardMaterial & {
+function sailMaterial(cloth: { map: THREE.Texture; normal: THREE.Texture }, shared?: SailUniforms): THREE.MeshStandardMaterial & { userData: { uniforms: SailUniforms } } {
+  // Lit as cloth is: its weave, seams and creases in relief catch the sun; only a faint glow of its own, so the
+  // shaded side reads as shade (light through the canvas keeps it from going grey).
+  const m = new THREE.MeshStandardMaterial({
+    map: cloth.map,
+    normalMap: cloth.normal,
+    normalScale: new THREE.Vector2(0.9, 0.9),
+    roughness: 0.95,
+    side: THREE.DoubleSide,
+    emissive: '#fffaf0',
+    emissiveIntensity: 0.16,
+    emissiveMap: cloth.map,
+  }) as THREE.MeshStandardMaterial & {
     userData: { uniforms: SailUniforms };
   };
   const uniforms = shared ?? { uBelly: { value: 1 }, uLuff: { value: 0 }, uTime: { value: 0 }, uTatter: { value: 0 } };
@@ -624,12 +894,18 @@ const KITS = new Map<ShipPlan, ClassKit>();
 function kitFor(plan: ShipPlan): ClassKit {
   const known = KITS.get(plan);
   if (known) return known;
-  const sides = hullTexture(plan.hull);
+  const sides = hullSurface(plan.hull);
   addPorts(sides, plan.hull);
   const hull = hullMesh(
     plan.hull,
-    new THREE.MeshStandardMaterial({ map: sides, roughness: 0.75 }),
-    new THREE.MeshStandardMaterial({ map: sternTexture(plan.hull), roughness: 0.7 }),
+    new THREE.MeshStandardMaterial({
+      map: finish(sides.colour.canvas, 8),
+      normalMap: normalMap(sides.height, 3),
+      normalScale: new THREE.Vector2(1, 1),
+      roughnessMap: valueMap(sides.rough.canvas, 8),
+      roughness: 1,
+    }),
+    new THREE.MeshStandardMaterial({ map: sternTexture(plan.hull), roughness: 0.7, emissive: WINDOW_GLOW, emissiveMap: sternGlowTexture() }),
     new THREE.MeshStandardMaterial({ map: deckTexture(plan.hull), roughness: 0.85 }),
   );
   const kit = { hull };
@@ -771,12 +1047,8 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
     flats.push({ group, mesh, kind: f.kind });
   }
 
-  // Rigging lines: each mast's shrouds and stay, a draw a mast.
-  mastLines.forEach((own, i) => {
-    const rig = new THREE.BufferGeometry();
-    rig.setAttribute('position', new THREE.Float32BufferAttribute(own, 3));
-    frames[i]!.add(new THREE.LineSegments(rig, LINE));
-  });
+  // Rigging: each mast's shrouds and stay, as rope, a draw a mast.
+  mastLines.forEach((own, i) => frames[i]!.add(ropes(own)));
 
   // Cannon muzzles out of the lowest row of ports.
   const row = h.ports[0];
