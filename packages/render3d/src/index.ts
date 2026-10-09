@@ -433,7 +433,7 @@ export async function createSeaRenderer(
     // Wakes behind the ships near the camera (far out they'd be finer than a pixel).
     ocean.ships(
       Object.values(state.ships)
-        .filter((s) => shown('wakes') && Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
+        .filter((s) => Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
         .map((s) => ({
           id: s.id,
           x: s.x,
@@ -516,6 +516,7 @@ export async function createSeaRenderer(
         if (sinkingFrom === undefined) {
           sinkingFrom = t;
           fx.splash(t, s.x, s.y);
+          ocean.splash(s.x, s.y, 1.8);
         }
         const k = Math.min(1, (t - sinkingFrom) / SINK_SECONDS);
         const root = f.built.root;
@@ -538,6 +539,12 @@ export async function createSeaRenderer(
       if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, pace: Math.min(1, (pace * FAST_SHIP) / BRISK), length });
     }
     ocean.ships(wakeShips);
+    // Shot into the sea, a mast over the side: rings run out across the water.
+    for (const e of view.effects) {
+      if (e.at <= fallsSeen) continue;
+      if (e.kind === 'splash') ocean.splash(e.x, e.y, 0.35);
+      else if (e.kind === 'mast') ocean.splash(e.x, e.y, 1.1);
+    }
     fallsSeen = Math.max(fallsSeen, ...view.effects.map((e) => e.at));
     for (const n of names) n.inRange = false;
 

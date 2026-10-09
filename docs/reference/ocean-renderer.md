@@ -42,6 +42,7 @@ make it flare in the bloom.
 | Swell light | The swells' slope toward the sun, per pixel. Each swell fades out before its wavelength spans fewer than about 150 px (shorter, and a swell reads as stripes). | ALU |
 | Shallows and surf | Only where the floor is shallow: sand showing through, ribbed sand at the beach, a breathing white surf band, and broken wave lines on depth contours that roll shoreward, strongest on a windward shore | +2 taps there |
 | Wakes | Ships stamp their trail ribbons and hull quads into a 512² world-space target round the camera's target, sized to the view. The ocean reads it: churned water astern, a V of combed streaks, the bow wave and foam along the hull. Each trail point keeps the pace she passed at, ages out in 4.5 s and drifts downwind. The foam is part of the water surface, so the swell can never bury it. | one small offscreen pass; +1 tap, and +4 inside a wake |
+| Water ships push | A wave-equation heightfield (256², an eighth of a tile a cell, 32 tiles round the camera's target) stepped on the GPU at 45 Hz (`sea/waves.ts`, after Crest's dynamic waves and Evan Wallace's WebGL Water). Each hull holds the water to a hump under her bow and a hollow under her stern, higher the faster she goes; moving on, the shape runs off as waves slower than she sails, so the V and her bow waves come out of the water itself and run into other ships' and each other. Shot falling in the sea, a mast over the side and a ship going down throw rings. The grid follows the target in whole cells (the waves stay put in the water), swallows waves at its edges and damps them out within a few seconds. The mesh is lifted by the heights (smoothed, as it's coarser than the grid) and the water lit by their slopes. Ships ride the swell only. | 1–4 small passes a frame; +5 vertex and +4 fragment taps |
 | Light | Painted, not reflective, with no specular. The water keeps its hues, takes 20% of the hour's colour and dims to a moonlit blue at night. A little sky colour creeps in toward the horizon, then a mild haze. | ALU |
 
 On open water that is 9 texture reads a pixel, branching for more only over shallows and wakes, with no loops
@@ -57,6 +58,7 @@ the difference to show, and no ship sails on the beach.
 
 - The lab is `apps/web/lab.html` (dev server). It offers the three zooms (close aboard, sailing, the whole
   region), a battle view, wind and hour controls, layer toggles, and a stand-in ship sailing circles off a real
-  island. `window.__lab` drives it from scripts.
+  island (`?course=straight` sails her in a line). `window.__lab` drives it from scripts.
 - In the game, `?renderer=3d` turns the 3D view on, `?sky=<hour>` sets the time of day, and `?sea=plain[,layer…]`
-  shows the layers one at a time: `swell`, `ripples` (the hammered texture), `flecks`, `shadows`, `surf`, `wakes`.
+  shows the layers one at a time: `swell`, `ripples` (the hammered texture), `flecks`, `shadows`, `surf`, `wakes` (the painted
+  foam), `waves` (the water ships push).

@@ -69,7 +69,7 @@ Sources and the full notes are in the research summary in the 3D planning conver
 
 All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets the sky for review.
 `?sea=plain` draws the bare water for review; add layers back by name: `?sea=plain,flecks` (also `shadows`,
-`ripples`, `surf`, `swell`, `clouds`, `wakes`). The ocean lab (`/lab.html` on the dev server) shows the sea on its
+`ripples`, `surf`, `swell`, `clouds`, `wakes`, `waves`). The ocean lab (`/lab.html` on the dev server) shows the sea on its
 own off a real island, at every zoom, hour and wind.
 
 - **Sky:** its own slow day, separate from the game clock (about 20 real minutes: a long bright day, golden
@@ -88,57 +88,10 @@ own off a real island, at every zoom, hour and wind.
   - The water keeps its hues through the day, warming a touch at sunset and dimming to a moonlit blue.
   - Every fine pattern is a mipmapped texture or fades out before it gets finer than a couple of pixels, so the
     sea stays calm and clean at every zoom.
-- **Islands:**
-  - Soft white beaches fading into the turquoise.
-  - Lush, rounded green hills with patches of bare tan rock.
-  - Palm trees on the beaches and headlands.
-  - Red-roofed white towns on the shore.
-- **Ships:**
-  - Big against the islands; at the default zoom a ship is about a tenth of the screen's width.
-  - Glowing white sails (a soft bloom), golden-brown hulls, big flags and long streaming pennants.
-  - Long thin wakes.
-  - Heeling and pitching with the sea.
-- **Camera:** looking down at about 45 to 55 degrees on the sea map and somewhat closer in battle, always north-up
-  unless the chase view is on.
-- **Lettering:**
-  - Region names written faintly across the sea in large serif type ("Straits"): take them from the 1987 map, for
-    example the Caribbean Sea, Windward Passage, Old Bahama Strait, the Spanish Main, Florida Channel.
-  - Town names in white serif over the towns.
-- **Battles:**
-  - Black cannonballs visible in flight.
-  - White puffs of gun smoke; orange explosions.
-  - Debris and crew in the water; smoke trailing from a damaged hull.
-  - Sails torn where shot struck, masts that can fall.
-- **Light:**
-  - Bright and high-key by day, warm at dusk.
-  - A moonlit blue night that stays readable.
-
-## Built so far
-
-All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets the sky for review.
-`?sea=plain` draws the bare water for review; add layers back by name: `?sea=plain,flecks` (also `shadows`,
-`ripples`, `surf`, `swell`, `clouds`, `wakes`). The ocean lab (`/lab.html` on the dev server) shows the sea on its
-own off a real island, at every zoom, hour and wind.
-
-- **Sky:** its own slow day, separate from the game clock (about 20 real minutes: a long bright day, golden
-  sunrise and sunset, a short moonlit night); the HUD shows the date only in 3D. A painted dome, deep blue
-  overhead and pale at the horizon, with a soft sun glow (a physical sky's glare washed out a low camera).
-  Clouds drift downwind and show only from afar.
-- **Sea:**
-  - Calm and painterly: low, long swells, with the fine chop only in the shading.
-  - Everything on the water moves the wind's way, at speeds that belong together: swells within about 20° of
-    the wind, rolling slowly; ripples, flecks, gusts downwind; clouds and their shadows a little faster.
-  - Ripple normals that also show as a soft, low-contrast hammered texture in the water's colour.
-  - Flecks of whitecap lying along the wind, coming and going, more in a blow, gathered in gusty patches; three
-    sizes so they stay about the same on screen at every zoom (Pirates! has no long wind streaks). Slow and
-    faint: each lives about 9 seconds and barely drifts, so the sea shows the wind without flickering or racing.
-    Pirates! puts the wind's direction on the compass (a red arrow through the rose) and keeps the sea calm.
-  - Cloud shadows: big soft darker patches drifting downwind with the clouds, slowly (half a tile a second).
-  - No sun sparkle (glints that jumped about read as dots darting over the sea); only a faint sheen, so the
-    sea is one even soft blue.
-  - Surf bands rolling in along the depth contours, and sand showing through the shallows.
-  - The water takes the light's colour; a moonlit sea is greyed a little toward navy, its flecks only a glimmer.
-  - Measured against the reference's open sea (hue about 209, saturation 0.52, value 0.76 on screen).
+  - The water ships push (`sea/waves.ts`): a wave simulation round the camera, where each hull heaps water at
+    her bow and draws a hollow at her stern, so her bow waves and the V of her wake are real ridges of water
+    that light with the sea, run into other ships' and fade within a few seconds. Shot falling in the sea, a
+    mast over the side and a ship going down throw rings.
 - **Islands:**
   - Levels of detail down to a quarter-tile mesh near the camera, smooth between tiles.
   - Generated rolling hills and ridges inland, with the coastline kept where the map has it.
