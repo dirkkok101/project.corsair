@@ -10,6 +10,7 @@ import { createWorld } from '@corsair/systems-navigation';
 //   ?zoom=close|sail|region|<tiles>  ?mode=map|battle  ?wind=<from deg>  ?strength=calm|light|fresh|strong|gale
 //   ?hour=<0..24>  ?sea=plain,flecks,...  ?at=<x>,<y>  ?chase (from astern)  ?pace=<speed points>
 //   ?manual (no animation loop; drive it with __lab.frame)  ?ui=0  ?course=straight (east and back round)
+//   ?storm (a storm over the stand-in: rain, lightning, spray)
 
 const params = new URLSearchParams(location.search);
 const ZOOMS: Record<string, number> = { close: 9, sail: 32, region: 420 };
@@ -133,6 +134,9 @@ const at = (ms: number) => {
     world: {
       tick: 0,
       wind: { fromDeg: lab.windFrom, strength: lab.strength },
+      ...(params.has('storm')
+        ? { weather: { storms: [{ id: 'lab', x: center.x, y: center.y, radius: 40, headingDeg: 0, speed: 0, endDay: 1e9 }] } }
+        : {}),
       ships: { player: ship('player', RADIUS, 0, 1, speed), merchant: ship('merchant', RADIUS, Math.PI, 1, speed * 0.8, { ai: { nation: 'spain' } }) },
     } as unknown as WorldState,
     battle: (): BattleViewState => {

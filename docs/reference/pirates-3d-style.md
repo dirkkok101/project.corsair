@@ -86,6 +86,11 @@ own off a real island, at every zoom, hour and wind.
   near a storm, a lid of drifting grey cloud spreads over the sky, the sun fades behind it, the light flattens
   and dims, the horizon closes in, the clouds darken and the sea turns grey-green. It rolls in and clears over
   some seconds; a fight keeps the weather it began in.
+  In heavy weather (`storm.ts`): rain slanting down past the camera with the wind (from a strong blow up, heaviest
+  in a storm); lightning in storms, a forked bolt down to the sea toward the horizon and a flash that lights the
+  whole scene, more often in the storm's heart, with thunder after it, later the further off it struck; and spray
+  thrown off ships' bows as they drive into a heavy sea, most when the bow slams down. The lab's `?storm` puts a
+  storm over its stand-in.
 - **Sea** (`sea/`; how it is drawn: `ocean-renderer.md`), after Black Flag:
   - A real sea of 24 waves running with the wind (Gerstner, crests sharpened), its size set by the weather: a
     gentle swell in light air, a lively sea in a fresh breeze, big rolling seas in a gale. Ships ride it.

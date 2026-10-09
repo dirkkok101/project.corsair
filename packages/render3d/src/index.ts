@@ -15,6 +15,8 @@ import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW } from './shipyard';
 import type { BuiltShip, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
+import { createStorm } from './storm';
+import type { SprayShip } from './storm';
 import type { BattleHull } from './battle';
 import { createTowns, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
@@ -114,6 +116,8 @@ const PENNANT: Record<string, string> = { spain: '#e8c170', england: '#a53030', 
 
 export interface SeaRenderer {
   canvas: HTMLCanvasElement;
+  /** Called at each lightning strike, with the thunder's delay (seconds, longer the further off it struck). */
+  onLightning(cb: (delayS: number) => void): void;
   /** Draws the sea map for this state; `nowMs` is the frame time (the sky keeps its own slow day). */
   render(state: WorldState, nowMs: number): void;
   /** Draws the sea battle (on the same sea: its positions are world tiles); `enemyNation` flies her colours. */
@@ -413,6 +417,30 @@ export async function createSeaRenderer(
     camera.position.copy(target).add(back);
     camera.lookAt(target.x, 0.6, target.z);
     declutterBanners(dt);
+    // Heavy weather: rain round the camera, lightning, spray off the bows; a strike lights the whole scene.
+    const flash = storm.update({
+      camera: camera.position,
+      target,
+      dt,
+      t,
+      rain: THREE.MathUtils.smoothstep(gloom, 0.4, 0.85),
+      lightning: THREE.MathUtils.smoothstep(stormShare, 0.5, 1),
+      rough: THREE.MathUtils.smoothstep(sea.strength, 0.5, 1.1),
+      windToDeg: sea.toDeg,
+      windStrength: sea.strength,
+      ships: sprayShips,
+      viewHeight: renderer.domElement.height,
+    });
+    if (flash > 0) {
+      const white = new THREE.Color(0.85, 0.9, 1);
+      light.sky.lerp(white, flash * 0.7);
+      zenith.lerp(white, flash * 0.5);
+      fill.intensity += flash * 3;
+      light.ambient.add(white.clone().multiplyScalar(flash * 2.5));
+      renderer.toneMappingExposure *= 1 + flash * 0.5;
+      (scene.background as THREE.Color).copy(light.sky);
+    }
+    sprayShips = [];
     sun.position.copy(target).addScaledVector(sunDir, 200);
     sun.target.position.copy(target);
     ground.update(camera.position, target);
@@ -420,6 +448,30 @@ export async function createSeaRenderer(
     sky.update(camera.position, zenith, light.sky, sunDir, light.sun);
     towns.update(t);
     composer.render(dt);
+  };
+
+  // Heavy weather's rain, lightning and spray (storm.ts); the bows throwing spray this frame.
+  const storm = createStorm();
+  scene.add(storm.object);
+  let sprayShips: SprayShip[] = [];
+  /** Each ship's pitch last frame, for how fast her bow is dropping into a sea. */
+  const lastPitch = new Map<string, number>();
+  /** A ship's bow, for spray: where it is, and how fast it is dropping. */
+  const bowOf = (id: string, root: THREE.Object3D, headingDeg: number, length: number, pace: number, dt: number): SprayShip => {
+    const r = (headingDeg * Math.PI) / 180;
+    const ride = rides.get(id);
+    const pitch = ride?.pitch ?? 0;
+    const dip = dt > 0 ? -(pitch - (lastPitch.get(id) ?? pitch)) / dt : 0;
+    lastPitch.set(id, pitch);
+    return {
+      x: root.position.x + Math.sin(r) * length * 0.46,
+      y: root.position.y + length * 0.06,
+      z: root.position.z - Math.cos(r) * length * 0.46,
+      headingDeg,
+      length,
+      pace,
+      dip,
+    };
   };
 
   // The sea battle: its two ships, built like any other, and its layer of shot, smoke and wreckage.
@@ -456,10 +508,13 @@ export async function createSeaRenderer(
       byStorm = Math.max(byStorm, 1 - THREE.MathUtils.smoothstep(d, s.radius * 0.7, s.radius * 1.5));
     }
     battleStorm = byStorm;
+    stormShare = byStorm;
     return Math.max(byWind, byStorm);
   };
   /** The storm's share of the overcast where the player last was (a fight joined there keeps it). */
   let battleStorm = 0;
+  /** How deep in a storm the camera is now (lightning strikes only in storms). */
+  let stormShare = 0;
 
   const render = (state: WorldState, nowMs: number) => {
     if (inBattle) leaveBattle();
@@ -479,7 +534,9 @@ export async function createSeaRenderer(
       seen.add(s.id);
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
-      placeShip(s.id, m.root, s, w, dt, farScale, s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP);
+      const pace = s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP;
+      const len = placeShip(s.id, m.root, s, w, dt, farScale, pace);
+      if (Math.hypot(s.x - me.x, s.y - me.y) < 30 + distance * 0.6) sprayShips.push(bowOf(s.id, m.root, s.headingDeg, len, Math.min(1, pace * 1.4), dt));
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
@@ -537,6 +594,7 @@ export async function createSeaRenderer(
     const want = THREE.MathUtils.clamp(apart * 1.3 + 6, BATTLE_VIEW.min, BATTLE_VIEW.max) * battleZoom;
     // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
     gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
+    stormShare = battleStorm;
     const dt = beginFrame(nowMs, battleView || want);
     const t = nowMs / 1000;
     battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;
@@ -570,6 +628,7 @@ export async function createSeaRenderer(
       f.built.setSails(...sailsOf(sailAnim(content, s, wind, nowMs)), nowMs);
       const pace = (s.speed ?? 0) / content.combat.battle.tilesPerSecondPerSpeedPoint / FAST_SHIP;
       const length = placeShip(`battle.${side}`, f.built.root, s, wind, dt, 1 / SHIP_SCALE, pace, BATTLE_MODEL_SCALE);
+      if (!(side === 'enemy' && view.wreck)) sprayShips.push(bowOf(`battle.${side}`, f.built.root, s.headingDeg, length, Math.min(1, pace * 1.4), dt));
       // Going down: she settles by the stern, rolls and is gone under the sea.
       if (side === 'enemy' && view.wreck) {
         if (sinkingFrom === undefined) {
@@ -628,6 +687,7 @@ export async function createSeaRenderer(
 
   return {
     canvas,
+    onLightning: (cb) => storm.onLightning(cb),
     render,
     renderBattle,
     resize(width, height) {

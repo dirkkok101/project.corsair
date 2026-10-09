@@ -722,7 +722,9 @@ async function main() {
   hoverCard.className = 'ship-hover';
   hoverCard.hidden = true;
 
-  renderer.onLightning(() => audio.thunder());
+  // Thunder follows the lightning that is shown: the 3D view's when it is on (the 2D one's is out of sight then).
+  if (sea3d) sea3d.onLightning((delayS) => audio.thunder(delayS));
+  else renderer.onLightning(() => audio.thunder());
   let audioFailed = false;
 
   // The HUD flashes "Saved" once the write has landed.
