@@ -27,21 +27,31 @@ The frames came from the user's review videos, studied locally and not committed
 
 All the detail lives in one fragment shader on one camera-following mesh. Every pattern finer than the mesh is
 either a **mipmapped texture** (the GPU filters it at distance, so nothing aliases into stripes or shimmers) or
-is faded out with `fwidth` before it gets finer than about two pixels.
+is faded out with `fwidth` before it gets finer than about two pixels. The sea is **painted in screen colours**:
+the shader mixes the measured on-screen colours, then inverts the OutputPass (ACES at the renderer's exposure,
+then sRGB) per pixel. So what is painted is what shows, and foam never needs the huge linear values that would
+make it flare in the bloom.
 
 | Layer | How | Cost |
 |---|---|---|
-| Swell | 3 long sines, 14–40 tiles long, a few hundredths of a tile high, within ±20° of the wind, slow. They are the same function in GLSL and TS (`seaHeight`), so ships ride exactly what is drawn. Their amplitude fades out where the grid gets coarse. | vertex ALU; a polar grid of 256 × 180 vertices |
-| Base colour | Authored as on-screen sRGB targets and inverted through the pipeline's ACES and exposure once, on the CPU, so the measured colour is what appears | ALU |
-| Shallows | My own coast texture, built on the CPU from the depth texture: a smoothed floor height, a halo, and the direction to the shore. Bicubic sampling, plus a little noise warp so tile texels never show. The ramp runs from cerulean through turquoise to sand. | 1 texture (4 bilinear taps) |
-| Hammered texture | A tileable dimple shading baked at startup into a 512² mipmapped texture, two scales, both drifting downwind | 2 taps |
-| Flecks | The same texture's fleck channel, stretched along the wind and shown in patches by a slow, large gate, so flecks come and go instead of racing | shares the taps above + 1 |
-| Cloud shadows | A large soft gate, a few percent darker, drifting at `CLOUD_SPEED`, as the clouds do | shares the gate tap |
-| Surf and wave lines | A white band at the shoreline, and contour lines of depth that drift shoreward on the windward side. They are broken by noise and faded by `fwidth`. | ALU |
-| Wakes | Ships stamp their wake ribbons (the V, the stern track, the bow wave and hull foam) into a world-space render target round the camera target. They are redrawn from each ship's trail every frame. The trail points age out (gone in about 8 s) and drift downwind. The ocean shader reads the target and draws the combed streaks from its across-the-wake coordinate. The foam is part of the water surface, so it can never be buried by the swell. | one small offscreen pass + 1 tap |
-| Light | The water is painted, not reflective: its colour is scaled by the hour's sun, sky and day level, and has no specular. A mild fog meets the sky at the horizon in the chase view. | ALU |
+| Swell | 3 long sines, 9.5, 15 and 26 tiles long and a few hundredths of a tile high, within ±21° of the wind, moving slowly. The same function runs in GLSL and in `ocean.heightAt`, so ships ride what is drawn. It eases toward a new wind and turns about the camera's target, so the water under the camera never jolts. | vertex ALU; a polar grid, 256 segments by about 180 rings |
+| Base colour | Cerulean, a brighter shelf and the turquoise apron, by a smoothed shallowness. My own coast texture is built on the CPU from the game's depth texture: the floor height, a smoothed shallowness and the direction to the shore. Its lookups are warped by noise so the one-texel-a-tile grid never shows. | 2 coast taps + 1 noise tap |
+| Hammered texture | A tileable dent shading baked at startup into a 512² mipmapped texture, read at two scales, drifting downwind | 2 taps |
+| Flecks | The detail texture's fleck channel, stretched about 2.7× along the wind. They show in patches that drift a little slower than the water, so each fleck fades in and out instead of racing. There are more in a blow. | 2 taps |
+| Cloud shadows | A large soft gate, at most 6% darker, drifting at `CLOUD_SPEED` as the clouds do | 1 tap |
+| Swell light | The swells' slope toward the sun, per pixel. Each swell fades out before its wavelength spans fewer than about 150 px (shorter, and a swell reads as stripes). | ALU |
+| Shallows and surf | Only where the floor is shallow: sand showing through, ribbed sand at the beach, a breathing white surf band, and broken wave lines on depth contours that roll shoreward, strongest on a windward shore | +2 taps there |
+| Wakes | Ships stamp their trail ribbons and hull quads into a 512² world-space target round the camera's target, sized to the view. The ocean reads it: churned water astern, a V of combed streaks, the bow wave and foam along the hull. Each trail point keeps the pace she passed at, ages out in 4.5 s and drifts downwind. The foam is part of the water surface, so the swell can never bury it. | one small offscreen pass; +1 tap, and +4 inside a wake |
+| Light | Painted, not reflective, with no specular. The water keeps its hues, takes 20% of the hour's colour and dims to a moonlit blue at night. A little sky colour creeps in toward the horizon, then a mild haze. | ALU |
 
-About 9 texture taps a pixel, with no loops in the fragment shader. One offscreen pass of a few dozen triangles.
+On open water that is 9 texture reads a pixel, branching for more only over shallows and wakes, with no loops
+beyond the three swells.
+
+## Known approximation
+
+`heightAt` gives the full swell everywhere. The mesh fades each swell out where its grid gets coarse (from about
+25, 45 and 80 tiles from the camera's target) and on the beach itself. Ships that far off are drawn too small for
+the difference to show, and no ship sails on the beach.
 
 ## Review
 
