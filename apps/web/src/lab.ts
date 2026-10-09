@@ -11,6 +11,7 @@ import { createWorld } from '@corsair/systems-navigation';
 //   ?hour=<0..24>  ?sea=plain,flecks,...  ?at=<x>,<y>  ?chase (from astern)  ?pace=<speed points>
 //   ?manual (no animation loop; drive it with __lab.frame)  ?ui=0  ?course=straight (east and back round)
 //   ?storm (a storm over the stand-in: rain, lightning, spray)  ?class=ship.galleon (the stand-ins' class)
+//   ?town=town.port_royal (sail off that town; with ?park, lie still just off it)
 
 const params = new URLSearchParams(location.search);
 const ZOOMS: Record<string, number> = { close: 9, sail: 32, region: 420 };
@@ -41,6 +42,8 @@ const lab = {
   pace: Number(params.get('pace') ?? 4.5),
 };
 
+/** The town asked for (?town=), to sail or lie off. */
+const lookTown = settlements.find((t) => t.id === params.get('town'));
 /** Open water for the circles: the nearest point to the start whose circle and a margin round it are all sea. */
 const RADIUS = 9;
 const center = (() => {
@@ -54,10 +57,12 @@ const center = (() => {
     }
     return true;
   };
+  // Near a town if one is asked for (?town=town.port_royal), else near the start.
+  const from = lookTown ?? start;
   for (let ring = 0; ring < 80; ring++) {
     for (let a = 0; a < 16; a++) {
-      const x = start.x + Math.cos((a / 16) * Math.PI * 2) * ring;
-      const y = start.y + Math.sin((a / 16) * Math.PI * 2) * ring;
+      const x = from.x + Math.cos((a / 16) * Math.PI * 2) * ring;
+      const y = from.y + Math.sin((a / 16) * Math.PI * 2) * ring;
       if (clear(x, y)) return { x, y };
     }
   }
@@ -130,6 +135,16 @@ const at = (ms: number) => {
       ...extra,
     };
   };
+  // ?park: the player's ship lies still just off the town (?town=), facing along the shore, for looking at it.
+  const parked = params.has('park') && lookTown
+    ? (() => {
+        const dx = center.x - lookTown.x;
+        const dy = center.y - lookTown.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const k = Math.min(1, 4 / d);
+        return { x: lookTown.x + dx * k, y: lookTown.y + dy * k, headingDeg: ((Math.atan2(dx, -dy) * 180) / Math.PI + 90 + 360) % 360 };
+      })()
+    : undefined;
   return {
     world: {
       tick: 0,
@@ -137,7 +152,7 @@ const at = (ms: number) => {
       ...(params.has('storm')
         ? { weather: { storms: [{ id: 'lab', x: center.x, y: center.y, radius: 40, headingDeg: 0, speed: 0, endDay: 1e9 }] } }
         : {}),
-      ships: { player: ship('player', RADIUS, 0, 1, speed), merchant: ship('merchant', RADIUS, Math.PI, 1, speed * 0.8, { ai: { nation: 'spain' } }) },
+      ships: { player: parked ? { ...ship('player', RADIUS, 0, 1, 0), ...parked, speed: 0 } : ship('player', RADIUS, 0, 1, speed), merchant: ship('merchant', RADIUS, Math.PI, 1, speed * 0.8, { ai: { nation: 'spain' } }) },
     } as unknown as WorldState,
     battle: (): BattleViewState => {
       const bs = lab.pace * content.combat.battle.tilesPerSecondPerSpeedPoint;

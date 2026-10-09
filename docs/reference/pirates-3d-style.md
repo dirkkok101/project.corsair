@@ -109,7 +109,12 @@ own off a real island, at every zoom, hour and wind.
   - Levels of detail down to a quarter-tile mesh near the camera, smooth between tiles.
   - Generated rolling hills and ridges inland, with the coastline kept where the map has it.
   - Ground painted by height and slope (beach, jungle, grass, tan rock).
-  - Instanced palms along the shore and jungle canopy inland.
+  - Ground painted to sit with the realistic sea: pale coral sand, darker and glossy where the sea wets it, olive
+    grass, a dark green-brown jungle floor, bare earth in patches, grey-brown limestone on steep ground; a relief
+    per pixel (lumpy earth, rippled sand, layered rock) so it reads as ground.
+  - Vegetation (leaf-textured cards, instanced): palms with ringed trunks, coconuts and fronds of leaflets
+    yellowing at the tips; jungle trees, a forked trunk under a crown of leaf clusters; shrubs and ferns under
+    the trees and along the top of the beach; grey rocks along the waterline, more on a steep shore.
 - **Ships** (`shipyard.ts`, each class's plan in `rigs.ts`):
   - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery. Weathered to sit
     on the realistic sea: long planks of varied tone with a grain and staggered butt joints, the paint dulled

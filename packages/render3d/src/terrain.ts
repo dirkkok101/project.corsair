@@ -166,7 +166,7 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
 
   const material = groundMaterial();
   const object = new THREE.Group();
-  const trees = treeKit();
+  const kit = treeKit();
 
   // The chunks that have land in them, and what each is showing.
   interface Chunk {
@@ -249,14 +249,20 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
     return mesh;
   };
 
-  /** Palms on the beaches and low shore, jungle canopy inland: placed by a seeded grid, so always the same. */
+  /**
+   * Palms on the beaches and low shore, jungle trees inland with undergrowth round them, shrubs at the edge of
+   * the sand, rocks along the waterline (more where the shore is steep): placed by a seeded grid, so always the
+   * same.
+   */
   const plant = (c: Chunk): THREE.Group => {
     // The clearings that reach into this chunk.
     const near = clearings.filter((k) => k.x + k.r > c.cx && k.x - k.r < c.cx + CHUNK && k.y + k.r > c.cy && k.y - k.r < c.cy + CHUNK);
     const palms: THREE.Matrix4[] = [];
-    const canopy: THREE.Matrix4[] = [];
+    const trees: THREE.Matrix4[] = [];
     const tint: THREE.Color[] = [];
-    const m = new THREE.Matrix4();
+    const bushes: THREE.Matrix4[] = [];
+    const bushTint: THREE.Color[] = [];
+    const rocks: THREE.Matrix4[] = [];
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     for (let y = c.cy; y < Math.min(h, c.cy + CHUNK); y += 0.5) {
@@ -265,39 +271,54 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
         const px = x + hash2(Math.round(x * 2) + 7, Math.round(y * 2)) * 0.5;
         const py = y + hash2(Math.round(x * 2), Math.round(y * 2) + 7) * 0.5;
         const g = heightAt(px, py);
-        if (g < 0.12 || near.some((k) => Math.hypot(px - k.x, py - k.y) < k.r)) continue;
         const tile = map.tiles[Math.floor(py) * w + Math.floor(px)] ?? 3;
         const s = 0.75 + hash2(Math.round(px * 9), Math.round(py * 9)) * 0.5;
         q.setFromAxisAngle(up, r * Math.PI * 2);
+        // Rocks along the waterline, more where the shore climbs steeply (a rocky coast), a few on the sand.
+        if (g > -0.08 && g < 0.25) {
+          const steep = Math.abs(heightAt(px + 0.4, py) - heightAt(px - 0.4, py)) + Math.abs(heightAt(px, py + 0.4) - heightAt(px, py - 0.4));
+          if (r < 0.05 + Math.min(0.5, steep * 0.8)) {
+            const k = 0.5 + hash2(Math.round(px * 13), Math.round(py * 13)) * 1.1;
+            rocks.push(new THREE.Matrix4().compose(new THREE.Vector3(px, g - 0.03, py), q.clone(), new THREE.Vector3(k, k * (0.6 + r), k)));
+          }
+        }
+        if (g < 0.12 || near.some((k) => Math.hypot(px - k.x, py - k.y) < k.r)) continue;
         if (g < 0.75 && r < 0.22) {
-          // A palm, leaning a little.
+          // A palm, leaning a little, seaward-ish.
           const lean = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.cos(r * 40), 0, Math.sin(r * 40)), 0.18 * r * 4);
-          palms.push(new THREE.Matrix4().compose(new THREE.Vector3(px, g - 0.02, py), lean.multiply(q), new THREE.Vector3(s, s, s)));
+          palms.push(new THREE.Matrix4().compose(new THREE.Vector3(px, g - 0.02, py), lean.multiply(q.clone()), new THREE.Vector3(s, s, s)));
         } else if (g >= 0.55 && tile >= 3 && r < (tile === 5 ? 0.12 : 0.55)) {
-          // A clump of canopy, darker and denser in the jungle, sparser on the heights.
-          canopy.push(m.compose(new THREE.Vector3(px, g + 0.05, py), q, new THREE.Vector3(s, s * (0.8 + r * 0.6), s)).clone());
+          // A jungle tree, a shade of its own.
+          trees.push(new THREE.Matrix4().compose(new THREE.Vector3(px, g, py), q.clone(), new THREE.Vector3(s, s * (0.85 + r * 0.5), s)));
           const v = hash2(Math.round(px * 5), Math.round(py * 5));
-          // A pale tint over the tree's own colours, so neighbours differ in shade.
-          tint.push(new THREE.Color().setHSL(0.2 + v * 0.12, 0.3, 0.72 + v * 0.22));
+          tint.push(new THREE.Color().setHSL(0.18 + v * 0.1, 0.25, 0.82 + v * 0.16));
+        }
+        // Undergrowth: under the trees and along the top of the beach.
+        const u = hash2(Math.round(px * 7) + 3, Math.round(py * 7) + 5);
+        if (g >= 0.3 && tile >= 3 && u < (g < 0.8 ? 0.45 : 0.6)) {
+          const k = 0.7 + u * 1.2;
+          bushes.push(new THREE.Matrix4().compose(new THREE.Vector3(px + (u - 0.5) * 0.4, g - 0.01, py + (r - 0.5) * 0.4), q.clone(), new THREE.Vector3(k, k * (0.8 + r * 0.5), k)));
+          bushTint.push(new THREE.Color().setHSL(0.17 + u * 0.12, 0.3, 0.75 + u * 0.2));
         }
       }
     }
     const group = new THREE.Group();
-    if (palms.length) {
-      const inst = new THREE.InstancedMesh(trees.palm, trees.palmMaterial, palms.length);
-      palms.forEach((p, i) => inst.setMatrixAt(i, p));
-      inst.castShadow = true;
-      group.add(inst);
-    }
-    if (canopy.length) {
-      const inst = new THREE.InstancedMesh(trees.canopy, trees.canopyMaterial, canopy.length);
-      canopy.forEach((p, i) => {
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, list: THREE.Matrix4[], tints?: THREE.Color[], shadow = true) => {
+      if (!list.length) return;
+      const inst = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((p, i) => {
         inst.setMatrixAt(i, p);
-        inst.setColorAt(i, tint[i]!);
+        if (tints) inst.setColorAt(i, tints[i]!);
       });
-      inst.castShadow = true;
+      inst.castShadow = shadow;
       group.add(inst);
-    }
+    };
+    add(kit.palmTrunk, kit.barkMaterial, palms);
+    add(kit.palmCrown, kit.frondMaterial, palms);
+    add(kit.treeTrunk, kit.barkMaterial, trees);
+    add(kit.treeCrown, kit.leafMaterial, trees, tint);
+    add(kit.bush, kit.leafMaterial, bushes, bushTint, false);
+    add(kit.rock, kit.rockMaterial, rocks);
     return group;
   };
 
@@ -344,12 +365,14 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
 }
 
 /**
- * The ground's paint, by height and slope, in Pirates!'s Technicolor: white-gold beaches, bright jungle greens
- * varying patch by patch, lighter grass on the hills, tan rock on steep and high ground. Standard lighting
- * and shadows; only the colour is worked out per pixel.
+ * The ground, painted to sit with the realistic sea (after Black Flag): pale coral sand at the shore, darker and
+ * glossy where the sea wets it, olive grass on open slopes, a deep green-brown jungle floor under the trees,
+ * grey-brown limestone on steep ground and cliffs, all varied patch by patch. A relief worked out per pixel (two
+ * scales of noise, ripples in the sand, strata in the rock) tilts the light, so the ground reads as ground, not
+ * as paint; the wet sand is smoother than the dry. Standard lighting and shadows.
  */
 function groundMaterial(): THREE.MeshStandardMaterial {
-  const material = new THREE.MeshStandardMaterial({ roughness: 0.93, metalness: 0 });
+  const material = new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 });
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGround;\nvarying vec3 vGroundNormal;')
@@ -369,7 +392,17 @@ float gNoise(vec2 p) {
   vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(gHash(i), gHash(i + vec2(1, 0)), u.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), u.x), u.y);
 }
-float gFbm(vec2 p) { return gNoise(p) * 0.5 + gNoise(p * 2.1) * 0.25 + gNoise(p * 4.3) * 0.125 + gNoise(p * 8.7) * 0.0625; }`,
+float gFbm(vec2 p) { return gNoise(p) * 0.5 + gNoise(p * 2.1) * 0.25 + gNoise(p * 4.3) * 0.125 + gNoise(p * 8.7) * 0.0625; }
+// The ground's small relief, by what it is: lumpy earth, rippled sand, layered rock.
+float gRelief(vec2 p, float sandy, float rocky) {
+  float earth = gFbm(p * 3.0) * 0.6 + gFbm(p * 11.0) * 0.4;
+  float ripples = sin(p.x * 26.0 + gNoise(p * 2.0) * 6.0) * 0.5 + 0.5;
+  float strata = abs(sin(p.y * 9.0 + gNoise(p * 1.5) * 4.0)) * 0.6 + gFbm(p * 7.0) * 0.4;
+  return mix(mix(earth, ripples * 0.4, sandy), strata, rocky);
+}
+float gSandy;
+float gRocky;
+float gWet;`,
       )
       .replace(
         'vec4 diffuseColor = vec4( diffuse, opacity );',
@@ -377,114 +410,260 @@ float gFbm(vec2 p) { return gNoise(p) * 0.5 + gNoise(p * 2.1) * 0.25 + gNoise(p 
 float slope = 1.0 - clamp(vGroundNormal.y, 0.0, 1.0);
 float var = gFbm(vGround.xz * 0.6);
 float fine = gFbm(vGround.xz * 5.0);
-vec3 sand = mix(vec3(0.93, 0.86, 0.66), vec3(0.98, 0.94, 0.8), fine);
-vec3 jungle = mix(vec3(0.16, 0.42, 0.12), vec3(0.3, 0.58, 0.16), var) * (0.85 + 0.3 * fine);
-vec3 grass = mix(vec3(0.42, 0.6, 0.2), vec3(0.58, 0.7, 0.28), var) * (0.9 + 0.2 * fine);
-vec3 rock = mix(vec3(0.62, 0.52, 0.38), vec3(0.78, 0.68, 0.52), fine);
+float grain = gFbm(vGround.xz * 23.0);
+// Natural colours: coral sand, olive grass, a dark jungle floor, grey-brown limestone.
+vec3 sand = mix(vec3(0.86, 0.8, 0.66), vec3(0.93, 0.89, 0.78), fine) * (0.94 + 0.08 * grain);
+vec3 jungle = mix(vec3(0.13, 0.22, 0.08), vec3(0.22, 0.32, 0.12), var) * (0.85 + 0.3 * fine);
+vec3 grass = mix(vec3(0.36, 0.42, 0.18), vec3(0.5, 0.52, 0.26), var) * (0.88 + 0.24 * fine);
+vec3 earth = vec3(0.42, 0.33, 0.22) * (0.85 + 0.3 * grain);
+vec3 rock = mix(vec3(0.46, 0.42, 0.36), vec3(0.66, 0.6, 0.5), fine) * (0.85 + 0.3 * grain);
 // Beach at the waterline (wider where the ground is flat), jungle above, grass on the heights.
 float beach = 1.0 - smoothstep(0.18, 0.42 + 0.15 * var, gh + slope * 0.6);
-vec3 col = mix(mix(jungle, grass, smoothstep(1.6, 3.4, gh + var * 0.8)), sand, beach);
-// Tan rock where it's steep or high, broken up.
-float rocky = smoothstep(0.42, 0.7, slope + var * 0.25) + smoothstep(4.0, 6.0, gh + var);
-col = mix(col, rock, clamp(rocky, 0.0, 1.0) * (1.0 - beach));
-// Wet sand just above the waterline, a shade darker.
-col *= mix(0.82, 1.0, smoothstep(0.02, 0.12, gh));
+vec3 col = mix(jungle, grass, smoothstep(1.6, 3.4, gh + var * 0.8));
+// Bare earth where the green thins, between beach and jungle and in worn patches.
+col = mix(col, earth, smoothstep(0.55, 0.85, fine) * 0.35 + (1.0 - smoothstep(0.35, 0.7, gh)) * 0.4 * (1.0 - beach));
+col = mix(col, sand, beach);
+// Rock where it's steep or high, broken up.
+float rocky = clamp(smoothstep(0.4, 0.66, slope + var * 0.25) + smoothstep(4.0, 6.0, gh + var), 0.0, 1.0) * (1.0 - beach);
+col = mix(col, rock, rocky);
+// Wet sand just above the waterline: darker, a little browner.
+float wet = 1.0 - smoothstep(0.02, 0.16, gh);
+col = mix(col, col * vec3(0.66, 0.64, 0.6), wet);
+gSandy = beach;
+gRocky = rocky;
+gWet = wet;
 vec4 diffuseColor = vec4( col, opacity );`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+// Wet sand is smooth enough to catch the sky; rock a little smoother than earth.
+roughnessFactor = mix(mix(0.95, 0.82, gRocky), 0.45, gWet * gSandy);`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+{
+  // The relief, as a slope from neighbouring samples (in the world), tilting the surface normal.
+  float e = 0.02;
+  vec2 p = vGround.xz;
+  float h0 = gRelief(p, gSandy, gRocky);
+  float hx = gRelief(p + vec2(e, 0.0), gSandy, gRocky);
+  float hz = gRelief(p + vec2(0.0, e), gSandy, gRocky);
+  float strength = mix(mix(0.035, 0.012, gSandy), 0.06, gRocky);
+  vec3 nw = normalize(vGroundNormal - vec3(hx - h0, 0.0, hz - h0) / e * strength);
+  normal = normalize((viewMatrix * vec4(nw, 0.0)).xyz);
+}`,
       );
   };
   return material;
 }
 
-/** The trees: a palm (curved trunk, a crown of drooping fronds) and a rounded clump of jungle canopy. */
+/** A canvas texture for foliage: drawn by `paint` on a transparent square, colour-correct, mipmapped. */
+function foliageTexture(size: number, paint: (g: CanvasRenderingContext2D, rand: () => number) => void, seed: number): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  let s = seed;
+  const rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  paint(g, rand);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/** A leaf card: a quad of `w` x `h`, its foot at the origin, for leaf textures. */
+function card(w: number, h: number): THREE.BufferGeometry {
+  return new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0);
+}
+
+/**
+ * The vegetation (after Black Flag's islands): palms with ringed trunks, coconuts and drooping fronds of leaflets
+ * yellowing at the tips; jungle trees, a branching trunk under a crown of leaf clusters; shrubs and ferns for the
+ * undergrowth; and grey shore rocks. Leaves are textured cards (alpha-cut), lit both sides; each part is its own
+ * instanced draw.
+ */
 function treeKit() {
+  // A palm frond: a midrib with leaflets either side, greener at the base, yellowing and browner at the tip.
+  const frondMap = foliageTexture(
+    256,
+    (g, rand) => {
+      for (let i = 0; i < 46; i++) {
+        const t = i / 46;
+        const x = 8 + t * 240;
+        const len = 46 * Math.sin(Math.PI * (0.15 + t * 0.85)) + 6;
+        const col = `rgb(${Math.round(70 + t * 70 + rand() * 20)},${Math.round(110 + t * 20 + rand() * 20)},${Math.round(38 + rand() * 12)})`;
+        g.strokeStyle = col;
+        g.lineWidth = 4;
+        for (const side of [-1, 1]) {
+          g.beginPath();
+          g.moveTo(x, 128);
+          g.quadraticCurveTo(x + 10, 128 + side * len * 0.6, x + 18, 128 + side * len);
+          g.stroke();
+        }
+      }
+      g.strokeStyle = '#7a6a3a';
+      g.lineWidth = 4;
+      g.beginPath();
+      g.moveTo(0, 128);
+      g.lineTo(256, 128);
+      g.stroke();
+    },
+    11,
+  );
+  // A cluster of broad leaves, for jungle crowns and shrubs: many overlapping leaves in greens, lit from above.
+  const leafMap = foliageTexture(
+    256,
+    (g, rand) => {
+      for (let i = 0; i < 160; i++) {
+        const a = rand() * Math.PI * 2;
+        const r = Math.sqrt(rand()) * 108;
+        const x = 128 + Math.cos(a) * r;
+        const y = 128 + Math.sin(a) * r * 0.9;
+        const light = 0.9 + (1 - y / 256) * 0.5 + rand() * 0.15;
+        g.fillStyle = `rgb(${Math.round((58 + rand() * 34) * light)},${Math.round((104 + rand() * 40) * light)},${Math.round((34 + rand() * 20) * light)})`;
+        g.save();
+        g.translate(x, y);
+        g.rotate(rand() * Math.PI * 2);
+        g.beginPath();
+        g.ellipse(0, 0, 13 + rand() * 7, 6 + rand() * 3, 0, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+    },
+    23,
+  );
+  // Bark: a palm's ringed trunk, a jungle tree's darker furrowed one.
+  const barkMap = foliageTexture(
+    64,
+    (g, rand) => {
+      g.fillStyle = '#7a6448';
+      g.fillRect(0, 0, 64, 64);
+      for (let y = 0; y < 64; y += 5) {
+        g.fillStyle = `rgba(40,30,20,${0.35 + rand() * 0.2})`;
+        g.fillRect(0, y, 64, 1.5);
+      }
+    },
+    5,
+  );
+  barkMap.wrapS = barkMap.wrapT = THREE.RepeatWrapping;
+  const foliage = (map: THREE.Texture) => new THREE.MeshStandardMaterial({ map, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85 });
+
+  // The palm: a slender, leaning, curving trunk, coconuts, and a crown of fronds arching out and drooping.
   const trunkParts: THREE.BufferGeometry[] = [];
-  // The trunk, in a few segments leaning progressively.
-  const segments = 5;
+  const segments = 6;
   for (let i = 0; i < segments; i++) {
-    const g = new THREE.CylinderGeometry(0.022 - i * 0.002, 0.026 - i * 0.002, 0.16, 6, 1);
-    g.translate(i * 0.012, 0.08 + i * 0.155, 0);
+    const g = new THREE.CylinderGeometry(0.02 - i * 0.0015, 0.024 - i * 0.0015, 0.14, 7, 1);
+    g.translate(i * i * 0.0025, 0.07 + i * 0.135, 0);
     trunkParts.push(g);
   }
-  // Position only, like the fronds, so the two merge (merging needs the same attributes on every part).
-  for (const g of trunkParts) {
-    g.deleteAttribute('normal');
-    g.deleteAttribute('uv');
+  const top = new THREE.Vector3(segments * segments * 0.0025, segments * 0.135, 0);
+  for (let k = 0; k < 4; k++) {
+    const nut = new THREE.SphereGeometry(0.014, 6, 5);
+    nut.translate(top.x + Math.cos(k * 1.7) * 0.02, top.y - 0.02, Math.sin(k * 1.7) * 0.02);
+    trunkParts.push(nut);
   }
-  const trunk = mergeGeometries(trunkParts)!;
+  const palmTrunk = mergeGeometries(trunkParts.map((g) => g.toNonIndexed()))!;
+  palmTrunk.scale(2.2, 2.2, 2.2);
   const frondParts: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 11; i++) {
-    // A frond: a long narrow leaf, arched up then drooping.
-    const leaf = new THREE.BufferGeometry();
+  for (let i = 0; i < 14; i++) {
+    // A frond: a strip along x, arching up then drooping, its leaflets in the texture.
+    const steps = 6;
     const pts: number[] = [];
-    const steps = 5;
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const along = t * 0.42;
-      const lift = Math.sin(t * Math.PI * 0.7) * 0.1 - t * t * 0.18;
-      const half = Math.sin(t * Math.PI) * 0.05;
-      pts.push(along, lift, -half, along, lift, half);
-    }
+    const uv: number[] = [];
     const idx: number[] = [];
-    for (let s = 0; s < steps; s++) idx.push(s * 2, s * 2 + 1, s * 2 + 2, s * 2 + 1, s * 2 + 3, s * 2 + 2);
+    const lengthOf = 0.38 + (i % 3) * 0.05;
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      const along = t * lengthOf;
+      const lift = Math.sin(t * Math.PI * 0.7) * 0.09 - t * t * 0.2;
+      const half = 0.075;
+      pts.push(along, lift, -half, along, lift, half);
+      uv.push(t, 0, t, 1);
+      if (k < steps) idx.push(k * 2, k * 2 + 1, k * 2 + 2, k * 2 + 1, k * 2 + 3, k * 2 + 2);
+    }
+    const leaf = new THREE.BufferGeometry();
     leaf.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    leaf.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     leaf.setIndex(idx);
-    leaf.rotateY((i / 11) * Math.PI * 2 + i * 0.3);
-    leaf.translate(segments * 0.012, segments * 0.155 + 0.02, 0);
-    frondParts.push(leaf);
+    // Each frond twisted a little about its own length, then spread round the crown, some higher.
+    leaf.rotateX((i % 2 ? 1 : -1) * 0.35);
+    leaf.rotateZ(i < 5 ? 0.3 : 0);
+    leaf.rotateY((i / 14) * Math.PI * 2 + i * 0.37);
+    leaf.translate(top.x, top.y + 0.01, top.z);
+    leaf.computeVertexNormals();
+    frondParts.push(leaf.toNonIndexed());
   }
-  const fronds = mergeGeometries(frondParts)!;
-  const colour = (g: THREE.BufferGeometry, c: string) => {
-    const col = new THREE.Color(c);
-    const n = g.getAttribute('position').count;
-    g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(n).fill(0).flatMap(() => [col.r, col.g, col.b]), 3));
-    return g;
-  };
-  const palm = mergeGeometries([colour(trunk.toNonIndexed(), '#8a6a45'), colour(fronds.toNonIndexed(), '#3f8f2c')])!;
-  palm.computeVertexNormals();
-  palm.scale(2.2, 2.2, 2.2);
-  // A broadleaf jungle tree: a short trunk under a crown of overlapping leafy lobes, each lumpy, lit lighter on
-  // top and darker beneath, so a stand of them reads as rich canopy rather than balls.
-  const lobes: THREE.BufferGeometry[] = [];
-  const trunkGeo = new THREE.CylinderGeometry(0.025, 0.04, 0.3, 6);
-  trunkGeo.translate(0, 0.15, 0);
-  trunkGeo.deleteAttribute('uv');
-  lobes.push(colour(trunkGeo.toNonIndexed(), '#5e4630'));
-  const spots: [number, number, number, number][] = [
-    [0, 0.42, 0, 0.21],
-    [0.13, 0.36, 0.05, 0.16],
-    [-0.11, 0.35, 0.09, 0.15],
-    [0.03, 0.34, -0.13, 0.15],
-    [0.02, 0.5, 0.04, 0.15],
-  ];
-  spots.forEach(([x, y, z, r], k) => {
-    const lobe = new THREE.IcosahedronGeometry(r, 1);
-    const p = lobe.getAttribute('position') as THREE.BufferAttribute;
+  const palmCrown = mergeGeometries(frondParts)!;
+  palmCrown.scale(2.2, 2.2, 2.2);
+
+  // A jungle tree: a trunk forking into three boughs, a crown of leaf clusters (crossed cards) on and round them.
+  const treeTrunkParts: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(0.022, 0.034, 0.32, 7).translate(0, 0.16, 0)];
+  const crownParts: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2;
+    const bough = new THREE.CylinderGeometry(0.01, 0.016, 0.2, 5).translate(0, 0.1, 0);
+    bough.rotateZ(0.6);
+    bough.rotateY(a);
+    bough.translate(0, 0.3, 0);
+    treeTrunkParts.push(bough);
+  }
+  let seed = 3;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  for (let k = 0; k < 16; k++) {
+    const a = rnd() * Math.PI * 2;
+    const r = 0.04 + rnd() * 0.2;
+    const y = 0.34 + rnd() * 0.22 - r * 0.3;
+    const size = 0.3 + rnd() * 0.14;
+    for (const turn of [0, Math.PI / 2]) {
+      const c = card(size, size * 0.8);
+      c.translate(0, -size * 0.3, 0);
+      c.rotateX((rnd() - 0.5) * 0.8);
+      c.rotateY(a + turn);
+      c.translate(Math.cos(a) * r, y, Math.sin(a) * r);
+      crownParts.push(c.toNonIndexed());
+    }
+  }
+  // A flat-ish card across the top, so the crown reads from above as well as from the side.
+  for (let k = 0; k < 5; k++) {
+    const c = new THREE.PlaneGeometry(0.4, 0.4).rotateX(-Math.PI / 2 + (rnd() - 0.5) * 0.4);
+    c.translate((rnd() - 0.5) * 0.18, 0.46 + rnd() * 0.08, (rnd() - 0.5) * 0.18);
+    crownParts.push(c.toNonIndexed());
+  }
+  const treeTrunk = mergeGeometries(treeTrunkParts.map((g) => g.toNonIndexed()))!;
+  const treeCrown = mergeGeometries(crownParts)!;
+
+  // Undergrowth: a shrub or a fern, a few crossed leaf cards low to the ground.
+  const bushParts: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 4; k++) {
+    const c = card(0.26, 0.18);
+    c.rotateY((k / 4) * Math.PI);
+    bushParts.push(c.toNonIndexed());
+  }
+  const bush = mergeGeometries(bushParts)!;
+
+  // A shore rock: a lumpy grey boulder.
+  const rock = new THREE.IcosahedronGeometry(0.1, 1);
+  {
+    const p = rock.getAttribute('position') as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) {
-      const bump = 1 + (hash2(Math.round(p.getX(i) * 60) + k * 7, Math.round(p.getZ(i) * 60 + p.getY(i) * 40)) - 0.5) * 0.4;
-      p.setXYZ(i, p.getX(i) * bump, p.getY(i) * 0.82 * bump, p.getZ(i) * bump);
+      const b = 0.75 + hash2(Math.round(p.getX(i) * 80), Math.round(p.getY(i) * 80 + p.getZ(i) * 50)) * 0.5;
+      p.setXYZ(i, p.getX(i) * b * 1.2, p.getY(i) * b * 0.7, p.getZ(i) * b);
     }
-    lobe.translate(x, y, z);
-    lobe.deleteAttribute('uv');
-    const flat = lobe.toNonIndexed();
-    flat.computeVertexNormals();
-    // Lighter on top, darker beneath, a shade varying lobe to lobe.
-    const pos = flat.getAttribute('position');
-    const col = new Float32Array(pos.count * 3);
-    const base = new THREE.Color().setHSL(0.27 + (k % 3) * 0.015, 0.62, 0.3);
-    const c = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) {
-      const up = THREE.MathUtils.clamp((pos.getY(i) - (y - r)) / (2 * r), 0, 1);
-      c.copy(base).offsetHSL(0, 0, -0.1 + up * 0.18);
-      col.set([c.r, c.g, c.b], i * 3);
-    }
-    flat.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    lobes.push(flat);
-  });
-  const canopy = mergeGeometries(lobes)!;
+    rock.computeVertexNormals();
+  }
+
   return {
-    palm,
-    palmMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }),
-    canopy,
-    canopyMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
+    palmTrunk,
+    palmCrown,
+    treeTrunk,
+    treeCrown,
+    bush,
+    rock,
+    barkMaterial: new THREE.MeshStandardMaterial({ map: barkMap, roughness: 0.9 }),
+    frondMaterial: foliage(frondMap),
+    leafMaterial: foliage(leafMap),
+    rockMaterial: new THREE.MeshStandardMaterial({ color: '#6e6a62', roughness: 0.95 }),
   };
 }
