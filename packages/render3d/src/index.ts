@@ -220,7 +220,7 @@ export async function createSeaRenderer(
 
   const worldShips = new THREE.Group();
   scene.add(worldShips);
-  const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; classId: string }>();
+  const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; classId: string }>();
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
     if (m && m.classId !== s.classId) {
@@ -230,7 +230,12 @@ export async function createSeaRenderer(
     if (!m) {
       // Built in code from her class's plan (cloth sails, her nation's colours).
       const built = buildShip(RIGS[s.classId] ?? RIGS['ship.brig']!, s.ai?.nation ?? 'player');
-      m = { root: built.root, setSails: (anim: string) => built.setSails(...sailsOf(anim), lastMs), classId: s.classId };
+      m = {
+        root: built.root,
+        setSails: (anim: string) => built.setSails(...sailsOf(anim), lastMs),
+        setCrew: (share: number) => built.setCrew(share, lastMs),
+        classId: s.classId,
+      };
       ships.set(s.id, m);
       worldShips.add(m.root);
     }
@@ -541,6 +546,9 @@ export async function createSeaRenderer(
       seen.add(s.id);
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
+      // Her men on deck, as many as she has hands for (a full complement shows a full deck).
+      const maxCrew = content.ships[s.classId]?.maxCrew ?? 100;
+      m.setCrew((s.crew ?? maxCrew * 0.7) / maxCrew);
       const pace = s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP;
       const len = placeShip(s.id, m.root, s, w, dt, farScale, pace);
       if (Math.hypot(s.x - me.x, s.y - me.y) < 30 + distance * 0.6) sprayShips.push(bowOf(s.id, m.root, s.headingDeg, len, Math.min(1, pace * 1.4), dt));
@@ -623,6 +631,9 @@ export async function createSeaRenderer(
       }
       // Sails shot through show it: holes, then rags (her canvas set as she set it).
       f.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
+      // Her men on deck: grapeshot sweeping her deck cuts them down, and they fall where they stood.
+      const maxCrew = content.ships[s.classId]?.maxCrew ?? 100;
+      f.built.setCrew(view.wreck && side === 'enemy' ? 0 : (s.crew ?? maxCrew * 0.7) / maxCrew, nowMs);
       // Masts shot away: each comes down over her side when it goes, and stays down.
       for (const e of view.effects) {
         if (e.kind !== 'mast' || e.ship !== side || e.at <= fallsSeen || e.mast === undefined) continue;

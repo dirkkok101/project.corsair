@@ -122,6 +122,9 @@ own off a real island, at every zoom, hour and wind.
   - Fittings: a carved figurehead on a scrolled bracket with gilt trailboards; rounded quarter galleries with domed
     roofs and drops; deadeyes and chain plates where the shrouds come down; the ship's boat stowed keel-up on
     chocks amidships, a capstan, and the wheel aft.
+  - Crew on deck (Pirates!): up to 24 sailors in linen, red, blue and tarred jackets, at the rails and amidships,
+    as many as she has men for. In battle grapeshot thins them: the men lost fall where they stood and are gone,
+    so a sweep of grape reads at a glance.
   - Rigging as tarred rope with thickness, catching the light, not hairlines.
   - Masts with fighting tops, yards, shrouds and stays.
   - Cloth sails that belly with the wind, luff in irons, reef and furl. The canvas has a weave, cloths of
@@ -163,10 +166,8 @@ own off a real island, at every zoom, hour and wind.
   the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
 - **Not yet:**
-  - crew on deck (Pirates!): figures working the ship, so a fight shows what each shot does at a glance:
-    grapeshot cuts down men on her deck (fewer figures as her crew falls), chain shot shreds her sails (built),
-    round shot holes her hull and knocks out her guns (a gun visibly dismounted where the battle's `gunLoss`
-    takes one);
+  - what round shot does, seen: holes in her hull and a gun visibly dismounted where the battle's `gunLoss`
+    takes one (grapeshot's toll on her crew and chain's on her sails show already);
   - bow spray;
   - real town and fort models;
   - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);

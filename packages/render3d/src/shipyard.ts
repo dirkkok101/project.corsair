@@ -806,6 +806,16 @@ function hullMesh(plan: HullPlan, sides: THREE.Material, stern: THREE.Material, 
 
 const SPAR = new THREE.MeshStandardMaterial({ color: '#4a2f22', roughness: 0.8 });
 const BLACK = new THREE.MeshStandardMaterial({ color: '#1d1a19', roughness: 0.6, metalness: 0.3 });
+/** A sailor: a body (shirt, breeches) and a head, the size of a man against the hull (a brig ~ 30 m in 2.4 units). */
+const SAILOR_BODY = new THREE.CapsuleGeometry(0.018, 0.075, 3, 6).translate(0, 0.055, 0);
+const SAILOR_HEAD = new THREE.SphereGeometry(0.016, 8, 6).translate(0, 0.122, 0);
+const SAILOR_CLOTH = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+const SAILOR_SKIN = new THREE.MeshStandardMaterial({ color: '#b4825e', roughness: 0.8 });
+/** Shirts and jackets: undyed linen, faded red and blue, striped grey, a tarred jacket. */
+const SAILOR_COLOURS = ['#e3dccb', '#d8cfb8', '#8a2f2a', '#3c4f6e', '#7d7f80', '#2e2a28', '#c9b48a'].map((c) => new THREE.Color(c));
+/** Most men a ship shows on deck (the rest are below, aloft or at the guns), and seconds a fallen man lies. */
+const MAX_SAILORS = 24;
+const FALLEN_SECONDS = 2.5;
 /** A deadeye (the block a shroud's lanyard is rove through) and the iron chain plate under it. */
 const DEADEYE = new THREE.CylinderGeometry(0.014, 0.014, 0.008, 10);
 const CHAIN_PLATE = new THREE.BoxGeometry(0.006, 0.12, 0.006);
@@ -1067,6 +1077,11 @@ export interface BuiltShip {
   /** How shot through her sails are: 0 whole .. 1 in rags. */
   setTatters(share: number): void;
   /**
+   * Her crew on deck, as a share of a full complement (0..1): figures working the ship, as many as she has men
+   * for. When it drops (grapeshot sweeping her deck), the men lost fall where they stood and are gone.
+   */
+  setCrew(share: number, nowMs: number): void;
+  /**
    * A mast (fore to aft) going by the board: `fallen` 0 standing .. 1 gone (over the side and under), toppling
    * toward `towardDeg` on her own bearings (0 her bow, 90 to starboard).
    */
@@ -1256,6 +1271,60 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
   // Rigging: each mast's shrouds and stay, as rope, a draw a mast.
   mastLines.forEach((own, i) => frames[i]!.add(ropes(own)));
 
+  // The crew: men standing about the deck, at the rails and by the masts, clear of the hatches and the boat.
+  const spots: { x: number; y: number; z: number; turn: number }[] = [];
+  {
+    const rand = seeded(plan.hull.length * 311 + plan.masts.length);
+    const clear = (t: number) =>
+      plan.masts.every((m) => Math.abs(0.5 + m.at / h.length - t) > 0.035) && Math.abs(t - 0.47) > 0.12 && Math.abs(t - 0.38) > 0.05 && Math.abs(t - 0.62) > 0.05;
+    for (let tries = 0; spots.length < MAX_SAILORS && tries < 400; tries++) {
+      const t = 0.1 + rand() * 0.8;
+      if (!clear(t)) continue;
+      const st = stationOf(h, t);
+      // Most at the rails, some amidships.
+      const across = (rand() < 0.65 ? 0.55 + rand() * 0.25 : rand() * 0.4) * (rand() < 0.5 ? -1 : 1);
+      spots.push({ x: across * st.w, y: st.h - 0.05, z: h.length / 2 - t * h.length, turn: rand() * Math.PI * 2 });
+    }
+  }
+  const bodies = new THREE.InstancedMesh(SAILOR_BODY, SAILOR_CLOTH, spots.length);
+  const heads = new THREE.InstancedMesh(SAILOR_HEAD, SAILOR_SKIN, spots.length);
+  spots.forEach((_, i) => bodies.setColorAt(i, SAILOR_COLOURS[i % SAILOR_COLOURS.length]!));
+  for (const m of [bodies, heads]) {
+    m.count = 0;
+    m.frustumCulled = false;
+    root.add(m);
+  }
+  let shownCrew = -1;
+  const fallen = new Map<number, number>();
+  const pose = new THREE.Matrix4();
+  const rot = new THREE.Quaternion();
+  const at = new THREE.Vector3();
+  const one = new THREE.Vector3(1, 1, 1);
+  const tip = new THREE.Euler();
+  const placeSailors = (count: number, nowMs: number) => {
+    const t = nowMs / 1000;
+    let n = 0;
+    for (let i = 0; i < spots.length; i++) {
+      const sp = spots[i]!;
+      const fell = fallen.get(i);
+      if (i >= count && fell === undefined) continue;
+      if (fell !== undefined && t - fell > FALLEN_SECONDS) continue;
+      // Standing men shift their weight a little; a fallen man lies where he dropped.
+      const down = fell === undefined ? 0 : Math.min(1, (t - fell) * 4);
+      tip.set(-down * (Math.PI / 2) * 0.95, sp.turn + (fell === undefined ? Math.sin(t * 0.7 + i) * 0.25 : 0), 0, 'YXZ');
+      rot.setFromEuler(tip);
+      at.set(sp.x, sp.y, sp.z);
+      pose.compose(at, rot, one);
+      bodies.setMatrixAt(n, pose);
+      heads.setMatrixAt(n, pose);
+      bodies.setColorAt(n, SAILOR_COLOURS[i % SAILOR_COLOURS.length]!);
+      n++;
+    }
+    bodies.count = heads.count = n;
+    bodies.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
+    if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  };
+
   // Cannon muzzles out of the lowest row of ports.
   const row = h.ports[0];
   if (row) {
@@ -1329,6 +1398,15 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const axis = new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)).normalize();
       m.stick.quaternion.setFromAxisAngle(axis, k * k * 1.75);
       m.stick.position.y = m.foot - k * k * 0.25;
+    },
+    setCrew(share, nowMs) {
+      const count = Math.round(THREE.MathUtils.clamp(share, 0, 1) * spots.length);
+      // Men lost since last time fall where they stood.
+      if (shownCrew > count) for (let i = count; i < shownCrew; i++) fallen.set(i, nowMs / 1000);
+      // Men added (her crew made up) stand up again.
+      for (let i = shownCrew; i < count; i++) fallen.delete(i);
+      shownCrew = count;
+      placeSailors(count, nowMs);
     },
     setTatters(share) {
       // Barely scratched canvas stays whole.
