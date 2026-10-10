@@ -26,6 +26,8 @@ export interface ShipPanelProps {
   purse?: { gold: number; chest: number; hold: number; capacity: number };
   /** Guns mounted against the most she can carry (at sea and in port). */
   mounted?: { guns: number; of: number };
+  /** Her bottom's fouling: the share of her speed it costs (said once it tells). */
+  fouling?: number;
   /** The rest of her fleet, and the pace its slowest ship holds her to (when it does). */
   fleet?: { name: string; classId: string; icon: string; speed: number; damaged: boolean }[];
   pace?: number;
@@ -93,6 +95,11 @@ export function ShipPanel(p: ShipPanelProps) {
       <Bar label="Hull" icon="ui.icon.hull" value={p.hull} max={p.hullMax} />
       <Bar label="Sails" icon="ui.icon.full_sail" value={p.sails} max={100} />
       <Bar label="Crew" icon="ui.icon.crew" value={p.crew} max={p.berths} />
+      {p.fouling !== undefined && p.fouling >= 0.05 ? (
+        <div class="panel-sub panel-foul" title="Weed and worm on her bottom slow her: careen her at a shipwright, or on a beach (K)">
+          Foul bottom: {Math.round(p.fouling * 100)}% off her speed
+        </div>
+      ) : null}
       {p.morale ? (
         <div class="panel-bar" title={`Morale: ${p.morale.word} (${Math.round(p.morale.value)})`}>
           <Art id="ui.icon.morale" class="panel-icon" />

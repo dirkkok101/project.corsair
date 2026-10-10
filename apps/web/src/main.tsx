@@ -578,6 +578,19 @@ async function main() {
       else hail(shipInHail());
     }
     if (e.key === 'Escape') hailing = undefined;
+    // K: careen her on a nearby beach when her bottom is foul: free, but days of her time.
+    if (e.key.toLowerCase() === 'k' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
+      const before = sim.events().length;
+      const me = player();
+      sim.send({ type: 'SetSails', shipId: me.id, sails: 'furled' });
+      sim.send({ type: 'Careen', shipId: me.id, beach: true });
+      sim.applyCommands();
+      const ev = sim.events().slice(before).find((x) => x.type === 'Careened' || x.type === 'TradeRefused');
+      if (ev?.type === 'Careened') {
+        sim.step(Math.round(content.calendar.ticksPerDay * content.economy.fouling.beachDays));
+        digNote = { text: `Hove down on the beach for ${content.economy.fouling.beachDays} days: her bottom is clean, and she sails at her best again`, until: performance.now() + 7000 };
+      } else digNote = { text: 'No beach within reach to heave her down on: close the shore first', until: performance.now() + 4000 };
+    }
     // G: go ashore and dig, inside a treasure map's search ring and near a beach (D steers; G boards only in battle).
     if (e.key.toLowerCase() === 'g' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
       if (digHere()) dig();
@@ -1059,6 +1072,7 @@ async function main() {
             guns={{ port: { loaded: each, of: each }, starboard: { loaded: each, of: each } }}
             morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
             foodDays={foodDays(content, me)}
+            fouling={me.fouling}
             purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: fleetHold(content, sim.state, me) }}
             fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, icon: shipIcon(content, f.classId), speed: fleetShipPace(content, f), damaged: fleetShipPace(content, f) < shipStats(content, f).speed }))}
             pace={me.fleetSpeed !== undefined && me.fleetSpeed < shipStats(content, { ...me, fleetSpeed: undefined }).speed ? me.fleetSpeed : undefined}

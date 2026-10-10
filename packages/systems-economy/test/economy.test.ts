@@ -569,6 +569,50 @@ describe('outfitting at the shipwright', () => {
     expect(afterBuy).toBeLessThan(5000);
   });
 
+  it('fouling grows by the day unless copper-sheathed; a shipwright careens her for gold, a beach for her time', () => {
+    const f = content.economy.fouling;
+    const sim = docked(portRoyal, 5000);
+    sim.step(day * 10);
+    expect(player(sim.state).fouling).toBeCloseTo(f.perDay * 10);
+    // Copper keeps her clean.
+    const coppered = createSim({ ...sim.state, ships: { player: { ...player(sim.state), fouling: 0, upgrades: ['copper'] } } }, [createEconomySystem(content, settlements, map)]);
+    coppered.step(day * 10);
+    expect(player(coppered.state).fouling ?? 0).toBe(0);
+    // At the yard: gold by her hull, and clean.
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'Careen', shipId: 'player' });
+    sim.applyCommands();
+    expect(player(sim.state).fouling).toBe(0);
+    expect(sim.state.captain!.gold).toBe(gold - Math.ceil(content.ships['ship.brig']!.hull * f.careenGoldPerHull));
+    // On a beach: off the shore, free; out at sea, no beach to heave down on.
+    const shore = { ...portRoyal, x: portRoyal.x, y: portRoyal.y };
+    const nearLand = createSim({ ...sim.state, ships: { player: { ...player(sim.state), docked: undefined, fouling: 0.1, x: shore.x + 1, y: shore.y + 1 } } }, [createEconomySystem(content, settlements, map)]);
+    nearLand.send({ type: 'Careen', shipId: 'player', beach: true });
+    nearLand.applyCommands();
+    expect(player(nearLand.state).fouling).toBe(0);
+    expect(nearLand.state.captain!.gold).toBe(sim.state.captain!.gold);
+    const openSea = createSim({ ...sim.state, ships: { player: { ...player(sim.state), docked: undefined, fouling: 0.1, x: 880, y: 700 } } }, [createEconomySystem(content, settlements, map)]);
+    openSea.send({ type: 'Careen', shipId: 'player', beach: true });
+    openSea.applyCommands();
+    expect(reason(openSea)).toBe('no-beach');
+  });
+
+  it('fine-grain powder spends itself after its days; bought again it keeps as long again', () => {
+    const sim = docked(portRoyal, 5000);
+    sim.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'powder' });
+    sim.applyCommands();
+    expect(player(sim.state).upgrades).toContain('powder');
+    sim.step(day * (content.upgrades.powder!.modifiers.spoilsDays! + 1));
+    expect(player(sim.state).upgrades ?? []).not.toContain('powder');
+    expect(sim.events().some((e) => e.type === 'PowderSpoiled')).toBe(true);
+  });
+
+  it("a fitted ship is worth more: half her fits' price on top of her hull's", () => {
+    const bare = shipValue(content, { classId: 'ship.brig', hull: 85, sailCondition: 100 });
+    const fitted = shipValue(content, { classId: 'ship.brig', hull: 85, sailCondition: 100, upgrades: ['copper'] });
+    expect(fitted - bare).toBe(Math.round(upgradePrice(content, 'ship.brig', 'copper').price / 2));
+  });
+
   it('upgrades are priced by the work on her class: the brig pays the list price, a sloop less, a ship of the line more', () => {
     // The brig (the list's own class) pays exactly the listed prices.
     for (const u of Object.values(content.upgrades)) expect(upgradePrice(content, 'ship.brig', u.id).price).toBe(u.price);

@@ -32,10 +32,11 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
  * (conditionFactor). Load and current are not modelled yet.
  */
 /** How a ship's condition slows her (PRD section 7): shot-through sails draw less, and a hull below 30% drags. */
-export function conditionFactor(content: ContentPack, ship: Pick<Ship, 'classId' | 'sailCondition' | 'hull' | 'crew' | 'guns' | 'upgrades'>): number {
+export function conditionFactor(content: ContentPack, ship: Pick<Ship, 'classId' | 'sailCondition' | 'hull' | 'crew' | 'guns' | 'upgrades' | 'fouling'>): number {
   const sails = 0.3 + 0.7 * ((ship.sailCondition ?? 100) / 100);
   const hull = ship.hull !== undefined && ship.hull < shipStats(content, ship).hullMax * 0.3 ? 0.8 : 1;
-  return sails * hull * handsFactor(content, ship);
+  // A foul bottom drags (economy.json fouling): careening cleans it.
+  return sails * hull * handsFactor(content, ship) * (1 - (ship.fouling ?? 0));
 }
 
 /**
@@ -63,8 +64,23 @@ export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): numbe
     nav.sailSettings[ship.sails]! *
     conditionFactor(content, ship);
   // Oars: in a calm, or dead into the wind, her men row her at a steady share of her top speed (as many as she has hands for).
-  const rowing = cls.oars ? stats.speed * nav.tilesPerSecondPerSpeedPoint * cls.oars * handsFactor(content, ship) : 0;
-  return Math.max(sailing, rowing);
+  return Math.max(sailing, rowingSpeed(content, ship));
+}
+
+/** Her pace under oars (her class's, or sweeps): a share of her top speed, as many men as she has for them. */
+export function rowingSpeed(content: ContentPack, ship: Ship): number {
+  const stats = shipStats(content, ship);
+  return stats.oars ? stats.speed * content.navigation.tilesPerSecondPerSpeedPoint * stats.oars * handsFactor(content, ship) : 0;
+}
+
+/** Her pace under sail alone on this wind (rowing aside): whether her men are at the sweeps rather than the guns. */
+export function sailingSpeed(content: ContentPack, ship: Ship, wind: Wind): number {
+  const nav = content.navigation;
+  const cls = content.ships[ship.classId]!;
+  const stats = shipStats(content, ship);
+  const off = angleOffWind(ship.headingDeg, wind.fromDeg);
+  const drawn = off < 90 ? Math.min(90, off + stats.upwindDeg) : off;
+  return stats.speed * nav.tilesPerSecondPerSpeedPoint * polarAt(content.polars[cls.polar]!, drawn) * nav.windStrength[wind.strength]! * nav.sailSettings[ship.sails]! * conditionFactor(content, ship);
 }
 
 /**

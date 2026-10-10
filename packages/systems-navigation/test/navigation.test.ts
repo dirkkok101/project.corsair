@@ -237,8 +237,16 @@ describe('upgrades at sea', () => {
   const wind = { fromDeg: 0, strength: 'fresh' as const };
   const at = (offDeg: number, upgrades?: string[]) => targetSpeed(content, { ...brig, headingDeg: offDeg, upgrades }, wind);
 
-  it('copper sheathing adds a speed point on every point of sail', () => {
-    for (const off of [60, 90, 150]) expect(at(off, ['copper']) / at(off)).toBeCloseTo((content.ships['ship.brig']!.speed + 1) / content.ships['ship.brig']!.speed);
+  it('copper sheathing adds half a speed point on every point of sail; iron scantlings weigh half a point', () => {
+    const speed = content.ships['ship.brig']!.speed;
+    for (const off of [60, 90, 150]) {
+      expect(at(off, ['copper']) / at(off)).toBeCloseTo((speed + 0.5) / speed);
+      expect(at(off, ['scantlings']) / at(off)).toBeCloseTo((speed - 0.5) / speed);
+    }
+  });
+
+  it('a foul bottom drags: fouling takes its share off her speed', () => {
+    expect(targetSpeed(content, { ...brig, headingDeg: 90, fouling: 0.2 }, wind) / at(90)).toBeCloseTo(0.8);
   });
 
   it('cotton sails draw better to windward and change nothing off the wind', () => {

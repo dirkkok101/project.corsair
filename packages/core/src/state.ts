@@ -93,6 +93,10 @@ export interface AiCaptain {
 export interface Ship {
   id: string;
   classId: string;
+  /** Her bottom's fouling: the share of her speed it costs (economy.json fouling), cleaned by careening. */
+  fouling?: number;
+  /** Fine-grain powder aboard keeps till this tick, then it is spent. */
+  powderUntil?: number;
   /** The player's flagship's name, when she was a prize (her class's name otherwise). */
   name?: string;
   /** The player's flagship sailing with a fleet: the slowest of its ships' speeds, which she keeps to. */
@@ -522,6 +526,8 @@ export type Command =
   | { type: 'BuyGuns'; shipId: string; count: number }
   | { type: 'SellGuns'; shipId: string; count: number }
   | { type: 'BuyUpgrade'; shipId: string; upgradeId: string }
+  /** Clean her foul bottom: at a shipwright (gold), or on a beach nearby (`beach`: days of her time, no gold). */
+  | { type: 'Careen'; shipId: string; beach?: boolean }
   /** At the tavern: divide the plunder chest with the crew, or pay them wages from the captain's purse. */
   | { type: 'DividePlunder'; shipId: string }
   | { type: 'PayWages'; shipId: string }

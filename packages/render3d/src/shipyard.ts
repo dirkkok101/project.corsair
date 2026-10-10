@@ -1431,6 +1431,38 @@ export interface BuiltShip {
    * toward `towardDeg` on her own bearings (0 her bow, 90 to starboard).
    */
   setMast(index: number, fallen: number, towardDeg: number): void;
+  /**
+   * Her shipwright's fit, as it shows (upgrades.json ids): a copper band at the waterline, bronze guns, swivels on
+   * the rail, nettings over the waist, sweeps out of her sides. Rebuilt only when the list changes.
+   */
+  setFit(upgrades: string[]): void;
+}
+
+const BRONZE = new THREE.MeshStandardMaterial({ color: '#a8743a', roughness: 0.35, metalness: 0.75 });
+const COPPER = new THREE.MeshStandardMaterial({ color: '#b5653a', roughness: 0.4, metalness: 0.6 });
+const OAR = new THREE.MeshStandardMaterial({ color: '#8a6b47', roughness: 0.85 });
+let netTexture: THREE.CanvasTexture | undefined;
+/** Boarding nettings: a coarse dark mesh, see-through between the cords. */
+function netMaterial(): THREE.MeshStandardMaterial {
+  if (!netTexture) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    g.strokeStyle = 'rgba(40, 32, 24, 0.95)';
+    g.lineWidth = 3;
+    for (let i = 0; i <= 64; i += 16) {
+      g.beginPath();
+      g.moveTo(i, 0);
+      g.lineTo(i, 64);
+      g.moveTo(0, i);
+      g.lineTo(64, i);
+      g.stroke();
+    }
+    netTexture = new THREE.CanvasTexture(c);
+    netTexture.wrapS = netTexture.wrapT = THREE.RepeatWrapping;
+    netTexture.repeat.set(12, 2);
+  }
+  return new THREE.MeshStandardMaterial({ map: netTexture, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 1 });
 }
 
 /** The parts of a class shared by every ship of it (geometry and hull paint), built once. */
@@ -1880,8 +1912,79 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
   frames[plan.masts.indexOf(main)]!.add(pennant);
 
   let lastBrace = Number.NaN;
+  // Her fit, built when it changes.
+  let fitKey = '';
+  const fitGroup = new THREE.Group();
+  root.add(fitGroup);
+  const along = (t: number) => h.length / 2 - t * h.length;
   return {
     root,
+    setFit(upgrades) {
+      const key = [...upgrades].sort().join(',');
+      if (key === fitKey) return;
+      fitKey = key;
+      fitGroup.clear();
+      const has = (id: string) => upgrades.includes(id);
+      for (const m of muzzles) m.material = has('bronze_cannon') ? BRONZE : BLACK;
+      if (has('copper')) {
+        // A band of copper showing at the waterline down both sides.
+        for (const s of [-1, 1]) {
+          const pts: number[] = [];
+          const idx: number[] = [];
+          const n = 24;
+          for (let i = 0; i <= n; i++) {
+            const t = 0.06 + (0.88 * i) / n;
+            const w = stationOf(h, t).w * 1.005;
+            pts.push(s * w, -0.01, along(t), s * w, 0.035, along(t));
+            if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+          }
+          const g = new THREE.BufferGeometry();
+          g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+          g.setIndex(idx);
+          g.computeVertexNormals();
+          const band = new THREE.Mesh(g, COPPER);
+          band.material.side = THREE.DoubleSide;
+          fitGroup.add(band);
+        }
+      }
+      if (has('swivel_guns')) {
+        const geo = new THREE.CylinderGeometry(0.01, 0.013, 0.07, 6);
+        geo.rotateZ(Math.PI / 2);
+        for (const t of [0.3, 0.5, 0.7])
+          for (const s of [-1, 1]) {
+            const st = stationOf(h, t);
+            const gun = new THREE.Mesh(geo, has('bronze_cannon') ? BRONZE : BLACK);
+            gun.position.set(s * (st.w + 0.02), st.h + 0.025, along(t));
+            fitGroup.add(gun);
+          }
+      }
+      if (has('nettings')) {
+        const mat = netMaterial();
+        for (const s of [-1, 1]) {
+          const t0 = 0.32;
+          const t1 = 0.68;
+          const st = stationOf(h, (t0 + t1) / 2);
+          const net = new THREE.Mesh(new THREE.PlaneGeometry((t1 - t0) * h.length, 0.14), mat);
+          net.rotation.y = Math.PI / 2;
+          net.position.set(s * st.w, st.h + 0.07, along((t0 + t1) / 2));
+          fitGroup.add(net);
+        }
+      }
+      if (has('sweeps')) {
+        const geo = new THREE.CylinderGeometry(0.006, 0.006, 0.5, 5);
+        for (let i = 0; i < 6; i++) {
+          const t = 0.28 + (0.44 * i) / 5;
+          const st = stationOf(h, t);
+          for (const s of [-1, 1]) {
+            const oar = new THREE.Mesh(geo, OAR);
+            // Out of the side, down to the water.
+            oar.rotation.z = s * (Math.PI / 2 - 0.35);
+            oar.position.set(s * (st.w + 0.22), st.h * 0.6, along(t));
+            fitGroup.add(oar);
+          }
+        }
+      }
+    },
     setSails(setting, point, side, nowMs) {
       const p = POINTS[point] ?? POINTS.beam!;
       const t = nowMs / 1000;

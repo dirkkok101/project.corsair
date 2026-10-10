@@ -1257,3 +1257,13 @@ describe("the captain's goals", () => {
     expect(careerGoals(content, fight.state, settlements).find((g) => g.id === 'prize')!.done).toBe(true);
   });
 });
+
+describe('fits at sea', () => {
+  it('AI ships carry the fits of their role: navy planking and bronze, pirates copper and swivels, merchants nettings', () => {
+    const sim = world(3);
+    const fitted = (role: string) => ai(sim.state).filter((s) => s.ai!.role === role && !s.ai!.famous).flatMap((s) => s.upgrades ?? []);
+    const allowed = (role: string) => Object.keys(content.traffic.fits[role] ?? {});
+    for (const role of ['merchant', 'patrol', 'pirate']) for (const u of fitted(role)) expect(allowed(role)).toContain(u);
+    expect(fitted('pirate').length + fitted('patrol').length + fitted('merchant').length).toBeGreaterThan(3);
+  });
+});

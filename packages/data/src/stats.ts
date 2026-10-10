@@ -17,6 +17,12 @@ export interface ShipStats {
   /** Swivel guns mounted (her class's and the fit's), and her chasers at each end. */
   swivels: number;
   chasers: number;
+  /** Rowing share of top speed (her class's oars, or sweeps), nettings, a clean bottom, canvas wear, overheating guns. */
+  oars: number;
+  nettings: boolean;
+  cleanBottom: boolean;
+  sailWear: number;
+  overheats: boolean;
 }
 
 /**
@@ -37,6 +43,11 @@ export function shipStats(content: ContentPack, ship: { classId: string; guns?: 
     reloadMult: 1,
     swivels: cls.swivels ?? 0,
     chasers: cls.chasers ?? 0,
+    oars: cls.oars ?? 0,
+    nettings: false,
+    cleanBottom: false,
+    sailWear: 1,
+    overheats: false,
   };
   for (const id of ship.upgrades ?? []) {
     const m = content.upgrades[id]?.modifiers;
@@ -48,6 +59,11 @@ export function shipStats(content: ContentPack, ship: { classId: string; guns?: 
     stats.rangeMult *= m.rangeMult ?? 1;
     stats.reloadMult *= m.reloadMult ?? 1;
     stats.swivels += m.swivels ?? 0;
+    stats.oars = Math.max(stats.oars, m.oars ?? 0);
+    stats.nettings ||= Boolean(m.nettings);
+    stats.cleanBottom ||= Boolean(m.cleanBottom);
+    stats.sailWear *= m.sailWear ?? 1;
+    stats.overheats ||= Boolean(m.overheats);
   }
   // Whole hull points and berths, so repair bills and the crew count stay whole.
   // With a fleet she keeps the pace of its slowest ship.

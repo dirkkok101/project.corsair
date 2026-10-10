@@ -390,7 +390,9 @@ export function shipsForSale(content: ContentPack, port: Pick<PlacedSettlement, 
 export function shipValue(content: ContentPack, f: Pick<FleetShip, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>): number {
   const cls = content.ships[f.classId]!;
   const hull = Math.max(0, Math.min(1, f.hull / shipStats(content, f).hullMax));
-  return Math.round(cls.price * content.combat.fleet.sellShare * hull * (0.75 + 0.25 * (f.sailCondition / 100)));
+  // Her fits are worth half what they cost her class.
+  const fits = (f.upgrades ?? []).reduce((n, u) => n + (content.upgrades[u] ? upgradePrice(content, f.classId, u).price / 2 : 0), 0);
+  return Math.round((cls.price * content.combat.fleet.sellShare + fits) * hull * (0.75 + 0.25 * (f.sailCondition / 100)));
 }
 
 /** Men aboard: a ship from before crews were counted sails with the career's starting crew. */
@@ -1177,6 +1179,34 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           events: [{ type: buying ? 'GunsBought' : 'GunsSold', entityIds: [ship.id, ship.docked], payload: { count, gold: Math.abs(gold) } }],
         };
       }
+      if (command.type === 'Careen') {
+        // Clean her bottom: at a shipwright for gold by her hull, or hove down on a beach for nothing but her time
+        // (the days pass in the app, as a dig's do).
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        const f = content.economy.fouling;
+        if (command.beach) {
+          if (ship.docked) return refuse(state, ship, 'in-port');
+          const r = Math.ceil(f.beachTiles);
+          let shore = false;
+          for (let dy = -r; dy <= r && !shore; dy++)
+            for (let dx = -r; dx <= r && !shore; dx++) shore = Boolean(map) && isLand(tileAt(map!, ship.x + dx, ship.y + dy)) && Math.hypot(dx, dy) <= f.beachTiles;
+          if (!shore) return refuse(state, ship, 'no-beach');
+          return {
+            state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, fouling: 0 } } },
+            events: [{ type: 'Careened', entityIds: [ship.id], payload: { beach: true, gold: 0, days: f.beachDays } }],
+          };
+        }
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const s = byId.get(ship.docked)!;
+        if (s.size === 'hamlet') return refuse(state, ship, 'not-sold-here');
+        const gold = Math.ceil(shipStats(content, ship).hullMax * f.careenGoldPerHull);
+        if (state.captain.gold < gold) return refuse(state, ship, 'not-enough-gold');
+        return {
+          state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, fouling: 0 } }, captain: { ...state.captain, gold: state.captain.gold - gold } },
+          events: [{ type: 'Careened', entityIds: [ship.id, s.id], payload: { beach: false, gold, days: 0 } }],
+        };
+      }
       if (command.type === 'BuyUpgrade') {
         const ship = state.ships[command.shipId];
         const upgrade = content.upgrades[command.upgradeId];
@@ -1190,7 +1220,15 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         return {
           state: {
             ...state,
-            ships: { ...state.ships, [ship.id]: { ...ship, upgrades: [...(ship.upgrades ?? []), upgrade.id] } },
+            ships: {
+              ...state.ships,
+              [ship.id]: {
+                ...ship,
+                upgrades: [...(ship.upgrades ?? []), upgrade.id],
+                // What spoils (fine-grain powder) keeps so many days.
+                ...(upgrade.modifiers.spoilsDays ? { powderUntil: state.tick + Math.round(upgrade.modifiers.spoilsDays * content.calendar.ticksPerDay) } : {}),
+              },
+            },
             captain: { ...state.captain, gold: state.captain.gold - price },
           },
           events: [{ type: 'UpgradeBought', entityIds: [ship.id, ship.docked], payload: { upgradeId: upgrade.id, gold: price } }],
@@ -1335,6 +1373,18 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         next = fed.state;
         events.push(...fed.events);
         next = liveDay(next);
+        // Her bottom fouls by the day (unless copper-sheathed), and fine-grain powder spends itself.
+        const player = next.ships.player;
+        if (player) {
+          const f = content.economy.fouling;
+          const fouling = shipStats(content, player).cleanBottom ? 0 : Math.min(f.max, (player.fouling ?? 0) + f.perDay);
+          const spent = player.upgrades?.includes('powder') && player.powderUntil !== undefined && player.powderUntil <= tick;
+          if (fouling !== (player.fouling ?? 0) || spent) {
+            const upgrades = spent ? player.upgrades!.filter((u) => u !== 'powder') : player.upgrades;
+            next = { ...next, ships: { ...next.ships, player: { ...player, fouling: Math.round(fouling * 10000) / 10000, upgrades, ...(spent ? { powderUntil: undefined } : {}) } } };
+            if (spent) events.push({ type: 'PowderSpoiled', entityIds: [player.id], payload: {} });
+          }
+        }
       }
       const shock = (s: Settlement, good: string, kind: string) => {
         const r = startShock(content, next, s, good, kind, tick, rng);

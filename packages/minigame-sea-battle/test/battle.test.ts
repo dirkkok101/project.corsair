@@ -500,6 +500,33 @@ describe('sea battle', () => {
     expect(chased).toBe(true);
   });
 
+  it('the fits in battle: bronze cannon cool after three quick broadsides, nettings stiffen the boarded', () => {
+    const close = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 3 } } };
+    const brig = (upgrades: string[]) => createBattle(close, { map, wind: { fromDeg: 0, strength: 'fresh' }, player: { ...ship('ship.brig', undefined, 0.8), headingDeg: 0, upgrades }, enemy: { ...ship('ship.frigate', 'patrol'), headingDeg: 0 }, seed: 2, bearingDeg: 90 });
+    // Three broadsides in quick succession: her guns must cool, and the next reload is the long one.
+    const hot = brig(['bronze_cannon']);
+    const cool = hot.gunnery().reloadSeconds;
+    let fired = 0;
+    for (let i = 0; i < 30 * 40 && fired < 3; i++) {
+      const before = hot.state.ships.player.reload;
+      hot.send({ type: 'Fire' });
+      hot.step(1);
+      const after = hot.state.ships.player.reload;
+      if (after.port > before.port || after.starboard > before.starboard) fired++;
+    }
+    expect(fired).toBe(3);
+    expect(hot.gunnery().reloadSeconds).toBeGreaterThan(cool * 1.3);
+    // Nettings: boarded, the player stands stiffer; going over herself (G) she is a little slower.
+    const netted = brig(['nettings']);
+    const bare = brig([]);
+    expect(netted.boardingOdds()).toBeGreaterThan(bare.boardingOdds());
+    netted.send({ type: 'Board' });
+    bare.send({ type: 'Board' });
+    netted.step(1);
+    bare.step(1);
+    expect(netted.boardingOdds()).toBeLessThan(bare.boardingOdds());
+  });
+
   it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
     const wins = (outfit: Partial<Ship>) => {
       let n = 0;

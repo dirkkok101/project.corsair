@@ -97,6 +97,7 @@
     "pirate": { "ammo": "pirate" },
     "patrolNations": { "france": { "ammo": "chain" }, "spain": { "boardingDefence": 1.4 } }
   },
+  "upgrades": { "rowingReload": 1.25, "overheatSeconds": 15, "overheatReload": 1.5, "nettingsDefence": 1.4, "nettingsBoarding": 0.9 },
   "raking": { "cos": 0.85, "damage": 2 },
   "swivels": { "tiles": 3.5, "everySeconds": 3, "crewPer": 0.6 },
   "chasers": { "arcDeg": 15, "everySeconds": 6 },

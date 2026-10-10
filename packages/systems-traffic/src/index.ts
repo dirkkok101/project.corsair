@@ -378,6 +378,7 @@ export function createTrafficSystem(
         convoy: { line: line.id, stage: 'inbound' },
         ...drawCaptain(content, 'merchant', n),
       },
+      ...drawFits(content, 'merchant', n),
     };
     const told = newsItem({ ...state, nextShipId: n + 1 }, line.from ?? to, line.from ? 'treasureDue' : 'convoyDue', tick, name, line.nation);
     return { state: told, ship };
@@ -1304,6 +1305,8 @@ export function createTrafficSystem(
                 hull: Math.max(1, Math.round(kept.hull ?? content.ships[kept.classId]!.hull)),
                 sailCondition: Math.round(kept.sailCondition ?? 100),
                 ...(kept.guns !== undefined ? { guns: kept.guns } : {}),
+                // Her fits come with her.
+                ...(kept.upgrades?.length ? { upgrades: kept.upgrades } : {}),
               },
             ]
           : fleet;
@@ -1602,6 +1605,15 @@ function drawCaptain(content: ContentPack, role: Role, n: number): Pick<AiCaptai
   return { crew, captain: { gunnery: skill(d.gunnery), seamanship: skill(d.seamanship), boarding: skill(d.boarding), resolve: skill(d.resolve) } };
 }
 
+/** The shipwright's upgrades she carries, by her role (traffic.json fits), from her own stream. */
+function drawFits(content: ContentPack, role: Role, n: number): Pick<Ship, 'upgrades'> {
+  const draw = rngStream(seedRng(n, 'fits'));
+  const upgrades = Object.entries(content.traffic.fits[role] ?? {})
+    .filter(([id, chance]) => content.upgrades[id] && draw.float() < chance)
+    .map(([id]) => id);
+  return upgrades.length ? { upgrades } : {};
+}
+
 /** Her crew and captain as one multiple of a ship's fighting strength: boarding and gunnery alike. */
 function quality(content: ContentPack, ai: Parameters<typeof crewQualityOf>[1]): number {
   const q = crewQualityOf(content, ai);
@@ -1695,6 +1707,7 @@ function spawn(
       ...(nerve !== undefined ? { nerve: Math.round(nerve * 100) / 100 } : {}),
       ...drawCaptain(content, role, n),
     },
+    ...drawFits(content, role, n),
   };
   return { state: { ...state, nextShipId: n + 1 }, ship };
 }

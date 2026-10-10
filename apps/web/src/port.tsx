@@ -845,9 +845,32 @@ function RepairYard({ content, state, shipId, send, cost }: { content: ContentPa
         )}
         <span class="port-sub">Hull then sails, the flagship first, as far as the purse reaches.</span>
       </div>
+      <Careen content={content} state={state} shipId={shipId} send={send} />
       <FleetList content={content} state={state} shipId={shipId} send={send} />
       {!fleet.length ? <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</div> : null}
     </>
+  );
+}
+
+/** Her bottom: how foul it is, what that costs her in speed, and careening it clean (a copper bottom never fouls). */
+function Careen({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
+  const ship = state.ships[shipId]!;
+  const fouling = ship.fouling ?? 0;
+  if (shipStats(content, ship).cleanBottom) return <div class="shipwright-row port-sub">Copper-sheathed: her bottom stays clean.</div>;
+  const gold = Math.ceil(shipStats(content, ship).hullMax * content.economy.fouling.careenGoldPerHull);
+  return (
+    <div class="shipwright-row">
+      {fouling >= 0.01 ? (
+        <button disabled={(state.captain?.gold ?? 0) < gold} onClick={() => send({ type: 'Careen', shipId })}>
+          Careen her · {gold.toLocaleString()} gold
+        </button>
+      ) : null}
+      <span class="port-sub">
+        {fouling >= 0.01
+          ? `Her bottom is foul with weed and worm: ${Math.round(fouling * 100)}% off her speed. Careened, she sails clean again.`
+          : 'Her bottom is clean.'}
+      </span>
+    </div>
   );
 }
 

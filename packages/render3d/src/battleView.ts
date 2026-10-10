@@ -21,6 +21,8 @@ export interface BattleViewShip {
   guns?: number;
   /** Seconds until each broadside is loaded again. */
   reload?: { port: number; starboard: number };
+  /** Her shipwright's fit (upgrades.json ids), drawn on her. */
+  upgrades?: string[];
 }
 /** Where a ball struck her: along her length (bow positive, -0.5 .. 0.5), in what, how high and how far out (tiles). */
 export interface BattleViewPlace {

@@ -231,6 +231,8 @@ export const economySchema = z.object({
    * of food's base price (dear, as far from market). Pirates and ships of a nation that hunts the captain won't
    * sell; standing at or below `refuseBelow` with her nation turns her away.
    */
+  /** A ship's bottom fouls a share of her speed a day, up to max; careening cleans it (gold a hull point at a yard, or days on a beach within beachTiles). */
+  fouling: z.object({ perDay: z.number().min(0), max: z.number().min(0).max(1), careenGoldPerHull: z.number().min(0), beachDays: z.number().positive(), beachTiles: z.number().positive() }),
   seaProvisions: z.object({ spare: z.number().int().positive(), markup: z.number().positive(), refuseBelow: z.number() }),
   daysPerWeek: z.number().int().positive(),
   /** Price stays within base x [min, max]. */
@@ -350,6 +352,8 @@ export const combatSchema = z.object({
    * reload still to go). Badly hurt (hull below fleeBelowHull, or crew below fleeBelowCrew, as shares
    * of her start), she breaks off and runs. Each pirate captain has a temperament, drawn by share.
    */
+  /** Upgrades in battle: reload while rowing, bronze guns' cooling (three broadsides within overheatSeconds), and nettings' boarding multiples (defending, going over). */
+  upgrades: z.object({ rowingReload: z.number().positive(), overheatSeconds: z.number().positive(), overheatReload: z.number().positive(), nettingsDefence: z.number().positive(), nettingsBoarding: z.number().positive() }),
   /** A ball down her length (within `cos` of her heading) does `damage` times the harm. */
   raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive() }),
   /** Swivel guns: reach in tiles, how often they fire, and men each one fells. */
@@ -576,6 +580,8 @@ export const politicsSchema = z.object({
 
 export const trafficSchema = z.object({
   /** How dangerous each sea area is (1 quiet to 4 the treasure routes), each class's rung, and the tiers' names. */
+  /** Upgrades AI ships carry, by role, each at its chance. */
+  fits: z.record(z.string(), z.record(z.string(), z.number().min(0).max(1))),
   danger: z.object({ zones: z.record(z.string(), z.number().int().min(1).max(4)), classRung: z.record(z.string(), z.number().int().min(1).max(5)), names: z.array(z.string()) }),
   population: z.number().int().min(0),
   roles: z.object({
@@ -673,6 +679,13 @@ export const upgradeSchema = z.object({
     reloadMult: z.number().positive().optional(),
     /** Swivel guns mounted (the fit). */
     swivels: z.number().int().min(0).optional(),
+    /** Sweeps: rowing at this share of her top speed. */
+    oars: z.number().min(0).max(1).optional(),
+    nettings: z.boolean().optional(),
+    cleanBottom: z.boolean().optional(),
+    sailWear: z.number().positive().optional(),
+    overheats: z.boolean().optional(),
+    spoilsDays: z.number().positive().optional(),
   }),
 });
 export const upgradesSchema = z.object({ priceFor: z.string(), upgrades: z.array(upgradeSchema) });

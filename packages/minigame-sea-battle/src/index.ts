@@ -2,7 +2,7 @@ import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
 import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, TileMap } from '@corsair/data';
-import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg } from '@corsair/systems-navigation';
+import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg, rowingSpeed, sailingSpeed } from '@corsair/systems-navigation';
 
 // The sea battle (PRD section 9.1): two ships on a local map cut from the world where they met, in
 // the world's wind. The player steers and fires broadsides; the enemy is steered by her captain's
@@ -47,6 +47,11 @@ export interface BattleShip extends Ship {
   /** Swivel guns mounted, and chasers at each end (her class's and her fit's). */
   swivels: number;
   chasers: number;
+  /** Her fit (upgrades.json): canvas wear, guns that overheat (with when she last fired), boarding nettings. */
+  sailWear: number;
+  overheats: boolean;
+  firedAt: number[];
+  nettings: boolean;
   /** A famous pirate (pirates.json id): he may call on the player to strike, sooner by his terror. */
   famous?: string;
   terror: number;
@@ -226,6 +231,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       resolve: ship.ai?.captain?.resolve ?? 50,
       swivels: stats.swivels,
       chasers: stats.chasers,
+      sailWear: stats.sailWear,
+      overheats: stats.overheats,
+      firedAt: [],
+      nettings: stats.nettings,
       terror: ship.ai?.terror ?? 1,
       ...(ship.ai?.famous ? { famous: ship.ai.famous } : {}),
       reload: { port: 0, starboard: 0 },
@@ -294,7 +303,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const manning = Math.max(1, ship.crew) / Math.max(1, needed);
     const m = content.crew.manning;
     const factor = manning < 1 ? 1 / manning : 1 - m.reloadBonus * Math.min(1, (manning - 1) / (m.fullManning - 1));
-    return c.guns.reloadSeconds * ship.reloadMult * factor;
+    // Her men at the sweeps aren't at the guns; bronze guns fired three times running must cool.
+    const rowing = rowingSpeed(content, ship) > sailingSpeed(content, ship, state.wind) ? c.upgrades.rowingReload : 1;
+    const hot = ship.overheats && ship.firedAt.filter((t) => seconds() - t <= c.upgrades.overheatSeconds).length >= 3 ? c.upgrades.overheatReload : 1;
+    return c.guns.reloadSeconds * ship.reloadMult * factor * rowing * hot;
   };
   /** Boarding strength from morale: a happy crew fights like lions (crew.json boarding, at 0 and at 100). */
   const spirit = (ship: BattleShip) => content.crew.boarding.at0 + ((content.crew.boarding.at100 - content.crew.boarding.at0) * ship.morale) / 100;
@@ -400,7 +412,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     }
     state = {
       ...state,
-      ships: { ...state.ships, [side]: { ...ship, reload: { ...ship.reload, [broadside]: reloadSeconds(ship) } } },
+      ships: { ...state.ships, [side]: { ...ship, firedAt: [...ship.firedAt.slice(-3), seconds()], reload: { ...ship.reload, [broadside]: reloadSeconds({ ...ship, firedAt: [...ship.firedAt.slice(-3), seconds()] }) } } },
       shots: [...state.shots, ...shots],
       effects: [...state.effects, { kind: 'smoke', x: ship.x, y: ship.y, at: seconds() }],
     };
@@ -508,12 +520,21 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     if (me.sails !== 'full') cmds.push({ type: 'SetSails', shipId: 'player', sails: 'full' });
     return cmds;
   };
+  /**
+   * Boarding nettings (upgrades.json): the side being boarded stands stiffer behind them, the side going over is
+   * slowed a little by its own. The player is the one boarding when she closed to board (G); else the enemy is.
+   */
+  const nets = (ship: BattleShip, side: Side) => {
+    if (!ship.nettings) return 1;
+    const boarding = (side === 'player') === state.boarding;
+    return boarding ? c.upgrades.nettingsBoarding : c.upgrades.nettingsDefence;
+  };
   /** The player's chance to carry her deck if the boarders went over now (the boarding roll's odds). */
   const boardingOdds = () => {
     const p = state.ships.player;
     const e = state.ships.enemy;
-    const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence;
-    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence;
+    const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence * nets(p, 'player');
+    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence * nets(e, 'enemy');
     return ps / Math.max(1e-6, ps + es);
   };
 
@@ -739,7 +760,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           let hurt: BattleShip = {
             ...v,
             hull: v.hull - a.hull * harm,
-            sailCondition: Math.max(0, v.sailCondition - a.sails * harm),
+            sailCondition: Math.max(0, v.sailCondition - a.sails * harm * v.sailWear),
             crew: Math.max(0, v.crew - a.crew * harm),
             guns,
           };
@@ -789,8 +810,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         else if (p.hull <= 0) end('lost');
         else if (state.grappling >= c.battle.grappleSeconds) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
-          const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence;
-          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence;
+          const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence * nets(p, 'player');
+          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence * nets(e, 'enemy');
           const won = rng.float() < ps / (ps + es);
           const pLoss = Math.round(p.crew * c.boarding.losses * (es / (ps + es)));
           const eLoss = Math.round(e.crew * c.boarding.losses * (ps / (ps + es)));

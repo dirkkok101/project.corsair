@@ -646,6 +646,8 @@ export async function createSeaRenderer(
       // Her damage, as a fight left it: canvas in rags by her sails' state, her side holed by her hull's, empty
       // ports for guns lost. Holes are placed the same way each time (her id's own rolls), patched when repaired.
       m.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
+      // Her shipwright's fit, as it shows.
+      m.built.setFit(s.upgrades ?? []);
       const stats = shipStats(content, s);
       const holes = Math.round(Math.max(0, 1 - (s.hull ?? stats.hullMax) / stats.hullMax) * 24);
       if (holes < m.holes) {
@@ -746,6 +748,7 @@ export async function createSeaRenderer(
       }
       // Sails shot through show it: holes, then rags (her canvas set as she set it).
       f.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
+      f.built.setFit(s.upgrades ?? []);
       // Her men on deck: grapeshot sweeping her deck cuts them down, and they fall where they stood.
       const maxCrew = content.ships[s.classId]?.maxCrew ?? 100;
       f.built.setCrew(view.wreck && side === 'enemy' ? 0 : (s.crew ?? maxCrew * 0.7) / maxCrew, nowMs);
