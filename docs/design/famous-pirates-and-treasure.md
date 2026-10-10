@@ -109,7 +109,9 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
    the tavern, as there is no captain's log yet), beating one (wealth, fame, he returns later). Balance: a famous
    pirate beats a stock 10-gun brig most times (39 of 60 in the battle test; the war-sloop captains are the soft
    ones).
-2. **Captured captains**: the three choices after taking one (hoard piece, bounty, set free).
+2. **Captured captains** (built): the three choices after taking one (hoard piece, bounty, set free). Set free,
+   he leaves the captain be when he sails again (his crew remember it), until she fires on him; held for a bounty,
+   he stays in irons until a governor takes him, then sails after his time in jail.
 3. **Maps**: pieces from the tavern stranger, beaten pirates and survivors; hoards placed on the first piece; the
    Maps page; the chart's search ring and course.
 4. **Digging and landmarks**: going ashore near the site, the dig, hints when you miss, landmark models in 3D,

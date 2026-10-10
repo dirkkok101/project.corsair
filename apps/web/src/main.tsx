@@ -953,6 +953,18 @@ async function main() {
                   nation: prize.ship.ai?.nation ?? 'pirate',
                   foodNow: foodDays(content, me),
                   foodWith: foodDays(content, { ...me, crew: crewOf(content, me) + prize.volunteers }),
+                  ...(prize.captive
+                    ? {
+                        captive: {
+                          name: content.pirates.captains.find((c) => c.id === prize.captive)?.name ?? prize.captive,
+                          held: sim.state.captain?.mapPieces?.[prize.captive] ?? 0,
+                          pieces: content.pirates.rules.mapPieces,
+                          bounty: content.pirates.rules.bounty,
+                          standing: content.pirates.rules.bountyStanding,
+                          morale: content.pirates.rules.mercyMorale,
+                        },
+                      }
+                    : {}),
                 }
               : undefined
           }

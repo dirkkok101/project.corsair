@@ -759,7 +759,7 @@ function Governor({
       <div class="governor-row">
         {owed.pay.length ? (
           <button onClick={() => send({ type: 'CollectBounties', shipId })}>
-            Collect bounties for {owed.pay.length} {owed.pay.length === 1 ? 'ship' : 'ships'} · {owed.total} gold
+            {bountyLabel(content, owed.pay)} · {owed.total.toLocaleString()} gold
           </button>
         ) : (
           <span class="port-sub">
@@ -770,6 +770,14 @@ function Governor({
       </div>
     </div>
   );
+}
+
+/** What the governor pays for: the ships, and any famous pirate handed over in irons, by name. */
+function bountyLabel(content: ContentPack, pay: { captive?: string }[]) {
+  const ships = pay.filter((d) => !d.captive).length;
+  const names = pay.flatMap((d) => (d.captive ? [content.pirates.captains.find((c) => c.id === d.captive)?.name ?? d.captive] : []));
+  const parts = [...(names.length ? [`hand over ${names.join(' and ')}`] : []), ...(ships ? [`bounties for ${ships} ${ships === 1 ? 'ship' : 'ships'}`] : [])];
+  return parts.join(', ').replace(/^./, (c) => c.toUpperCase());
 }
 
 /** The shipwright's three yards: mending the fleet, buying ships, fitting a ship out. */
@@ -934,6 +942,8 @@ function TopTen({ content, state, settlements }: { content: ContentPack; state: 
   const tpd = content.calendar.ticksPerDay;
   const haven = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const fame = state.captain?.fame ?? 0;
+  const pieces = state.captain?.mapPieces ?? {};
+  const jailed = new Set((state.captain?.deeds ?? []).flatMap((d) => (d.captive ? [d.captive] : [])));
   return (
     <div class="top-ten">
       <span class="port-sub">
@@ -947,7 +957,16 @@ function TopTen({ content, state, settlements }: { content: ContentPack; state: 
               <span class="top-rank">{i + 1}.</span>
               <span class="top-name">{r.name}</span>
               <span class="top-wealth">{r.wealth.toLocaleString()} gold</span>
-              <span class="age">{r.player ? '' : r.returnAt ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}` : `sails from ${haven(r.haven)}`}</span>
+              <span class="age">
+                {r.player
+                  ? ''
+                  : jailed.has(r.id!)
+                    ? 'your prisoner, for a governor'
+                    : r.returnAt
+                      ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}`
+                      : `sails from ${haven(r.haven)}`}
+                {pieces[r.id ?? ''] ? ` · you hold ${pieces[r.id!]} of ${content.pirates.rules.mapPieces} pieces of his map` : ''}
+              </span>
             </li>
           );
         })}

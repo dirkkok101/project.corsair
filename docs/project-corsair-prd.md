@@ -647,7 +647,13 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
   and cargo at base price to his wealth, and is news by his name. Beating one puts half his wealth in the plunder
   chest and gives a point of fame; beaten by anyone, he keeps a fifth of the rest, lies low 90 days and sails again
   in a new ship. A taken ship of his is a prize under her own name. The tavern shows the Top Ten by wealth, the
-  captain ranked by purse and plunder chest. Not yet: flags at sea, captured captains, maps and digging (slices 2-4).
+  captain ranked by purse and plunder chest.
+- Built (captured captains, slice 2): a famous pirate taken (boarded or struck, not sunk) is the captain's prisoner,
+  and the plunder screen settles him with one click each, every choice explained. Ask about his hoard (the default):
+  a piece of his hoard's map (4 to a map, keepsakes). Hold him for a bounty: any governor pays 1,500 gold and his
+  nation +10 standing; he stays in irons until handed over, then sails again after his time in jail. Set him free:
+  +10 crew morale, and he leaves the captain be when he sails again, until fired on. The Top Ten shows pieces held
+  and prisoners. Not yet: flags at sea, the Maps page and other piece sources, digging (slices 3-4).
 
 ## 13. News and events
 

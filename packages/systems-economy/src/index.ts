@@ -215,7 +215,11 @@ export function bountiesOwed(content: ContentPack, state: WorldState, nation: Pl
   const kept: Deed[] = [];
   let total = 0;
   for (const d of state.captain?.deeds ?? []) {
-    if (d.nation === 'pirate') {
+    if (d.captive) {
+      // A famous pirate handed over in irons: any governor pays the price on her head.
+      pay.push(d);
+      total += content.pirates.rules.bounty;
+    } else if (d.nation === 'pirate') {
       pay.push(d);
       total += Math.round(b.pirate * (1 + piracy / b.piracyScale));
     } else if (atWar(content, state, nation, d.nation)) {
@@ -781,11 +785,22 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         }
         const { pay, kept, total } = bountiesOwed(content, state, nation);
         if (!pay.length) return refuse(state, ship, 'nothing-owed');
-        const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + pay.length) };
+        // A famous pirate handed over counts for more with the governor's nation; she sails again only after
+        // her time in his jail (pirates.json returnDays from now).
+        const r = content.pirates.rules;
+        const captives = pay.filter((d) => d.captive);
+        const gain = pay.length - captives.length + captives.length * r.bountyStanding;
+        const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + gain) };
+        let famous = state.famous;
+        for (const d of captives) {
+          const f = famous?.[d.captive!] ?? { wealth: content.pirates.captains.find((c) => c.id === d.captive)?.wealth ?? 0 };
+          const free = state.tick + Math.round(r.returnDays * content.calendar.ticksPerDay);
+          famous = { ...famous, [d.captive!]: { ...f, returnAt: Math.max(f.returnAt ?? 0, free) } };
+        }
         return {
           // Bounties are plunder: they go into the chest the crew sails for.
-          state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing } },
-          events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total } }],
+          state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing }, ...(famous ? { famous } : {}) },
+          events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive) } }],
         };
       }
       if (command.type === 'Recruit') {

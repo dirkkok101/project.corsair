@@ -917,6 +917,89 @@ describe('the famous pirates', () => {
     expect(later.state.famous!.morgan!.returnAt).toBeUndefined();
   });
 
+  /** Morgan struck to the player: his prize waiting on the plunder screen, and him a prisoner. */
+  const struck = () => {
+    const sim = world(4);
+    sim.step(day);
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    const fight = createSim(sim.state, [traffic()]);
+    fight.send({ type: 'BattleEnded', shipId: 'player', targetId: morgan.id, result: result('struck') });
+    fight.applyCommands();
+    return fight;
+  };
+  const settle = (fight: ReturnType<typeof struck>, captive?: 'hoard' | 'bounty' | 'free') => {
+    fight.send({ type: 'TakePlunder', shipId: 'player', take: {}, volunteers: false, release: false, ...(captive ? { captive } : {}) });
+    fight.applyCommands();
+  };
+  /** The day after his time lying low is up. */
+  const dueDay = (state: WorldState) => {
+    const due = Math.ceil(state.famous!.morgan!.returnAt! / day) * day;
+    const later = createSim({ ...state, tick: due - 1 }, [traffic()]);
+    later.step(1);
+    return later;
+  };
+
+  it('taken, he is a prisoner: asked about his hoard he gives up a piece of its map, until the map is whole', () => {
+    const fight = struck();
+    expect(fight.state.prize!.captive).toBe('morgan');
+    settle(fight, 'hoard');
+    expect(fight.state.captain!.mapPieces).toEqual({ morgan: 1 });
+    expect(fight.events().at(-1)!.payload.captive).toEqual({ id: 'morgan', choice: 'hoard', pieces: 1 });
+    // His whole map held, he has nothing more to give: he goes free instead.
+    const whole = struck();
+    const all = createSim({ ...whole.state, captain: { ...whole.state.captain!, mapPieces: { morgan: content.pirates.rules.mapPieces } } }, [traffic()]);
+    settle(all, 'hoard');
+    expect(all.state.captain!.mapPieces!.morgan).toBe(content.pirates.rules.mapPieces);
+    expect(all.events().at(-1)!.payload.captive).toMatchObject({ choice: 'free' });
+    // Sunk, there is no one to take.
+    const sim = world(4);
+    sim.step(day);
+    const sunk = createSim(sim.state, [traffic()]);
+    sunk.send({ type: 'BattleEnded', shipId: 'player', targetId: famous(sim.state).find((s) => s.ai!.famous === 'morgan')!.id, result: result('sunk') });
+    sunk.applyCommands();
+    expect(sunk.state.prize).toBeUndefined();
+  });
+
+  it('held for a bounty, he waits in irons: a deed any governor pays, and he does not sail again till then', () => {
+    const fight = struck();
+    settle(fight, 'bounty');
+    expect(fight.state.captain!.deeds!.at(-1)).toEqual({ nation: 'pirate', role: 'pirate', kind: 'taken', tick: fight.state.tick, captive: 'morgan' });
+    const later = dueDay(fight.state);
+    expect(famous(later.state).some((s) => s.ai!.famous === 'morgan')).toBe(false);
+  });
+
+  it('set free (the default), the crew cheer and he leaves the captain be when he sails again, until fired on', () => {
+    const fight = struck();
+    const morale = fight.state.captain!.morale!;
+    settle(fight);
+    expect(fight.state.captain!.morale).toBe(Math.min(100, morale + content.pirates.rules.mercyMorale));
+    expect(fight.state.famous!.morgan!.spared).toBe(true);
+    const later = dueDay(fight.state);
+    const morgan = famous(later.state).find((s) => s.ai!.famous === 'morgan')!;
+    // Alongside him on the open sea: he doesn't give chase.
+    const sea = { x: morgan.x, y: morgan.y };
+    const meet = (state: WorldState) => ({
+        ...state,
+        ships: {
+          ...later.state.ships,
+          player: { ...later.state.ships.player!, docked: undefined, x: sea.x + 3, y: sea.y },
+          [morgan.id]: { ...morgan, ai: { ...morgan.ai!, waitUntil: undefined, route: [[sea.x, sea.y], [sea.x + 1, sea.y]], along: 0, calmUntil: undefined } },
+        },
+      }) as WorldState;
+    // Not spared, he would come for her.
+    const hunted = createSim(meet({ ...later.state, famous: { ...later.state.famous, morgan: { ...later.state.famous!.morgan!, spared: undefined } } }), [traffic()]);
+    hunted.step(30);
+    expect(hunted.state.ships[morgan.id]!.ai!.chasing).toBe(true);
+    const off = createSim(meet(later.state), [traffic()]);
+    off.step(30);
+    expect(off.state.ships[morgan.id]!.ai!.chasing).toBeFalsy();
+    expect(off.events().some((e) => e.type === 'BattleJoined' && e.entityIds.includes(morgan.id))).toBe(false);
+    // Fire on him and that is forgotten.
+    off.send({ type: 'Attack', shipId: 'player', targetId: morgan.id });
+    off.applyCommands();
+    expect(off.state.famous!.morgan!.spared).toBeUndefined();
+  }, 30_000);
+
   it('losing to her makes her richer by the plunder chest', () => {
     const sim = world(4);
     sim.step(day);

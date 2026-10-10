@@ -605,6 +605,24 @@ describe('the governor', () => {
     gov.applyCommands();
     expect(gov.events().at(-1)!.payload.reason).toBe('nothing-owed');
   });
+
+  it('a famous pirate handed over in irons: any governor pays the price on his head, and the jail keeps him a while', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const r = content.pirates.rules;
+    const deeds = [{ nation: 'pirate' as const, role: 'pirate' as const, kind: 'taken' as const, tick: sim.state.tick, captive: 'morgan' }];
+    const s = { ...sim.state, captain: { ...sim.state.captain!, deeds, standing: {} }, famous: { morgan: { wealth: 900, returnAt: sim.state.tick + 10 } } };
+    const gov = createSim(s, [createEconomySystem(content, settlements)]);
+    const chest = gov.state.captain!.chest ?? 0;
+    gov.send({ type: 'CollectBounties', shipId: 'player' });
+    gov.applyCommands();
+    expect(gov.state.captain!.chest! - chest).toBe(r.bounty);
+    expect(gov.state.captain!.standing!.england).toBe(r.bountyStanding);
+    expect(gov.state.captain!.deeds).toEqual([]);
+    expect(gov.state.famous!.morgan).toEqual({ wealth: 900, returnAt: gov.state.tick + Math.round(r.returnDays * content.calendar.ticksPerDay) });
+    expect(gov.events().at(-1)!.payload).toMatchObject({ gold: r.bounty, captives: ['morgan'] });
+  });
 });
 
 describe('explaining prices', () => {

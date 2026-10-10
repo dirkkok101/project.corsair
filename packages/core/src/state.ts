@@ -249,6 +249,8 @@ export interface Captain {
   standing?: Partial<Record<Nation, number>>;
   /** Fame: a point for each famous pirate beaten. */
   fame?: number;
+  /** Pieces of each famous pirate's hoard map held (by her id): keepsakes, never sold. */
+  mapPieces?: Record<string, number>;
   /** Food bought from each ship spoken at sea (by her id): she has only so much to spare. */
   provisionsFrom?: Record<string, number>;
   /** Nations whose letter of marque the captain holds; each covers whoever that nation is at war with now. */
@@ -281,6 +283,8 @@ export interface Deed {
   role: AiCaptain['role'];
   kind: 'sunk' | 'taken';
   tick: number;
+  /** A famous pirate (pirates.json id) held prisoner for this bounty: she sails again only once handed over. */
+  captive?: string;
 }
 
 /**
@@ -384,7 +388,7 @@ export interface WorldState {
    * A ship just taken, waiting on the captain's word (TakePlunder): her cargo to choose from, the men
    * who would sign on, and whether she was carried by boarding or struck.
    */
-  prize?: { ship: Ship; volunteers: number };
+  prize?: { ship: Ship; volunteers: number; captive?: string };
   /** The famous pirates (pirates.json) by id: their wealth, and when one beaten sails again. */
   famous?: Record<string, FamousPirate>;
 }
@@ -396,6 +400,8 @@ export interface FamousPirate {
   returnAt?: number;
   /** Times she has been beaten. */
   defeats?: number;
+  /** Set free by the captain: she leaves her be, until the captain attacks her. */
+  spared?: boolean;
 }
 
 export type Command =
@@ -438,6 +444,8 @@ export type Command =
       release: boolean;
       /** Keep her: she joins the fleet (needs room in the fleet and men to sail her). */
       keep?: boolean;
+      /** A famous pirate taken prisoner: ask her for a piece of her hoard's map, hold her for a bounty, or set her free (the default). */
+      captive?: 'hoard' | 'bounty' | 'free';
     }
   /** At the shipwright: sell a ship of the fleet, or make one the flagship. */
   | { type: 'SellShip'; shipId: string; fleetId: string }

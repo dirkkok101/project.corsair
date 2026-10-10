@@ -75,6 +75,24 @@ export interface PlunderOffer {
   /** Keeping her: her hold, the men she needs and her speed, and why she can't be kept, if not. */
   /** Her pace as she is (her damage slows her), and once a shipwright has mended her. */
   keep: { hold: number; minCrew: number; speed: number; fullSpeed: number; whyNot?: string };
+  /**
+   * A famous pirate taken prisoner: her name, the map pieces of her hoard already held (of `pieces`), the bounty
+   * any governor pays and the standing it brings, and the morale setting her free gives.
+   */
+  captive?: { name: string; held: number; pieces: number; bounty: number; standing: number; morale: number };
+}
+
+type CaptiveChoice = NonNullable<PlunderChoice['captive']>;
+
+/** What each choice for a famous prisoner means, in a line. */
+function captiveText(c: NonNullable<PlunderOffer['captive']>, choice: CaptiveChoice) {
+  if (choice === 'hoard') {
+    return `He gives up a piece of the map to his buried hoard: you will hold ${c.held + 1} of its ${c.pieces} pieces. Map pieces are keepsakes, never sold.`;
+  }
+  if (choice === 'bounty') {
+    return `He stays in irons until you hand him to any governor: ${c.bounty.toLocaleString()} gold to the plunder chest, and that nation thinks better of you (+${c.standing}). He won't sail again till the governor's jail lets him go.`;
+  }
+  return `Your men think the better of a captain who keeps the code (+${c.morale} morale), and he will leave you be when he sails again, unless you fire on him.`;
 }
 
 export type PlunderChoice = Omit<Extract<Command, { type: 'TakePlunder' }>, 'type' | 'shipId'>;
@@ -188,13 +206,15 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
   const [release, setRelease] = useState(offer.nation !== 'pirate');
   const [keep, setKeep] = useState(false);
   const [byHand, setByHand] = useState(false);
+  // A famous prisoner: his map piece is the best of it, while his map is not yet whole.
+  const [captive, setCaptive] = useState<CaptiveChoice>(offer.captive && offer.captive.held >= offer.captive.pieces ? 'bounty' : 'hoard');
   const thrown = Object.values(jettison).reduce((a, b) => a + b, 0);
   const taking = Object.values(take).reduce((a, b) => a + b, 0);
   // Kept, her hold joins the fleet's.
   const room = offer.capacity + (keep ? offer.keep.hold : 0) - used + thrown - taking;
   const herUnits = Object.values(offer.theirs).reduce((a, b) => a + b, 0);
   // Taking the most her hold allows: with her own hold kept, all of hers fits.
-  const choose = () => onPlunder({ take: keep ? { ...offer.theirs } : take, jettison, volunteers, release, keep });
+  const choose = () => onPlunder({ take: keep ? { ...offer.theirs } : take, jettison, volunteers, release, keep, ...(offer.captive ? { captive } : {}) });
   // Enter takes whatever is chosen at that moment: the listener, set once, reads the latest choice (a listener
   // rebound after each render could answer with the choice before the last click).
   const latest = useRef(choose);
@@ -261,6 +281,31 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
           {offer.keep.whyNot ? <div class="plunder-note">Keep her: {offer.keep.whyNot}</div> : null}
         </div>
       </div>
+      {offer.captive ? (
+        <div class="plunder-row plunder-captive">
+          <Art id="ui.icon.crew" class="plunder-icon" />
+          <div>
+            <div>{offer.captive.name} is your prisoner.</div>
+            <div class="plunder-fate">
+              <button
+                class={captive === 'hoard' ? 'active' : ''}
+                disabled={offer.captive.held >= offer.captive.pieces}
+                title={offer.captive.held >= offer.captive.pieces ? 'You hold his whole map already.' : undefined}
+                onClick={() => setCaptive('hoard')}
+              >
+                Ask about his hoard
+              </button>
+              <button class={captive === 'bounty' ? 'active' : ''} onClick={() => setCaptive('bounty')}>
+                Hold him for a bounty
+              </button>
+              <button class={captive === 'free' ? 'active' : ''} onClick={() => setCaptive('free')}>
+                Set him free
+              </button>
+            </div>
+            <div class="plunder-note">{captiveText(offer.captive, captive)}</div>
+          </div>
+        </div>
+      ) : null}
       {herUnits ? (
         <button class="plunder-toggle" onClick={() => setByHand(!byHand)}>
           {byHand ? '▾' : '▸'} Choose the goods myself

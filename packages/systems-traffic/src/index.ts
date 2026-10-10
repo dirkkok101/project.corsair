@@ -196,8 +196,9 @@ export function createTrafficSystem(
         famous: def.id,
       },
     };
-    const f = famousOf(state, def.id);
-    return { state: withFamous({ ...state, nextShipId: n + 1 }, def.id, { wealth: f.wealth, ...(f.defeats ? { defeats: f.defeats } : {}) }), ship };
+    // At sea again: her time lying low is over (the rest of her record stands).
+    const { returnAt: _over, ...f } = famousOf(state, def.id);
+    return { state: withFamous({ ...state, nextShipId: n + 1 }, def.id, f), ship };
   };
 
   // Ships that change hands (combat.json prizes): a pirate keeps the ships she takes in tow until she sells
@@ -614,7 +615,7 @@ export function createTrafficSystem(
   const standingWith = (state: WorldState, nation: Nation) => state.captain?.standing?.[nation] ?? 0;
   /** Pirates hunt the player; a nation's patrols do too once the player has made it an enemy. */
   const hunts = (state: WorldState, ship: Ship) =>
-    ship.ai!.role === 'pirate' || (ship.ai!.role === 'patrol' && standingWith(state, ship.ai!.nation) <= cb.standing.hostile);
+    (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) || (ship.ai!.role === 'patrol' && standingWith(state, ship.ai!.nation) <= cb.standing.hostile);
 
   /**
    * Close on the player: straight at them where the wind allows, close-hauled toward them where it
@@ -855,11 +856,14 @@ export function createTrafficSystem(
         // letter of marque from her enemy it is lawful privateering, and the issuer thinks the better of you.
         let next = state;
         const nation = other.ai.nation;
+        // A famous pirate the captain set free forgets it when he fires on her.
+        const spared = other.ai.famous ? state.famous?.[other.ai.famous] : undefined;
+        if (spared?.spared) next = withFamous(next, other.ai.famous!, { ...spared, spared: undefined });
         if (nation !== 'pirate' && state.captain) {
           const standing = { ...state.captain.standing, [nation]: Math.max(-100, standingWith(state, nation) + cb.standing.attack) };
           const issuer = legalTarget(content, state, state.captain, nation);
           if (issuer) standing[issuer] = Math.min(100, standingWith(state, issuer) + content.politics.marque.standingGain);
-          next = { ...state, captain: { ...state.captain, standing } };
+          next = { ...next, captain: { ...state.captain, standing } };
         }
         return { state: next, events: [{ type: 'BattleJoined', entityIds: [player.id, other.id], payload: { by: 'player' } }] };
       }
@@ -1026,6 +1030,7 @@ export function createTrafficSystem(
             prize = {
               ship: { ...other, ...theirs, ai: { ...other.ai, name, famous: undefined, purse: 0, chasing: false, target: undefined, skirmish: undefined, prizes: undefined } },
               volunteers,
+              ...(famousId ? { captive: famousId } : {}),
             };
           }
           const standing = { ...captain.standing };
@@ -1191,6 +1196,26 @@ export function createTrafficSystem(
           captain = { ...captain, standing: { ...captain.standing, [nation]: Math.max(-100, Math.min(100, standingWith(state, nation) + change)) } };
         }
         if (keep && captain) captain = { ...captain, fleet: fleetAfter };
+        // A famous pirate taken prisoner: a piece of her hoard's map, a bounty to come, or her freedom.
+        let world = state;
+        let captive: { id: string; choice: string; pieces?: number } | undefined;
+        if (prize.captive && captain) {
+          const r = content.pirates.rules;
+          const id = prize.captive;
+          const held = captain.mapPieces?.[id] ?? 0;
+          const choice = command.captive === 'hoard' && held < r.mapPieces ? 'hoard' : command.captive === 'bounty' ? 'bounty' : 'free';
+          if (choice === 'hoard') {
+            captain = { ...captain, mapPieces: { ...captain.mapPieces, [id]: held + 1 } };
+            captive = { id, choice, pieces: held + 1 };
+          } else if (choice === 'bounty') {
+            captain = { ...captain, deeds: [...(captain.deeds ?? []), { nation: 'pirate', role: 'pirate', kind: 'taken', tick: state.tick, captive: id }] };
+            captive = { id, choice };
+          } else {
+            captain = { ...captain, morale: Math.min(100, moraleOf(content, state) + r.mercyMorale) };
+            world = withFamous(state, id, { ...famousOf(state, id), spared: true });
+            captive = { id, choice };
+          }
+        }
         if (command.release && !keep) {
           // Let go with what's left in her hold; she keeps clear of the player a while.
           const calmUntil = state.tick + Math.round(cb.chase.calmDays * tpd);
@@ -1198,8 +1223,10 @@ export function createTrafficSystem(
           ships[left.id] = { ...left, cargo: theirs, crew: Math.max(1, (left.crew ?? 0) - join), ai: { ...left.ai!, calmUntil } };
         }
         return {
-          state: { ...state, ships, captain, prize: undefined },
-          events: [{ type: 'PlunderTaken', entityIds: [player.id, prize.ship.id], payload: { took, jettisoned, volunteers: join, released: command.release && !keep, kept: keep } }],
+          state: { ...world, ships, captain, prize: undefined },
+          events: [
+            { type: 'PlunderTaken', entityIds: [player.id, prize.ship.id], payload: { took, jettisoned, volunteers: join, released: command.release && !keep, kept: keep, captive: captive ?? null } },
+          ],
         };
       }
       if (command.type === 'Teleport' && state.ships[command.shipId]?.ai) {
@@ -1379,7 +1406,8 @@ export function createTrafficSystem(
       if (tick % tpd === 0) {
         const afloat = new Set(Object.values(ships).map((s) => s.ai?.famous));
         for (const def of content.pirates.captains) {
-          if (afloat.has(def.id) || (next.famous?.[def.id]?.returnAt ?? 0) > tick) continue;
+          // Nor does one held in irons for a governor's bounty.
+          if (afloat.has(def.id) || (next.famous?.[def.id]?.returnAt ?? 0) > tick || next.captain?.deeds?.some((d) => d.captive === def.id)) continue;
           const home = byId.get(def.haven);
           const at = home && lanes.mooring(home.id);
           if (!home || !at) continue;

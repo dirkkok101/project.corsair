@@ -699,6 +699,13 @@ export const piratesSchema = z.object({
     returnDays: z.number().positive(),
     /** Her crew's morale in battle: veterans. */
     morale: z.number().min(0).max(100),
+    /** Pieces to each hoard's map. */
+    mapPieces: z.number().int().positive(),
+    /** Gold any governor pays for her, handed over a prisoner, and the standing his nation gives for it. */
+    bounty: z.number().int().min(0),
+    bountyStanding: z.number().min(0),
+    /** Crew morale gained by setting her free. */
+    mercyMorale: z.number().min(0),
   }),
   captains: z.array(
     z.object({
