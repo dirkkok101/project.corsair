@@ -80,7 +80,7 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 
 **Player verbs.** Spot; hail (H within 3 tiles); read cargo, destination and news; attack from the hail panel; buy food from a friendly ship; intercept; run; duck into a harbour; sail into an AI fight already under way.
 
-**Feedback.** Nation pennants, hail panel with cargo and destination, the attack button says what it will cost ("angers the English") or that it is lawful under a letter [PRD §4; apps/web/e2e/world.spec.ts]; AI-vs-AI fights sound for 18 game hours with a HUD direction callout [PRD §6]. Ship name labels and the fights' gun smoke went with the 2D view (to come back in 3D), and hover-to-name waits on the mouse controls, switched off for now (apps/web/src/main.tsx).
+**Feedback.** Nation pennants, hail panel with cargo and destination, the attack button says what it will cost ("angers the English") or that it is lawful under a letter [PRD §4; apps/web/e2e/world.spec.ts]; AI-vs-AI fights sound for 18 game hours with a HUD direction callout [PRD §6]. Ship name labels and the fights' gun smoke are drawn on the 3D sea, and hover-to-name waits on the mouse controls, switched off for now (apps/web/src/main.tsx).
 
 **Failure cost.** Being caught by a stronger pirate means a fight you may lose (loop 3). Attacking the wrong flag costs 20 standing [PRD §9.1].
 

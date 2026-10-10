@@ -213,5 +213,7 @@ own off a real island, at every zoom, hour and wind.
   (`viewBox`). Mouse sailing and combat are switched off in the game until they play better (keyboard first).
 - **Not yet:**
   - region names on the sea;
-  - sea life (dolphins, whales, birds), ships' name labels and the smoke of distant fights (they went with the
-    2D view, to come back in 3D).
+- **Built 2026-10-10 (back from the 2D view):** sea life (`wildlife.ts`: a pod of dolphins leaping at the bow,
+  flying fish, a whale surfacing to blow, gulls wheeling near land; drawn larger than life like the ships), ship
+  name labels under each AI ship near her (DOM, placed by the 3D camera), gun smoke where other ships fight in sight,
+  each famous pirate's own flag, and the course line drawn 3 px wide at any zoom.

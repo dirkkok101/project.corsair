@@ -33,7 +33,7 @@ Project Corsair is a browser-based, single-player pirate career sim set in the 1
 ### Non-goals for v1.0
 
 - Multiplayer or shared worlds.
-- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). Changed again 2026-10-09: the sea, sky and light aim for the realism of Assassin's Creed IV: Black Flag, the sea's state following the weather. The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D. Changed again 2026-10-10: the 2D sea and battle renderer is gone; the game is drawn in 3D only (sea dolphins, whales and birds, ship name labels and the smoke of distant fights went with it, to come back in 3D).
+- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). Changed again 2026-10-09: the sea, sky and light aim for the realism of Assassin's Creed IV: Black Flag, the sea's state following the weather. The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D. Changed again 2026-10-10: the 2D sea and battle renderer is gone; the game is drawn in 3D only (sea life, ship name labels and the smoke of distant fights went with it and came back in 3D the same day).
 - Monetisation, accounts or cloud saves. Saves live in browser storage with file export.
 - Historical accuracy beyond flavour. Fun wins over realism.
 
@@ -215,7 +215,7 @@ Sailing is where players spend most of their time, so it should sound and look a
   - canvas and rope on sail changes
   - harbour voices and church bells near towns
   - thunder after lightning
-  - dolphins and splashes with the sea life (silent while the sea life is away, below)
+  - dolphins and splashes with the sea life
   - humpback song on calm nights in open sea
 - **The ship's band:**
   - 31 traditional public-domain tunes in `content/music.json`, arranged for fiddle, whistle, plucked bass, harp and drums, and sequenced live over CC0 instrument samples.
@@ -228,7 +228,7 @@ Sailing is where players spend most of their time, so it should sound and look a
   - distant whales spouting and showing their flukes
   - pelicans and frigatebirds near coasts
   - the odd fish jumping
-  - Not drawn now: the sea life was 2D and went with the 2D sea renderer on 2026-10-10, to come back in 3D.
+  - Built in 3D (2026-10-10): a pod of dolphins leaping at the bow, flying fish, a whale surfacing to blow, gulls wheeling near land (pelicans, frigatebirds and the odd jumping fish not yet).
 - **Controls:** V mutes all sound, N toggles the music. Sound starts on the first key press, as browsers require. Elsewhere: E enters a port in reach or sets sail, Esc puts the market away to show the harbour, = and - set time acceleration, C swings the 3D camera between overhead and astern (the mouse wheel zooms), Ctrl+S (Cmd+S) saves.
 - **Day and night** in the harbour scenes is a palette swap through dusk and night rows (art pipeline section 6). At sea the 3D sky keeps its own slow day, not the game clock's: a long bright day, golden sunrise and sunset and a short moonlit night, about 20 real minutes round; the HUD shows the date only. A new game starts at 08:00 on the game clock.
 
@@ -675,7 +675,7 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
   name the landmark, which way it lies and how far. Dug up before its pirate was ever beaten, he swears revenge
   (news, and "hunting you" on the Top Ten): he comes for the captain at any odds and from half as far again, until
   beaten. In 3D each held map's landmark stands on its coast (a lone palm, three palms, a split rock, a wrecked hull,
-  a ruined hut, a cairn), with a dug pit once found. Not yet: flags at sea; items in hoards.
+  a ruined hut, a cairn), with a dug pit once found. Each famous pirate flies her own flag at sea and in battle (pirates.json). Not yet: items in hoards.
 
 ## 13. News and events
 
