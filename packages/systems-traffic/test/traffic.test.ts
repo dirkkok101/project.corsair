@@ -89,7 +89,8 @@ describe('ships at sea', () => {
     expect(traffic0(a.state).length).toBeLessThanOrEqual(content.traffic.population);
     expect(traffic0(a.state).length).toBeGreaterThanOrEqual(content.traffic.population - 2);
     expect(run().hash()).toBe(a.hash());
-  }, 60_000);
+    // Two seasons sailed (about 30 s alone); the gate runs every test file at once, so give it room.
+  }, 120_000);
 
   it('the player sees ships within sight, remembers where, and can hail one alongside', () => {
     const sim = world(3);

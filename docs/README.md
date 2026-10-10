@@ -11,6 +11,10 @@ Canonical home for the product requirements, design, reference research and art 
 | `ai-game-sprites-research.md` | Broad AI sprite research (YT / tools); for 2D characters, props and UI, not the 3D sea |
 | `ai-game-sprites-SKILL.md` | Reusable skill for AI sprite production; for 2D characters, props and UI, not the 3D sea |
 | `design/famous-pirates-and-treasure.md` | Design (2026-10-10): famous pirate captains, the Top Ten, treasure maps and digging for hoards |
+| `design/combat-model.md` | Design proposal (2026-10-10, for review): the career ladder from the starting brig, objectives, and a combat model with captain and crew quality, opponent doctrines, ten distinct famous pirates and period-true upgrades |
+| `design/combat-model-baseline.md` | Combat as built on 2026-10-10: the model with code references, its gaps, and measured famous-pirate difficulty |
+| `reference/naval-combat-history.md` | Ships, guns, refits, boarding and captains of the 1650-1720 Caribbean, for the combat model (sourced) |
+| `reference/naval-combat-in-games.md` | How Pirates!, Black Flag, Naval Action and others build upgrades, opponents and difficulty, and what players thought (sourced) |
 | `reference/pirates-3d-style.md` | 3D style guide for the sea map and sea battles (decided 2026-10-08; Black Flag realism for sea, sky and light from 2026-10-09) |
 | `reference/ocean-renderer.md` | How the 3D sea is drawn: technique, waves, weather-driven sea state |
 | `reference/corsair-video-reminder.md` | Reminder to record a short Corsair demo video in reply to an AI-games post (2026-10-10) |
