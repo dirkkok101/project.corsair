@@ -55,14 +55,16 @@ export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): numbe
   // Better sails (upwindDeg) draw as if she were that much further off the wind, up to a beam reach.
   const off = angleOffWind(ship.headingDeg, wind.fromDeg);
   const drawn = off < 90 ? Math.min(90, off + stats.upwindDeg) : off;
-  return (
+  const sailing =
     stats.speed *
     nav.tilesPerSecondPerSpeedPoint *
     polarAt(content.polars[cls.polar]!, drawn) *
     nav.windStrength[wind.strength]! *
     nav.sailSettings[ship.sails]! *
-    conditionFactor(content, ship)
-  );
+    conditionFactor(content, ship);
+  // Oars: in a calm, or dead into the wind, her men row her at a steady share of her top speed (as many as she has hands for).
+  const rowing = cls.oars ? stats.speed * nav.tilesPerSecondPerSpeedPoint * cls.oars * handsFactor(content, ship) : 0;
+  return Math.max(sailing, rowing);
 }
 
 /**

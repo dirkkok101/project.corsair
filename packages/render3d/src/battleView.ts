@@ -28,6 +28,8 @@ export interface BattleViewPlace {
   part: 'hull' | 'rigging' | 'deck';
   up?: number;
   across?: number;
+  /** A raking shot, down her length. */
+  rake?: boolean;
 }
 export interface BattleViewState {
   tick: number;

@@ -44,6 +44,9 @@ export interface BattleShip extends Ship {
   boardingDefence: number;
   /** Her captain's resolve (0-100, 50 when unset): how long she holds out once beaten. */
   resolve: number;
+  /** Swivel guns mounted, and chasers at each end (her class's and her fit's). */
+  swivels: number;
+  chasers: number;
   /** A famous pirate (pirates.json id): he may call on the player to strike, sooner by his terror. */
   famous?: string;
   terror: number;
@@ -60,6 +63,8 @@ export interface HitPlace {
   part: 'hull' | 'rigging' | 'deck';
   up: number;
   across: number;
+  /** Down her length, from bow or stern: double the harm. */
+  rake?: boolean;
 }
 
 /**
@@ -82,6 +87,8 @@ export interface Shot {
   rise: number;
   at: [number, number, number];
   ammo: Ammo;
+  /** Her force by the range she was fired at (combat.json guns.pointBlank, longShotPower): 1 close in. */
+  power?: number;
 }
 
 /** Where a ball is `k` of the way along its flight (0 at the gun, 1 at its aim point, on beyond). */
@@ -217,6 +224,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       doctrine: ship.ai?.doctrine ?? doctrine.ammo ?? 'round',
       boardingDefence: doctrine.boardingDefence ?? 1,
       resolve: ship.ai?.captain?.resolve ?? 50,
+      swivels: stats.swivels,
+      chasers: stats.chasers,
       terror: ship.ai?.terror ?? 1,
       ...(ship.ai?.famous ? { famous: ship.ai.famous } : {}),
       reload: { port: 0, starboard: 0 },
@@ -303,6 +312,59 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return 'ready';
   };
 
+  /** A ball's force at this range: full within pointBlank of her reach, falling to longShotPower at its end. */
+  const power = (ship: BattleShip, d: number) => {
+    const full = reach(ship) * c.guns.pointBlank;
+    if (d <= full) return 1;
+    return Math.max(c.guns.longShotPower, 1 - ((1 - c.guns.longShotPower) * (d - full)) / Math.max(1e-6, reach(ship) - full));
+  };
+
+  /**
+   * Her chasers: a round shot from each gun at her head (or stern) when the other ship lies within the chasers'
+   * arc of it and within reach, scattering as a broadside's does.
+   */
+  const chase = (side: Side, rng: ReturnType<typeof rngStream>) => {
+    const ship = state.ships[side];
+    const target = state.ships[side === 'player' ? 'enemy' : 'player'];
+    const d = distance();
+    if (!ship.chasers || d > reach(ship, 'round')) return;
+    const toThem = bearing(ship, target);
+    const off = Math.abs(((toThem - ship.headingDeg + 540) % 360) - 180);
+    const end = off <= c.chasers.arcDeg ? 1 : off >= 180 - c.chasers.arcDeg ? -1 : 0;
+    if (!end) return;
+    const size = content.ships[ship.classId]!.size;
+    const theirs = content.ships[target.classId]!.size;
+    const r = (ship.headingDeg * Math.PI) / 180;
+    const flight = d / c.guns.shotTilesPerSecond;
+    const tr = (target.headingDeg * Math.PI) / 180;
+    const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * ship.spreadMult;
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
+    const shots: Shot[] = [];
+    for (let g = 0; g < ship.chasers; g++) {
+      const x = ship.x + Math.sin(r) * size.length * 0.5 * end;
+      const y = ship.y - Math.cos(r) * size.length * 0.5 * end;
+      const shot = { from: side, x, y, tx: lead[0] + gauss() * sigma, ty: lead[1] + gauss() * sigma, t: flight, flight, h0: size.rail * 0.6, h1: theirs.rail * 0.55, rise: d * c.guns.arcPerTile, ammo: 'round' as Ammo, power: power(ship, d) };
+      shots.push({ ...shot, at: shotAt(shot, 0) });
+    }
+    state = { ...state, shots: [...state.shots, ...shots], effects: [...state.effects, { kind: 'smoke', x: ship.x, y: ship.y, at: seconds() }] };
+  };
+
+  /** Her swivels sweep the other ship's deck when she lies within their reach: men fall, no ball flies. */
+  const swivel = (side: Side, rng: ReturnType<typeof rngStream>) => {
+    const ship = state.ships[side];
+    const victim: Side = side === 'player' ? 'enemy' : 'player';
+    const v = state.ships[victim];
+    if (!ship.swivels || distance() > c.swivels.tiles || ship.crew < 1) return;
+    const want = ship.swivels * c.swivels.crewPer;
+    const fell = Math.floor(want) + (rng.float() < want % 1 ? 1 : 0);
+    state = {
+      ...state,
+      ships: { ...state.ships, [victim]: { ...v, crew: Math.max(0, v.crew - fell) } },
+      effects: [...state.effects, { kind: 'grape', x: v.x, y: v.y, at: seconds(), ship: victim, place: { along: 0, part: 'deck', up: content.ships[v.classId]!.size.rail, across: 0 } }],
+    };
+  };
+
   const fire = (side: Side, broadside: Broadside, rng: ReturnType<typeof rngStream>) => {
     const ship = state.ships[side];
     const target = state.ships[side === 'player' ? 'enemy' : 'player'];
@@ -333,7 +395,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       const y = ship.y + fwd[1] * along + stbd[1] * size.beam * out;
       const tx = lead[0] + gauss() * sigma;
       const ty = lead[1] + gauss() * sigma;
-      const shot = { from: side, x, y, tx, ty, t: flight, flight, h0: size.rail * 0.55, h1: aimH, rise: d * c.guns.arcPerTile, ammo: ship.ammo } as Omit<Shot, 'at'>;
+      const shot = { from: side, x, y, tx, ty, t: flight, flight, h0: size.rail * 0.55, h1: aimH, rise: d * c.guns.arcPerTile, ammo: ship.ammo, power: power(ship, d) } as Omit<Shot, 'at'>;
       shots.push({ ...shot, at: shotAt(shot, 0) });
     }
     state = {
@@ -668,11 +730,17 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const v = state.ships[victimSide];
           const a = c.ammo[shot.ammo]!;
           const guns = shot.ammo === 'round' && rng.float() < c.gunLoss ? Math.max(0, v.guns - 1) : v.guns;
+          // Raking: the ball flies down her length, from bow or stern, through everything in its way.
+          const dx = shot.tx - shot.x;
+          const dy = shot.ty - shot.y;
+          const raking = Math.abs((dx * Math.sin(vr) - dy * Math.cos(vr)) / Math.max(1e-6, Math.hypot(dx, dy))) >= c.raking.cos;
+          if (raking) place.rake = true;
+          const harm = (shot.power ?? 1) * (raking ? c.raking.damage : 1);
           let hurt: BattleShip = {
             ...v,
-            hull: v.hull - a.hull,
-            sailCondition: Math.max(0, v.sailCondition - a.sails),
-            crew: Math.max(0, v.crew - a.crew),
+            hull: v.hull - a.hull * harm,
+            sailCondition: Math.max(0, v.sailCondition - a.sails * harm),
+            crew: Math.max(0, v.crew - a.crew * harm),
             guns,
           };
           effects.push({ kind: shot.ammo === 'grape' ? 'grape' : place.part === 'rigging' ? 'sail' : 'hit', x: at[0], y: at[1], at: seconds(), ship: victimSide, place });
@@ -703,6 +771,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           state = { ...state, ships: { ...state.ships, [victimSide]: hurt } };
         }
         state = { ...state, shots: flying, effects };
+        // Swivels and chasers fire on their own clocks.
+        if (!state.wreck && !state.result) {
+          const every = (sec: number) => state.tick % Math.round(sec * TPS) === 0;
+          if (every(c.swivels.everySeconds)) for (const side of ['player', 'enemy'] as const) swivel(side, rng);
+          if (every(c.chasers.everySeconds)) for (const side of ['player', 'enemy'] as const) chase(side, rng);
+        }
 
         const p = state.ships.player;
         const e = state.ships.enemy;

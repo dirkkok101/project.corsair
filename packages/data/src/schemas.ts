@@ -18,6 +18,10 @@ export const shipClassSchema = z.object({
    */
   size: z.object({ length: z.number().positive(), beam: z.number().positive(), rail: z.number().positive(), mast: z.number().positive(), yard: z.number().positive() }),
   draft: z.number(),
+  /** Swivel guns (anti-crew at pistol shot), bow and stern chasers (each end), and oars: her rowing pace as a share of her top sailing speed. */
+  swivels: z.number().int().min(0).optional(),
+  chasers: z.number().int().min(0).optional(),
+  oars: z.number().min(0).max(1).optional(),
   hull: z.number(),
   /** Hold capacity in units of cargo. */
   cargo: z.number().int().positive(),
@@ -346,6 +350,12 @@ export const combatSchema = z.object({
    * reload still to go). Badly hurt (hull below fleeBelowHull, or crew below fleeBelowCrew, as shares
    * of her start), she breaks off and runs. Each pirate captain has a temperament, drawn by share.
    */
+  /** A ball down her length (within `cos` of her heading) does `damage` times the harm. */
+  raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive() }),
+  /** Swivel guns: reach in tiles, how often they fire, and men each one fells. */
+  swivels: z.object({ tiles: z.number().positive(), everySeconds: z.number().positive(), crewPer: z.number().min(0) }),
+  /** Bow and stern chasers: the arc either side of her head or stern, and how often they fire. */
+  chasers: z.object({ arcDeg: z.number().positive(), everySeconds: z.number().positive() }),
   tactics: z.object({
     standoffShare: z.number().positive(),
     stationTiles: z.number().positive(),
@@ -384,6 +394,9 @@ export const combatSchema = z.object({
     /** Grape's scatter as a share of round shot's: a tighter cone. */
     grapeSpread: z.number().min(0),
     arcPerTile: z.number().min(0),
+    /** A ball is at full power within pointBlank of her reach, falling to longShotPower at its end. */
+    pointBlank: z.number().min(0).max(1),
+    longShotPower: z.number().min(0).max(1),
     /** Chance a shot hits at point blank and at full range; raking fire (along the target's length) is surer. */
   }),
   ammo: z.record(
@@ -658,6 +671,8 @@ export const upgradeSchema = z.object({
     hullMult: z.number().positive().optional(),
     rangeMult: z.number().positive().optional(),
     reloadMult: z.number().positive().optional(),
+    /** Swivel guns mounted (the fit). */
+    swivels: z.number().int().min(0).optional(),
   }),
 });
 export const upgradesSchema = z.object({ priceFor: z.string(), upgrades: z.array(upgradeSchema) });

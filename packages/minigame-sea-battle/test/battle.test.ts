@@ -443,6 +443,63 @@ describe('sea battle', () => {
     expect(ends.get('willems')).not.toBe(ends.get('coxon'));
   }, 300_000);
 
+  it('guns and range: a ball is full force close in and weaker at long shot; a ball down her length rakes her', () => {
+    const at = (apart: number, enemyHeading: number) => {
+      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: apart } } }, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 0 },
+        enemy: { ...ship('ship.sloop', 'merchant'), headingDeg: enemyHeading },
+        seed: 3,
+        bearingDeg: 90,
+      });
+      b.send({ type: 'Fire', side: 'starboard' });
+      b.step(1);
+      return b;
+    };
+    const near = at(2.5, 0);
+    const far = at(5.6, 0);
+    expect(near.state.shots.every((s) => s.power === 1)).toBe(true);
+    expect(far.state.shots.every((s) => (s.power ?? 1) < 0.6)).toBe(true);
+    // Beam on, the balls strike across her; bow on (heading straight at the guns), they rake her.
+    const landed = (b: ReturnType<typeof at>) => {
+      const effects: { place?: { rake?: boolean }; ship?: string }[] = [];
+      for (let i = 0; i < 60; i++) {
+        b.step(1);
+        effects.push(...b.state.effects.filter((e) => e.ship === 'enemy' && e.kind !== 'smoke'));
+      }
+      return effects;
+    };
+    expect(landed(at(2.5, 0)).some((e) => e.place?.rake)).toBe(false);
+    expect(landed(at(2.5, 270)).some((e) => e.place?.rake)).toBe(true);
+  });
+
+  it('swivels sweep the deck close in; chasers fire along her heading', () => {
+    const swivelled = { ...content, ships: { ...content.ships, 'ship.sloop': { ...content.ships['ship.sloop']!, swivels: 4 } } };
+    const close = createBattle({ ...swivelled, combat: { ...swivelled.combat, battle: { ...swivelled.combat.battle, startApart: 2.5 } } }, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: { ...ship('ship.brig'), headingDeg: 0, crew: 100 },
+      enemy: { ...ship('ship.sloop', 'pirate', 0.9), headingDeg: 0 },
+      seed: 1,
+      bearingDeg: 90,
+    });
+    close.step(30 * 3);
+    expect(close.state.ships.player.crew).toBeLessThan(100);
+    // A frigate in chase, her bow on the brig running from her: her bow chasers speak (a ball from her very head).
+    const near = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 5 } } };
+    const chase = createBattle(near, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.fluyt', undefined, 0.5), enemy: ship('ship.frigate', 'patrol', 0.9), seed: 4, bearingDeg: 0 });
+    const half = content.ships['ship.frigate']!.size.length / 2;
+    let chased = false;
+    for (let i = 0; i < 30 * 90 && !chased && !chase.result(); i++) {
+      chase.step(1, 'runner');
+      const e = chase.state.ships.enemy;
+      const r = (e.headingDeg * Math.PI) / 180;
+      chased = chase.state.shots.some((s) => s.from === 'enemy' && (s.x - e.x) * Math.sin(r) - (s.y - e.y) * Math.cos(r) > half * 0.8);
+    }
+    expect(chased).toBe(true);
+  });
+
   it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
     const wins = (outfit: Partial<Ship>) => {
       let n = 0;

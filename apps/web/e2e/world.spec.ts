@@ -713,7 +713,11 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
     return window.__corsair.battle.result()?.outcome;
   });
   await expect(page.locator('.battle-report')).toBeVisible();
-  await page.keyboard.press('Enter');
+  // The report, and the plunder screen too when she was taken: Enter through to the sea.
+  for (let i = 0; i < 3 && (await page.evaluate(() => window.__corsair.view())) === 'battle'; i++) {
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+  }
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   const standing = await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing);
   expect(standing.spain).toBeLessThan(0);

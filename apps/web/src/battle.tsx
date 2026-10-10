@@ -464,6 +464,11 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
     const text = e.ship === 'enemy' ? `Her ${mast} goes by the board!` : `Your ${mast} is shot away!`;
     mastCall.current = { text, until: e.at + 3.5, seen: e.at };
   }
+  // A raking shot, called out for a moment (a mast going by the board says more, and wins).
+  for (const e of state.effects) {
+    if (!e.place?.rake || e.at <= mastCall.current.seen || !e.ship) continue;
+    mastCall.current = { text: e.ship === 'enemy' ? 'Raked her, bow to stern!' : 'She rakes you!', until: e.at + 1.5, seen: e.at };
+  }
   return (
     <div class="battle">
       <ShipPanel {...panel} />

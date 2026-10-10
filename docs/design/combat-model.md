@@ -1,6 +1,6 @@
 # Career and combat model (design)
 
-Proposed 2026-10-10; decisions in section 10; slices 1 (crew grades and captain skills, doctrine and surrender, ten distinct famous captains) , 2 (matched encounters, the light frigate) and 3 (goals) built. It answers three asks together, because they are one
+Proposed 2026-10-10; decisions in section 10; slices 1 (crew grades and captain skills, doctrine and surrender, ten distinct famous captains) , 2 (matched encounters, the light frigate), 3 (goals) and 4 (guns and range) built. It answers three asks together, because they are one
 problem: a combat model with meaningful upgrades, opponents that fight differently, and famous pirates of real and
 ordered difficulty, all fitted to a career that starts in a brig and climbs by trade, refits, matched fights, prizes
 and better ships, with clear objectives at every step. Judged against the pillars (best sailing, best combat,

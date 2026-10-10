@@ -777,7 +777,7 @@ function Governor({
 function bountyLabel(content: ContentPack, pay: { captive?: string }[]) {
   const ships = pay.filter((d) => !d.captive).length;
   const names = pay.flatMap((d) => (d.captive ? [content.pirates.captains.find((c) => c.id === d.captive)?.name ?? d.captive] : []));
-  const parts = [...(names.length ? [`hand over ${names.join(' and ')}`] : []), ...(ships ? [`bounties for ${ships} ${ships === 1 ? 'ship' : 'ships'}`] : [])];
+  const parts = [...(names.length ? [`hand over ${names.join(' and ')}`] : []), ...(ships ? [`collect bounties for ${ships} ${ships === 1 ? 'ship' : 'ships'}`] : [])];
   return parts.join(', ').replace(/^./, (c) => c.toUpperCase());
 }
 

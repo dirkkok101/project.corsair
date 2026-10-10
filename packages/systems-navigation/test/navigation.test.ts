@@ -375,3 +375,14 @@ describe('course', () => {
     expect(Math.hypot(sim.state.ships.player!.x - 230, sim.state.ships.player!.y - 220)).toBeLessThan(3);
   });
 });
+
+describe('oars', () => {
+  it('a ship with oars makes way dead into the wind, at her rowing share of her top speed; a ship without makes none', () => {
+    const wind = { fromDeg: 0, strength: 'fresh' as const };
+    const sloop = { id: 'p', classId: 'ship.sloop', x: 0, y: 0, headingDeg: 0, speed: 0, helm: 0 as const, sails: 'full' as const, blocked: false, cargo: {}, crew: 75 };
+    expect(targetSpeed(content, sloop, wind)).toBe(0);
+    const rowed = { ...content, ships: { ...content.ships, 'ship.sloop': { ...content.ships['ship.sloop']!, oars: 0.2 } } };
+    const pace = content.ships['ship.sloop']!.speed * content.navigation.tilesPerSecondPerSpeedPoint * 0.2;
+    expect(targetSpeed(rowed, sloop, wind)).toBeCloseTo(pace);
+  });
+});

@@ -14,6 +14,9 @@ export interface ShipStats {
   /** Gun range (round and grape) and reload time, as multiples of combat.json's. */
   rangeMult: number;
   reloadMult: number;
+  /** Swivel guns mounted (her class's and the fit's), and her chasers at each end. */
+  swivels: number;
+  chasers: number;
 }
 
 /**
@@ -32,6 +35,8 @@ export function shipStats(content: ContentPack, ship: { classId: string; guns?: 
     upwindDeg: 0,
     rangeMult: 1,
     reloadMult: 1,
+    swivels: cls.swivels ?? 0,
+    chasers: cls.chasers ?? 0,
   };
   for (const id of ship.upgrades ?? []) {
     const m = content.upgrades[id]?.modifiers;
@@ -42,6 +47,7 @@ export function shipStats(content: ContentPack, ship: { classId: string; guns?: 
     stats.maxCrew *= m.crewMult ?? 1;
     stats.rangeMult *= m.rangeMult ?? 1;
     stats.reloadMult *= m.reloadMult ?? 1;
+    stats.swivels += m.swivels ?? 0;
   }
   // Whole hull points and berths, so repair bills and the crew count stay whole.
   // With a fleet she keeps the pace of its slowest ship.
