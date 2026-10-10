@@ -1,7 +1,7 @@
 import type { WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { crewOf, fleetBerths, fleetOf, hasGovernor } from '@corsair/systems-economy';
+import { crewOf, fleetBerths, fleetOf, hasGovernor, rankOf, shipRankNeeded } from '@corsair/systems-economy';
 import { atWar, NATIONS } from '@corsair/systems-politics';
 import { topTen } from './index';
 
@@ -47,6 +47,11 @@ export function careerGoals(content: ContentPack, state: WorldState, settlements
   const hoards = content.pirates.captains.filter((c) => state.famous?.[c.id]?.hoard?.found).length;
   const maps = content.pirates.captains.filter((c) => state.captain?.mapPieces?.[c.id]).length;
   const upgrades = ship.upgrades?.length ?? 0;
+  // The rank a capital's yard asks before it builds a frigate, and his best rank with any nation.
+  const frigateRank = shipRankNeeded(content, 'ship.frigate');
+  const best = Math.max(-1, ...NATIONS.map((n) => rankOf(content, captain, n)));
+  const capital = near((s) => s.type === 'capital' && s.nation !== 'pirate' && rankOf(content, captain, s.nation) >= frigateRank) ?? near((s) => s.type === 'capital' && s.nation !== 'pirate');
+  const colonel = content.politics.ranks.ladder[frigateRank]?.name ?? 'Colonel';
   const all = Object.keys(content.upgrades).length;
   const goal = (g: Omit<Goal, 'done'> & { done?: boolean }): Goal => ({ ...g, done: g.done ?? g.have >= g.of });
   return [
@@ -58,8 +63,9 @@ export function careerGoals(content: ContentPack, state: WorldState, settlements
     goal({ id: 'match', title: 'Beat a pirate of your own size', why: 'The famous pirates of your rung notice you', have: matched, of: 1, unit: 'beaten' }),
     goal({ id: 'fit', title: 'Fit out your ship', why: 'Ready for the Main', have: Math.min(upgrades, 2), of: 2, unit: 'upgrades', port: yard }),
     goal({ id: 'famous', title: 'Beat a famous pirate', why: 'His wealth, fame, and a map piece', have: record.famousBeaten ?? 0, of: 1, unit: 'beaten', page: 'top' }),
+    goal({ id: 'rank', title: `Rise to ${colonel} with a nation`, why: "Bounties collected raise you; its capital's yard builds you a frigate", have: best + 1, of: frigateRank + 1, unit: 'ranks', port: governor }),
     goal({ id: 'fitted', title: 'Fit her out fully', why: 'The best a hull of her class can be', have: upgrades, of: all, unit: 'upgrades', port: yard }),
-    goal({ id: 'frigate', title: 'Command a frigate', why: 'The treasure routes', have: frigate ? 1 : 0, of: 1, unit: 'frigates', port: yard }),
+    goal({ id: 'frigate', title: 'Command a frigate', why: `The treasure routes: a capital's yard builds one for a ${colonel.toLowerCase()}, or take one`, have: frigate ? 1 : 0, of: 1, unit: 'frigates', port: capital }),
     goal({ id: 'topten', title: 'Enter the Top Ten', why: 'A name the whole Main knows', have: rank > 0 && rank <= 10 ? 1 : 0, of: 1, unit: '', page: 'top' }),
     goal({ id: 'hoard', title: 'Dig up a hoard', why: "A famous pirate's gold", have: hoards, of: 1, unit: 'hoards', page: 'maps', done: hoards > 0 || undefined }),
   ].map((g) => (g.id === 'hoard' && maps === 0 && !g.done ? { ...g, why: `${g.why}: find a map piece first` } : g));

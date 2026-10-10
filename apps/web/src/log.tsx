@@ -1,6 +1,7 @@
 import type { Hoard, WorldState } from "@corsair/core";
 import { difficultyOf, isLand, tileAt } from "@corsair/data";
 import type { ContentPack, DifficultyLevel, PlacedSettlement, TileMap } from "@corsair/data";
+import { CareerCard } from "./career";
 import { hoardRing } from "@corsair/systems-economy";
 import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -180,7 +181,7 @@ export function Log({
     const hoard = state.famous?.[c.id]?.hoard;
     return pieces[c.id] && hoard ? [{ c, hoard, held: pieces[c.id]! }] : [];
   });
-  const [page, setPage] = useState<"goals" | "top" | "maps">("goals");
+  const [page, setPage] = useState<"goals" | "career" | "top" | "maps">("goals");
   const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const whole = content.pirates.rules.mapPieces;
   return (
@@ -194,6 +195,12 @@ export function Log({
               onClick={() => setPage("goals")}
             >
               Goals
+            </button>
+            <button
+              class={page === "career" ? "active" : ""}
+              onClick={() => setPage("career")}
+            >
+              Career
             </button>
             <button
               class={page === "top" ? "active" : ""}
@@ -214,6 +221,8 @@ export function Log({
         </div>
         {page === "goals" ? (
           <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} level={difficultyOf(content, state.difficulty)} />
+        ) : page === "career" ? (
+          <CareerCard content={content} state={state} />
         ) : page === "top" ? (
           <TopTen content={content} state={state} settlements={settlements} />
         ) : maps.length ? (

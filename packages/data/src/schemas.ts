@@ -368,6 +368,8 @@ export const combatSchema = z.object({
           windShiftDeg: z.number().min(0),
           nearMissTiles: z.number().min(0),
           notice: z.number().positive(),
+          /** The retirement score's multiple at this level. */
+          score: z.number().positive(),
         }),
       )
       .min(1),
@@ -524,7 +526,10 @@ export const combatSchema = z.object({
   /** Ships for sale at a shipwright, by port size, and the share of her battery a new ship comes with. */
   shipyard: z.object({
     /** Each class a yard builds: the least port size, the nations whose yards build her, and the standing she needs. */
-    ships: z.record(z.string(), z.object({ at: z.enum(['town', 'city']), nations: z.array(z.string()).optional(), standing: z.number().optional() })),
+    ships: z.record(
+      z.string(),
+      z.object({ at: z.enum(['town', 'city', 'capital']), nations: z.array(z.string()).optional(), standing: z.number().optional(), rank: z.string().optional() }),
+    ),
     gunsShare: z.number().min(0).max(1),
   }),
   /** Ships that change hands: prizes a pirate keeps in tow, when she sells them, and the salvage on one freed. */
@@ -596,6 +601,23 @@ export const politicsSchema = z.object({
   marque: z.object({ price: z.number().min(0), freeAt: z.number(), standingGain: z.number() }),
   bounty: z.object({ merchant: z.number(), patrol: z.number(), pirate: z.number(), piracyScale: z.number().positive() }),
   news: z.record(z.string(), z.string()),
+  /** Ranks per nation: the ladder by merit, each perk's rung and size, land and its rent. */
+  ranks: z.object({
+    ladder: z.array(z.object({ id: z.string(), name: z.string(), merit: z.number().min(0), acres: z.number().min(0).optional() })).min(1),
+    perks: z.record(z.enum(['recruit', 'repair', 'bestFits', 'price', 'frigate', 'upgrade']), z.object({ rung: z.string(), value: z.number().optional() })),
+    acresPerMerit: z.number().min(0),
+    rentPerAcre: z.number().min(0),
+  }),
+  /** Three fames from the career's record, the retirement score, and the fates it names. */
+  career: z.object({
+    fame: z.object({
+      trade: z.object({ goldPer: z.number().positive() }),
+      war: z.object({ prize: z.number(), pirate: z.number(), famous: z.number() }),
+      adventure: z.object({ hoard: z.number(), mapPiece: z.number() }),
+    }),
+    score: z.object({ goldPer: z.number().positive(), acresPer: z.number().positive(), rank: z.array(z.number()) }),
+    fates: z.array(z.object({ score: z.number(), title: z.string() })).min(1),
+  }),
 });
 
 export const trafficSchema = z.object({
@@ -770,8 +792,6 @@ export type CrewConfig = z.infer<typeof crewSchema>;
 /** The famous pirates (pirates.json): ten named captains the world keeps, and the rules for beating one. */
 export const piratesSchema = z.object({
   rules: z.object({
-    /** Fame a captain gains for beating one. */
-    fame: z.number().int().min(0),
     /** Share of her wealth that goes to the player's plunder chest when the player beats her. */
     wealthShare: share01,
     /** Share of what is left that she keeps, beaten by anyone. */
@@ -843,7 +863,6 @@ export const treasureSchema = z.object({
     reachTiles: z.number().positive(),
     toleranceTiles: z.number().positive(),
     hours: z.number().min(0),
-    fame: z.number().int().min(0),
     revengeReach: z.number().min(1),
   }),
   landmarks: z.array(z.string()).min(1),

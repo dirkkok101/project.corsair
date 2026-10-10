@@ -29,6 +29,14 @@ import {
   sellDepth,
   shipsForSale,
   shipStandingNeeded,
+  shipRankNeeded,
+  rankOf,
+  hasPerk,
+  perkPrice,
+  tradeEdge,
+  famesOf,
+  landOf,
+  rungBrings,
   contractsAt,
   famine,
   plagued,
@@ -42,6 +50,7 @@ import {
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 import { topTen } from '@corsair/systems-traffic';
+import { RetireConfirm } from './career';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
@@ -131,6 +140,8 @@ function Merchant({
 }) {
   const [preview, setPreview] = useState<string>();
   const market = state.markets?.[town.id] ?? {};
+  // A colonel of this nation trades here on better terms.
+  const edge = tradeEdge(content, state.captain, town.nation);
   const purse = townOf(content, state, town).cash;
   const gold = state.captain?.gold ?? 0;
   const capacity = fleetHold(content, state, ship);
@@ -157,7 +168,7 @@ function Merchant({
         <tbody>
           {content.goods.map((g) => {
             const stock = market[g.id] ?? 0;
-            const q = quote(content, town, g.id, stock);
+            const q = quote(content, town, g.id, stock, edge);
             const held = ship.cargo[g.id] ?? 0;
             const side = tradeLean(content, town, g.id);
             const tag = side === 'exports' ? 'made here' : side === 'wants' ? 'needed here' : '';
@@ -175,6 +186,7 @@ function Merchant({
               story.makes > 0 ? `It makes about ${Math.round(story.makes)} a day.` : '',
               story.eats > 0 ? `It eats about ${Math.round(story.eats)} a day: ${story.days! >= 1 ? `${Math.floor(story.days!)} days in store` : 'none in store'}.` : '',
               'Each unit you buy raises the price; each you sell lowers it.',
+              edge ? `Your rank here: you buy ${Math.round(edge * 100)}% cheaper and sell ${Math.round(edge * 100)}% dearer.` : '',
             ].filter(Boolean);
             const cost = held > 0 && ship.paid?.[g.id] !== undefined ? ship.paid[g.id]! / held : undefined;
             const plunder = ship.plunder?.[g.id] ?? 0;
@@ -182,7 +194,7 @@ function Merchant({
             const margin = best && best.sell - q.buy;
             const room = capacity - used;
             const say = (side: 'Buy' | 'Sell', qty: number) => {
-              const t = tradePreview(content, town, g.id, stock, side, qty, { gold, room, held, cash: purse });
+              const t = tradePreview(content, town, g.id, stock, side, qty, { gold, room, held, cash: purse }, edge);
               if (!t.units) {
                 if (side === 'Buy') return room < 1 ? 'Your hold is full.' : stock < 1 ? `The merchant has no ${name} left.` : `Not enough gold for one ${name}.`;
                 return held < 1 ? `You have no ${name} to sell.` : `The merchant is out of gold (${purse} left): his purse fills again day by day, or sell elsewhere.`;
@@ -299,6 +311,8 @@ function Merchant({
 export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date }: PortProps) {
   // The market opens on arrival; closing it leaves the harbour to look at.
   const [open, setOpen] = useState<Service | undefined>('merchant');
+  // Retiring asks first, with the score as it stands.
+  const [retiring, setRetiring] = useState(false);
   useEffect(() => onOpen(open), [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(undefined);
@@ -357,6 +371,13 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     );
   });
 
+  if (retiring)
+    return (
+      <div class="port">
+        <RetireConfirm content={content} state={state} retire={() => send({ type: 'Retire', shipId })} cancel={() => setRetiring(false)} />
+      </div>
+    );
+
   if (!open) {
     return (
       <div class="port port-scene">
@@ -372,6 +393,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           </button>
           <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
             Set sail · E
+          </button>
+          <button class="leave" onClick={() => setRetiring(true)} title="End the career here and see its score">
+            Retire…
           </button>
         </div>
       </div>
@@ -471,11 +495,13 @@ interface TavernProps {
 }
 
 /** Hands for the ship: men sign on at the tavern for a bounty each, up to her berths. */
-function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'>) {
+function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'> & { nation: PlacedSettlement['nation'] }) {
   const ship = state.ships[shipId]!;
   const cls = content.ships[ship.classId]!;
   const crew = crewOf(content, ship);
-  const price = content.combat.port.recruitGold;
+  // A captain of this nation finds men easier: they sign on for less.
+  const cut = perkPrice(content, state.captain, nation, 'recruit');
+  const price = content.combat.port.recruitGold * cut;
   const berths = fleetBerths(content, state, ship);
   const room = berths - crew;
   return (
@@ -485,11 +511,12 @@ function Recruit({ content, state, shipId, send }: Pick<TavernProps, 'content' |
         {crew < cls.minCrew ? <span class="trend scarce">short-handed</span> : null}
       </span>
       <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: 10 })}>
-        Sign on 10 · {10 * price} gold
+        Sign on 10 · {Math.round(10 * price)} gold
       </button>
       <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
-        Fill the berths · {room * price} gold
+        Fill the berths · {Math.round(room * price)} gold
       </button>
+      {cut < 1 ? <span class="port-sub">Your rank here: men sign on for {Math.round((1 - cut) * 100)}% less.</span> : null}
       {room > 0 ? (
         <span class="port-sub">
           Each 10 more men: food lasts {Math.floor(foodDays(content, { ...ship, crew: crew + 10 }))} days instead of {Math.floor(foodDays(content, ship))}, and wages
@@ -532,7 +559,7 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
  * a repair for each one on her own; making a ship the flagship, or selling her for her class's price by her
  * condition. A sale that would leave too little hold for the cargo, or too few berths for the crew, says so instead.
  */
-function FleetList({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
+function FleetList({ content, state, shipId, send, cut }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; cut: number }) {
   const ship = state.ships[shipId]!;
   const fleet = fleetOf(state);
   const hold = fleetHold(content, state, ship);
@@ -549,7 +576,7 @@ function FleetList({ content, state, shipId, send }: { content: ContentPack; sta
     );
   };
   const mend = (id: string, f: Parameters<typeof shipRepairCost>[1]) => {
-    const cost = shipRepairCost(content, f);
+    const cost = shipRepairCost(content, f, cut);
     if (cost <= 0) return <span class="trend export">sound</span>;
     return (
       <button title={gold < cost ? `She needs ${cost} gold to be made sound; you have ${gold}: as far as the purse reaches.` : undefined} disabled={gold <= 0} onClick={() => send({ type: 'Repair', shipId, only: id })}>
@@ -624,8 +651,12 @@ function ShipsForSale({ content, state, town, shipId, send }: { content: Content
             const need = fleetMinCrew(content, [...fleet, { classId: id }], ship);
             const standing = shipStandingNeeded(content, town, id);
             const mine = state.captain?.standing?.[town.nation] ?? 0;
-            const why =
-              mine < standing
+            const rankNeed = shipRankNeeded(content, id);
+            const rankShort = rankOf(content, state.captain, town.nation) < rankNeed;
+            const rankName = content.politics.ranks.ladder[rankNeed]?.name;
+            const why = rankShort
+              ? `The yard builds her only for a ${rankName} of ${COUNTRY[town.nation] ?? town.nation}: collect bounties at its governors to rise.`
+              : mine < standing
                 ? `The yard builds her only for a captain in good standing here: ${standing} needed, yours is ${Math.round(mine)}.`
                 : fleet.length + 2 > max
                 ? `Your fleet is full (${max} ships): sell one first.`
@@ -645,6 +676,7 @@ function ShipsForSale({ content, state, town, shipId, send }: { content: Content
                   {cls.swivels ? ` · ${cls.swivels} swivels` : ''}
                   {cls.oars ? ' · rows in a calm' : ''}
                   {mine < standing ? ` · standing ${standing} needed (yours ${Math.round(mine)})` : ''}
+                  {rankShort ? ` · for a ${rankName} of ${COUNTRY[town.nation] ?? town.nation}` : ''}
                 </td>
                 <td class="actions">
                   <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'BuyShip', shipId, classId: id })}>
@@ -765,6 +797,7 @@ function Governor({
           </button>
         )}
       </div>
+      <Rank content={content} state={state} nation={nation} />
       <div class="governor-row">
         {owed.pay.length ? (
           <button onClick={() => send({ type: 'CollectBounties', shipId })}>
@@ -777,6 +810,38 @@ function Governor({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/** His rank with the governor's nation: where he stands, what the next rung asks and brings, and his land. */
+function Rank({ content, state, nation }: { content: ContentPack; state: WorldState; nation: PlacedSettlement['nation'] }) {
+  const ladder = content.politics.ranks.ladder;
+  const r = rankOf(content, state.captain, nation);
+  const merit = state.captain?.merit?.[nation] ?? 0;
+  const next = ladder[r + 1];
+  const acres = landOf(content, state.captain, nation);
+  if (r < 0)
+    return (
+      <div class="governor-row port-sub">
+        A letter of marque is your first rank with {COUNTRY[nation]}; then every bounty collected here raises you ({ladder
+          .slice(1, 4)
+          .map((l) => l.name)
+          .join(', ')}
+        , and on to a title and land).
+      </div>
+    );
+  return (
+    <div class="governor-row governor-rank">
+      <span>
+        Your rank with {COUNTRY[nation]}: <b>{ladder[r]!.name}</b>
+        {acres ? ` · ${acres} acres, ${Math.round(acres * content.politics.ranks.rentPerAcre)} gold a month in rent` : ''}.
+      </span>
+      <span class="port-sub">
+        {next
+          ? `Merit ${merit} (a point a bounty, more for a famous pirate): ${next.merit - merit} more to ${next.name}, which brings ${rungBrings(content, r + 1).join(', ') || 'a higher rank'}.`
+          : `Merit ${merit}: the highest rank there is. Each bounty adds to your land.`}
+      </span>
     </div>
   );
 }
@@ -807,7 +872,9 @@ function Shipwright({
 }) {
   const ship = state.ships[shipId]!;
   const fleet = fleetOf(state);
-  const cost = repairCost(content, ship, fleet);
+  // A major of this nation has his repairs here cheaper.
+  const cut = perkPrice(content, state.captain, town.nation, 'repair');
+  const cost = repairCost(content, ship, fleet, cut);
   // Straight to the repairs when anything needs mending, else to the ships for sale.
   const [yard, setYard] = useState<Yard>(cost > 0 ? 'repair' : 'buy');
   const tabs: [Yard, string][] = [
@@ -825,7 +892,7 @@ function Shipwright({
         ))}
       </div>
       {yard === 'repair' ? (
-        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} />
+        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} />
       ) : yard === 'buy' ? (
         <>
           <LaidUp content={content} state={state} shipId={shipId} send={send} />
@@ -839,7 +906,7 @@ function Shipwright({
 }
 
 /** Mending: every ship's condition and her own repair, and the whole fleet at once. */
-function RepairYard({ content, state, shipId, send, cost }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; cost: number }) {
+function RepairYard({ content, state, shipId, send, cost, cut }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; cost: number; cut: number }) {
   const fleet = fleetOf(state);
   return (
     <>
@@ -851,10 +918,12 @@ function RepairYard({ content, state, shipId, send, cost }: { content: ContentPa
         ) : (
           <span class="port-sub">{fleet.length ? 'Every ship is sound.' : 'She is sound.'}</span>
         )}
-        <span class="port-sub">Hull then sails, the flagship first, as far as the purse reaches.</span>
+        <span class="port-sub">
+          Hull then sails, the flagship first, as far as the purse reaches.{cut < 1 ? ` Your rank here: ${Math.round((1 - cut) * 100)}% off.` : ''}
+        </span>
       </div>
       <Careen content={content} state={state} shipId={shipId} send={send} />
-      <FleetList content={content} state={state} shipId={shipId} send={send} />
+      <FleetList content={content} state={state} shipId={shipId} send={send} cut={cut} />
       {!fleet.length ? <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</div> : null}
     </>
   );
@@ -890,6 +959,9 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
   const p = content.combat.port;
   const room = stats.maxGuns - stats.guns;
   const installed = new Set(ship.upgrades ?? []);
+  // An admiral's fits come cheaper at his nation's yards, and a major's towns fit the city-only ones.
+  const cut = perkPrice(content, state.captain, town.nation, 'upgrade');
+  const best = hasPerk(content, state.captain, town.nation, 'bestFits');
   return (
     <>
       <div class="shipwright-row">
@@ -916,17 +988,19 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
         <tbody>
           {Object.values(content.upgrades).map((u) => {
             // Priced by the work on her class: her guns, her hull or her berths.
-            const cost = upgradePrice(content, ship.classId, u.id);
+            const base = upgradePrice(content, ship.classId, u.id);
+            const cost = { ...base, price: Math.round(base.price * cut) };
             return (
             <tr key={u.id}>
               <td>{u.name}</td>
               <td class="port-sub">
                 {u.effect} · {Math.round(cost.each)} gold a {cost.per === 'hull' ? 'hull point' : cost.per} × her {cost.units}
+                {cut < 1 ? ` · your rank here: ${Math.round((1 - cut) * 100)}% off` : ''}
               </td>
               <td>
                 {installed.has(u.id) ? (
                   <span class="trend export">installed</span>
-                ) : sellsUpgrade(content, town, u.id) ? (
+                ) : sellsUpgrade(content, town, u.id, best) ? (
                   <button disabled={gold < cost.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
                     Buy · {cost.price.toLocaleString()} gold
                   </button>
@@ -979,7 +1053,8 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
   const place = ranks.findIndex((r) => r.player) + 1;
   const tpd = content.calendar.ticksPerDay;
   const haven = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id;
-  const fame = state.captain?.fame ?? 0;
+  const f = famesOf(content, state);
+  const fame = f.trade + f.war + f.adventure;
   const pieces = state.captain?.mapPieces ?? {};
   const jailed = new Set((state.captain?.deeds ?? []).flatMap((d) => (d.captive ? [d.captive] : [])));
   return (
@@ -1057,7 +1132,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
   const today = Math.floor(state.tick / content.calendar.ticksPerDay);
   const recruit = (
     <>
-      <Recruit content={content} state={state} shipId={shipId} send={send} />
+      <Recruit content={content} state={state} shipId={shipId} send={send} nation={settlements.find((s) => s.id === town)?.nation ?? 'pirate'} />
       <CrewPay content={content} state={state} shipId={shipId} send={send} />
       <Harbour content={content} state={state} town={town} />
     </>

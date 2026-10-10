@@ -28,6 +28,7 @@ import { cargoUsed, createEconomySystem, hoardRing, crewOf, DOCK_RANGE, famine, 
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { loadStoredSave, storeSave } from './save';
+import { COUNTRY, Ending } from './career';
 import { chooseCareer } from './start';
 import { crewLook, Hail, shipTitle } from './hail';
 import { Log } from './log';
@@ -1139,6 +1140,14 @@ async function main() {
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
       if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
       if (ev.type === 'Undocked') portNotice = undefined;
+      // A promotion from the governor; a title brings land.
+      if (ev.type === 'Promoted') {
+        const p = ev.payload as { nation: string; rank: string; acres: number };
+        portNotice = `The governor promotes you: ${p.rank} of ${COUNTRY[p.nation] ?? p.nation}.${p.acres ? ` Your land: ${p.acres} acres, paying rent each month.` : ''}`;
+      }
+      if (ev.type === 'RentPaid') courseNote = { text: `Rent from your land: +${(ev.payload.gold as number).toLocaleString()} gold`, until: now + 4000 };
+      // Retired: the career is over; keep it, so the start screen shows how it ended.
+      if (ev.type === 'Retired') void save();
       // Plague breaks out in the port she lies in: no other ship will come in until it passes.
       if (ev.type === 'Plague' && ev.entityIds[0] === player().docked) portNotice = 'Plague has broken out here. No ship will put in until it passes, and you may not come back in once you sail.';
       // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.
@@ -1320,7 +1329,9 @@ async function main() {
     void renderer.harbour.show(town && ((service && interior(town, service)) || harbour?.scene));
     stage.classList.toggle('in-port', Boolean(town));
     render(
-      town ? (
+      sim.state.captain?.retired ? (
+        <Ending content={content} state={sim.state} again={() => location.reload()} />
+      ) : town ? (
         <Port
           state={sim.state}
           content={content}

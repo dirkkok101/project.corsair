@@ -923,8 +923,8 @@ describe('the famous pirates', () => {
     fight.applyCommands();
     const share = Math.round(9000 * r.wealthShare);
     expect(fight.state.captain!.chest).toBe((morgan.ai!.purse ?? 0) + share);
-    expect(fight.state.captain!.fame).toBe(r.fame);
-    expect(fight.events().find((e) => e.type === 'BattleOver')!.payload.famous).toEqual({ name: 'Henry Morgan', share, fame: r.fame });
+    expect(fight.state.captain!.record?.famousBeaten).toBe(1);
+    expect(fight.events().find((e) => e.type === 'BattleOver')!.payload.famous).toEqual({ name: 'Henry Morgan', share, fame: content.politics.career.fame.war.famous });
     const back = fight.state.famous!.morgan!;
     expect(back).toMatchObject({ wealth: Math.round((9000 - share) * r.keeps), defeats: 1 });
     expect(back.returnAt).toBe(fight.state.tick + Math.round(r.returnDays * day));
@@ -1082,7 +1082,6 @@ describe('the famous pirates', () => {
     const found = digThere(dig);
     expect(found).toMatchObject({ type: 'HoardFound', payload: { pirateId: 'morgan', gold: hoard.value, revenge: true } });
     expect(dig.state.captain!.chest).toBe(hoard.value);
-    expect(dig.state.captain!.fame).toBe(content.treasure.dig.fame);
     expect(dig.state.famous!.morgan).toMatchObject({ wealth: 9000 - hoard.value, revenge: true, hoard: { found: true } });
     expect(dig.state.news!.slice(-2).map((n) => n.kind)).toEqual(['hoardDug', 'famousRevenge']);
     // Dug up, there is nothing more there.

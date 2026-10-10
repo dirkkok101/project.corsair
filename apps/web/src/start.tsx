@@ -106,7 +106,9 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, 
             <>
               <div>{date}</div>
               <div class="start-sub">
-                {where ? `In port at ${where}` : 'At sea'} · {(save.state.captain?.gold ?? 0).toLocaleString()} gold
+                {save.state.captain?.retired
+                  ? `Retired: ${save.state.captain.retired.fate} · score ${save.state.captain.retired.score}`
+                  : `${where ? `In port at ${where}` : 'At sea'} · ${(save.state.captain?.gold ?? 0).toLocaleString()} gold`}
               </div>
               {save.content !== fingerprint ? (
                 <div class="start-warn">This save was made with different game rules; it may not play the same.</div>

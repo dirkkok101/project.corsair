@@ -3,9 +3,12 @@ import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, Known
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigation';
-import { atWar, enemiesOf } from '@corsair/systems-politics';
+import { atWar, enemiesOf, NATIONS } from '@corsair/systems-politics';
 import { isLand, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
+import { careerScore, hasPerk, landOf, perkPrice, rankOf, tradeEdge } from './career';
+
+export * from './career';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
 // price = base * (T / max(S, 1)) ^ elasticity, and every unit traded moves S, so a glut in one port
@@ -113,13 +116,16 @@ export function midPrice(content: ContentPack, s: Settlement, good: string, stoc
   return g.basePrice * Math.min(hi, Math.max(lo, ratio ** g.elasticity));
 }
 
-/** What the merchant charges and pays for one unit right now, in whole gold. */
-export function quote(content: ContentPack, s: Settlement, good: string, stock: number): { buy: number; sell: number } {
+/**
+ * What the merchant charges and pays for one unit right now, in whole gold. `edge` is a captain's rank there
+ * (politics.json ranks): he buys that share cheaper and sells that share dearer.
+ */
+export function quote(content: ContentPack, s: Settlement, good: string, stock: number, edge = 0): { buy: number; sell: number } {
   const spread = content.economy.spread[s.type] ?? 0.12;
   const mid = midPrice(content, s, good, stock);
-  const sell = Math.max(1, Math.round(mid * (1 - spread)));
+  const sell = Math.max(1, Math.round(mid * (1 - spread) * (1 + edge)));
   // Whole gold rounds cheap goods' spread away; the merchant always keeps at least one.
-  return { buy: Math.max(sell + 1, Math.round(mid * (1 + spread))), sell };
+  return { buy: Math.max(sell + 1, Math.round(mid * (1 + spread) * (1 - edge))), sell };
 }
 
 /**
@@ -135,11 +141,12 @@ export function tradePreview(
   side: 'Buy' | 'Sell',
   qty: number,
   limits: { gold: number; room: number; held: number; cash?: number },
+  edge = 0,
 ): { units: number; total: number; after: number } {
   let units = 0;
   let total = 0;
   for (; units < qty; units++) {
-    const q = quote(content, s, good, stock);
+    const q = quote(content, s, good, stock, edge);
     if (side === 'Buy') {
       if (stock < 1 || limits.gold - total < q.buy || units >= limits.room) break;
       total += q.buy;
@@ -151,7 +158,7 @@ export function tradePreview(
       stock++;
     }
   }
-  const after = quote(content, s, good, stock);
+  const after = quote(content, s, good, stock, edge);
   return { units, total, after: side === 'Buy' ? after.buy : after.sell };
 }
 
@@ -381,11 +388,18 @@ export function withFleetPace(content: ContentPack, ship: Ship, fleet: FleetShip
 }
 
 /** The ships a port's shipwright builds, for sale, by the port's size and nation (none at a hamlet). */
-export function shipsForSale(content: ContentPack, port: Pick<PlacedSettlement, 'size' | 'nation'>): string[] {
+export function shipsForSale(content: ContentPack, port: Pick<PlacedSettlement, 'size' | 'nation' | 'type'>): string[] {
   if (port.size === 'hamlet') return [];
+  const fits = (at: 'town' | 'city' | 'capital') => at === 'town' || (at === 'city' ? port.size === 'city' : port.type === 'capital');
   return Object.entries(content.combat.shipyard.ships)
-    .filter(([, y]) => (y.at === 'town' || port.size === 'city') && (!y.nations || y.nations.includes(port.nation)))
+    .filter(([, y]) => fits(y.at) && (!y.nations || y.nations.includes(port.nation)))
     .map(([id]) => id);
+}
+
+/** The rank with the port's nation its yard asks before building her (a frigate for a colonel), as a ladder index; -1 for none. */
+export function shipRankNeeded(content: ContentPack, classId: string): number {
+  const rank = content.combat.shipyard.ships[classId]?.rank;
+  return rank ? content.politics.ranks.ladder.findIndex((r) => r.id === rank) : -1;
 }
 
 /** The standing with the port's nation its yard asks before building her (none at a pirate haven). */
@@ -461,15 +475,16 @@ export function crewMood(content: ContentPack, state: WorldState, ship: Ship): n
 
 /** Repair bill: hull points and sail condition short of sound, at the shipwright's rates. */
 /** What the shipwright asks to make one ship sound: her hull and her sails. */
-export function shipRepairCost(content: ContentPack, s: Pick<Ship, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>): number {
+export function shipRepairCost(content: ContentPack, s: Pick<Ship, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>, factor = 1): number {
   const p = content.combat.port;
   const hullMax = shipStats(content, s).hullMax;
-  return Math.ceil(hullMax - (s.hull ?? hullMax)) * p.hullGold + Math.ceil(100 - (s.sailCondition ?? 100)) * p.sailGold;
+  return Math.ceil(Math.ceil(hullMax - (s.hull ?? hullMax)) * p.hullGold * factor) + Math.ceil(Math.ceil(100 - (s.sailCondition ?? 100)) * p.sailGold * factor);
 }
 
-export function repairCost(content: ContentPack, ship: Ship, fleet: FleetShip[] = []): number {
+/** `factor` is a rank's discount at the yard (politics.json ranks: a major's repairs). */
+export function repairCost(content: ContentPack, ship: Ship, fleet: FleetShip[] = [], factor = 1): number {
   const one = (s: Pick<Ship, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>) => {
-    return shipRepairCost(content, s);
+    return shipRepairCost(content, s, factor);
   };
   // The whole fleet, as the shipwright mends it.
   return fleet.reduce((n, f) => n + one(f), one(ship));
@@ -480,9 +495,13 @@ export function sellsGuns(port: { size: string }): boolean {
   return port.size !== 'hamlet';
 }
 
-/** Whether a port's shipwright sells an upgrade: by the settlement's size (upgrades.json sizes). */
-export function sellsUpgrade(content: ContentPack, port: { size: string }, upgradeId: string): boolean {
-  return content.upgrades[upgradeId]?.sizes.includes(port.size as 'hamlet' | 'town' | 'city') ?? false;
+/**
+ * Whether a port's shipwright sells an upgrade: by the settlement's size (upgrades.json sizes). `best` is a major's
+ * rank with the port's nation: its towns fit him the city-only upgrades too.
+ */
+export function sellsUpgrade(content: ContentPack, port: { size: string }, upgradeId: string, best = false): boolean {
+  const sizes = content.upgrades[upgradeId]?.sizes ?? [];
+  return sizes.includes(port.size as 'hamlet' | 'town' | 'city') || (best && port.size === 'town' && sizes.includes('city'));
 }
 
 export function cargoUsed(ship: Ship): number {
@@ -890,6 +909,18 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           events: [{ type: 'Undocked', entityIds: [ship.id, docked], payload: {} }],
         };
       }
+      if (command.type === 'Retire') {
+        // He retires in port: the career is scored and over (politics.json career).
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        if (state.captain.retired) return refuse(state, ship, 'retired');
+        const score = careerScore(content, state);
+        return {
+          state: { ...state, captain: { ...state.captain, retired: { tick: state.tick, score: score.total, fate: score.fate } } },
+          events: [{ type: 'Retired', entityIds: [ship.id, ship.docked], payload: { score: score.total, fate: score.fate } }],
+        };
+      }
       if (command.type === 'BuyMarque' || command.type === 'CollectBounties') {
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
@@ -916,6 +947,14 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const captives = pay.filter((d) => d.captive);
         const gain = pay.length - captives.length + captives.length * r.bountyStanding;
         const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + gain) };
+        // The same deeds are merit with his nation: they raise his rank there while he holds its letter.
+        const merit = { ...state.captain.merit, [nation]: (state.captain.merit?.[nation] ?? 0) + gain };
+        const was = rankOf(content, state.captain, nation);
+        const now = rankOf(content, { ...state.captain, merit }, nation);
+        const promoted =
+          now > was && was >= 0
+            ? [{ type: 'Promoted', entityIds: [ship.id, s.id], payload: { nation, rank: content.politics.ranks.ladder[now]!.name, acres: landOf(content, { ...state.captain, merit }, nation) } }]
+            : [];
         let famous = state.famous;
         for (const d of captives) {
           const f = famous?.[d.captive!] ?? { wealth: content.pirates.captains.find((c) => c.id === d.captive)?.wealth ?? 0 };
@@ -924,8 +963,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         }
         return {
           // Bounties are plunder: they go into the chest the crew sails for.
-          state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing }, ...(famous ? { famous } : {}) },
-          events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive) } }],
+          state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing, merit }, ...(famous ? { famous } : {}) },
+          events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive) } }, ...promoted],
         };
       }
       if (command.type === 'BuyMapPiece') {
@@ -952,7 +991,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!ship.docked) return refuse(state, ship, 'not-docked');
         const berths = fleetBerths(content, state, ship);
         const crew = crewOf(content, ship);
-        const price = content.combat.port.recruitGold;
+        // A captain of the port's nation finds men easier: they sign on for less.
+        const price = content.combat.port.recruitGold * perkPrice(content, state.captain, byId.get(ship.docked)!.nation, 'recruit');
         const count = Math.min(Math.floor(command.count), berths - crew, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
         if (!(count > 0)) return refuse(state, ship, crew >= berths ? 'berths-full' : 'not-enough-gold');
         return {
@@ -1000,18 +1040,22 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
         const p = content.combat.port;
+        // A major's repairs come cheaper at his nation's yards.
+        const cut = perkPrice(content, state.captain, byId.get(ship.docked)!.nation, 'repair');
+        const hullGold = p.hullGold * cut;
+        const sailGold = p.sailGold * cut;
         let gold = state.captain.gold;
         let mended = false;
         const mend = <T extends { classId: string; hull?: number; sailCondition?: number; upgrades?: string[]; guns?: number }>(s: T): T => {
           const hullMax = shipStats(content, { ...s, fleetSpeed: undefined }).hullMax;
           let hull = s.hull ?? hullMax;
           let sails = s.sailCondition ?? 100;
-          const hullFix = Math.max(0, Math.min(Math.ceil(hullMax - hull), p.hullGold > 0 ? Math.floor(gold / p.hullGold) : Infinity));
+          const hullFix = Math.max(0, Math.min(Math.ceil(hullMax - hull), hullGold > 0 ? Math.floor(gold / hullGold) : Infinity));
           hull = Math.min(hullMax, hull + hullFix);
-          gold -= hullFix * p.hullGold;
-          const sailFix = Math.max(0, Math.min(Math.ceil(100 - sails), p.sailGold > 0 ? Math.floor(gold / p.sailGold) : Infinity));
+          gold -= Math.ceil(hullFix * hullGold);
+          const sailFix = Math.max(0, Math.min(Math.ceil(100 - sails), sailGold > 0 ? Math.floor(gold / sailGold) : Infinity));
           sails = Math.min(100, sails + sailFix);
-          gold -= sailFix * p.sailGold;
+          gold -= Math.ceil(sailFix * sailGold);
           if (hullFix > 0 || sailFix > 0) mended = true;
           return { ...s, hull, sailCondition: sails };
         };
@@ -1041,6 +1085,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const cls = content.ships[command.classId];
         if (!cls || !shipsForSale(content, port).includes(command.classId)) return refuse(state, ship, 'not-built-here');
         if ((state.captain.standing?.[port.nation] ?? 0) < shipStandingNeeded(content, port, cls.id)) return refuse(state, ship, 'standing');
+        if (rankOf(content, state.captain, port.nation) < shipRankNeeded(content, cls.id)) return refuse(state, ship, 'rank');
         const fleet = fleetOf(state);
         if (fleet.length + 2 > content.combat.fleet.maxShips) return refuse(state, ship, 'fleet-full');
         if (crewOf(content, ship) < fleetMinCrew(content, [...fleet, { classId: cls.id }], ship)) return refuse(state, ship, 'too-few-men');
@@ -1221,9 +1266,10 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!ship || !upgrade) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
         if (ship.upgrades?.includes(upgrade.id)) return refuse(state, ship, 'installed');
-        if (!sellsUpgrade(content, byId.get(ship.docked)!, upgrade.id)) return refuse(state, ship, 'not-sold-here');
-        // Priced by the work on her class (guns, hull or berths), not one price for every ship.
-        const price = upgradePrice(content, ship.classId, upgrade.id).price;
+        const yard = byId.get(ship.docked)!;
+        if (!sellsUpgrade(content, yard, upgrade.id, hasPerk(content, state.captain, yard.nation, 'bestFits'))) return refuse(state, ship, 'not-sold-here');
+        // Priced by the work on her class (guns, hull or berths), not one price for every ship; an admiral's cheaper.
+        const price = Math.round(upgradePrice(content, ship.classId, upgrade.id).price * perkPrice(content, state.captain, yard.nation, 'upgrade'));
         if (state.captain.gold < price) return refuse(state, ship, 'not-enough-gold');
         return {
           state: {
@@ -1286,8 +1332,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const plunderHeld = command.type === 'Sell' ? (ship.plunder?.[command.good] ?? 0) : 0;
         let chestGain = 0;
         // Unit by unit: every unit moves the stock, so a big trade gets dearer (or cheaper) as it goes.
+        const edge = tradeEdge(content, state.captain, s.nation);
         for (; done < qty; done++) {
-          const q = quote(content, s, command.good, stock);
+          const q = quote(content, s, command.good, stock, edge);
           if (command.type === 'Buy') {
             if (stock < 1 || gold < q.buy || used >= capacity(state, ship)) break;
             stock--;
@@ -1381,6 +1428,16 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         next = fed.state;
         events.push(...fed.events);
         next = liveDay(next);
+        // A titled captain's land pays its rent each month (politics.json ranks).
+        const days = Math.floor(tick / content.calendar.ticksPerDay);
+        if (days % 30 === 0 && next.captain) {
+          const acres = NATIONS.reduce((n, nation) => n + landOf(content, next.captain, nation), 0);
+          const rent = Math.round(acres * content.politics.ranks.rentPerAcre);
+          if (rent > 0) {
+            next = { ...next, captain: { ...next.captain, gold: next.captain.gold + rent } };
+            events.push({ type: 'RentPaid', entityIds: [], payload: { gold: rent, acres } });
+          }
+        }
         // Her bottom fouls by the day (unless copper-sheathed), and fine-grain powder spends itself.
         const player = next.ships.player;
         if (player) {

@@ -1078,3 +1078,22 @@ test('the shipyard: new ships for sale, and why one can\'t be bought yet', async
   expect(errors).toEqual([]);
 });
 
+
+test('retiring in port scores the career, ends it, and the start screen says how it ended', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  // From the harbour (Esc closes the merchant's page).
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Retire…' }).click();
+  await expect(page.locator('.career-score')).toContainText('Trade fame');
+  await page.getByRole('button', { name: 'Not yet' }).click();
+  await expect(page.locator('.career-score')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Retire…' }).click();
+  await page.getByRole('button', { name: 'Retire now' }).click();
+  await expect(page.locator('.ending')).toContainText('You retired with a score of');
+  await page.screenshot({ path: 'test-results/retired.png' });
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { retired?: unknown }).retired)).toBeTruthy();
+  await expect(page.locator('.hud-saved')).toBeVisible();
+  await page.getByRole('button', { name: 'Start a new career' }).click();
+  await expect(page.locator('.start')).toContainText('Retired:');
+  expect(errors).toEqual([]);
+});

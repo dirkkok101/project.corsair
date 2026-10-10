@@ -279,8 +279,10 @@ export interface Captain {
   sightings?: Record<string, Sighting>;
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
   standing?: Partial<Record<Nation, number>>;
-  /** Fame: a point for each famous pirate beaten. */
-  fame?: number;
+  /** Merit with each nation: a point for each deed its governors paid a bounty for (more for a famous pirate); it raises his rank there. */
+  merit?: Partial<Record<Nation, number>>;
+  /** He retired (in port): when, his score, and what became of him. The career is over. */
+  retired?: { tick: number; score: number; fate: string };
   /** The career so far, for the captain's goals: gold made trading, prizes taken, pirates beaten by class, famous pirates beaten. */
   record?: CareerRecord;
   /** Pieces of each famous pirate's hoard map held (by her id): keepsakes, never sold. */
@@ -532,6 +534,8 @@ export type Command =
   | { type: 'Careen'; shipId: string; beach?: boolean }
   /** At the tavern: divide the plunder chest with the crew, or pay them wages from the captain's purse. */
   | { type: 'DividePlunder'; shipId: string }
+  /** Retire in port: the career is scored (politics.json career) and over. */
+  | { type: 'Retire'; shipId: string }
   | { type: 'PayWages'; shipId: string }
   /** Debug: put two nations at war or at peace now. */
   | { type: 'SetRelation'; a: Nation; b: Nation; war: boolean }

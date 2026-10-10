@@ -30,6 +30,12 @@ import {
   sellDepth,
   shipValue,
   shipsForSale,
+  careerScore,
+  famesOf,
+  landOf,
+  perkPrice,
+  rankOf,
+  tradeEdge,
   shockFactor,
   stockCap,
   strangerOffer,
@@ -687,6 +693,74 @@ describe('the governor', () => {
     expect(gov.events().at(-1)!.payload.reason).toBe('nothing-owed');
   });
 
+  it('bounties are merit: with the letter they raise his rank, a promotion said, and its perks follow at that nation\'s ports', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const ladder = content.politics.ranks.ladder;
+    const pirate = { nation: 'pirate' as const, role: 'pirate' as const, kind: 'sunk' as const, tick: sim.state.tick };
+    // Five merit already, the letter held: one more pirate makes him a captain.
+    const s = { ...sim.state, captain: { ...sim.state.captain!, marques: ['england' as const], merit: { england: 5 }, deeds: [pirate] } };
+    const gov = createSim(s, [createEconomySystem(content, settlements)]);
+    expect(rankOf(content, gov.state.captain, 'england')).toBe(0);
+    gov.send({ type: 'CollectBounties', shipId: 'player' });
+    gov.applyCommands();
+    expect(gov.state.captain!.merit!.england).toBe(6);
+    expect(rankOf(content, gov.state.captain, 'england')).toBe(1);
+    expect(gov.events().find((e) => e.type === 'Promoted')!.payload).toMatchObject({ nation: 'england', rank: ladder[1]!.name });
+    // Without the letter, merit counts but makes no rank.
+    expect(rankOf(content, { ...gov.state.captain!, marques: [] }, 'england')).toBe(-1);
+    // A captain's men sign on cheaper at English ports, and nowhere else.
+    expect(perkPrice(content, gov.state.captain, 'england', 'recruit')).toBe(content.politics.ranks.perks.recruit!.value);
+    expect(perkPrice(content, gov.state.captain, 'spain', 'recruit')).toBe(1);
+    const gold = gov.state.captain!.gold;
+    gov.send({ type: 'Recruit', shipId: 'player', count: 10 });
+    gov.applyCommands();
+    expect(gold - gov.state.captain!.gold).toBe(Math.round(10 * content.combat.port.recruitGold * content.politics.ranks.perks.recruit!.value!));
+  });
+
+  it('a colonel trades better, a title brings land that pays rent each month', () => {
+    const ladder = content.politics.ranks.ladder;
+    const colonel = ladder.findIndex((l) => l.id === 'colonel');
+    const captain = { gold: 0, knownPrices: {}, marques: ['england' as const], merit: { england: ladder[colonel]!.merit } };
+    const edge = tradeEdge(content, captain, 'england');
+    expect(edge).toBe(content.politics.ranks.perks.price!.value);
+    const town = settlements.find((s) => s.id === 'town.port_royal')!;
+    const plain = quote(content, town, 'sugar', 40);
+    const better = quote(content, town, 'sugar', 40, edge);
+    expect(better.buy).toBeLessThan(plain.buy);
+    expect(better.sell).toBeGreaterThan(plain.sell);
+    expect(better.buy).toBeGreaterThan(better.sell);
+    // A baron's land, and more for each merit past the title.
+    const baron = ladder.findIndex((l) => l.id === 'baron');
+    const titled = { ...captain, merit: { england: ladder[baron]!.merit + 4 } };
+    expect(landOf(content, captain, 'england')).toBe(0);
+    expect(landOf(content, titled, 'england')).toBe(ladder[baron]!.acres! + 4 * content.politics.ranks.acresPerMerit);
+    const sim = moored();
+    const landed = createSim({ ...sim.state, captain: { ...sim.state.captain!, ...titled, gold: 0 } }, [createEconomySystem(content, settlements)]);
+    landed.step(content.calendar.ticksPerDay * 31);
+    const rent = landed.events().filter((e) => e.type === 'RentPaid');
+    expect(rent.length).toBe(1);
+    expect(rent[0]!.payload.gold).toBe(Math.round(landOf(content, titled, 'england') * content.politics.ranks.rentPerAcre));
+  });
+
+  it('retiring in port scores the career: fames, wealth, land and rank, times the difficulty', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const f = content.politics.career.fame;
+    const record = { tradeProfit: 5 * f.trade.goldPer, prizes: 2, beaten: { 'ship.sloop': 3 }, famousBeaten: 1 };
+    const s = { ...sim.state, difficulty: 'rogue', captain: { ...sim.state.captain!, gold: 12_000, chest: 0, record, marques: ['england' as const] } };
+    expect(famesOf(content, s)).toEqual({ trade: 5, war: 2 * f.war.prize + 3 * f.war.pirate + f.war.famous, adventure: 0 });
+    const score = careerScore(content, s);
+    const base = 5 + 2 * f.war.prize + 3 * f.war.pirate + f.war.famous + 12 + content.politics.career.score.rank[0]!;
+    expect(score.total).toBe(Math.round(base * 1.25));
+    const end = createSim(s, [createEconomySystem(content, settlements)]);
+    end.send({ type: 'Retire', shipId: 'player' });
+    end.applyCommands();
+    expect(end.state.captain!.retired).toEqual({ tick: end.state.tick, score: score.total, fate: score.fate });
+  });
+
   it('a famous pirate handed over in irons: any governor pays the price on his head, and the jail keeps him a while', () => {
     const sim = moored(portRoyal);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
@@ -1042,8 +1116,9 @@ describe('the fleet', () => {
     expect(refused('ship.galleon', { crew: 150 })).toBe('not-built-here');
     expect(refused('ship.brig', { crew: 30 })).toBe('too-few-men');
     expect(refused('ship.brig', { crew: 150 }, 100)).toBe('not-enough-gold');
-    // A frigate is built only for a captain in good standing with the yard's nation.
-    expect(refused('ship.frigate', { crew: 150 })).toBe('standing');
+    // A light frigate is built only for a captain in good standing with the yard's nation, a frigate for a colonel.
+    expect(refused('ship.light_frigate', { crew: 150 })).toBe('standing');
+    expect(refused('ship.frigate', { crew: 150 })).toBe('rank');
   });
 
   it('stocks each yard by its place: a periagua only at a pirate haven, a frigate only at a city, a ketch not in Spain', () => {

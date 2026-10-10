@@ -906,12 +906,12 @@ export function createTrafficSystem(
             hoard: { ...hit.hoard, found: true },
             ...(revenge ? { revenge: true, spared: undefined } : {}),
           });
-          const captain = { ...state.captain, chest: (state.captain.chest ?? 0) + hit.hoard.value, fame: (state.captain.fame ?? 0) + d.fame };
+          const captain = { ...state.captain, chest: (state.captain.chest ?? 0) + hit.hoard.value };
           next = newsItem({ ...next, captain }, hit.hoard.near, 'hoardDug', state.tick, hit.c.name, 'pirate', { captain: hit.c.name });
           if (revenge) next = newsItem(next, hit.hoard.near, 'famousRevenge', state.tick, hit.c.name, 'pirate', { captain: hit.c.name });
           return {
             state: next,
-            events: [{ type: 'HoardFound', entityIds: [player.id], payload: { pirateId: hit.c.id, name: hit.c.name, gold: hit.hoard.value, fame: d.fame, revenge } }],
+            events: [{ type: 'HoardFound', entityIds: [player.id], payload: { pirateId: hit.c.id, name: hit.c.name, gold: hit.hoard.value, fame: content.politics.career.fame.adventure.hoard, revenge } }],
           };
         }
         // A miss: the nearest map whose ring she is in gives its landmark's bearing and distance.
@@ -1124,7 +1124,7 @@ export function createTrafficSystem(
             const wealth = famousOf(state, famousId).wealth;
             famousShare = Math.round(wealth * r.wealthShare);
             famousLeft = wealth - famousShare;
-            captain = { ...captain, chest: (captain.chest ?? 0) + famousShare, fame: (captain.fame ?? 0) + r.fame };
+            captain = { ...captain, chest: (captain.chest ?? 0) + famousShare };
           }
           if (taken) {
             purse = other.ai.purse ?? 0;
@@ -1196,7 +1196,7 @@ export function createTrafficSystem(
               lost,
               retaken,
               laidUp: [] as { name: string; classId: string; at: string }[],
-              famous: famousId ? { name: other.ai.name, share: famousShare, fame: content.pirates.rules.fame } : null,
+              famous: famousId ? { name: other.ai.name, share: famousShare, fame: content.politics.career.fame.war.famous } : null,
             },
           },
         ];
