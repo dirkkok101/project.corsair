@@ -46,6 +46,33 @@ const lateen = (mz: number, castle: number): FlatSail => ({
   spar: true,
 });
 
+/**
+ * A lugsail on the mast at `mz`: its yard hung a little forward of the mast from luff (`fwd`) to leech (`aft`), the
+ * foot at `foot`, the yard rising from `throat` at the luff to `peak` at the leech.
+ */
+const lug = (mz: number, fwd: number, aft: number, foot: number, throat: number, peak: number): FlatSail => ({
+  kind: 'gaff',
+  corners: [
+    [fwd, foot],
+    [fwd + 0.04, throat],
+    [aft, peak],
+    [aft - 0.04, foot + 0.04],
+  ],
+  pivot: mz,
+  spar: true,
+});
+/** A galley's lateen on the mast at `mz`: the long yard from low forward to high aft, the sail's foot `aft` long behind the tack. */
+const lateenSail = (mz: number, fwd: number, aft: number, top: number): FlatSail => ({
+  kind: 'lateen',
+  corners: [
+    [mz + fwd, 0.3],
+    [mz - aft * 1.3, top],
+    [mz - aft, 0.28],
+  ],
+  pivot: mz,
+  spar: true,
+});
+
 /** A gaff sloop stretched `k` along: one mast, a gaff main, a jib, perhaps a square topsail and a second jib. */
 function sloop(k: number, kw: number, top: number, ports: number, paint: Paint, topsail: boolean, secondJib: boolean): ShipPlan {
   const my = 0.22 * k;
@@ -200,4 +227,76 @@ export const RIGS: Record<string, ShipPlan> = {
   },
   'ship.galleon': galleon(3.1, 0.36, SPANISH),
   'ship.treasure_galleon': galleon(3.16, 0.42, TREASURE),
+  // The Pirates! pinnace: a small, low raider with two lugsails and sweeps, crammed with men.
+  'ship.pinnace': {
+    hull: hull({ length: 1.9, beam: 0.32, rail: 0.2, sheerStern: 0.05, sheerBow: 0.06, fullness: 0.12, sternWidth: 0.7, ports: [{ at: 0.75, count: 3 }], paint: WARM }),
+    masts: [mast(0.55, 1.5), mast(-0.15, 1.7)],
+    flats: [
+      lug(0.55, 0.62, 0.0, 0.36, 1.36, 1.5),
+      lug(-0.15, -0.06, -0.86, 0.38, 1.52, 1.68),
+      jib([1.25, 0.34], [0.6, 1.2], [0.95, 0.3]),
+    ],
+    bowsprit: [
+      [0.85, 0.24],
+      [1.3, 0.36],
+    ],
+  },
+  // A periagua: a great dugout canoe, two lugsails, no guns, swivels on the gunwale and her men at the oars.
+  'ship.periagua': {
+    hull: hull({ length: 1.6, beam: 0.24, rail: 0.12, sheerStern: 0.04, sheerBow: 0.05, fullness: 0.05, sternWidth: 0.5, ports: [], paint: TRADER }),
+    masts: [mast(0.45, 1.2), mast(-0.2, 1.3)],
+    flats: [lug(0.45, 0.5, -0.05, 0.24, 1.08, 1.18), lug(-0.2, -0.16, -0.72, 0.26, 1.18, 1.28)],
+    bowsprit: [
+      [0.7, 0.12],
+      [0.82, 0.16],
+    ],
+  },
+  // The guarda costa's half-galley: long and low, lateen sails on two masts, a gun in her bow and oars all along.
+  'ship.half_galley': {
+    hull: hull({ length: 2.2, beam: 0.28, rail: 0.16, sheerStern: 0.06, sheerBow: 0.04, castle: 0.04, castleTo: 0.12, fullness: 0.08, sternWidth: 0.6, ports: [], paint: SPANISH }),
+    masts: [mast(0.45, 1.55), mast(-0.33, 1.4)],
+    flats: [lateenSail(0.45, 0.46, 0.5, 1.5), lateenSail(-0.33, 0.38, 0.45, 1.34)],
+    bowsprit: [
+      [0.98, 0.2],
+      [1.22, 0.3],
+    ],
+  },
+  // The galley-frigate: a frigate's battery and rig on a longer, lower hull, with a row of sweep ports below.
+  'ship.galley_frigate': {
+    hull: hull({ length: 3.3, beam: 0.44, rail: 0.3, castle: 0.06, castleTo: 0.3, forecastle: 0.03, forecastleFrom: 0.82, fullness: 0.3, sternWidth: 0.76, ports: [{ at: 0.74, count: 11 }], paint: NAVY }),
+    masts: [
+      mast(0.75, 1.96, sq('fore_tgallant', 1.86, 1.6, 0.54, 0.72, 0.06), sq('fore_top', 1.54, 1.08, 0.8, 1.02, 0.08), sq('fore_course', 1.02, 0.5, 1.1, 1.2, 0.1)),
+      mast(0.05, 2.18, sq('main_tgallant', 2.08, 1.78, 0.6, 0.8, 0.06), sq('main_top', 1.72, 1.18, 0.88, 1.12, 0.08), sq('main_course', 1.12, 0.54, 1.22, 1.32, 0.1)),
+      mast(-0.85, 1.78, sq('mizzen_top', 1.44, 1.02, 0.66, 0.82, 0.07)),
+    ],
+    flats: [spanker([[-0.9, 0.62], [-0.9, 1.24], [-1.52, 1.1], [-1.62, 0.62]], -0.9), jib([1.74, 0.76], [0.83, 1.6], [1.2, 0.6])],
+    bowsprit: [
+      [1.52, 0.38],
+      [1.76, 0.76],
+    ],
+  },
+  // A ketch: a tall square-rigged mainmast and a short mizzen, no foremast; a handy coaster.
+  'ship.ketch': {
+    hull: hull({ length: 2.1, beam: 0.4, rail: 0.25, castle: 0.06, castleTo: 0.2, fullness: 0.5, sternWidth: 0.6, ports: [{ at: 0.72, count: 3 }], paint: TRADER }),
+    masts: [mast(0.25, 1.86, sq('main_top', 1.74, 1.2, 0.62, 0.82, 0.08), sq('main_course', 1.14, 0.52, 0.92, 1.02, 0.1)), mast(-0.6, 1.4)],
+    flats: [spanker([[-0.64, 0.48], [-0.64, 1.18], [-1.12, 1.02], [-1.2, 0.48]], -0.64), jib([1.36, 0.5], [0.3, 1.66], [0.82, 0.4]), jib([1.12, 0.46], [0.32, 1.3], [0.76, 0.42])],
+    bowsprit: [
+      [0.92, 0.28],
+      [1.42, 0.5],
+    ],
+  },
+  // A pink: a small square-rigged trader with the fluyt's narrow, pinched stern.
+  'ship.pink': {
+    hull: hull({ length: 2.3, beam: 0.44, rail: 0.26, castle: 0.26, castleTo: 0.25, sheerBow: 0.09, fullness: 0.8, sternWidth: 0.25, ports: [{ at: 0.7, count: 3 }], paint: TRADER }),
+    masts: [
+      mast(0.6, 1.5, sq('fore_top', 1.4, 1.0, 0.52, 0.7, 0.08), sq('fore_course', 0.94, 0.48, 0.78, 0.88, 0.1)),
+      mast(0, 1.72, sq('main_top', 1.62, 1.1, 0.58, 0.8, 0.08), sq('main_course', 1.04, 0.5, 0.88, 0.98, 0.1)),
+      mast(-0.7, 1.2),
+    ],
+    flats: [lateen(-0.7, 0.12), jib([1.4, 0.56], [0.68, 1.36], [1.0, 0.46])],
+    bowsprit: [
+      [1.04, 0.3],
+      [1.48, 0.58],
+    ],
+  },
 };

@@ -170,25 +170,24 @@
     "sellShare": 0.35
   },
   "shipyard": {
-    "$comment": "Ships for sale at a shipwright (PRD section 7), by the port's size: a hamlet builds none, a town the small ones, a city most. The great ships (the ship of the line, the galleons) are built in Europe: the only way to one is to take her. A ship bought comes new, at her class's price, with 'gunsShare' of her battery mounted (more at 150 gold a gun).",
-    "town": [
-      "ship.sloop",
-      "ship.war_sloop",
-      "ship.barque",
-      "ship.brigantine"
-    ],
-    "city": [
-      "ship.sloop",
-      "ship.war_sloop",
-      "ship.royal_sloop",
-      "ship.barque",
-      "ship.fluyt",
-      "ship.brigantine",
-      "ship.brig",
-      "ship.light_frigate",
-      "ship.merchantman",
-      "ship.frigate"
-    ],
+    "$comment": "Ships for sale at a shipwright (PRD section 7), by place and standing (slice 7 of docs/design/combat-model.md): each class is built at a town and up ('town') or only at a city ('city'), a hamlet builds none; 'nations' limits her to those nations' yards (a periagua only at a pirate haven, a pink at English and Dutch yards); 'standing' is what the captain's standing with the port's nation must be before its yard builds her for him (the light frigates and frigates). The great ships (the ship of the line, the galleons) are built in Europe and the half-galley is the Spanish guarda costa's: the only way to one is to take her. A ship bought comes new, at her class's price, with 'gunsShare' of her battery mounted (more at 150 gold a gun).",
+    "ships": {
+      "ship.periagua": { "at": "town", "nations": ["pirate"] },
+      "ship.pinnace": { "at": "town" },
+      "ship.sloop": { "at": "town" },
+      "ship.war_sloop": { "at": "town" },
+      "ship.ketch": { "at": "town", "nations": ["england", "france", "netherlands"] },
+      "ship.barque": { "at": "town" },
+      "ship.brigantine": { "at": "town" },
+      "ship.royal_sloop": { "at": "city" },
+      "ship.fluyt": { "at": "city" },
+      "ship.pink": { "at": "city", "nations": ["england", "netherlands"] },
+      "ship.brig": { "at": "city" },
+      "ship.light_frigate": { "at": "city", "standing": 15 },
+      "ship.merchantman": { "at": "city" },
+      "ship.frigate": { "at": "city", "standing": 30 },
+      "ship.galley_frigate": { "at": "city", "nations": ["england"], "standing": 30 }
+    },
     "gunsShare": 0.5
   },
   "prizes": {

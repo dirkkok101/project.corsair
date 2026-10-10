@@ -1665,7 +1665,9 @@ function spawn(
   const names = t.names[nation] ?? t.names.pirate!;
   const n = state.nextShipId ?? 0;
   // Her class from the role's mix, from her own stream so the draw moves nothing else.
-  const mix = t.roles[role].classes;
+  // A nation's own patrol craft join its mix (Spain's half-galleys).
+  const extra = role === 'patrol' ? t.roles.patrol.byNation?.[nation] : undefined;
+  const mix = extra ? { ...t.roles[role].classes, ...extra } : t.roles[role].classes;
   const classId = only ?? (mix ? rngStream(seedRng(n, 'class')).weighted(mix) : t.roles[role].classId);
   const [lo, hi] = content.combat.crew[role];
   const [gold0, gold1] = content.combat.purse[role];

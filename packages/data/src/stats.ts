@@ -90,11 +90,6 @@ export function upgradePrice(content: ContentPack, classId: string, upgradeId: s
   return { price: Math.max(10, Math.round((each * cls[stat]) / 10) * 10), each, units: cls[stat], per: u.per };
 }
 
-/**
- * What her crew and captain make of her (combat.json crewQuality and skill): multiples of reload time, shot scatter
- * and boarding strength, and how many ticks between her captain's decisions. A ship with neither (the player's, or
- * one from before captains) is a regular crew under a captain of 50: every multiple exactly 1, and 8 ticks.
- */
 export type DifficultyLevel = ContentPack['combat']['difficulty']['levels'][number];
 
 /** A career's difficulty level (combat.json difficulty), the default where none was picked or the id is unknown. */
@@ -123,6 +118,11 @@ export function atDifficulty<C extends { gunnery: number; seamanship: number; bo
   return { crew: moved, captain: { ...captain, gunnery: shift(captain.gunnery), seamanship: shift(captain.seamanship), boarding: shift(captain.boarding), resolve: shift(captain.resolve) } };
 }
 
+/**
+ * What her crew and captain make of her (combat.json crewQuality and skill): multiples of reload time, shot scatter
+ * and boarding strength, and how many ticks between her captain's decisions. A ship with neither (the player's, or
+ * one from before captains) is a regular crew under a captain of 50: every multiple exactly 1, and 8 ticks.
+ */
 export function crewQualityOf(
   content: ContentPack,
   ai?: { crew?: 'green' | 'regular' | 'seasoned' | 'veteran'; captain?: { gunnery: number; seamanship: number; boarding: number } },

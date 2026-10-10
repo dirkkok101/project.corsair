@@ -1264,6 +1264,16 @@ describe("the captain's goals", () => {
   });
 });
 
+describe('the new ships at sea', () => {
+  it('pirates sail pinnaces and periaguas, merchants ketches and pinks, and only Spain patrols in half-galleys', () => {
+    const ships = [1, 2, 3].flatMap((seed) => ai(world(seed).state));
+    const sails = (role: string, classId: string) => ships.some((s) => s.ai!.role === role && s.classId === classId);
+    expect(sails('pirate', 'ship.pinnace') || sails('pirate', 'ship.periagua')).toBe(true);
+    expect(sails('merchant', 'ship.ketch') || sails('merchant', 'ship.pink')).toBe(true);
+    for (const s of ships.filter((x) => x.classId === 'ship.half_galley')) expect([s.ai!.role, s.ai!.nation]).toEqual(['patrol', 'spain']);
+  });
+});
+
 describe('fits at sea', () => {
   it('AI ships carry the fits of their role: navy planking and bronze, pirates copper and swivels, merchants nettings', () => {
     const sim = world(3);

@@ -91,6 +91,12 @@ const SKY_CYCLE = SKY_PHASES.reduce((n, [s]) => n + s, 0);
 /** The sky starts mid-morning. */
 const SKY_START = 300;
 
+/** What shows of her fit: the shipwright's upgrades, and her class's own oars and swivels. */
+function fitOfClass(content: ContentPack, s: { classId: string; upgrades?: string[] }): string[] {
+  const cls = content.ships[s.classId];
+  return [...(s.upgrades ?? []), ...(cls?.oars ? ['sweeps'] : []), ...(cls?.swivels ? ['swivel_guns'] : [])];
+}
+
 function skyHour(seconds: number): number {
   let s = seconds % SKY_CYCLE;
   for (const [length, from, to] of SKY_PHASES) {
@@ -647,7 +653,7 @@ export async function createSeaRenderer(
       // ports for guns lost. Holes are placed the same way each time (her id's own rolls), patched when repaired.
       m.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
       // Her shipwright's fit, as it shows.
-      m.built.setFit(s.upgrades ?? []);
+      m.built.setFit(fitOfClass(content, s));
       const stats = shipStats(content, s);
       const holes = Math.round(Math.max(0, 1 - (s.hull ?? stats.hullMax) / stats.hullMax) * 24);
       if (holes < m.holes) {
@@ -748,7 +754,7 @@ export async function createSeaRenderer(
       }
       // Sails shot through show it: holes, then rags (her canvas set as she set it).
       f.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
-      f.built.setFit(s.upgrades ?? []);
+      f.built.setFit(fitOfClass(content, s));
       // Her men on deck: grapeshot sweeping her deck cuts them down, and they fall where they stood.
       const maxCrew = content.ships[s.classId]?.maxCrew ?? 100;
       f.built.setCrew(view.wreck && side === 'enemy' ? 0 : (s.crew ?? maxCrew * 0.7) / maxCrew, nowMs);

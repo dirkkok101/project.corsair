@@ -380,10 +380,17 @@ export function withFleetPace(content: ContentPack, ship: Ship, fleet: FleetShip
   return fleetSpeed === undefined ? (({ fleetSpeed: _, ...rest }) => rest)(ship) : { ...ship, fleetSpeed };
 }
 
-/** The ships a port's shipwright builds, for sale (none at a hamlet). */
-export function shipsForSale(content: ContentPack, port: Pick<PlacedSettlement, 'size'>): string[] {
-  const y = content.combat.shipyard;
-  return port.size === 'city' ? y.city : port.size === 'town' ? y.town : [];
+/** The ships a port's shipwright builds, for sale, by the port's size and nation (none at a hamlet). */
+export function shipsForSale(content: ContentPack, port: Pick<PlacedSettlement, 'size' | 'nation'>): string[] {
+  if (port.size === 'hamlet') return [];
+  return Object.entries(content.combat.shipyard.ships)
+    .filter(([, y]) => (y.at === 'town' || port.size === 'city') && (!y.nations || y.nations.includes(port.nation)))
+    .map(([id]) => id);
+}
+
+/** The standing with the port's nation its yard asks before building her (none at a pirate haven). */
+export function shipStandingNeeded(content: ContentPack, port: Pick<PlacedSettlement, 'nation'>, classId: string): number {
+  return port.nation === 'pirate' ? 0 : (content.combat.shipyard.ships[classId]?.standing ?? 0);
 }
 
 /** What a shipwright pays for a ship of the fleet: a share of her class's price, by her hull and, less, her sails. */
@@ -1033,6 +1040,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const port = byId.get(ship.docked)!;
         const cls = content.ships[command.classId];
         if (!cls || !shipsForSale(content, port).includes(command.classId)) return refuse(state, ship, 'not-built-here');
+        if ((state.captain.standing?.[port.nation] ?? 0) < shipStandingNeeded(content, port, cls.id)) return refuse(state, ship, 'standing');
         const fleet = fleetOf(state);
         if (fleet.length + 2 > content.combat.fleet.maxShips) return refuse(state, ship, 'fleet-full');
         if (crewOf(content, ship) < fleetMinCrew(content, [...fleet, { classId: cls.id }], ship)) return refuse(state, ship, 'too-few-men');

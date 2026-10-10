@@ -28,6 +28,7 @@ import {
   repairCost,
   sellDepth,
   shipsForSale,
+  shipStandingNeeded,
   contractsAt,
   famine,
   plagued,
@@ -614,15 +615,19 @@ function ShipsForSale({ content, state, town, shipId, send }: { content: Content
     <>
       <div class="port-sub ships-for-sale-head">
         New ships from the yard. Each joins your fleet at once (her hold and berths count); make her your flagship to fight in her. The great ships (galleons, the ship of the line) are
-        built in Europe: take one.
+        built in Europe, and the guarda costa's half-galleys are Spain's: take one.
       </div>
       <table class="fleet-list ships-for-sale">
         <tbody>
           {forSale.map((id) => {
             const cls = content.ships[id]!;
             const need = fleetMinCrew(content, [...fleet, { classId: id }], ship);
+            const standing = shipStandingNeeded(content, town, id);
+            const mine = state.captain?.standing?.[town.nation] ?? 0;
             const why =
-              fleet.length + 2 > max
+              mine < standing
+                ? `The yard builds her only for a captain in good standing here: ${standing} needed, yours is ${Math.round(mine)}.`
+                : fleet.length + 2 > max
                 ? `Your fleet is full (${max} ships): sell one first.`
                 : crew < need
                   ? `Too few men to sail her too: the fleet would need ${need}, you have ${crew}. Sign on more at the tavern.`
@@ -637,6 +642,9 @@ function ShipsForSale({ content, state, town, shipId, send }: { content: Content
                 </td>
                 <td class="port-sub">
                   hold {cls.cargo} · {guns} of {cls.guns} guns · crew {cls.minCrew} to {cls.maxCrew} · speed {cls.speed} · hull {cls.hull}
+                  {cls.swivels ? ` · ${cls.swivels} swivels` : ''}
+                  {cls.oars ? ' · rows in a calm' : ''}
+                  {mine < standing ? ` · standing ${standing} needed (yours ${Math.round(mine)})` : ''}
                 </td>
                 <td class="actions">
                   <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'BuyShip', shipId, classId: id })}>

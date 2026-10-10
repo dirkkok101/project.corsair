@@ -29,6 +29,7 @@ import {
   seawardHeading,
   sellDepth,
   shipValue,
+  shipsForSale,
   shockFactor,
   stockCap,
   strangerOffer,
@@ -1039,8 +1040,22 @@ describe('the fleet', () => {
       return run.events().at(-1)!.payload.reason;
     };
     expect(refused('ship.galleon', { crew: 150 })).toBe('not-built-here');
-    expect(refused('ship.frigate', { crew: 40 })).toBe('too-few-men');
-    expect(refused('ship.frigate', { crew: 150 }, 100)).toBe('not-enough-gold');
+    expect(refused('ship.brig', { crew: 30 })).toBe('too-few-men');
+    expect(refused('ship.brig', { crew: 150 }, 100)).toBe('not-enough-gold');
+    // A frigate is built only for a captain in good standing with the yard's nation.
+    expect(refused('ship.frigate', { crew: 150 })).toBe('standing');
+  });
+
+  it('stocks each yard by its place: a periagua only at a pirate haven, a frigate only at a city, a ketch not in Spain', () => {
+    const at = (id: string) => shipsForSale(content, settlements.find((s) => s.id === id)!);
+    expect(at('town.tortuga')).toContain('ship.periagua');
+    expect(at('town.tortuga')).toContain('ship.pinnace');
+    expect(at('town.tortuga')).not.toContain('ship.frigate');
+    expect(at('town.port_royal')).toContain('ship.frigate');
+    expect(at('town.port_royal')).toContain('ship.galley_frigate');
+    expect(at('town.port_royal')).not.toContain('ship.periagua');
+    expect(at('town.santo_domingo')).not.toContain('ship.ketch');
+    expect(at('town.santo_domingo')).not.toContain('ship.half_galley');
   });
 
   it('keeps the pace of its slowest ship', () => {

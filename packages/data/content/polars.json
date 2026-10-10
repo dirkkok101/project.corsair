@@ -42,5 +42,10 @@
       0.64,
       0.6
     ]
+  },
+  "polar.lug": {
+    "$comment": "Lug and lateen rig (the pinnace, the periagua, the half-galley): long yards set fore and aft, pointing nearly as high as a sloop's gaff, with drive past 24 deg and the best upwind course near 40 deg off, and fair downwind.",
+    "stepDeg": 12,
+    "values": [0, 0, 0.3, 0.7, 0.86, 0.93, 0.98, 1, 0.98, 0.94, 0.9, 0.85, 0.8, 0.75, 0.7, 0.66]
   }
 }

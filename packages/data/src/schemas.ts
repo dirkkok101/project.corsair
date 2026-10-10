@@ -523,8 +523,8 @@ export const combatSchema = z.object({
   }),
   /** Ships for sale at a shipwright, by port size, and the share of her battery a new ship comes with. */
   shipyard: z.object({
-    town: z.array(z.string()),
-    city: z.array(z.string()),
+    /** Each class a yard builds: the least port size, the nations whose yards build her, and the standing she needs. */
+    ships: z.record(z.string(), z.object({ at: z.enum(['town', 'city']), nations: z.array(z.string()).optional(), standing: z.number().optional() })),
     gunsShare: z.number().min(0).max(1),
   }),
   /** Ships that change hands: prizes a pirate keeps in tow, when she sells them, and the salvage on one freed. */
@@ -607,7 +607,13 @@ export const trafficSchema = z.object({
   roles: z.object({
     // `classId` is the role's own class (the debug spawn's); `classes`, when given, the mix she is drawn from, by weight.
     merchant: z.object({ share: z.number().min(0).max(1), classId: z.string(), classes: z.record(z.string(), z.number().min(0)).optional() }),
-    patrol: z.object({ share: z.number().min(0).max(1), classId: z.string(), classes: z.record(z.string(), z.number().min(0)).optional() }),
+    patrol: z.object({
+      share: z.number().min(0).max(1),
+      classId: z.string(),
+      classes: z.record(z.string(), z.number().min(0)).optional(),
+      /** Classes added to the mix for one nation's patrols, by weight. */
+      byNation: z.record(z.string(), z.record(z.string(), z.number().min(0))).optional(),
+    }),
     pirate: z.object({ share: z.number().min(0).max(1), classId: z.string(), classes: z.record(z.string(), z.number().min(0)).optional() }),
   }),
   /** Most units a merchant buys per voyage. */
