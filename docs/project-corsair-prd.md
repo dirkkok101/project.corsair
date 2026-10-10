@@ -33,7 +33,7 @@ Project Corsair is a browser-based, single-player pirate career sim set in the 1
 ### Non-goals for v1.0
 
 - Multiplayer or shared worlds.
-- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). Changed again 2026-10-09: the sea, sky and light aim for the realism of Assassin's Creed IV: Black Flag, the sea's state following the weather. The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D.
+- ~~3D graphics.~~ Changed 2026-10-08: the sea map and sea battles move to 3D, styled after Sid Meier's Pirates! (2004) in HD (`docs/reference/pirates-3d-style.md`). Changed again 2026-10-09: the sea, sky and light aim for the realism of Assassin's Creed IV: Black Flag, the sea's state following the weather. The minimum target is a GeForce RTX 3070. Harbour scenes, the sea chart, the minimap and the menus stay 2D. Changed again 2026-10-10: the 2D sea and battle renderer is gone; the game is drawn in 3D only (sea dolphins, whales and birds, ship name labels and the smoke of distant fights went with it, to come back in 3D).
 - Monetisation, accounts or cloud saves. Saves live in browser storage with file export.
 - Historical accuracy beyond flavour. Fun wins over realism.
 
@@ -669,7 +669,7 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
   name the landmark, which way it lies and how far. Dug up before its pirate was ever beaten, he swears revenge
   (news, and "hunting you" on the Top Ten): he comes for the captain at any odds and from half as far again, until
   beaten. In 3D each held map's landmark stands on its coast (a lone palm, three palms, a split rock, a wrecked hull,
-  a ruined hut, a cairn), with a dug pit once found. Not yet: landmarks in the 2D view; flags at sea; items in hoards.
+  a ruined hut, a cairn), with a dug pit once found. Not yet: flags at sea; items in hoards.
 
 ## 13. News and events
 
@@ -727,7 +727,7 @@ The renderer never mutates state. Every change enters through the command bus an
 | Concern | Choice | Why |
 |---|---|---|
 | Language | TypeScript (strict) | One language for core, UI, tools and tests |
-| Rendering | PixiJS v8 (WebGL/WebGPU) for the 2D views; Three.js for the 3D sea map and battles (`@corsair/render3d`, being built behind `?renderer=3d`) | Fast sprite batching for the 2D views; Three.js is the most established 3D library on the web, reads glTF ship models and fits TypeScript; no engine lock-in |
+| Rendering | Three.js for the sea map and battles (`@corsair/render3d`, the only sea renderer); PixiJS v8 for the illustrated harbour scenes only (`@corsair/render`) | Three.js is the most established 3D library on the web, reads glTF ship models and fits TypeScript; no engine lock-in |
 | UI | Preact + CSS over the canvas | Menus, journal, trade screens are easier as DOM |
 | Build | Vite, pnpm workspaces | Fast dev loop, one package per module |
 | Data validation | JSON Schema + Ajv (or Zod generating schema) | Validate content at build and at boot |
@@ -744,7 +744,8 @@ Phaser is a reasonable alternative to PixiJS if a full engine is wanted. The des
 - `@corsair/systems-*`: one package per system (weather, navigation, economy, settlements, politics, news, ai-captains, treasure, romance, career, crew, fleet).
 - `@corsair/minigame-*`: sea-battle, fencing, land-battle, dance, stealth, trade. Each exports `init(snapshot, params)`, `step(input)`, `result()`.
 - `@corsair/data`: loaders, schemas, content-pack merging (base game + mods).
-- `@corsair/render`: PixiJS scenes, sprite atlas management, camera, tilemap.
+- `@corsair/render`: the harbour scenes behind the port screens (PixiJS): layers, flag, the player's ship at anchor, day/night palette.
+- `@corsair/render3d`: the sea map and its battles (Three.js).
 - `@corsair/render3d`: the 3D sea map and sea battles (Three.js): the sea, islands from the elevation map, ships from glTF models, sky, camera; shot, smoke and wreckage in battle.
 - `@corsair/ui`: Preact screens.
 - `@corsair/devtools`: debug API, inspector overlay, event log viewer.

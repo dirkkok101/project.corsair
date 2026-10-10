@@ -7,8 +7,10 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import type { Ship, Wind, WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
-import type { BattleViewState } from '@corsair/render/battle';
-import { sailAnim } from '@corsair/render/sails';
+import type { BattleViewState } from './battleView';
+
+export type { BattleViewPlace, BattleViewShip, BattleViewState } from './battleView';
+import { sailAnim } from './sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
 import { CLOUD_SPEED, createOcean } from './sea/ocean';
 import type { SeaState, WakeShip } from './sea/ocean';
@@ -133,6 +135,17 @@ export interface SeaRenderer {
   viewDeg(): number;
   /** Sets the sky to an hour of its day (for reviewing sunrise, sunset and night). */
   setSkyHour(hour: number): void;
+  /**
+   * The point on the sea under a spot on the canvas (CSS pixels from its top left), in the tiles the last frame drew
+   * (world tiles at sea and in battle alike); undefined above the horizon.
+   */
+  pick(px: number, py: number): { x: number; y: number } | undefined;
+  /** Where a point on the sea (tiles) lies on the canvas, in CSS pixels; undefined behind the camera. */
+  project(x: number, y: number): { px: number; py: number } | undefined;
+  /** The stretch of sea in view, in tiles (the corners picked; the horizon clamps a view from astern). */
+  viewBox(): { x: number; y: number; w: number; h: number };
+  /** The plotted route to the destination (waypoints after the ship, tiles), drawn on the sea until cleared. */
+  guide(points: [number, number][] | undefined): void;
   /** For review: a row of these classes under sail, abeam of the player, drawn only (not in the world). */
   showcase(classIds: string[], state: WorldState): void;
 }
@@ -165,6 +178,9 @@ export async function createSeaRenderer(
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
   const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 4000);
+  // Mouse picks: a ray from the camera onto the sea's mean level.
+  const pickRay = new THREE.Raycaster();
+  const SEA_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   // The finished image: soft bloom on sun, sails and foam (Pirates!'s glow), anti-aliased, tone-mapped last.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -224,6 +240,15 @@ export async function createSeaRenderer(
 
   const worldShips = new THREE.Group();
   scene.add(worldShips);
+  // The course to the destination: a gold line on the water from her bow along the route, over the waves.
+  const guideLine = new THREE.Line(
+    new THREE.BufferGeometry(),
+    new THREE.LineDashedMaterial({ color: '#e8c170', dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.85, depthTest: false }),
+  );
+  guideLine.renderOrder = 10;
+  guideLine.frustumCulled = false;
+  scene.add(guideLine);
+  let guidePoints: [number, number][] | undefined;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
@@ -542,6 +567,17 @@ export async function createSeaRenderer(
     if (!me) return;
     gloomWant = gloomAt(state, me.x, me.y);
     const dt = beginFrame(nowMs, distance);
+    // The course she is sailing (the autopilot's route to its mark, or the ship she is intercepting), else the
+    // route plotted to the destination picked on the chart.
+    const plan = me.assist;
+    const them = plan?.mode === 'intercept' && plan.targetId ? state.ships[plan.targetId] : undefined;
+    const ahead: [number, number][] | undefined =
+      plan?.mode === 'course' && plan.x !== undefined && plan.y !== undefined ? [...(plan.route ?? []), [plan.x, plan.y]] : them ? [[them.x, them.y]] : guidePoints;
+    guideLine.visible = Boolean(ahead?.length);
+    if (ahead?.length) {
+      guideLine.geometry.setFromPoints([[me.x, me.y] as [number, number], ...ahead].map(([x, y]) => new THREE.Vector3(x, 0.3, y)));
+      guideLine.computeLineDistances();
+    }
     landmarks.set(
       content.pirates.captains.flatMap((c) => {
         const hoard = state.famous?.[c.id]?.hoard;
@@ -785,7 +821,43 @@ export async function createSeaRenderer(
     zoom(steps) {
       distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
     },
+    pick(px, py) {
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return undefined;
+      pickRay.setFromCamera(new THREE.Vector2((px / r.width) * 2 - 1, -(py / r.height) * 2 + 1), camera);
+      const hit = pickRay.ray.intersectPlane(SEA_PLANE, new THREE.Vector3());
+      return hit ? { x: hit.x, y: hit.z } : undefined;
+    },
+    project(x, y) {
+      const r = canvas.getBoundingClientRect();
+      const v = new THREE.Vector3(x, 0, y).project(camera);
+      if (v.z > 1) return undefined;
+      return { px: ((v.x + 1) / 2) * r.width, py: ((1 - v.y) / 2) * r.height };
+    },
+    viewBox() {
+      const r = canvas.getBoundingClientRect();
+      const reach = Math.max(distance * 3, 20);
+      const corners = [
+        [0, 0],
+        [r.width, 0],
+        [0, r.height],
+        [r.width, r.height],
+      ].map(([px, py]) => {
+        pickRay.setFromCamera(new THREE.Vector2((px! / Math.max(1, r.width)) * 2 - 1, -(py! / Math.max(1, r.height)) * 2 + 1), camera);
+        const hit = pickRay.ray.intersectPlane(SEA_PLANE, new THREE.Vector3());
+        // Above the horizon: as far as the camera sees along that line, clamped.
+        const d = hit ? Math.min(hit.distanceTo(pickRay.ray.origin), reach) : reach;
+        const p = pickRay.ray.at(d, new THREE.Vector3());
+        return [p.x, p.z] as const;
+      });
+      const xs = corners.map((c) => c[0]);
+      const ys = corners.map((c) => c[1]);
+      return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    },
     viewDeg: () => (chase ? viewHeading : 0),
+    guide(points) {
+      guidePoints = points;
+    },
     toggleChase() {
       chase = !chase;
     },

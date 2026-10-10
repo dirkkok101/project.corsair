@@ -412,11 +412,10 @@ export function createCharts(
       selected = undefined;
       for (const p of pins) p.label.classList.remove('selected');
     },
-    /** `camera` is the top-left of the view in world pixels. */
+    /** `view` is the stretch of sea on screen, in tiles. */
     update(
       player: Ship | undefined,
-      camera: { x: number; y: number },
-      view: { width: number; height: number },
+      view: { x: number; y: number; w: number; h: number },
       seen?: { sightings: Record<string, Sighting>; tick: number; ticksPerDay: number },
     ) {
       if (!player) return;
@@ -428,12 +427,8 @@ export function createCharts(
         mctx.fillStyle = NATION_COLOURS[s.nation];
         mctx.fillRect(Math.floor(s.x - sx) - 1, Math.floor(s.y - sy) - 1, 3, 3);
       }
-      const vw = view.width / map.tileSize;
-      const vh = view.height / map.tileSize;
       mctx.strokeStyle = '#ebede9';
-      const vx = camera.x / map.tileSize - sx;
-      const vy = camera.y / map.tileSize - sy;
-      mctx.strokeRect(Math.round(vx) + 0.5, Math.round(vy) + 0.5, vw, vh);
+      mctx.strokeRect(Math.round(view.x - sx) + 0.5, Math.round(view.y - sy) + 0.5, view.w, view.h);
       if (selected) {
         mctx.strokeStyle = '#e8c170';
         mctx.strokeRect(Math.floor(selected.x - sx) - 3.5, Math.floor(selected.y - sy) - 3.5, 8, 8);

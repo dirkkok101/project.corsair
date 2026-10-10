@@ -73,7 +73,7 @@ Sources and the full notes are in the research summary in the 3D planning conver
 
 ## Built so far
 
-All behind `?renderer=3d` (`@corsair/render3d`, Three.js); `?sky=<hour>` sets the sky for review.
+The game's only sea renderer (`@corsair/render3d`, Three.js; the 2D one was removed 2026-10-10); `?sky=<hour>` sets the sky for review.
 `?sea=plain` draws the bare water for review; add layers back by name: `?sea=plain,flecks` (also `shadows`,
 `ripples`, `surf`, `swell`, `clouds`, `wakes`, `waves`). The ocean lab (`/lab.html` on the dev server) shows the sea on its
 own off a real island, at every zoom, hour and wind.

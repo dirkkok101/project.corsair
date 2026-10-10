@@ -184,8 +184,6 @@ export interface HudProps {
   date: string;
   seaArea: string;
   inStorm: boolean;
-  /** Time of day, "15:00"; absent in 3D, whose sky keeps its own slow time (Pirates! showed the date only). */
-  time?: string;
   /** Wind source note near coasts ("sea breeze", "land breeze"). */
   breeze?: string;
   /** The port picked on the chart: distance along the plotted route, the bearing of its next leg, and
@@ -212,7 +210,6 @@ export function Hud({
   date,
   seaArea,
   inStorm,
-  time,
   breeze,
   destination,
   sound,
@@ -230,7 +227,7 @@ export function Hud({
       <div class="hud">
         <div class="hud-date">
           {date}
-          {time ? ` · ${time}` : ''}
+
           {typeof timeScale === 'string' ? ` · 1×, ${timeScale}` : timeScale ? ` · ${timeScale}×` : ''}
         </div>
         <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>

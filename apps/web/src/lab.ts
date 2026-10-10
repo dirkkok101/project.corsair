@@ -1,6 +1,6 @@
 import type { WindStrength, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
-import type { BattleViewState } from '@corsair/render/battle';
+import type { BattleViewState } from '@corsair/render3d';
 import { createSeaRenderer } from '@corsair/render3d';
 import { createWorld } from '@corsair/systems-navigation';
 

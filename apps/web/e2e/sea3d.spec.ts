@@ -1,15 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-// The 3D sea map (?renderer=3d, being built): it draws over the 2D view at sea, zooms on the wheel and
-// switches to a view from astern on C, and goes away in port.
+// The 3D sea map: it draws at sea, zooms on the wheel and switches to a view from astern on C, and goes away
+// in port (behind the harbour scene).
 test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to the harbour', async ({ page }) => {
-  // Headless browsers draw WebGL on the CPU; a full 3D island with its jungle takes seconds a frame there.
-  // Every ship on the map is built and drawn too, the famous pirates' frigates and full decks among them.
-  test.setTimeout(240_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/?seed=3&renderer=3d');
+  await page.goto('/?seed=3');
   await page.waitForFunction(() => Boolean(window.__corsair));
   await page.evaluate(() => window.__corsair.sim.pause());
   const sea = page.locator('canvas.sea3d');
@@ -34,12 +31,10 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
 });
 
 test('the 3D sky keeps its own slow day: sunset and a moonlit night, for review', async ({ page }) => {
-  // Headless browsers draw WebGL on the CPU; a full 3D island with its jungle takes seconds a frame there.
-  test.setTimeout(150_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   for (const hour of [17.8, 23]) {
-    await page.goto(`/?seed=3&renderer=3d&sky=${hour}`);
+    await page.goto(`/?seed=3&sky=${hour}`);
     await page.waitForFunction(() => Boolean(window.__corsair));
     await page.evaluate(() => window.__corsair.sim.pause());
     await page.keyboard.press('e');
@@ -53,12 +48,10 @@ test('the 3D sky keeps its own slow day: sunset and a moonlit night, for review'
 });
 
 test('the 3D sea battle: both ships on the same sea, shot in flight and smoke, the firing arcs', async ({ page }) => {
-  // Headless browsers draw WebGL on the CPU; a full 3D island with its jungle takes seconds a frame there.
-  test.setTimeout(150_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/?seed=3&renderer=3d');
+  await page.goto('/?seed=3');
   await page.waitForFunction(() => Boolean(window.__corsair));
   await page.evaluate(() => window.__corsair.sim.pause());
   await page.keyboard.press('e');

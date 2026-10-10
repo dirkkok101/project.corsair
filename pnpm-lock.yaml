@@ -276,9 +276,6 @@ importers:
       '@corsair/data':
         specifier: workspace:*
         version: link:../data
-      '@corsair/render':
-        specifier: workspace:*
-        version: link:../render
       '@corsair/systems-navigation':
         specifier: workspace:*
         version: link:../systems-navigation

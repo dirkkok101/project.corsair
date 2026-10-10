@@ -54,7 +54,6 @@ declare global {
     __corsair: ReturnType<typeof createDebugApi> & {
       seed: number;
       audio: { levels: () => import('@corsair/audio').AudioLevels };
-      wildlife: import('@corsair/render').Renderer['wildlife'];
       ports: () => { id: string; name: string; x: number; y: number }[];
       snapshot: { save: () => import('@corsair/core').Save };
       /** What the canvas is drawing: the harbour scene in port, the sea otherwise. */

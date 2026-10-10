@@ -117,7 +117,7 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
    chart's search ring and a course to it (never straight to the X). The burying rumour is left for slice 4's hints.
 4. **Digging and landmarks** (built): going ashore near the site (G), the dig, hints when you miss, landmark models
    in 3D, revenge when you dig before beating him (at any odds, from 1.5x as far, until he is beaten). Not built:
-   items in hoards, landmarks in the 2D view.
+   items in hoards.
 
 ## Decisions (2026-10-10)
 

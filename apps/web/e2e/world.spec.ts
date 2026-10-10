@@ -43,13 +43,13 @@ test('a new career starts docked in port, under-gunned, and the shipwright outfi
   expect(errors).toEqual([]);
 });
 
-test('boots onto the Caribbean at 960x540, scaled 2x, with no errors', async ({ page }) => {
+test('boots onto the Caribbean in 3D, filling the window, with no errors', async ({ page }) => {
   const errors = await boot(page);
-  const canvas = page.locator('canvas').first();
-  expect(await canvas.evaluate((c: HTMLCanvasElement) => [c.width, c.height, c.style.width])).toEqual([960, 540, '1920px']);
+  const sea = page.locator('canvas.sea3d');
+  await expect(sea).toBeVisible();
+  expect(await sea.evaluate((c: HTMLCanvasElement) => [c.style.width, c.style.height])).toEqual(['1920px', '1080px']);
   expect(await page.evaluate(() => typeof window.__corsair.seed)).toBe('number');
   await expect(page.locator('.hud')).toContainText('1660');
-  await expect(page.locator('.label', { hasText: 'Port Royal' })).toBeVisible();
   await page.screenshot({ path: 'test-results/boot.png' });
   expect(errors).toEqual([]);
 });
@@ -163,18 +163,6 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   await page.waitForTimeout(1200);
   const without = await loudness();
   expect(withMusic).toBeGreaterThan(without * 1.15);
-  expect(errors).toEqual([]);
-});
-
-test('sea life: dolphins, flying fish, a whale and birds appear on demand', async ({ page }) => {
-  const errors = await boot(page);
-  // The renderer keeps drawing while the sim is paused, so spawned animals animate.
-  for (const kind of ['dolphins', 'flyingFish', 'whale', 'pelicans', 'frigatebird'] as const) {
-    await page.evaluate((k) => window.__corsair.wildlife.spawn(k), kind);
-  }
-  await page.waitForTimeout(300);
-  expect(await page.evaluate(() => window.__corsair.wildlife.count)).toBeGreaterThan(5);
-  await page.screenshot({ path: 'test-results/wildlife.png' });
   expect(errors).toEqual([]);
 });
 
@@ -604,7 +592,7 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.evaluate(() => window.__corsair.battle.step(30 * 4, 'cautious'));
   await page.screenshot({ path: 'test-results/battle.png' });
 
-  // Run until she is out of sight: the sea runs on, a marker on the edge points to her, and the HUD warns.
+  // Run until she draws off: the sea runs on (the camera keeps both ships in view), and the HUD warns.
   await page.evaluate(() => {
     const apart = () => {
       const s = window.__corsair.battle.state()!.ships;
@@ -613,7 +601,6 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
     for (let i = 0; i < 30 * 60 && apart() < 31 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'runner');
   });
   expect(await page.evaluate(() => window.__corsair.battle.result())).toBeUndefined();
-  await expect(page.locator('.battle-marker')).toBeVisible();
   await expect(page.locator('.battle-parting')).toContainText('Drawing apart');
   await page.screenshot({ path: 'test-results/battle-apart.png' });
 
@@ -999,8 +986,7 @@ test('ships change hands: a pirate takes your fleet ship, shows her in tow, and 
   const pirate = await alongside('pirate', 'town.tortuga', 'town.port_royal');
   await settle(pirate, 'lost');
   expect(await fleet()).toEqual([]);
-  // At sea she shows her prize in tow, and hailing her says whose it is.
-  await expect(page.locator('.ship-label', { hasText: '+1' })).toBeVisible();
+  // At sea, hailing her says the prize she has in tow is yours.
   await page.keyboard.press('h');
   await expect(page.locator('.hail')).toContainText(`your fluyt ${kept}`);
   await page.screenshot({ path: 'test-results/prize-in-tow.png' });

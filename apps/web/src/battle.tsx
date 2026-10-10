@@ -426,8 +426,6 @@ export interface BattleHudProps {
   aim: Record<Broadside, Aim>;
   /** The player's ship panel, with its mode buttons. */
   panel: ShipPanelProps;
-  /** The battle view in CSS pixels (the player's ship is at its centre), and CSS pixels per tile. */
-  view: { w: number; h: number; pxPerTile: number };
   /** She may strike any moment now. */
   wavering: boolean;
   /** The after-action report, once the fight's result has reached the world. */
@@ -446,28 +444,7 @@ export interface BattleHudProps {
   onContinue: () => void;
 }
 
-// How far inside each screen edge the off-screen marker sits: clear of the warning at the top and the
-// guns bar at the bottom.
-const EDGE = { side: 34, top: 70, bottom: 110 };
-
-/** An arrow at the screen edge on the line to the enemy, with how far off she is, when she is out of sight. */
-function EnemyMarker({ state, view }: { state: BattleState; view: BattleHudProps['view'] }) {
-  const dx = (state.ships.enemy.x - state.ships.player.x) * view.pxPerTile;
-  const dy = (state.ships.enemy.y - state.ships.player.y) * view.pxPerTile;
-  if (Math.abs(dx) < view.w / 2 && Math.abs(dy) < view.h / 2) return null;
-  // Walk from the centre toward her until the inset screen edge.
-  const t = Math.min((view.w / 2 - EDGE.side) / Math.max(1e-6, Math.abs(dx)), (view.h / 2 - (dy > 0 ? EDGE.bottom : EDGE.top)) / Math.max(1e-6, Math.abs(dy)));
-  const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
-  const tiles = Math.round(Math.hypot(dx, dy) / view.pxPerTile);
-  return (
-    <div class="battle-marker" style={{ left: `${view.w / 2 + dx * t}px`, top: `${view.h / 2 + dy * t}px` }}>
-      <span class="battle-marker-arrow" style={{ transform: `rotate(${deg}deg)` }} />
-      <span class="battle-marker-distance">{tiles}</span>
-    </div>
-  );
-}
-
-export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, view, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -488,7 +465,6 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
       <div class="battle-card battle-enemy">
         <ShipCard ship={state.ships.enemy} title={enemyTitle} name={enemyName} />
       </div>
-      {state.result || state.wreck ? null : <EnemyMarker state={state} view={view} />}
       {state.result ? null : <Compass {...compass} className="battle-compass" />}
       {!state.result && !state.wreck && state.grappling === 0 && (board.active || (apart <= 12 && board.odds >= 0.5)) ? (
         <div class="battle-parting battle-board">

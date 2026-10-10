@@ -8,6 +8,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5299',
     viewport: { width: 1920, height: 1080 },
+    // The game is drawn in 3D: on the Mac's GPU (Metal) a headless frame takes milliseconds, on the CPU fallback seconds.
+    launchOptions: { args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] },
   },
   webServer: {
     command: 'npx vite preview apps/web --port 5299 --strictPort',

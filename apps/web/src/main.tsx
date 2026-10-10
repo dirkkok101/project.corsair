@@ -2,9 +2,9 @@ import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
-import { createRenderer, fitView, parseGpl } from '@corsair/render';
+import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer } from '@corsair/render3d';
-import type { HarbourScene, MastTops, WildlifeDefs } from '@corsair/render';
+import type { HarbourScene } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
   createBreezeField,
@@ -27,8 +27,6 @@ import type { Service } from './port';
 import { cargoUsed, createEconomySystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
-import { createLabels } from './labels';
-import { createShipLabels } from './shiplabels';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
 import { Hail, shipTitle } from './hail';
@@ -43,20 +41,8 @@ import type { TileMap } from '@corsair/data';
 import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, legalTarget, NATIONS } from '@corsair/systems-politics';
 
-// Sprite frames and map layers are read in place until the atlas packer exists. Frame files are
-// named `{sprite}.{anim}.fNN.png` (single-frame sprites drop `.fNN`); grouping by everything before
-// that and sorting gives f00..fNN.
-// Each ship atlas frame's mast tip (tools/art/pack_ships.ts), so colours fly from the real masthead.
-const mastTopFiles = import.meta.glob('../../../art/game/ships/*.tops.json', { eager: true, import: 'default' });
-// Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id.
+// Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
 const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-});
-// The 3D sea map (?renderer=3d, being built).
-const RENDER_3D = new URLSearchParams(location.search).get('renderer') === '3d';
-const townFrames = import.meta.glob<string>('../../../art/game/settlements/*.png', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -85,10 +71,6 @@ function sampleManifest() {
     ),
   };
 }
-
-// Sea life sprites (tools/art/render_wildlife.py); the game runs without them until they exist.
-const wildlifeFrames = import.meta.glob<string>('../../../art/game/wildlife/*.png', { eager: true, query: '?url', import: 'default' });
-const wildlifeDefs = import.meta.glob('../../../art/game/wildlife/wildlife.json', { eager: true, import: 'default' });
 
 // Harbour scenes behind the port screen (tools/art/render_harbours.py): one composition per nation and tier.
 const harbourFiles = import.meta.glob<string>('../../../art/game/harbours/*.png', { eager: true, query: '?url', import: 'default' });
@@ -143,15 +125,6 @@ const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/c
   query: '?url',
   import: 'default',
 });
-
-function groupFrames(urls: Record<string, string>): Record<string, string[]> {
-  const groups: Record<string, string[]> = {};
-  for (const path of Object.keys(urls).sort()) {
-    const id = path.split('/').pop()!.replace(/(\.f\d+)?\.png$/, '');
-    (groups[id] ??= []).push(urls[path]!);
-  }
-  return groups;
-}
 
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
@@ -238,26 +211,17 @@ async function main() {
   const breezes = createBreezeField(content, def, map);
   // Sound needs a user gesture before the browser lets it play; V toggles mute, N the music.
   const audio = createAudio({ samples: sampleManifest(), tunes: content.music.tunes });
-  const renderer = await createRenderer(content, map, { ...groupFrames(townFrames), ...groupFrames(wildlifeFrames) }, {
+  // The illustrated harbour scenes in port; the sea and its battles are 3D (below).
+  const renderer = await createHarbourRenderer(content, {
     atlases: Object.fromEntries(Object.entries(shipAtlases).map(([p, url]) => [p.split('/').pop()!.replace(/\.png$/, ''), url])),
-    mastTops: Object.fromEntries(
-      Object.entries(mastTopFiles).map(([p, tops]) => [p.split('/').pop()!.replace(/\.tops\.json$/, ''), tops as MastTops[string]]),
-    ),
-    settlements,
-    windAt,
     palettes: [palette('corsair.gpl'), palette('corsair-dusk.gpl'), palette('corsair-night.gpl')],
-    wildlife: {
-      defs: (Object.values(wildlifeDefs)[0] ?? {}) as WildlifeDefs,
-      sound: (id, opts) => audio.playSfx(id, opts),
-      coastNearness: (x, y) => breezes.coastNearness(x, y),
-    },
   });
 
   const viewport = stage.appendChild(document.createElement('div'));
   viewport.className = 'viewport';
   viewport.appendChild(renderer.canvas);
-  // The 3D sea map draws over the 2D one at sea and in battle; port scenes are still the 2D renderer's.
-  const sea3d = RENDER_3D ? await createSeaRenderer(content, map, {
+  // The sea and its battles are drawn in 3D; the 2D renderer paints only the illustrated harbour scenes in port.
+  const sea3d = await createSeaRenderer(content, map, {
           playerId: def.start.shipId,
           settlements,
           windAt,
@@ -272,26 +236,20 @@ async function main() {
             const woes = [t.blockaded ? 'blockaded' : '', plagued(state, s.id) ? 'plague' : '', famine(content, state, s.id) ? 'famine' : ''].filter(Boolean);
             return `${trend}${nation} ${kind}${woes.length ? ` · ${woes.join(', ')}` : ''}`;
           },
-        }) : undefined;
-  if (sea3d) {
-    viewport.appendChild(sea3d.canvas);
-    // For review and tests: the 3D renderer's showcase and sky controls.
-    (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
-  }
+        });
+  viewport.appendChild(sea3d.canvas);
+  // For review and tests: the 3D renderer's showcase and sky controls.
+  (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
   // ?sky=17.5 starts the 3D sky at that hour, for reviewing sunrise, sunset and night.
   const skyHour = Number(new URLSearchParams(location.search).get('sky'));
-  if (sea3d && Number.isFinite(skyHour) && skyHour > 0) sea3d.setSkyHour(skyHour);
-  // At sea in 3D the wheel and the trackpad's pinch zoom the map, from anywhere on the screen (the HUD too).
-  if (sea3d) {
-    window.addEventListener('wheel', (e) => {
-      if (sea3d.canvas.style.display === 'none') return;
-      e.preventDefault();
-      // A pinch reports small, fine-grained deltas; a wheel notch about 100.
-      sea3d.zoom(Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / (e.ctrlKey ? 8 : 40)));
-    }, { passive: false });
-  }
-  const labels = createLabels(viewport, settlements, map.tileSize);
-  const shipLabels = createShipLabels(viewport, map.tileSize);
+  if (Number.isFinite(skyHour) && skyHour > 0) sea3d.setSkyHour(skyHour);
+  // At sea the wheel and the trackpad's pinch zoom the map, from anywhere on the screen (the HUD too).
+  window.addEventListener('wheel', (e) => {
+    if (sea3d.canvas.style.display === 'none') return;
+    e.preventDefault();
+    // A pinch reports small, fine-grained deltas; a wheel notch about 100.
+    sea3d.zoom(Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / (e.ctrlKey ? 8 : 40)));
+  }, { passive: false });
   const hudRoot = stage.appendChild(document.createElement('div'));
   const panelRoot = stage.appendChild(document.createElement('div'));
   const portRoot = stage.appendChild(document.createElement('div'));
@@ -564,7 +522,7 @@ async function main() {
     scale = view.scale / devicePixelRatio;
     renderer.canvas.style.width = `${view.cssWidth}px`;
     renderer.canvas.style.height = `${view.cssHeight}px`;
-    sea3d?.resize(innerWidth, innerHeight);
+    sea3d.resize(innerWidth, innerHeight);
   };
   fit();
   window.addEventListener('resize', fit);
@@ -596,12 +554,12 @@ async function main() {
       } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
       else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
       else if (k === 'g' && !e.repeat) fight.battle.send({ type: 'Board' });
-      else if (k === 'c' && sea3d && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
+      else if (k === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
       return;
     }
     // C: the 3D camera overhead or from astern.
-    if (sea3d && e.key.toLowerCase() === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
+    if (e.key.toLowerCase() === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
     // E: enter the port in reach, or set sail again.
     if (e.key.toLowerCase() === 'e' && !e.repeat) {
       const ship = player();
@@ -680,18 +638,9 @@ async function main() {
     const [ex, ey] = port ? [port.x, port.y] : to;
     sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: ex, y: ey, portId: port?.id, route: port ? route.slice(1) : route.slice(1, -1) });
   };
-  if (MOUSE_CONTROLS) bindMouse(renderer.canvas, {
-    toTile(px, py) {
-      const view = renderer.view();
-      if (fight) {
-        // The battle camera keeps the player's ship at the centre of the view.
-        const me = fight.battle.state.ships.player;
-        const ts = content.combat.battle.tileSize;
-        return { x: me.x + (px / scale - view.width / 2) / ts, y: me.y + (py / scale - view.height / 2) / ts };
-      }
-      const cam = renderer.camera();
-      return { x: (cam.x + px / scale) / map.tileSize, y: (cam.y + py / scale) / map.tileSize };
-    },
+  if (MOUSE_CONTROLS) bindMouse(sea3d.canvas, {
+    // The sea under the pointer, at sea and in battle alike (both are drawn in world tiles).
+    toTile: (px, py) => sea3d.pick(px, py),
     left(tile, held) {
       if (fight) {
         if (!fight.battle.result()) fight.battle.send({ type: 'SetAssist', shipId: 'player', assist: 'course', x: tile.x, y: tile.y });
@@ -734,9 +683,8 @@ async function main() {
   hoverCard.className = 'ship-hover';
   hoverCard.hidden = true;
 
-  // Thunder follows the lightning that is shown: the 3D view's when it is on (the 2D one's is out of sight then).
-  if (sea3d) sea3d.onLightning((delayS) => audio.thunder(delayS));
-  else renderer.onLightning(() => audio.thunder());
+  // Thunder follows the lightning, later the further off it struck.
+  sea3d.onLightning((delayS) => audio.thunder(delayS));
   let audioFailed = false;
 
   // The HUD flashes "Saved" once the write has landed.
@@ -751,7 +699,6 @@ async function main() {
     ...createDebugApi(sim, loop),
     seed,
     audio: { levels: () => audio.levels() },
-    wildlife: renderer.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
     snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },
     view: () => (fight ? 'battle' : renderer.harbour.visible ? 'harbour' : 'sea'),
@@ -985,12 +932,9 @@ async function main() {
             port: fight.battle.aim('port'),
             starboard: fight.battle.aim('starboard'),
           };
-      if (sea3d) {
-        // In 3D the fight is drawn on the same sea as the map, over the 2D view.
-        sea3d.canvas.style.display = '';
-        viewport.classList.add('three-d');
-        sea3d.renderBattle({ ...bs, arcs }, now, fight.nation);
-      } else renderer.renderBattle({ ...bs, arcs }, fight.map, hourOf(sim.state.tick, content.calendar.ticksPerDay), now, fight.nation);
+      // The fight is drawn on the same sea as the map.
+      sea3d.canvas.style.display = '';
+      sea3d.renderBattle({ ...bs, arcs }, now, fight.nation);
       const me = player();
       const prize = sim.state.prize;
       render(
@@ -1050,7 +994,7 @@ async function main() {
               // The battle's speeds run on their own scale: as speed points, then as the sea map's tiles a second.
               (bs.ships.player.speed / content.combat.battle.tilesPerSecondPerSpeedPoint) * content.navigation.tilesPerSecondPerSpeedPoint * knotsPerTilePerSecond,
             ),
-            viewDeg: sea3d?.viewDeg(),
+            viewDeg: sea3d.viewDeg(),
           }}
           board={{ odds: fight.battle.boardingOdds(), active: Boolean(bs.boarding) }}
           onPlunder={takePlunder}
@@ -1076,7 +1020,6 @@ async function main() {
               setSails: (sails) => fight?.battle.send({ type: 'SetSails', shipId: 'player', sails }),
             };
           })()}
-          view={{ w: renderer.canvas.clientWidth, h: renderer.canvas.clientHeight, pxPerTile: content.combat.battle.tileSize * scale }}
           onContinue={endBattle}
         />,
         battleRoot,
@@ -1184,14 +1127,11 @@ async function main() {
         const x = ev.payload.x as number;
         const y = ev.payload.y as number;
         const d = Math.hypot(x - me.x, y - me.y);
-        if (d <= content.traffic.sightTiles) {
-          renderer.seaFight(x, y);
-          audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
-        }
+        if (d <= content.traffic.sightTiles) audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
       }
     }
     eventsSeen = evs.length;
-    // Ships hove to fighting within sight (a skirmish): broadsides back and forth until it's settled.
+    // Ships hove to fighting within sight (a skirmish): the guns heard back and forth until it's settled.
     for (const s of Object.values(sim.state.ships)) {
       const foe = s.ai?.skirmish ? sim.state.ships[s.ai.skirmish.with] : undefined;
       if (!foe) continue;
@@ -1200,23 +1140,16 @@ async function main() {
       if (d > content.traffic.sightTiles || loop.paused || now < (nextVolley.get(s.id) ?? 0)) continue;
       // Each side fires every couple of seconds, staggered so the guns answer each other.
       nextVolley.set(s.id, now + VOLLEY_MS * (0.8 + 0.4 * Math.random()));
-      renderer.seaFight(foe.x, foe.y);
       audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
     }
-    renderer.render(sim.state, now);
-    if (sea3d) {
-      // At sea the 3D view covers the 2D one (whose labels, drawn for the 2D camera, are hidden under it).
-      const atSea = !fight && !renderer.harbour.visible;
-      sea3d.canvas.style.display = atSea ? '' : 'none';
-      viewport.classList.toggle('three-d', atSea);
-      if (atSea) sea3d.render(sim.state, now);
-    }
-    labels.update(renderer.camera(), renderer.view(), scale);
-    shipLabels.update(sim.state, def.start.shipId, renderer.camera(), scale);
+    // In port the harbour scene (2D, illustrated) covers the screen; at sea the 3D view does.
+    const atSea = !fight && !renderer.harbour.visible;
+    if (!atSea && !fight) renderer.render(sim.state, now);
+    sea3d.canvas.style.display = atSea || fight ? '' : 'none';
+    if (atSea) sea3d.render(sim.state, now);
     charts.update(
       sim.state.ships[def.start.shipId],
-      renderer.camera(),
-      renderer.view(),
+      sea3d.viewBox(),
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
     );
     charts.rings(
@@ -1381,7 +1314,7 @@ async function main() {
       const berth = lanes.berth(destination.id);
       guide = berth ? lanes.path([ship.x, ship.y], berth)?.slice(1) : undefined;
     }
-    renderer.guide(destination && !ship.docked ? guide : undefined);
+    sea3d.guide(destination && !ship.docked ? guide : undefined);
     let course: { name: string; distanceKm: number; bearingDeg: number; following: boolean } | undefined;
     if (destination && guide?.length) {
       let tiles = 0;
@@ -1412,11 +1345,10 @@ async function main() {
                 ? 'Music off · N'
                 : audio.nowPlaying && `♪ ${audio.nowPlaying}`
         }
-        time={RENDER_3D ? undefined : `${String(Math.floor(hour)).padStart(2, '0')}:00`}
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
         knotsPerTilePerSecond={knotsPerTilePerSecond}
-        viewDeg={sea3d?.viewDeg()}
+        viewDeg={sea3d.viewDeg()}
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`

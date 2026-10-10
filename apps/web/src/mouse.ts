@@ -2,8 +2,8 @@
 // game canvas into tile positions and presses; main.tsx decides what a click means at sea or in battle.
 
 export interface MouseHandlers {
-  /** Tile under a point on the canvas, in CSS pixels from the canvas's top-left. */
-  toTile(px: number, py: number): { x: number; y: number };
+  /** Tile under a point on the canvas, in CSS pixels from the canvas's top-left; undefined off the sea. */
+  toTile(px: number, py: number): { x: number; y: number } | undefined;
   /** Left button pressed, or the pointer moved while it is held (`held` true; at most every HOLD_MS). */
   left(tile: { x: number; y: number }, held: boolean): void;
   right(tile: { x: number; y: number }): void;
@@ -26,18 +26,24 @@ export function bindMouse(canvas: HTMLCanvasElement, handlers: MouseHandlers) {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('mousedown', (e) => {
     if (e.button === 0) {
+      const tile = tileOf(e);
+      if (!tile) return;
       leftHeld = true;
       lastHold = performance.now();
-      handlers.left(tileOf(e), false);
-    } else if (e.button === 2) handlers.right(tileOf(e));
+      handlers.left(tile, false);
+    } else if (e.button === 2) {
+      const tile = tileOf(e);
+      if (tile) handlers.right(tile);
+    }
   });
   canvas.addEventListener('mousemove', (e) => {
     const now = performance.now();
-    if (leftHeld && now - lastHold >= HOLD_MS) {
+    const tile = tileOf(e);
+    if (leftHeld && tile && now - lastHold >= HOLD_MS) {
       lastHold = now;
-      handlers.left(tileOf(e), true);
+      handlers.left(tile, true);
     }
-    handlers.hover(leftHeld ? undefined : tileOf(e), { x: e.clientX, y: e.clientY });
+    handlers.hover(leftHeld ? undefined : tile, { x: e.clientX, y: e.clientY });
   });
   canvas.addEventListener('mouseleave', () => handlers.hover(undefined, { x: 0, y: 0 }));
   window.addEventListener('mouseup', (e) => {

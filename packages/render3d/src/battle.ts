@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { BattleViewPlace, BattleViewShip, BattleViewState } from '@corsair/render/battle';
+import type { BattleViewPlace, BattleViewShip, BattleViewState } from './battleView';
 
 // The sea battle's own layer over the 3D world (Pirates! 2004's fights happen on the same sea as the map):
 // balls in flight on their arcs, gunsmoke rolling downwind, splashes, splinters and torn canvas, a hurt ship

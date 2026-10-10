@@ -33,6 +33,6 @@ on the beach. Ships don't rock on the water other ships push.
 - The lab is `apps/web/lab.html` (dev server). It offers the three zooms (close aboard, sailing, the whole
   region), a battle view, wind and hour controls, layer toggles, and a stand-in ship sailing circles off a real
   island (`?course=straight` sails her in a line). `window.__lab` drives it from scripts.
-- In the game, `?renderer=3d` turns the 3D view on, `?sky=<hour>` sets the time of day, and `?sea=plain[,layer…]`
+- In the game (always 3D), `?sky=<hour>` sets the time of day, and `?sea=plain[,layer…]`
   shows the layers one at a time: `swell` (the waves), `ripples` (the fine chop), `flecks` (whitecaps), `shadows`,
   `surf`, `wakes` (the foam), `waves` (the water ships push).

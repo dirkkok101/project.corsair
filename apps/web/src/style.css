@@ -18,7 +18,7 @@ body {
   image-rendering: pixelated;
 }
 
-/* The 3D sea map (?renderer=3d): over the 2D canvas, full window; the 2D labels are for the 2D camera. */
+/* The 3D sea and its battles: full window, over the harbour canvas (hidden in port). */
 .viewport canvas.sea3d {
   position: fixed;
   inset: 0;
@@ -27,36 +27,9 @@ body {
   pointer-events: none;
 }
 
-.viewport.three-d .labels {
-  display: none;
-}
-
-/* The 3D battle camera keeps both ships in view: no marker for an enemy off the edge. */
-.viewport.three-d ~ * .battle-marker {
-  display: none;
-}
-
 .viewport {
   position: relative;
   overflow: hidden;
-}
-
-.labels {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.label {
-  position: absolute;
-  left: 0;
-  top: 0;
-  padding: 1px 6px;
-  white-space: nowrap;
-  font-size: 12px;
-  color: #ebede9;
-  background: rgb(9 10 20 / 0.7);
-  border-left: 3px solid #819796;
 }
 
 .label-spain {
@@ -1450,33 +1423,6 @@ body {
   width: 90px;
 }
 
-.battle-marker {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  font-size: 12px;
-  color: #e8c170;
-  background: rgb(9 10 20 / 0.75);
-  border: 1px solid #c09473;
-  border-radius: 50%;
-}
-
-/* A triangle pointing right (0 degrees), turned toward the enemy. */
-.battle-marker-arrow {
-  display: block;
-  width: 0;
-  height: 0;
-  margin-bottom: 2px;
-  border-left: 18px solid #e8c170;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-}
-
 .battle-parting {
   position: absolute;
   left: 50%;
@@ -1814,20 +1760,6 @@ body {
   background: transparent;
   border-color: #394a50;
   cursor: default;
-}
-
-/* Ship labels: smaller and quieter than town names, but in the nation's colour. */
-.ship-label {
-  font-size: 11px;
-  padding: 0 5px;
-  background: rgb(9 10 20 / 0.55);
-  text-transform: capitalize;
-}
-
-.ship-labels {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
 }
 
 .governor {
