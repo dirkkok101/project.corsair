@@ -2,6 +2,8 @@
 
 2026-09-28 · Dirk Kok · Status: draft, planning stage (v2.1, research folded into project docs)
 
+**Status 2026-10-10:** the sea map and sea battles moved to 3D on 2026-10-08 (`docs/reference/pirates-3d-style.md`, `@corsair/render3d`), and the 2D sea and battle renderer was deleted on 2026-10-10. Islands, towns, ships, wakes, sky, storms, landmarks and battle effects are built in code, not from sprites. The 2D pipeline below now serves the harbour scenes, painted interiors, outcome and title cards, and the UI kit, drawn by `@corsair/render` (PixiJS, harbour only) and the DOM. Sections on world-map and combat ships, settlements and terrain are kept for the record and marked superseded.
+
 Companion to `docs/project-corsair-prd.md` (sections 3, 5, 7, 9, 10, 14) and `docs/project-corsair-scenes.md` (which scene draws which sprite). This doc covers how every sprite, tile and illustration gets made, checked and loaded.
 
 **Research and skills (canonical in this folder):**
@@ -12,7 +14,7 @@ Companion to `docs/project-corsair-prd.md` (sections 3, 5, 7, 9, 10, 14) and `do
 | `docs/ai-game-sprites-research.md` | Broad YT / tool sweep (characters, snap, mixels) |
 | `docs/corsair-pixel-art-research.md` | Corsair gaps + free-first stack (ships, RotSprite, autotiles, licensing, Mac install) |
 
-This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers) override Godot-centric examples in the research where they differ.
+This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers) override Godot-centric examples in the research where they differ. PixiJS now draws only the harbour; the dual-grid terrain was never built (the sea is 3D).
 
 ## 1. Principles
 
@@ -47,6 +49,8 @@ This pipeline follows those notes. Engine choices here (PixiJS, dual-grid layers
 | Pivots | Ships: hull centre at the waterline. At 45° this sits below the cell centre, so it must come from the atlas, not the cell. Characters and units: centre-bottom at the feet. Stored per frame in the atlas JSON. |
 | Animation timing | Driven by sim ticks (30 per second). Each duel frame carries a phase tag (wind-up, active, recovery) and a tick duration from `fencing_moves.json`. Ambient loops run at 8 to 12 fps. |
 
+Superseded 2026-10-10: the tile size, world-map ship, combat ship, world-map settlement, ship camera and ship facing rows. The sea and battles are 3D; the only ship sprite still drawn is the world `sail_furled` frame at anchor in the harbour. The resolution, palette, outline, alpha and harbour rows still hold for the 2D art.
+
 ## 3. Asset inventory and frame budget
 
 Estimates for v1.0, rounded. "Unique" is what has to be produced after mirroring and layering. Which frames each screen draws is in `docs/project-corsair-scenes.md`.
@@ -75,7 +79,11 @@ Estimates for v1.0, rounded. "Unique" is what has to be produced after mirroring
 
 The duel characters are now the largest block of hand work. If anything gets a contract pixel artist, it's those.
 
+Superseded 2026-10-10: the world-map ship, combat ship, damage overlay, settlement and terrain rows (the sea and battles are 3D). Harbour screens were built as Blender-rendered layers and painted scenes (section 10), not ~90 AI pieces. UI icons were built as a painted kit (`tools/art/import_ui.ts`).
+
 ## 4. Ship pipeline
+
+**Superseded 2026-10-10:** ships at sea and in battle are built in code by `@corsair/render3d` (`shipyard.ts`, with each class's plan in `rigs.ts`, proportioned after the Blender models below). The rendered world atlases in `art/game/ships` are now used only for the player's ship at anchor in the harbour (`sail_furled`); the combat atlases and `*.tops.json` are not used. The settlement sprites (`art/game/settlements`) are not loaded: towns are 3D (`towns.ts`).
 
 The research settled this (`docs/corsair-pixel-art-research.md` Part A §1). No AI tool offers 16 directions: PixelLab and Retro Diffusion both stop at 8, and neither documents results on ships. Runtime rotation of a single sprite distorts pixels at these sizes. So ships come from 3D.
 
@@ -107,6 +115,8 @@ Sources: section 13, items S1 to S12; research Part A §1–2 and Part B.
 
 ## 5. Terrain tiles
 
+**Superseded 2026-10-10:** the islands are 3D meshes built from the tile map (`@corsair/render3d` `terrain.ts`). No terrain tiles were drawn and `@pixi/tilemap` is not used.
+
 - **Method:** one layer per terrain, stacked by priority: deep water, shallows, reef, beach, swamp, jungle, hills, mountain. Each layer is a 16-tile corner set (dual-grid, 15 tiles plus empty) drawn over transparency. That's about 16 × 9 ≈ 150 tiles in total, and it never explodes into combinations of every terrain pair.
 - **Rivers:** a separate edge-based set on top.
 - **Until the set exists:** the renderer paints terrain procedurally from the palette. Coasts are smooth contours blended between tile centres, and relief is shaded from elevation. Collision stays on the tile grid. Only deep, shallow, beach, jungle, hills and mountain are in the map so far.
@@ -132,6 +142,7 @@ Sources: section 13, items T1 to T10; research Part A §4 and Part B §C.
   - The pack step must keep indexed data intact, because image tools often convert palettes back to RGB.
   - `art:validate` checks all three.
 - **Implementation:** write a custom filter (a palette texture passed as a resource). pixi-filters v6's ColorMapFilter might do the job, but its fit for indexed palettes isn't verified.
+- **Built (`packages/render/src/daylight.ts`):** a custom PixiJS filter over the harbour scene only. The rows are three files, `art/palette/corsair.gpl`, `corsair-dusk.gpl` and `corsair-night.gpl`. No index textures: the shader finds each pixel's colour in the day row and swaps it for the same index in the dusk or night row, dithered between rows; off-palette colours pass through. The 3D sea has its own lighting by time of day (`@corsair/render3d` `sky.ts`).
 
 Sources: section 13, items P1 to P6.
 
@@ -149,6 +160,22 @@ Governors, daughters, captains and villains are generated per game, so portraits
 Sources: section 13, items R1 and R2.
 
 ## 8. Tooling: `tools/art-pipeline`
+
+**Status 2026-10-10:** not built as planned. There is no `tools/art-pipeline` package and no `art:*` pnpm scripts; `pnpm verify` is typecheck, unit tests, the web build and Playwright, with no art check. What exists is a set of scripts in `tools/art/`, run by hand:
+
+| Script | Does |
+|---|---|
+| `render_brig.py`, `render_ships.py` | Blender (headless): build each ship class low-poly and render its world set (23 sail sprites × 32 facings at 96 px) or, with `--combat`, its combat set, palette-snapped, into `art/sources/renders/ships` |
+| `pack_ships.ts` | Packs each class's world frames into one atlas, `art/game/ships/{sprite}.png`, laid out by `sprites.json` |
+| `render_harbours.py` | Blender: renders the layered 960×540 harbour scenes and writes `art/game/harbours/harbours.json` (layers, hotspots, flag point, anchorage) |
+| `composite_harbours.ts` | Flattens each harbour composition into a layout reference for painting, `art/sources/references/harbours` |
+| `snap_painting.ts` | Snaps a painted image to the palette at 960×540 (area-average downsample, nearest colour in OKLab): the `art:snap` step for full-frame scenes |
+| `import_paintings.ts` | Snaps the kept paintings in `art/sources/paintings/{group}` to `art/game/scenes`, plus four sea shimmer frames per harbour |
+| `import_ui.ts` | Keys out, crops, shrinks and snaps the painted UI kit (`art/sources/paintings/ui`) to `art/game/ui` |
+| `missing_art.ts` | Lists every image the game asks for that is missing, every painting in the brief not yet painted or imported, and what is drawn in code for now |
+| `render_towns.py`, `render_wildlife.py` | Rendered the world-map settlement and sea life sprites; no longer loaded since the sea is 3D |
+
+The plan as written:
 
 A package in the pnpm workspace. It uses Node/TypeScript for orchestration and validation, and calls proven CLIs for grid detection.
 
@@ -176,7 +203,7 @@ Implementation notes:
 - a duel, dance or unit animation's frame count or phase tags don't match its data file
 - a facing set is incomplete (32 for world-map ships, 16 for combat ships, 4 for top-down characters)
 
-Rendering check: `render.screenshot` scenarios (PRD section 16) for the world map at day and night, a sea battle and a duel, at 1× and 4×.
+Rendering check: `render.screenshot` scenarios (PRD section 16) for the world map at day and night, a sea battle and a duel, at 1× and 4×. (The 1×/4× pixel check now applies to the harbour and duel; the world map and battle are 3D.)
 
 ## 9. Generation tools, licensing and disclosure
 
@@ -228,19 +255,21 @@ art/
   palette/                     # corsair.gpl plus the dusk and night rows
   audio/                       # sfx, instrument samples, CREDITS.json (loaded by the game)
   game/                        # everything the game loads: palette-exact, named by sprite id
-    ships/                     # one atlas per ship class, facings across, anims down (pack_ships.ts)
-    settlements/               # world-map towns (render_towns.py)
-    wildlife/                  # sea life frames + wildlife.json (render_wildlife.py)
+    ships/                     # one atlas per ship class, facings across, anims down (pack_ships.ts); only the world sail_furled frames are drawn, at anchor in the harbour; combat atlases and *.tops.json unused
+    settlements/               # world-map towns (render_towns.py); no longer loaded, towns are 3D
+    wildlife/                  # sea life frames + wildlife.json (render_wildlife.py); no longer loaded
     harbours/                  # layered Blender harbour scenes + harbours.json (render_harbours.py)
-    scenes/                    # painted full-frame scenes: harbours with sea frames, interiors, title (import_paintings.ts)
+    scenes/                    # painted full-frame scenes: harbours with sea frames, interiors, battle outcomes, title (import_paintings.ts)
+    ui/                        # painted UI kit: ship icons, goods and HUD icons, chart marks, panel frame (import_ui.ts)
+    fonts/                     # Pirata One (SIL OFL) for the title
   sources/                     # what the art is made from; never loaded by the game
     blender/                   # .blend masters
-    grok/{group}/              # raw Grok output with its prompt record beside it (Git LFS); README.md is the brief
+    paintings/{group}/         # raw image-model output with its prompt record beside it (Git LFS); README.md is the brief
     references/                # layout references handed to image models (composite_harbours.ts)
     renders/ships/             # the frames the ship atlases are packed from (render_brig.py, render_ships.py)
     spikes/                    # retired experiments kept for the record (top-down brig, tilt spike)
 content/base/sprites/
-  atlas-*.json / .png          # later: packed, indexed output, referenced by id from game data
+  atlas-*.json / .png          # later: packed, indexed output, referenced by id from game data (not built; sprite layout lives in packages/data/content/sprites.json)
 docs/
   project-corsair-art-pipeline.md
   project-corsair-prd.md
@@ -266,9 +295,9 @@ Sprite ids follow the content id style: `{kind}.{subject}.{variant}.{anim}.{faci
 ## 12. Open questions
 
 - Land-battle camera: top-down, 4 facings, specified in `docs/project-corsair-scenes.md`. The PRD still has the rules question of turn-based versus real-time with pause. The art is the same either way.
-- World-map sail states: 3, or just full and furled at 32 px?
+- World-map sail states: 3, or just full and furled at 32 px? (Moot since the sea is 3D.)
 - Does the Blender render look sit well next to hand/AI-drawn characters? The M0 spike decides.
-- Ship cell height at 45°: masts make the bow-up and bow-down facings tight in 96×96. Either grow the world cell to 96×120 or shrink the ship. Decide in the 96 px hand pass.
+- Ship cell height at 45°: masts make the bow-up and bow-down facings tight in 96×96. Either grow the world cell to 96×120 or shrink the ship. Decide in the 96 px hand pass. (Moot since the sea is 3D.)
 - Who does hand cleanup? The duel set is the biggest block; budget a contract pixel artist if nobody on the team will.
 - Final palette: Apollo as-is, or a custom palette built from it?
 - Paid tool choice: PixelLab subscription, Retro Diffusion one-time, or both. Decide after the M0 duel spike. Default until then: free stack only for ships/tiles.

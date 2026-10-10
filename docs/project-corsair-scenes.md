@@ -2,12 +2,14 @@
 
 2026-10-03 · Dirk Kok · Status: draft, planning stage
 
+**Status 2026-10-10:** the sea map (S1) and sea battles (S3, and S4 when built) are drawn in 3D by `@corsair/render3d` (decided 2026-10-08, `docs/reference/pirates-3d-style.md`): ocean, sky and storms, islands (`terrain.ts`), towns (`towns.ts`), ships built in code (`shipyard.ts`, `rigs.ts`), hoard landmarks (`landmarks.ts`), battle effects (`battle.ts`). The 2D sea and battle renderer was deleted on 2026-10-10. `@corsair/render` (PixiJS) now draws only the harbour scenes behind the port screens (S8), under the day/night palette filter. The 960×540 frame, the palette and the pixel rules below now apply to harbour, interior and UI art only. Sections for S1 and S3 keep their sprite plans for the record.
+
 Companion to `docs/project-corsair-prd.md` (sections 3, 5, 7, 9, 11) and `docs/project-corsair-art-pipeline.md` (sections 2, 3, 11). The pipeline says how a sprite is made and checked. This doc says which scene draws it.
 
 The four views from the games this project follows are the spine.
 
-- **Ocean navigation** is top-down. The player steers the flagship on a scrolling tile map. Time passes only here.
-- **Fighting at sea** stays top-down, on a local patch of that same map, with larger ship sprites. It is a sailing battle, not a side-on broadside screen.
+- **Ocean navigation** is top-down. The player steers the flagship on a scrolling tile map. Time passes only here. (Now a 3D sea over the same tile map.)
+- **Fighting at sea** stays top-down, on a local patch of that same map, with larger ship sprites. It is a sailing battle, not a side-on broadside screen. (Now fought on the same 3D sea as the map, with the camera zoomed in.)
 - **Boarding** cuts to a side-view sword fight on the deck. Crews brawl in the background. The same fight is reused for a mutiny and for a rival suitor.
 - **Sacking a town** is a top-down battle of army units on the ground outside the fort, then the same sword fight against the commander.
 - **The ballroom dance** from the later game is its own scene.
@@ -22,7 +24,7 @@ The PRD also needs a layered harbour, service panels, a night stealth entry, a s
 - **Alpha.** 0 or 255, except the VFX atlas.
 - **Ids** follow `{kind}.{subject}.{variant}.{anim}.{facing}`. World-map ships use `f00`–`f31` from north, clockwise, 11.25° steps; combat ships use `f00`–`f15`, 22.5° steps. Top-down people and units use `n`, `e`, `s`, `w`.
 - **A unit sprite is a body of troops**, about three figures inside a 48×48 cell, so the land battle reads as armies. Cavalry is one horse and rider in that same cell.
-- **Greybox first.** Every id in this doc exists as a flat rect before any final art. A missing id fails `art:validate`.
+- **Greybox first.** Every id in this doc exists as a flat rect before any final art. A missing id fails `art:validate`. (Not built: there is no `art:validate` script; `node tools/art/missing_art.ts` lists the art the game asks for that is missing.)
 - **Frame budgets** match the art pipeline (about 2,300 to 2,500 hand-touched frames). This doc assigns those frames to scenes. It does not raise the budget.
 - **Land-battle rules** stay the PRD's turn-based fight. The camera is top-down with 4 facings either way, including if that fight later becomes real-time with pause.
 
@@ -30,10 +32,10 @@ The PRD also needs a layered harbour, service panels, a night stealth entry, a s
 
 | Id | Scene | Camera | Cell | Entered from | Milestone |
 |---|---|---|---|---|---|
-| S1 | World map | Top-down | 24 px tiles, ships 96 | Career start, and the return from every minigame | M1 |
+| S1 | World map | 3D (planned top-down) | 3D, no sprites | Career start, and the return from every minigame | M1 |
 | S2 | Sea chart | Top-down, UI frame | Same map, redrawn | World map | M1 |
-| S3 | Sea battle | Top-down, local | Ships 192 | Hail or attack at sea | M2 |
-| S4 | Sea assault | Top-down, local | Ships 192, fort tiles 24 | Attack a fortified town from the sea | M4 |
+| S3 | Sea battle | 3D, on the S1 sea (planned top-down, local) | 3D, no sprites | Hail or attack at sea | M2 |
+| S4 | Sea assault | 3D, as S3 (planned top-down, local) | Ships 192, fort tiles 24 | Attack a fortified town from the sea | M4 |
 | S5 | Deck duel | Side view | Fighters 96 | Boarding, mutiny, rival | M2 |
 | S6 | Land assault | Top-down | Units 48, tiles 24 | March the crew ashore | M4 |
 | S7 | Commander duel | Side view | Same fighters as S5 | Gate falls in S4 or S6 | M2 rig, M4 backdrop |
@@ -44,6 +46,8 @@ The PRD also needs a layered harbour, service panels, a night stealth entry, a s
 | S12 | Ashore on the world map | Top-down, mode of S1 | Party 24 or 36 | Land on a beach | M4 |
 | S13 | Treasure journal | UI parchment | Icons 24 and 48 | Logbook | M4 |
 | S14 | Career start and retirement | UI plus a few portraits | Portrait kit | New career, retire at a port | M4 portraits, M5 fates |
+
+Built so far (2026-10-10): S1 and S3 (in 3D), S2 (`apps/web/src/chart.ts`), S8 and S9 (`apps/web/src/port.tsx`), a first S12 (G digs from the 3D sea, no party sprite) and a first S13 (the captain's log, `apps/web/src/log.tsx`), and the S14 start screen over the painted title (`apps/web/src/start.tsx`, no portraits). A battle ends on a painted outcome card (`outcome.{escaped,lost,sunk,taken}` in `art/game/scenes`). Boarding is a roll in the battle, not the S5 duel. The rest are planned.
 
 Hand-off:
 
@@ -65,7 +69,7 @@ These are drawn once and used by several scenes.
 |---|---|---|---|---|
 | Palette | `art/palette/corsair.gpl` | 32–48 colours plus a night row | All | Apollo is the trial palette. Lantern and fire colours keep their day values. |
 | Nation tint | palette ramps | — | Ships, flags, coats, portraits | Spain, England, France, Netherlands, pirate. Not extra sprites. |
-| Flags | `ui.flag.{nation}` | 12×12 | S1, S3, S8, S9 | 7 flags: 4 nations, pirate, church, native. |
+| Flags | `ui.flag.{nation}` | 12×12 | S1, S3, S8, S9 | 7 flags: 4 nations, pirate, church, native. Built so far: the 4 nations and pirate, as pixel patterns in code (`packages/render/src/flags.ts`, harbour flagpole), not sprites; ships and towns at sea fly 3D flags. |
 | Goods and tools | `ui.icon.*` | 24×24 | S1 HUD, S9 | About 40. See S9. |
 | VFX | `vfx.{name}.{frame}` | mixed, VFX atlas | S1, S3, S4, S5, S6 | About 36 frames. Listed under the scene that needs them. |
 | Portrait kit | `portrait.{part}.{variant}` | 96×96 face on a 96×120 card | S5 HUD, S7, S9, S11, S14 | About 60 parts. Layer order is in the art pipeline, section 7. |
@@ -91,6 +95,8 @@ The same NPC always gets the same parts from the character seed. The HUD portrai
 ## 4. S1 — World map (ocean navigation)
 
 Top-down. The frame scrolls. The flagship is steered with keyboard, mouse or touch. The fleet follows. This is the only scene where world time runs.
+
+**Superseded 2026-10-10:** drawn in 3D by `@corsair/render3d`: islands from the tile map (`terrain.ts`), towns (`towns.ts`), ships built in code (`shipyard.ts`, `rigs.ts`), wakes, sky, clouds and storms, landmarks (`landmarks.ts`). None of the terrain tiles, wakes, clouds, ship or settlement sprites and markers below are drawn at sea. The rendered settlement sprites (`art/game/settlements`), sea life (`art/game/wildlife`) and the ships' `*.tops.json` are no longer loaded; the ship atlases are used only for the ship at anchor in the harbour (S8). Town names hang over the 3D towns. The plan below is kept for the record.
 
 ### Terrain
 
@@ -137,13 +143,13 @@ Twelve classes, four families. World cell is 96×96, pivot at the hull centre on
 | Brigantine | Brig | `ship.brigantine.world` | Greybox |
 | Brig | Brig | `ship.brig.world` | Draw (M0 spike) |
 | Frigate | Frigate | `ship.frigate.world` | Draw |
-| Ship of the line | Frigate | `ship.sol.world` | Greybox |
+| Ship of the line | Frigate | `ship.ship_of_the_line.world` | Greybox |
 | Galleon | Galleon | `ship.galleon.world` | Greybox |
 | Treasure galleon | Galleon | `ship.treasure_galleon.world` | Greybox |
 
 Example id: `ship.brig.world.sail_full.f03`.
 
-M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. Built: brig, fluyt, sloop (a plain sloop, the pirates' ship) and frigate, all by Blender (`tools/art/render_brig.py`, `render_ships.py`), packed one atlas per class (`tools/art/pack_ships.ts`). Flags are not on the sprites: the game flies a pennant in the nation's colour from each class's masthead (`mast` in `sprites.json`). The other eight stay grey boxes until M3. Full set is 12 × 32 × 23 = 8,832 frames, matching the pipeline. Port-tack frames are mirrors of starboard-tack frames, which roughly halves the 96 px hand pass.
+M1 draws 4 classes (royal sloop, fluyt, brig, frigate), one per family, so the map can show a fast ship, a merchant, a brig and a warship. Built: brig, fluyt, sloop (a plain sloop, the pirates' ship) and frigate, all by Blender (`tools/art/render_brig.py`, `render_ships.py`), packed one atlas per class (`tools/art/pack_ships.ts`). Flags are not on the sprites: the game flies a pennant in the nation's colour from each class's masthead (`mast` in `sprites.json`). The other eight stay grey boxes until M3. (Since then all 12 classes were rendered and packed to `art/game/ships`, world and combat; only the world `sail_furled` frames are still shown, in the harbour.) Full set is 12 × 32 × 23 = 8,832 frames, matching the pipeline. Port-tack frames are mirrors of starboard-tack frames, which roughly halves the 96 px hand pass.
 
 Damage is not drawn on the world map. A worn hull uses the `sail_furled` pose plus a darker palette row if needed. Sinking in a storm is the storm sprite plus the ship fading, not a bespoke animation.
 
@@ -186,7 +192,7 @@ A 960×540 composite: deep-water fill, one beach corner, four cloud shapes, the 
 
 ## 5. S2 — Sea chart
 
-The same map, drawn in a parchment frame, with fog remembered. No new terrain and no ships sailing. Opened with the M key. Built so far: the whole map from the one-pixel-per-tile overview, with every port marked.
+The same map, drawn in a parchment frame, with fog remembered. No new terrain and no ships sailing. Opened with the M key. Built so far (`apps/web/src/chart.ts`): the whole map from the one-pixel-per-tile overview, with every port marked by nation, ships seen fading over days, a hoard's search ring, trade and contract plans, a key, and painted marks from the UI kit (`ui.chart.*` in `art/game/ui`). The minimap crops the same overview. It stays 2D.
 
 | Piece | Id | Notes |
 |---|---|---|
@@ -197,6 +203,8 @@ The same map, drawn in a parchment frame, with fog remembered. No new terrain an
 | Compass rose | `ui.compass` | 48×48, decorative. |
 
 ## 6. S3 — Sea battle
+
+**Superseded 2026-10-10:** fought on the same 3D sea as S1 (`@corsair/render3d`: ships from `shipyard.ts`, shot, smoke, splashes, splinters, torn canvas, fire and wreckage from `battle.ts`). The combat atlases in `art/game/ships` are not drawn and none of the sprites below are used. The plan is kept for the record.
 
 Top-down, like the ocean, cropped to the local tiles the fight started on (coast, shallows, reef included). Wind carries over. The player steers the flagship only. Ships are the 192×192 combat set: same 12 classes, 16 facings, 3 sail states. Render that size directly. Do not scale the 96 px world sprites up to make the battle frames. A nearest-neighbour integer upscale is for display only.
 
@@ -219,6 +227,8 @@ HUD: hull, sails, crew, ammo (round, chain, grape as three 24×24 icons), reload
 Boarding starts when the hulls touch. The scene then cuts to S5. There is no side-view broadside painting.
 
 ## 7. S4 — Sea assault on a fort
+
+Not built. It is a sea battle, so under the 2026-10-08 decision it will be drawn in 3D like S3; the tile pieces below predate that and need redoing.
 
 Same camera and ship art as S3. The fort is a tiled layout on the coast (star fort, coastal battery, or hill fort), one template per fort level.
 
@@ -333,6 +343,8 @@ Sea-assault victories use this backdrop too, so a sloop captain who reaches the 
 
 A still 960×540 illustration, built from swappable pieces so a captured town can change flag, roofs and fort without a new painting. No character outlines on these pieces. The sky is one band. The palette shader makes dusk and night.
 
+**Built (2D, `@corsair/render` `harbour.ts`):** one composition per nation and tier (small, medium, large) plus the pirate haven, in `art/game/harbours/harbours.json` (`tools/art/render_harbours.py`): layers `harbour.shared.{sky,backdrop}`, `harbour.{nation}.{tier}.town`, `harbour.shared.fort.{medium,large}`, `harbour.shared.wharf.{jetty,quay}` and a 4-frame sea `harbour.shared.sea.{jetty,quay}.f00`–`f03` (the haven has its own town, fort, wharf and sea), with service hotspots, a flag point and an anchorage. A painted scene `harbour.{nation}.{tier}` or `harbour.pirate.haven` in `art/game/scenes` (`tools/art/import_paintings.ts`), with its own `.sea.f00`–`f03` shimmer, replaces the layers and keeps the layout. The flag is drawn in code (`flags.ts`); the player's ship lies at anchor from her class's world atlas, `sail_furled`, broadside on (f24). The piece list below is the original plan.
+
 M1 needs one English large harbour and enough shared pieces to drop a second nation in by recolor. M3 fills the nation kits.
 
 Shared pieces, about 15:
@@ -368,13 +380,15 @@ One size each, no tier split:
 | Jesuit mission | Chapel, cross, two huts. 4 pieces. |
 | Native village | Huts, canoe, fire. 3 pieces. |
 
-Ships at anchor reuse the world-map ship sprite at 96 px, `sail_furled`, facing `f08` or `f24` so the bow points along the quay. No separate anchor drawing.
+Ships at anchor reuse the world-map ship sprite at 96 px, `sail_furled`, facing `f08` or `f24` so the bow points along the quay. No separate anchor drawing. (Built: the player's flagship only, at `f24`.)
 
 Clickable buildings are hotspots in data, not extra art.
 
 ## 12. S9 — Service panels
 
 DOM panels over the harbour. Art is portraits, a few props, and the icon set.
+
+**Built (`apps/web/src/port.tsx`):** Merchant, Tavern, Governor and Shipwright (Repair, Buy ships and Upgrade tabs). Each panel stands over a full-frame painted interior, `interior.{merchant,tavern,governor,shipwright}` and `interior.tavern.pirate` for havens, in `art/game/scenes`, not the small `ui.tavern` below. Ships in the Shipwright and the fleet lists are painted `ui.ship.{class}` icons (`art/game/ui`, `tools/art/import_ui.ts`), not the combat sprite. Goods icons are `ui.icon.good.{id}`. No portraits yet; Bank and Barber-surgeon are not built.
 
 | Service | Art it needs |
 |---|---|
@@ -432,6 +446,8 @@ Variety of partners is the portrait kit placed in a locket on the HUD, plus a pa
 
 Not a new camera. The flagship anchors on a beach tile and a party sprite walks the S1 map.
 
+**Built so far:** digging only. G near a beach inside a map's search ring heaves to and puts the men ashore; half a day passes and the result is text. No party sprite walks; the hoard's landmark (a palm, a rock, a wreck, ...) and a dug pit once found are 3D models on the coast (`@corsair/render3d` `landmarks.ts`). The sprites below are not drawn.
+
 | Piece | Id | Frames | Notes |
 |---|---|---|---|
 | Party walk | `actor.player.walk.*` | shared with S10 | 4 facings. |
@@ -443,6 +459,8 @@ Fever, ambush and native meetings are event panels (text, plus a portrait or a u
 ## 16. S13 — Treasure journal
 
 The parchment frame from S2. A map is a crop of S1 terrain, so the coastline is the real tiles, not a painted island. Pieces are that crop with a torn mask done in code.
+
+**Built as the captain's log** (`apps/web/src/log.tsx`, key L): the Top Ten famous pirates, and a parchment per hoard she holds pieces of, drawn on a canvas from the real coast around the search ring, the quarters not yet held torn away, the X from the third piece. No sprites: the landmark stands on the coast in 3D (S12), so the sprites below are not drawn.
 
 | Piece | Id | Cell | Notes |
 |---|---|---|---|
@@ -470,6 +488,8 @@ The score table is UI. Ranks between beggar and governor use the nearest card.
 
 Packed output, one PNG plus JSON each. Ids above are the names inside the JSON.
 
+**Status 2026-10-10:** none of these atlases exist. The game loads one atlas PNG per ship class (`art/game/ships`, `tools/art/pack_ships.ts`, laid out by `packages/data/content/sprites.json`), the harbour layers (`art/game/harbours`), painted scenes (`art/game/scenes`) and the UI kit (`art/game/ui`) as separate PNGs. The terrain, world-ship and combat-ship atlases are moot now the sea is 3D.
+
 | Atlas | Holds | First needed |
 |---|---|---|
 | `atlas-terrain` | S1 and S6 tiles, wakes, clouds, storm | M0 greybox, M1 art |
@@ -489,6 +509,8 @@ Packed output, one PNG plus JSON each. Ids above are the names inside the JSON.
 
 The first test is one picture of S1, then one pose of S5 on the brig deck. Nothing else is required to judge the pipeline.
 
+Status 2026-10-10: the brig spike (step 2) was done and every class rendered; steps 1 to 4 are moot now the sea is 3D. Step 5, the duel pose, is still open.
+
 1. Palette file and a greybox atlas that already contains every id in this doc as a labelled rect.
 2. Brig, 16 facings, `sail_full`, at 96 and at 192, from Blender, snapped to the palette.
 3. Deep-water fill (4 frames), one beach corner, four clouds, one storm frame.
@@ -499,7 +521,7 @@ If the masts read at 1× next to the water, script `art:snap` and `art:validate`
 
 ## 20. Choices still open
 
-- World-map sail states: settled. `sail_half` reads at 96 px (courses furled, topsails set), so the world map keeps all three, each drawn per point of sail and tack.
+- World-map sail states: settled. `sail_half` reads at 96 px (courses furled, topsails set), so the world map keeps all three, each drawn per point of sail and tack. (Moot since 3D: the sails are cloth in `shipyard.ts`.)
 - Militia as a seventh drawing, or a soldier recolor. Decide when the soldier sprite exists.
 - Stealth actors at 24 or at 36. Draw the player once at each size in the M0-adjacent hand test and keep one.
 - Courtyard backdrop can wait until M4. M2 duels all use the brig deck.

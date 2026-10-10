@@ -1,5 +1,5 @@
 {
-  "$comment": "PRD section 6. Base prices in gold per unit (one unit fills one cargo ton). Elasticity is how hard the price reacts to stock against the town's normal stock. All values are placeholders for balancing. A staple is too cheap to carry for profit (the merchant's one-gold margin eats it): it gets no trade tags and no shocks, and is bought for the crew.",
+  "$comment": "PRD section 6. Base prices in gold per unit (one unit fills one cargo ton). Elasticity is how hard the price reacts to stock against the town's normal stock. All values are placeholders for balancing. A staple is too cheap to carry for profit (the merchant's one-gold margin eats it): it gets no trade tags and no shocks but famine (economy.json), and is bought for the crew.",
   "goods": [
     {
       "id": "food",

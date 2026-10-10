@@ -322,8 +322,8 @@ export const combatSchema = z.object({
      * her way through a tack instead of stopping dead. */
     accelPerSecond: z.number().positive(),
     decelPerSecond: z.number().positive(),
-    /** The battle is fought on the world map itself, drawn at tileSize px a tile with the ships' world
-     * sprites (the ocean map's own zoom), or close up with their 192 px combat set. */
+    /** The battle is fought on the world map itself (a battle tile is a world tile). Both were for the 2D view,
+     * removed 2026-10-10: the 3D view draws the battle on the world sea, so neither is read for drawing now. */
     tileSize: z.number().int().positive(),
     sprites: z.enum(['world', 'combat']),
     /** How far apart the ships start, in battle tiles. */

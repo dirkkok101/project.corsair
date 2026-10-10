@@ -1,5 +1,5 @@
 {
-  "$comment": "Sailing tuning, PRD section 4. Hull, crew and load factors and currents are deferred; they are 1 and 0 for now. World pace is 0.7 of what it was (0.7 tiles/s per speed point) so a passing ship stays on screen long enough to deal with; days are longer to match (calendar.json), and the game cruises at 2x away from coasts and other ships. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet.",
+  "$comment": "Sailing tuning, PRD section 4. A ship's condition slows her (shot-through sails, a hull below 30%, fewer hands than her minimum crew: crew.json shortHandedFloor); load and currents are not modelled yet. World pace is 0.7 of what it was (0.7 tiles/s per speed point) so a passing ship stays on screen long enough to deal with; days are longer to match (calendar.json), and the game cruises at 2x away from coasts and other ships. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet.",
   "tilesPerSecondPerSpeedPoint": 0.7,
   "turnDegPerSecondPerPoint": 6,
   "accelPerSecond": 0.6,

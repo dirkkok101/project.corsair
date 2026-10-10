@@ -152,8 +152,8 @@ const EFFECT_SECONDS = 0.6;
 const AI_THINK_TICKS = 8;
 
 /**
- * The battle map: the world itself, drawn bigger (combat.json battle.tileSize). A battle tile is a
- * world tile, so the ships fight where they met with the real coasts around them and open sea beyond.
+ * The battle map: the world itself. A battle tile is a world tile, so the ships fight where they met with the
+ * real coasts around them and open sea beyond (the 3D view draws it on the world sea).
  */
 export function battleMap(content: ContentPack, world: TileMap): TileMap {
   return { ...world, tileSize: content.combat.battle.tileSize };

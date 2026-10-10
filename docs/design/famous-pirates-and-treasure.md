@@ -33,7 +33,7 @@ Sources: [Famous Pirate](https://sidmeierspirates.fandom.com/wiki/Famous_Pirate)
   throwaway traffic pirate): Henry Morgan, François l'Olonnais, Roche Braziliano, Bartolomeu Português, Edward
   Mansvelt, Laurens de Graaf, Michel de Grammont, Jan Willems, Pierre le Grand, John Coxon. (Real people of the
   period, so their names are history, not anyone's IP; no portraits or text from Pirates!.) A data list,
-  `pirates.json`, holds each: name, home haven, temperament, favourite waters, flag colours.
+  `pirates.json`, holds each: name, his ship, home haven, temperament, favourite waters.
 - **Each has:** a strong ship (brigantine, war sloop, frigate; a captured warship for the top three), a full
   veteran crew with high morale, his **wealth** (grows with every prize and raid, shrinks when he pays off his
   crew), his **haunts** (two or three sea areas he hunts in), and a **hoard** he has buried (part of his wealth).
@@ -62,12 +62,13 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 |---|---|---|
 | The tavern stranger | A shady sailor in some taverns sells a piece of a famous pirate's map | Price by the hoard's worth. More likely while you hold an unfinished map, and in havens and ports near that pirate's haunts. |
 | A beaten famous pirate | "Ask him about his hoard" | Always gives a piece of his own map. |
-| His crew | Sinking him: a survivor picked up from the wreck may carry a piece | A small chance per group of men picked up. |
+| His crew | Sinking him: a survivor picked up from the wreck may carry a piece | One chance (35%) when any of his men are picked up. |
 | News and rumour | Tavern news that he was seen burying near a place | Not a piece: a hint that names the island, so one piece is enough. |
 
 - **Placing the hoard (as Pirates! does).** A hoard is placed only when its first piece is obtained, on a coast
   within that pirate's haunts, near a landmark (a lone palm, a rock, a wreck, a ruined hut). It is deterministic
-  from the world seed and the pirate, so every piece agrees and a replay finds the same spot.
+  from the tick it is placed and the pirate (the world keeps no seed), and stored, so every piece agrees and a
+  replay finds the same spot.
 - **One piece is enough to try**: each piece shows a quarter of the parchment; the piece with the place name names
   the island. With more pieces the search area narrows.
 
@@ -96,17 +97,20 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 
 ## Data
 
-- `pirates.json`: the ten famous captains (name, haven, temperament, haunts, ship class, flag), the Top Ten
-  rules (fame for a defeat, return delay in days, share of wealth taken, wealth a raid adds).
-- `treasure.json`: pieces per map (4), hoard value as a share of wealth, the stranger's chance and price, the
-  survivor's piece chance, dig tolerance, dig time, landmark kinds by terrain.
-- New state: each famous pirate's wealth, haunts, ship, hoard (placed or not), revenge flag; the captain's map
-  pieces; hoards found.
+- `pirates.json`: the ten famous captains (name, ship's name and class, haven, temperament, nerve, haunts,
+  starting wealth), and the rules (fame for a defeat, share of wealth taken, share kept, return delay in days,
+  battle morale, pieces per map (4), bounty and its standing, morale for mercy). Every ship one takes adds its
+  purse and cargo to his wealth.
+- `treasure.json`: hoard value as a share of wealth, where hoards are placed, the search rings by pieces held,
+  the stranger's chance and price, the survivor's piece chance, the dig (reach, tolerance, hours, fame, revenge
+  reach), the landmark kinds (one list).
+- New state: each famous pirate's wealth, return date, defeats, spared and revenge flags, hoard (placed or not,
+  found or not); the captain's map pieces and the stranger's deals done.
 
 ## Slices
 
 1. **Famous pirates** (built): the ten captains in the world, their wealth, news of their deeds, the Top Ten (in
-   the tavern, as there is no captain's log yet), beating one (wealth, fame, he returns later). Balance: a famous
+   the tavern; the captain's log has it too since slice 3), beating one (wealth, fame, he returns later). Balance: a famous
    pirate beats a stock 10-gun brig most times (39 of 60 in the battle test; the war-sloop captains are the soft
    ones).
 2. **Captured captains** (built): the three choices after taking one (hoard piece, bounty, set free). Set free,
@@ -125,11 +129,12 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 2. Map pieces are keepsakes: they can't be sold.
 3. One dig tolerance for everyone (2 tiles) for now.
 
-## Slice 3 build plan (agreed 2026-10-10, not started in code)
+## Slice 3 build plan (agreed 2026-10-10, built)
 
 1. `treasure.json` + schema: `hoardShare` (0.4), `stranger { chance, priceShare, minPrice }`, `survivorChance`,
-   `landmarks`, `ringTiles` [12, 8, 5, 3]. `mapPieces` stays in `pirates.json`.
-2. State: `FamousPirate.hoard { x, y, landing, landmark, value, offset, order }` stored at placement;
+   `landmarks`, `ringTiles` (built as [40, 24, 14, 8]). `mapPieces` stays in `pirates.json`.
+2. State: `FamousPirate.hoard { x, y, landing, landmark, value, dx, dy, near }` stored at placement (`dx, dy`
+   the widest ring's centre off the spot, `near` the port the first piece names);
    `Captain.strangerDeals`. No world seed exists: place from `seedRng(tick, 'hoard:<id>')`.
 3. `givePiece(content, map, settlements, state, id, tick)` in systems-economy (traffic imports economy): caps
    pieces, places the hoard on the first piece (coastal land tile near a haunt, its water neighbour as `landing`).

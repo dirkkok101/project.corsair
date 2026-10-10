@@ -4,7 +4,7 @@ Prepared 2026-10-10 for Dirk Kok. One section per loop: purpose, player verbs, f
 
 ## Sources and how to read the tags
 
-Corsair docs were read from github.com/dirkkok101/project.corsair, main at c90be65 (pushed 10 Oct 2026, 10:15 SAST). The Mac was offline, so anything uncommitted under ~/Development/project.corsair/main/docs/ is not reflected. Nothing was written to the Mac.
+Corsair docs were first read from github.com/dirkkok101/project.corsair, main at c90be65 (pushed 10 Oct 2026, 10:15 SAST). The Corsair statements were refreshed against main at 7e639e0 (10 Oct 2026, 13:35 SAST): treasure maps, digging, landmarks and revenge built since, and 3D the only sea renderer.
 
 | Tag | Source |
 |---|---|
@@ -18,7 +18,7 @@ Corsair docs were read from github.com/dirkkok101/project.corsair, main at c90be
 | [CAL] | packages/data/content/calendar.json (code, current day length) |
 | [87 Heading] | 1987 MicroProse manual, http://www.antimon.org/dl/c64/misc/piratesdoc.html, by section heading |
 | [04 p.n] | 2004 Firaxis PC manual, https://cdn.cloudflare.steamstatic.com/steam/apps/3920/manuals/manual.pdf, printed page |
-| [IGN], [GDC], [PAX] | Sid Meier: IGN Retro Developer Commentary (youtube.com/watch?v=eK4kkxFOi8A), GDC 2010 (bY7aRJE-oOY), PAX/EGX 2020 (TU42GQoXBHU), as summarised in the box note /workspace/corsair-out/pirates-sailing-combat-rewards.md (written earlier today, not yet in the repo) |
+| [IGN], [GDC], [PAX] | Sid Meier: IGN Retro Developer Commentary (youtube.com/watch?v=eK4kkxFOi8A), GDC 2010 (bY7aRJE-oOY), PAX/EGX 2020 (TU42GQoXBHU), as summarised in docs/reference/pirates-sailing-combat-rewards.md ([SCR]) |
 | [BF-W] | Prima guide, Black Flag Wanted System: primagames.com/eguides/assassins-creed-iv-black-flag-eguide/reference-analysis/the-wanted-system |
 | [BF-N] | Prima guide, Black Flag Naval Guide: .../reference-analysis/naval-guide |
 | [BF-KF] | Prima guide, Kenway's Fleet: .../side-quests/kenways-fleet |
@@ -69,7 +69,7 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 **Implication for Corsair.**
 - Corsair now has the deepest sailing model of the four games plus the strongest assists (planner, F autopilot, I intercept). The risk is that autopilot turns the hub into fast travel and removes the decisions. Keep decisions on the map: which lane (pirate risk is already shown per lane), when to cross a storm, beat along a coast at night with the land breeze, shallow-draft shortcuts.
 - Grounding, storms and fouling are the only failure costs sailing has; two of three are unbuilt. Until storm damage exists, weather is scenery with a speed effect.
-- Fog of war is deferred, so the 2004 "landmarks seen from the sea" treasure verb and exploration have no hook yet. Decide whether discovery matters before the treasure slice ships.
+- Fog of war is deferred, so exploration has no hook yet. The treasure slices shipped without it: a held map's landmark stands on its coast in 3D for the captain to recognise from the sea [FPT], but the chart already shows every coast. Decide whether discovery matters before lost cities.
 - Clock maths, see loop 15: with the day at 771 ticks (26 s at 1x, 13 s at the default 2x cruise) [CAL], a game year of open sea is about 1.3 real hours at 2x. The PRD still quotes 540 and 1,080 tick days; the doc has drifted from the code.
 
 ---
@@ -80,7 +80,7 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 
 **Player verbs.** Spot; hail (H within 3 tiles); read cargo, destination and news; attack from the hail panel; buy food from a friendly ship; intercept; run; duck into a harbour; sail into an AI fight already under way.
 
-**Feedback.** Ship labels and nation pennants, hover to name, hail panel with cargo and destination, the attack button says what it will cost ("angers the English") or that it is lawful under a letter [PRD §4; apps/web/e2e/world.spec.ts]; AI-vs-AI fights show gun smoke and sound for 18 game hours with a HUD direction callout [PRD §6].
+**Feedback.** Nation pennants, hail panel with cargo and destination, the attack button says what it will cost ("angers the English") or that it is lawful under a letter [PRD §4; apps/web/e2e/world.spec.ts]; AI-vs-AI fights sound for 18 game hours with a HUD direction callout [PRD §6]. Ship name labels and the fights' gun smoke went with the 2D view (to come back in 3D), and hover-to-name waits on the mouse controls, switched off for now (apps/web/src/main.tsx).
 
 **Failure cost.** Being caught by a stronger pirate means a fight you may lose (loop 3). Attacking the wrong flag costs 20 standing [PRD §9.1].
 
@@ -193,7 +193,7 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 
 **Purpose.** Cash in, resupply, and pick the next thread. The pause in the rhythm, where world time stops [PRD §5].
 
-**Player verbs.** Dock (E within 3 tiles); merchant (buy, sell, contracts); shipwright (repair, buy ships, upgrades, make flagship, sell); tavern (news, Top Ten, sign on men, divide plunder or pay wages); governor (letter of marque, bounties). Planned: bank, barber-surgeon, missions, daughter, rumours and map sellers [PRD §5].
+**Player verbs.** Dock (E within 3 tiles); merchant (buy, sell, contracts); shipwright (repair, buy ships, upgrades, make flagship, sell); tavern (news, Top Ten, sign on men, divide plunder or pay wages); governor (letter of marque, bounties); the shady stranger in the tavern selling map pieces [FPT]. Planned: bank, barber-surgeon, missions, daughter, rumours [PRD §5].
 
 **Feedback.** Painted harbour and interiors; port header shows nation, trade, your standing; each action states its consequence (food days per unit bought, wages per 10 men) [PRD §4, §5].
 
@@ -376,23 +376,23 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 
 **Purpose.** The long threads that pull the player around the map and give the career a story: family, villain, treasure, the Top Ten [SCR §3].
 
-**Player verbs.** Hunt a named pirate; take him alive; ask for his hoard piece, hand him in, or free him; read a map; dig. Planned: buy pieces from the tavern stranger, dig within tolerance with landmark hints, revenge if you dig first; lost cities by march; family clues from villain lieutenants [FPT; PRD §10, §12].
+**Player verbs.** Hunt a named pirate; take him alive; ask for his hoard piece, hand him in, or free him; buy pieces from the tavern stranger; read a map in the captain's log (L) and plot a course to it; go ashore and dig (G) within 2 tiles. Planned: lost cities by march; family clues from villain lieutenants [FPT; PRD §10, §12].
 
-**Feedback.** Top Ten in the tavern by wealth, captain included; news of each famous pirate's prizes by name; planned Maps page with torn pieces and a search ring on the chart [FPT].
+**Feedback.** Top Ten in the tavern and the captain's log by wealth, captain included; news of each famous pirate's prizes by name; the Maps page with torn pieces, a search ring on the chart that shrinks with each piece, the landmark on the coast in 3D, a prompt to dig inside the ring [FPT].
 
-**Failure cost.** A famous pirate beats a stock brig most times [FPT]. Planned: dig misses cost half a day and give a hint [FPT]; a pirate whose hoard you took hunts you [FPT].
+**Failure cost.** A famous pirate beats a stock brig most times [FPT]. A miss costs half a day and gives a hint (the landmark's bearing and distance); a pirate whose hoard you dug before ever beating him hunts you at any odds, from half as far again, until beaten [FPT].
 
 **Feeds.** Plunder chest, fame, standing (bounties), romance, retirement score (treasure, family, villains) [PRD §2].
 
 | | 1987 | 2004 | Corsair |
 |---|---|---|---|
-| Threads | Treasure maps by fragments; search a day at the spot; rescue relatives and find hidden plantations [87 Travelling the Caribbean] | Family quests (multi-step, no time limit); missions; maps from travellers and daughters; landmarks seen from sea then ashore; Top Ten with nine named pirates [04 pp.51-53, 73-78] | Ten real 1660s buccaneers, wealth, haunts, return after 90 days; captured-captain choices. Built. Maps, digging, villains, family planned [FPT; PRD §10, §12] |
-| Failure | Without a fragment you always find nothing [87] | No penalty for failing a quest; villain moves on if you lose the duel [04 pp.74-75] | Planned: hint on a miss, revenge on early digs [FPT] |
+| Threads | Treasure maps by fragments; search a day at the spot; rescue relatives and find hidden plantations [87 Travelling the Caribbean] | Family quests (multi-step, no time limit); missions; maps from travellers and daughters; landmarks seen from sea then ashore; Top Ten with nine named pirates [04 pp.51-53, 73-78] | Ten real 1660s buccaneers, wealth, haunts, return after 90 days; captured-captain choices; 4-piece maps, digging, landmarks, revenge. Built. Items in hoards, villains, family, lost cities planned [FPT; PRD §10, §12] |
+| Failure | Without a fragment you always find nothing [87] | No penalty for failing a quest; villain moves on if you lose the duel [04 pp.74-75] | Built: hint on a miss, revenge on early digs [FPT] |
 
 **Comparison games.** Black Flag hides its best ship upgrades (Ultimate Plans) behind treasure maps and wrecks, so treasure feeds ship power directly [BF-R].
 
 **Implication for Corsair.**
-- 2004's motivational trick is always having three or four open threads on screen [SCR takeaway 9]. Corsair has the Top Ten and contracts; maps and the family quest will fill the rest. A quest log or HUD thread list is needed once more than two exist.
+- 2004's motivational trick is always having three or four open threads on screen [SCR takeaway 9]. Corsair has the Top Ten, contracts and treasure maps; the family quest will fill the rest. The captain's log (L) holds the Top Ten and the maps; contracts and later threads need a place there or on the HUD.
 - Revenge (dig first, he hunts you) is the right kind of failure: it creates a fight, not a loss.
 
 ---
@@ -480,7 +480,7 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 
 **Player verbs.** Climb the Top Ten; earn fame; collect ranks, land, treasures, relatives, a spouse; raise difficulty.
 
-**Feedback.** Built: fame field (a point per famous pirate beaten), Top Ten list [PRD §12; state.ts]. Planned: score categories and fate cards [PRD §2].
+**Feedback.** Built: fame field (a point per famous pirate beaten and per hoard dug up), Top Ten list [PRD §12; state.ts]. Planned: score categories and fate cards [PRD §2].
 
 **Failure cost.** None directly; fame is the scoreboard.
 
@@ -505,4 +505,4 @@ Sid's rule that governs all of it: the career on the world map is the centre of 
 4. **Capture vs sink incentive needs a mid-career lever (loop 5).** Specialists from captures did this in 2004; they are not planned.
 5. **Duel scope (loop 4).** Fight it only when the odds are contested or the opponent is named.
 6. **Minigame scope (loops 10, 11, 12).** Land assault, dance and stealth are the three Sid either reinvented or apologised for. Build the loop value first (ransom and handover, information from the daughter, access and jail time) with simple resolutions; add the full minigame only if playtests ask for it.
-7. **Doc drift.** PRD day length (540 and 1,080 ticks) vs calendar.json (771); PRD §4 says attack from hail "waits" though it is built and tested; scenes doc still describes a top-down 2D battle while battles moved to 3D [3D]; famous-pirates doc digs cost half a day, PRD §10 says one day; PRD §10 dig tolerance differs by difficulty, FPT decision is one tolerance for all.
+7. **Doc drift.** Resolved 2026-10-10: the PRD now gives the 771-tick day, attack from the hail as built, the half-day dig and one 2-tile dig tolerance for everyone.

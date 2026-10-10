@@ -35,4 +35,4 @@ on the beach. Ships don't rock on the water other ships push.
   island (`?course=straight` sails her in a line). `window.__lab` drives it from scripts.
 - In the game (always 3D), `?sky=<hour>` sets the time of day, and `?sea=plain[,layer…]`
   shows the layers one at a time: `swell` (the waves), `ripples` (the fine chop), `flecks` (whitecaps), `shadows`,
-  `surf`, `wakes` (the foam), `waves` (the water ships push).
+  `surf`, `wakes` (the foam), `waves` (the water ships push), `clouds` (the sky's clouds).

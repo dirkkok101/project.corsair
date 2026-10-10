@@ -3,6 +3,8 @@
 
 # Corsair Pixel-Art Research
 
+**Status 2026-10-10:** historical for ships, terrain and the sea map: the sea and battles are 3D since 2026-10-08 (`docs/reference/pirates-3d-style.md`). The palette, snapping, licensing and tool notes still apply to the 2D harbour, interior and UI art.
+
 **Research date:** 2026-09-28 (Africa/Johannesburg, SAST)  
 **Merged from:** [[ai-game-sprites-corsair-gaps]] + [[corsair-free-tool-stack]] (those notes are stubs pointing here)  
 **Parent (broad AI sprites):** [[ai-game-sprites-research]] · skill: [[ai-game-sprites-SKILL]]  

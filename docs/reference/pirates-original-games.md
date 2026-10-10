@@ -281,8 +281,8 @@ No 1602 manual was found; 1602 rules come from a fan FAQ and a strategy guide.
 | Topic | 1987 | 2004 | Corsair (built / planned) |
 |---|---|---|---|
 | Plunder screen | Text report plus cargo picker | Volunteers, then specialists, then plunder screen | Built: itemised report, then a plunder screen: take goods up to the hold, throw your own over, accept or refuse volunteers, sink or release |
-| Prizes and fleet cap | 8 men per prize; no documented cap | 8-ship cap; crew capped by fleet capacity | Planned (fleets, PRD 7): 8-ship cap. Until then a prize is sunk or released |
-| Captured captains | Named pirates and hunters: information or ransom | Villains give information or quest progress | Planned with villains (PRD 11) |
+| Prizes and fleet cap | 8 men per prize; no documented cap | 8-ship cap; crew capped by fleet capacity | Built: "Keep her" on the plunder screen, up to 8 ships; one shared hold and crew; the fleet at the slowest ship's pace |
+| Captured captains | Named pirates and hunters: information or ransom | Villains give information or quest progress | Built for famous pirates: ask for a piece of his hoard's map, hold him for a governor's bounty, or set him free. Villains planned |
 | Sinking rewards | Nothing | Survivors and floating barrels | Built: barrels (50 gold each, to the chest) and survivors to pick up for 25 s after she sinks |
 | Surrender | Panic or one-man rule; crew-ratio check | Same, plus demasting | Built: beaten hull or crew (chance each second); a merchant strikes outright when demasted or outmanned 3 to 1 within 6 tiles; HUD shows "wavering" |
 | World opinion and bounty | Wary or hostile; war and ally graph | Same, plus city memory and bounty numbers | Built: −20 with the victim's nation for attacking; +5 from nations at war with her (×2 for a warship taken); +3 everywhere for a pirate; governors pay bounties |
@@ -299,9 +299,9 @@ No 1602 manual was found; 1602 rules come from a fan FAQ and a strategy guide.
 | Specialists | — | 8 types, from captures only | Not planned yet |
 | Prices | Set by town wealth and size, plus local specialties | Wealth, city type and specialties; finite merchant cash | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
 | Supply response | Finite stock and cash; per-unit effect **unverified** | Stock and cash reset after weeks away; per-unit effect **unverified** | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
-| Town growth | Slow growth; random monthly events; raids and nearby captures hurt | Moved by arriving immigrant, governor, raider and canoe ships | Planned (economy slices) |
-| Production chains | — | — | Planned (economy slices) |
+| Town growth | Slow growth; random monthly events; raids and nearby captures hurt | Moved by arriving immigrant, governor, raider and canoe ships | Built: people grow a little each week when fed and fall when starved; convoys bring settlers |
+| Production chains | — | — | Built: rum from sugar, cloth from cotton, unit for unit from what is in store |
 | NPC traders | Encounter-only traders | Traders, smugglers, grain and treasure ships on real routes | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
-| Wars and trade | Public wars; hostile forts fire; Spanish towns refuse trade | Traders avoid enemy ports, smugglers use them; escorts after attacks | Planned (economy slices) |
+| Wars and trade | Public wars; hostile forts fire; Spanish towns refuse trade | Traders avoid enemy ports, smugglers use them; escorts after attacks | Built: merchants never call at a nation at war with theirs, so war closes its markets to them; patrols at war blockade |
 | Events | Disease, native attacks, gold rushes | Role ships; no plague or famine found | Built: stock-based prices drifting weekly to a usual level; AI merchants carry goods; shocks from news/storms |
-| Economy UI | Travellers sell town news | Wealth on the map caption; traveller lists prices | Planned (economy slices) |
+| Economy UI | Travellers sell town news | Wealth on the map caption; traveller lists prices | Built: people, merchant's purse and trend on the port header and the chart's port card; remembered prices on the chart |

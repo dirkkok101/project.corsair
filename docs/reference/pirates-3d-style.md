@@ -79,7 +79,7 @@ The game's only sea renderer (`@corsair/render3d`, Three.js; the 2D one was remo
 own off a real island, at every zoom, hour and wind.
 
 - **Sky:** its own slow day, separate from the game clock (about 20 real minutes: a long bright day, golden
-  sunrise and sunset, a short moonlit night); the HUD shows the date only in 3D. A painted dome, deep blue
+  sunrise and sunset, a short moonlit night); the HUD shows only the date. A painted dome, deep blue
   overhead and pale at the horizon, with a soft sun glow (a physical sky's glare washed out a low camera).
   Clouds drift downwind and show only from afar.
   The weather sets it too (after Black Flag): by the wind's strength where the camera is, and deepest in and
@@ -122,6 +122,11 @@ own off a real island, at every zoom, hour and wind.
   with bastions, guns, a gate and a keep (a stake palisade at a haven), sized by the town's strength, set on dry
   ground along the shore (none on a spit too small for one); a wharf with a landing stage, cargo and boats. On a
   small island the houses pack onto what dry ground there is. From dusk the houses' windows glow with lamplight.
+  Over each town near the camera, a banner the same size at every zoom (Pirates!): the nation's flag, the name in
+  a serif and a line on the town beneath.
+- **Treasure landmarks** (`landmarks.ts`): for each hoard whose map the captain holds a piece of, its landmark
+  stands on the coast (a lone palm, three palms in a row, a split rock, a wrecked hull, a ruined hut, a stone
+  cairn), a little larger than the island's own trees and rocks; a dug pit once the hoard is found.
 - **Ships** (`shipyard.ts`, each class's plan in `rigs.ts`):
   - A lofted hull with painted planking, band, wale, gunports and muzzles, and a stern gallery. Weathered to sit
     on the realistic sea: long planks of varied tone with a grain and staggered butt joints, the paint dulled
@@ -202,8 +207,11 @@ own off a real island, at every zoom, hour and wind.
   sail, and a bar for how well the wind fills her sails. Behind the rose, quietly, the speed for every heading and
   the no-go zone on the ring.
 - **Camera:** zoomed with the wheel or a trackpad pinch (which never zooms the page); C for the chase view.
+- **Course line:** a dashed gold line on the water from her bow along the course she is sailing (the
+  autopilot's route, or the ship she is intercepting), else the route plotted on the chart.
+- **Mouse:** the view finds the sea under the pointer (`pick`), and the minimap frames the stretch of sea in view
+  (`viewBox`). Mouse sailing and combat are switched off in the game until they play better (keyboard first).
 - **Not yet:**
-  - bow spray;
-  - mouse clicks on the 3D view (at sea and in battle: left-click steering aims by the 2D camera);
-  - the course line;
-  - region names on the sea.
+  - region names on the sea;
+  - sea life (dolphins, whales, birds), ships' name labels and the smoke of distant fights (they went with the
+    2D view, to come back in 3D).

@@ -28,7 +28,8 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
 
 /**
  * Speed the ship settles at on its current heading, in tiles per second (PRD section 4):
- * v = v_base * P(theta) * W_s * sail setting. Hull, crew, load and current are not modelled yet.
+ * v = v_base * P(theta) * W_s * sail setting, slowed by shot-through sails, a hull below 30% and too few hands
+ * (conditionFactor). Load and current are not modelled yet.
  */
 /** How a ship's condition slows her (PRD section 7): shot-through sails draw less, and a hull below 30% drags. */
 export function conditionFactor(content: ContentPack, ship: Pick<Ship, 'classId' | 'sailCondition' | 'hull' | 'crew' | 'guns' | 'upgrades'>): number {
