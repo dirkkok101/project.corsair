@@ -60,6 +60,8 @@ export function createBand(ctx: AudioContext, out: AudioNode, tunes: TuneData[])
   };
 
   return {
+    /** The band's output after the music volume, for metering. */
+    bus,
     setLibrary(lib: SampleLibrary) {
       library = lib;
     },

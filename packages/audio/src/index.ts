@@ -28,6 +28,8 @@ export interface AudioLevels {
   targets: AmbienceTargets | undefined;
   /** RMS of what the speakers get right now (0 when muted or locked), so tests can tell sound is playing. */
   rms: number;
+  /** RMS of the band alone (after the music toggle), so tests can tell the music from the sea. */
+  musicRms: number;
   music: boolean;
   /** Title of the tune the band is playing, if any. */
   nowPlaying: string | undefined;
@@ -39,6 +41,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
   let ctx: AudioContext | undefined;
   let master: GainNode | undefined;
   let meter: AnalyserNode | undefined;
+  let musicMeter: AnalyserNode | undefined;
   let noise: AudioBuffer | undefined;
   let layers: Record<'wavesLow' | 'wavesWash' | 'wind' | 'rush' | 'surf' | 'rain' | 'luff', Layer> | undefined;
   let targets: AmbienceTargets | undefined;
@@ -105,6 +108,9 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     };
     band = createBand(ctx, master, options.tunes ?? []);
     band.setVolume(music ? MUSIC : 0);
+    musicMeter = ctx.createAnalyser();
+    musicMeter.fftSize = 2048;
+    band.bus.connect(musicMeter);
     sfx = createSfx(ctx, master);
     if (options.samples) {
       void loadSamples(ctx, options.samples).then((lib) => {
@@ -349,13 +355,22 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     },
     /** For the debug API and tests: what the mixer is aiming at, and whether sound can play. */
     levels(): AudioLevels {
-      let rms = 0;
-      if (meter) {
-        const buf = new Float32Array(meter.fftSize);
-        meter.getFloatTimeDomainData(buf);
-        rms = Math.sqrt(buf.reduce((sum, v) => sum + v * v, 0) / buf.length);
-      }
-      return { state: ctx ? ctx.state : 'locked', muted, targets, rms, music, nowPlaying: band?.nowPlaying, samplesReady };
+      const rmsOf = (analyser: AnalyserNode | undefined) => {
+        if (!analyser) return 0;
+        const buf = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(buf);
+        return Math.sqrt(buf.reduce((sum, v) => sum + v * v, 0) / buf.length);
+      };
+      return {
+        state: ctx ? ctx.state : 'locked',
+        muted,
+        targets,
+        rms: rmsOf(meter),
+        musicRms: rmsOf(musicMeter),
+        music,
+        nowPlaying: band?.nowPlaying,
+        samplesReady,
+      };
     },
   };
 }

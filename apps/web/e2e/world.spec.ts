@@ -136,8 +136,7 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.__corsair));
-  // A career opens in port, where the clock stands still: set sail so it runs, and let her settle at speed
-  // so the sea sounds the same in both measurements below (the gentler tunes are quiet next to it).
+  // A career opens in port, where the clock stands still: set sail so it runs, and let her get under way.
   await page.keyboard.press('e');
   await page.waitForTimeout(4000);
   await page.keyboard.press('Shift');
@@ -147,22 +146,24 @@ test('the band plays audibly while the game keeps running, and N silences the mu
 
   // The real frame loop, not stepped by hand: the clock must keep moving while notes play.
   const tick0 = await page.evaluate(() => window.__corsair.state.get('tick') as number);
-  const loudness = async () => {
+  // Meter the band's own bus, not the whole mix: the sea alone drifts between two windows by as much as
+  // a gentle tune adds to it, so comparing the whole mix with music on and off was flaky.
+  const bandLevel = async () => {
     let sum = 0;
     for (let i = 0; i < 15; i++) {
-      sum += await page.evaluate(() => window.__corsair.audio.levels().rms);
+      sum += await page.evaluate(() => window.__corsair.audio.levels().musicRms);
       await page.waitForTimeout(100);
     }
     return sum / 15;
   };
-  const withMusic = await loudness();
+  // Tunes measure 0.05 to 0.12 here; a band too quiet to hear would be well under this.
+  expect(await bandLevel()).toBeGreaterThan(0.02);
   expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThan(tick0 + 20);
 
   await page.keyboard.press('n');
   expect(await page.evaluate(() => window.__corsair.audio.levels().music)).toBe(false);
   await page.waitForTimeout(1200);
-  const without = await loudness();
-  expect(withMusic).toBeGreaterThan(without * 1.15);
+  expect(await bandLevel()).toBeLessThan(0.001);
   expect(errors).toEqual([]);
 });
 
