@@ -5,7 +5,7 @@ import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
-import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
+import { createWeatherSystem, createWindField, withWeather, zoneAt } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import { atWar } from '@corsair/systems-politics';
 import { createSeaLanes, createTrafficSystem, topTen, withTraffic } from '../src';
@@ -456,21 +456,48 @@ describe('choosing a target at sea', () => {
   };
   const ARMED = { guns: 18, crew: 150 };
 
-  it('a bold pirate comes for the starting brig; a cautious one, or any facing a full battery, lets her be; nerve tips it', () => {
+  it('a pirate weighs the odds, and the prize: the starting brig draws bold and cautious alike; a full battery, or more men, lets her be; nerve tips it', () => {
     const t = setting();
     const chased = (temperament: string, outfit = {}, nerve = 1) => {
       const sim = t.alone([t.pirate(temperament, nerve), t.player(8, outfit)]);
       sim.step(30);
       return Boolean(Object.values(sim.state.ships).find((x) => x.ai)!.ai!.chasing);
     };
+    // A sloop is 0.77 the starting brig's strength; her ship alone (400 gold of worth) makes a pirate chance odds
+    // 1.4 times poorer (combat.json hunt.hunger): bold needs 0.43, cautious 0.64.
     expect(chased('bold')).toBe(true);
-    expect(chased('cautious')).toBe(false);
+    expect(chased('cautious')).toBe(true);
     expect(chased('bold', ARMED)).toBe(false);
-    // A sloop is 0.77 the starting brig's strength: a cautious pirate of high nerve (0.6 x 0.9 = 0.54) comes.
-    expect(chased('cautious', {}, 0.6)).toBe(true);
-    expect(chased('bold', { crew: 110 }, 1)).toBe(false);
-    expect(chased('bold', { crew: 110 }, 0.6)).toBe(true);
+    // 110 men (odds 0.52): the cautious let her be; 140 (0.41), the bold too, unless of high nerve (0.6: needs 0.26).
+    expect(chased('cautious', { crew: 110 })).toBe(false);
+    expect(chased('bold', { crew: 140 }, 1)).toBe(false);
+    expect(chased('bold', { crew: 140 }, 0.6)).toBe(true);
   });
+
+  it('pirates haunt waters that fit their ships: brigantines mark more dangerous waters than sloops', () => {
+    const sim = world(3);
+    const classOf = new Map<string, string>();
+    for (let d = 0; d < 60; d++) {
+      for (const s of ai(sim.state)) classOf.set(s.id, s.classId);
+      sim.step(day);
+    }
+    const tierOf = (id: string) => {
+      const p = settlements.find((s) => s.id === id)!;
+      return content.traffic.danger.zones[zoneAt(content, map, p.x, p.y).id] ?? 2;
+    };
+    const marks = (classes: string[]) =>
+      sim
+        .events()
+        .filter((e) => e.type === 'ShipDeparted' && e.payload.role === 'pirate' && classes.includes(classOf.get(e.entityIds[0]!) ?? ''))
+        .map((e) => tierOf(e.entityIds[2]!))
+        .filter((t, i, all) => all.length > 0 && t > 0);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+    const small = marks(['ship.sloop']);
+    const big = marks(['ship.brigantine', 'ship.brig']);
+    expect(small.length).toBeGreaterThan(5);
+    expect(big.length).toBeGreaterThan(1);
+    expect(mean(big)).toBeGreaterThan(mean(small));
+  }, 120_000);
 
   it('she sights merchants as far off as the player, and with the player too strong goes for a laden one', () => {
     const t = setting();

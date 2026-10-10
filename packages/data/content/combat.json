@@ -170,6 +170,7 @@
       "ship.fluyt",
       "ship.brigantine",
       "ship.brig",
+      "ship.light_frigate",
       "ship.merchantman",
       "ship.frigate"
     ],
@@ -186,6 +187,7 @@
   },
   "hunt": {
     "playerValue": 400,
+    "hunger": { "scale": 1000, "max": 0.6 },
     "nerve": [0.6, 1.2],
     "patrolOdds": 0.6,
     "rescueBonus": 3,

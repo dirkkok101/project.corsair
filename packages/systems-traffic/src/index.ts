@@ -5,6 +5,7 @@ import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@c
 import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
+import { zoneAt } from '@corsair/systems-weather';
 import type { SeaLanes } from './lanes';
 
 export { createSeaLanes } from './lanes';
@@ -69,6 +70,8 @@ export function createTrafficSystem(
   const tpd = content.calendar.ticksPerDay;
   const byId = new Map(settlements.map((s) => [s.id, s]));
   const water = (x: number, y: number) => !isLand(tileAt(map, x, y));
+  /** How dangerous the waters are at a spot (traffic.json danger, by sea area): 1 quiet to 4 the treasure routes. */
+  const dangerAt = (x: number, y: number) => t.danger.zones[zoneAt(content, map, x, y).id] ?? 2;
   /**
    * Under the guns of a port pirates fear (every port but a haven): within its harbour reach by size, and a
    * capital's further still. Pirates won't chase, fight or lie in wait there.
@@ -90,7 +93,10 @@ export function createTrafficSystem(
       // Pirates stalk the lanes near home: bigger ports draw them, distance puts them off.
       const size = { hamlet: 1, town: 2, city: 4 } as const;
       const marks = settlements.filter((s) => !isHaven(s) && reachable(s));
-      const weights = Object.fromEntries(marks.map((s) => [s.id, size[s.size] / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.pirateRangeTiles)]));
+      // And waters that fit her ship (traffic.json danger): sloops haunt the quiet coasts, brigantines the Main.
+      const rung = Math.min(4, t.danger.classRung[ship.classId] ?? 2);
+      const fit = (s: Settlement) => 1 / (1 + 1.5 * Math.abs(dangerAt(s.x, s.y) - rung));
+      const weights = Object.fromEntries(marks.map((s) => [s.id, (size[s.size] * fit(s)) / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.pirateRangeTiles)]));
       // A famous pirate keeps to her own waters: the lanes toward her haunts.
       const haunts = ai.famous ? famousDef(ai.famous)?.haunts.filter((id) => marks.some((s) => s.id === id)) : undefined;
       if (haunts?.length) return { to: byId.get(haunts[Math.floor(rng.float() * haunts.length)]!), good: undefined };
@@ -743,7 +749,8 @@ export function createTrafficSystem(
       if (d > sight * (revenge ? content.treasure.dig.revengeReach : 1) || !lanes.clear([hunter.x, hunter.y], [s.x, s.y])) continue;
       if (revenge) return s;
       const odds = mine / Math.max(1, strength(s));
-      if (odds < need) continue;
+      // A rich prize is worth poorer odds: the player's ship and hold (combat.json hunt.hunger).
+      if (odds < (s.ai ? need : need / (1 + Math.min(cb.hunt.hunger.max, worth(s) / cb.hunt.hunger.scale)))) continue;
       const near = 1 / (1 + d / sight);
       const busy = s.ai?.role === 'pirate' && (s.ai.chasing || s.ai.target || s.ai.skirmish);
       const score = pirate ? worth(s) * Math.min(odds, 2) * near : (busy ? cb.hunt.rescueBonus : 1) * near;

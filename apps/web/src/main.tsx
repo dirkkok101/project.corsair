@@ -1344,7 +1344,12 @@ async function main() {
         content={content}
         wind={wind}
         date={formatDate(dateOf(def.startDate, day))}
-        seaArea={zoneAt(content, map, ship.x, ship.y).name}
+        seaArea={(() => {
+          // The sea area, and how dangerous its waters are (traffic.json danger).
+          const zone = zoneAt(content, map, ship.x, ship.y);
+          const tier = content.traffic.danger.zones[zone.id];
+          return tier ? `${zone.name} · ${content.traffic.danger.names[tier]}` : zone.name;
+        })()}
         inStorm={inStorm}
         sound={
           audio.muted

@@ -159,6 +159,20 @@ export const RIGS: Record<string, ShipPlan> = {
       [1.73, 0.8],
     ],
   },
+  // A sixth rate: the frigate's rig on a shorter, lighter hull.
+  'ship.light_frigate': {
+    hull: hull({ length: 2.9, beam: 0.42, rail: 0.31, castle: 0.07, castleTo: 0.34, forecastle: 0.04, forecastleFrom: 0.8, fullness: 0.33, sternWidth: 0.76, ports: [{ at: 0.7, count: 11 }], paint: NAVY }),
+    masts: [
+      mast(0.68, 1.86, sq('fore_tgallant', 1.78, 1.52, 0.5, 0.68, 0.05), sq('fore_top', 1.46, 1.02, 0.76, 0.96, 0.07), sq('fore_course', 0.98, 0.48, 1.04, 1.12, 0.09)),
+      mast(0.04, 2.06, sq('main_tgallant', 1.96, 1.68, 0.56, 0.76, 0.05), sq('main_top', 1.62, 1.12, 0.84, 1.04, 0.07), sq('main_course', 1.06, 0.5, 1.14, 1.22, 0.09)),
+      mast(-0.76, 1.68, sq('mizzen_tgallant', 1.6, 1.4, 0.42, 0.56, 0.05), sq('mizzen_top', 1.36, 0.96, 0.64, 0.78, 0.06)),
+    ],
+    flats: [spanker([[-0.81, 0.6], [-0.81, 1.18], [-1.36, 1.03], [-1.45, 0.6]], -0.81), jib([1.55, 0.7], [0.75, 1.5], [1.08, 0.56])],
+    bowsprit: [
+      [1.35, 0.36],
+      [1.56, 0.72],
+    ],
+  },
   'ship.ship_of_the_line': {
     hull: hull({
       length: 3.3,

@@ -498,6 +498,8 @@ export const combatSchema = z.object({
   }),
   hunt: z.object({
     playerValue: z.number().min(0),
+    /** A pirate chances poorer odds against a rich prize: the player's worth over `scale`, up to `max`, divides the odds she needs. */
+    hunger: z.object({ scale: z.number().positive(), max: z.number().min(0) }),
     /** Each pirate's nerve, drawn at spawn: her temperament's attackOdds is multiplied by it (low: bolder). */
     nerve: z.tuple([z.number().positive(), z.number().positive()]),
     patrolOdds: z.number().positive(),
@@ -560,6 +562,8 @@ export const politicsSchema = z.object({
 });
 
 export const trafficSchema = z.object({
+  /** How dangerous each sea area is (1 quiet to 4 the treasure routes), each class's rung, and the tiers' names. */
+  danger: z.object({ zones: z.record(z.string(), z.number().int().min(1).max(4)), classRung: z.record(z.string(), z.number().int().min(1).max(5)), names: z.array(z.string()) }),
   population: z.number().int().min(0),
   roles: z.object({
     // `classId` is the role's own class (the debug spawn's); `classes`, when given, the mix she is drawn from, by weight.

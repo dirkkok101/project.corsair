@@ -110,6 +110,26 @@
     }
   },
   {
+    "id": "ship.light_frigate",
+    "family": "frigate",
+    "nameKey": "ship.light_frigate.name",
+    "rig": "square",
+    "guns": 22,
+    "maxCrew": 160,
+    "minCrew": 35,
+    "cargo": 80,
+    "speed": 8,
+    "turn": 6,
+    "masts": [0.23, 0.02, -0.26],
+    "size": { "length": 3.1, "beam": 0.46, "rail": 0.33, "mast": 2.3, "yard": 0.7 },
+    "draft": 2,
+    "hull": 105,
+    "polar": "polar.square",
+    "price": 10000,
+    "eras": ["1640", "1660", "1680"],
+    "sprites": { "world": "ship.frigate.world", "icon": "ui.ship.frigate" }
+  },
+  {
     "id": "ship.war_sloop",
     "family": "sloop",
     "nameKey": "ship.war_sloop.name",
