@@ -122,3 +122,18 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 1. Real 1660s buccaneers, as above.
 2. Map pieces are keepsakes: they can't be sold.
 3. One dig tolerance for everyone (2 tiles) for now.
+
+## Slice 3 build plan (agreed 2026-10-10, not started in code)
+
+1. `treasure.json` + schema: `hoardShare` (0.4), `stranger { chance, priceShare, minPrice }`, `survivorChance`,
+   `landmarks`, `ringTiles` [12, 8, 5, 3]. `mapPieces` stays in `pirates.json`.
+2. State: `FamousPirate.hoard { x, y, landing, landmark, value, offset, order }` stored at placement;
+   `Captain.strangerDeals`. No world seed exists: place from `seedRng(tick, 'hoard:<id>')`.
+3. `givePiece(content, map, settlements, state, id, tick)` in systems-economy (traffic imports economy): caps
+   pieces, places the hoard on the first piece (coastal land tile near a haunt, its water neighbour as `landing`).
+   Called from TakePlunder `hoard`, the survivor roll (sunk + salvage men), and `BuyMapPiece`.
+4. Pure `strangerOffer(content, state, town)` keyed by town and week; weights unfinished maps and nearby haunts.
+5. Chart: dashed `.chart-ring` per map; the ring centre moves toward the X as pieces grow, so X stays inside.
+6. Captain's log overlay (L at sea, pauses time): Top Ten and Maps tabs; parchment canvas with quadrants per
+   piece; "Plot a course" to `landing`.
+7. Leave out: burying rumours, 3D landmark models (slice 4).
