@@ -29,7 +29,7 @@ import { createCharts } from './chart';
 import { bindInput } from './input';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
-import { Hail, shipTitle } from './hail';
+import { crewLook, Hail, shipTitle } from './hail';
 import { Log } from './log';
 import { createShipLabels } from './shiplabels';
 import { bindMouse } from './mouse';
@@ -307,7 +307,7 @@ async function main() {
       playerMorale: moraleOf(content, sim.state),
     });
     hailing = undefined;
-    fight = { battle, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: shipTitle(them), nation: them.ai?.nation, famous: them.ai?.famous, attacked };
+    fight = { battle, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: crewLook(them) ? `${shipTitle(them)} · ${crewLook(them)}` : shipTitle(them), nation: them.ai?.nation, famous: them.ai?.famous, attacked };
   };
   /**
    * The result goes into the world as a command the moment the fight ends (so replays and saves see it),

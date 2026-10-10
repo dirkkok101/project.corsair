@@ -12,6 +12,12 @@ export const NATION_ADJECTIVE: Record<string, string> = {
 };
 
 /** "Dutch fluyt": who a ship is, as the lookout would call it. */
+/** Her crew's grade as the eye reads it from her deck ("a veteran crew"); nothing for an ordinary one. */
+export function crewLook(ship: Ship): string {
+  const grade = ship.ai?.crew;
+  return grade && grade !== 'regular' ? `a ${grade} crew` : '';
+}
+
 export function shipTitle(ship: Ship): string {
   const cls = ship.classId.replace(/^ship\./, '').replace(/_/g, ' ');
   return `${NATION_ADJECTIVE[ship.ai?.nation ?? ''] ?? ''} ${cls}`.trim();
@@ -61,7 +67,10 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
       <div class="hail-panel">
         <div class="hail-head">
           <span class="port-name">{ai.name}</span>
-          <span class="port-sub">{shipTitle(ship)}</span>
+          <span class="port-sub">
+            {shipTitle(ship)}
+            {crewLook(ship) ? ` · ${crewLook(ship)}` : ''}
+          </span>
         </div>
         <p>{errand}</p>
         {towing ? <p class={mine.length ? 'hail-yours' : undefined}>{towing}</p> : null}

@@ -1,6 +1,6 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
-import { isLand, shipStats, tileAt } from '@corsair/data';
+import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, TileMap } from '@corsair/data';
 import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg } from '@corsair/systems-navigation';
 
@@ -34,6 +34,10 @@ export interface BattleShip extends Ship {
   /** Her crew's spirit, 0 to 100: the player's from the career, an AI crew's by her role (crew.json). */
   morale: number;
   reloadMult: number;
+  /** Her crew and captain (combat.json crewQuality, skill): scatter and boarding as multiples, and ticks between decisions. */
+  spreadMult: number;
+  boardMult: number;
+  thinkTicks: number;
   /** Each mast's strength, fore to aft (her class's masts), 100 sound .. 0 gone by the board. */
   masts: number[];
 }
@@ -149,7 +153,6 @@ export interface BattleSetup {
 const TPS = 30;
 const DT = 1 / TPS;
 const EFFECT_SECONDS = 0.6;
-const AI_THINK_TICKS = 8;
 
 
 export function createBattle(content: ContentPack, setup: BattleSetup) {
@@ -173,6 +176,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const cls = content.ships[ship.classId]!;
     const stats = shipStats(content, ship);
     const crew = ship.crew ?? Math.round(cls.maxCrew * c.startCrew);
+    // Who sails her: a drilled crew reloads faster and shoots straighter; a good captain thinks quicker.
+    const quality = crewQualityOf(content, ship.ai);
     return {
       ...ship,
       id: side,
@@ -190,7 +195,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       crewStart: crew,
       guns: stats.guns,
       rangeMult: stats.rangeMult,
-      reloadMult: stats.reloadMult,
+      reloadMult: stats.reloadMult * quality.reload,
+      spreadMult: quality.spread,
+      boardMult: quality.boarding,
+      thinkTicks: quality.thinkTicks,
       reload: { port: 0, starboard: 0 },
       ammo: 'round',
       role: ship.ai?.role,
@@ -294,7 +302,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
     const aimH = ship.ammo === 'chain' ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
     // Grape leaves the muzzle as a tight cone of small shot: it holds together over its short reach.
-    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1);
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1) * ship.spreadMult;
     // A normal scatter from two uniform draws (Box-Muller).
     const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
     const shots: Shot[] = [];
@@ -420,8 +428,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const boardingOdds = () => {
     const p = state.ships.player;
     const e = state.ships.enemy;
-    const ps = p.crew * c.boarding.player * spirit(p);
-    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e);
+    const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult;
+    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult;
     return ps / Math.max(1e-6, ps + es);
   };
 
@@ -533,9 +541,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         const rng = rngStream(state.rng);
         for (const cmd of queue.splice(0)) apply('player', cmd, rng);
         if (state.result) break;
-        if (state.tick % AI_THINK_TICKS === 0) {
+        // Each captain rethinks at her own pace (her seamanship); the player's helpers at a steady eight ticks.
+        if (state.tick % state.ships.enemy.thinkTicks === 0) {
           const enemyRole = state.ships.enemy.role ?? 'merchant';
           if (!state.wreck) for (const cmd of steer('enemy', c.personality[enemyRole])) apply('enemy', cmd, rng, true);
+        }
+        if (state.tick % state.ships.player.thinkTicks === 0) {
           if (autopilot) for (const cmd of steer('player', autopilot)) apply('player', cmd, rng, true);
           else if (state.boarding && !state.wreck) for (const cmd of closeToBoard()) apply('player', cmd, rng, true);
         }
@@ -651,8 +662,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         else if (p.hull <= 0) end('lost');
         else if (state.grappling >= c.battle.grappleSeconds) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
-          const ps = p.crew * c.boarding.player * spirit(p);
-          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e);
+          const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult;
+          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult;
           const won = rng.float() < ps / (ps + es);
           const pLoss = Math.round(p.crew * c.boarding.losses * (es / (ps + es)));
           const eLoss = Math.round(e.crew * c.boarding.losses * (ps / (ps + es)));

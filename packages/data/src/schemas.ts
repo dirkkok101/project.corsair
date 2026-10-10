@@ -426,6 +426,21 @@ export const combatSchema = z.object({
   autoResolve: z.object({ merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
   /** Steering style per AI role. */
   personality: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.enum(['runner', 'cautious', 'aggressive'])),
+  /** A crew's grade: multiples of reload time, shot scatter and boarding strength. */
+  crewQuality: z.record(z.enum(['green', 'regular', 'seasoned', 'veteran']), z.object({ reload: z.number().positive(), spread: z.number().positive(), boarding: z.number().positive() })),
+  /** What a captain's skills (0-100, neutral at 50) do: the most each moves her reload, scatter and boarding, and how often she rethinks. */
+  skill: z.object({ reload: share, spread: share, boarding: share, thinkTicks: z.tuple([z.number().int().positive(), z.number().int().positive()]) }),
+  /** The crews and captains each AI role sails with: crew grades by weight, and each skill's range. */
+  captains: z.record(
+    z.enum(['merchant', 'patrol', 'pirate']),
+    z.object({
+      crew: z.partialRecord(z.enum(['green', 'regular', 'seasoned', 'veteran']), z.number().min(0)),
+      gunnery: z.tuple([z.number().min(0).max(100), z.number().min(0).max(100)]),
+      seamanship: z.tuple([z.number().min(0).max(100), z.number().min(0).max(100)]),
+      boarding: z.tuple([z.number().min(0).max(100), z.number().min(0).max(100)]),
+      resolve: z.tuple([z.number().min(0).max(100), z.number().min(0).max(100)]),
+    }),
+  ),
   /** Crew and purse an AI ship sails with, as shares of her class's berths, and gold. */
   crew: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.tuple([share, share])),
   purse: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.tuple([z.number().min(0), z.number().min(0)])),

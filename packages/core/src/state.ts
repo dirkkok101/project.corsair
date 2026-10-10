@@ -24,6 +24,14 @@ export type Nation = 'spain' | 'england' | 'france' | 'netherlands' | 'pirate';
  * between their nation's ports, pirates work out of the havens. They follow a sea lane (`route`,
  * waypoints in tiles) rather than steering by hand; the traffic system moves them.
  */
+export type CrewGrade = 'green' | 'regular' | 'seasoned' | 'veteran';
+export interface CaptainSkills {
+  gunnery: number;
+  seamanship: number;
+  boarding: number;
+  resolve: number;
+}
+
 export interface AiCaptain {
   nation: Nation;
   role: 'merchant' | 'patrol' | 'pirate';
@@ -67,6 +75,10 @@ export interface AiCaptain {
   prizes?: Prize[];
   /** One of the famous pirates (pirates.json id): her wealth and fate are kept in `WorldState.famous`. */
   famous?: string;
+  /** Her crew's grade (combat.json crewQuality); regular when unset. */
+  crew?: CrewGrade;
+  /** Her captain's skills, 0 to 100 (50 when unset): gunnery, seamanship, boarding, and resolve (how long she holds out). */
+  captain?: CaptainSkills;
   /**
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.

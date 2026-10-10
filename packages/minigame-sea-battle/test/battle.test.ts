@@ -333,6 +333,28 @@ describe('sea battle', () => {
     expect(done.result()!.player.guns).toBeLessThanOrEqual(12);
   });
 
+  it('who sails her: a regular crew under a captain of 50 fights as one with none; veterans under a good captain beat green men under a poor one', () => {
+    const pirate = (crew?: 'green' | 'regular' | 'veteran', skill?: number): Ship => {
+      const s = ship('ship.brigantine', 'pirate', 0.9);
+      return { ...s, ai: { ...s.ai!, temperament: 'bold', ...(crew ? { crew } : {}), ...(skill !== undefined ? { captain: { gunnery: skill, seamanship: skill, boarding: skill, resolve: skill } } : {}) } };
+    };
+    // Neutral is exactly neutral: the same fight, tick for tick.
+    for (const seed of [1, 2, 3]) {
+      const none = fight(pirate(), seed);
+      const ordinary = fight(pirate('regular', 50), seed);
+      expect(ordinary.result()).toEqual(none.result());
+      expect(ordinary.state.tick).toBe(none.state.tick);
+    }
+    const losses = (crew: 'green' | 'veteran', skill: number) => {
+      let n = 0;
+      for (let seed = 1; seed <= 30; seed++) if (fight(pirate(crew, skill), seed).result()!.outcome === 'lost') n++;
+      return n;
+    };
+    const easy = losses('green', 20);
+    const hard = losses('veteran', 90);
+    expect(hard).toBeGreaterThan(easy + 5);
+  }, 120_000);
+
   it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
     const wins = (outfit: Partial<Ship>) => {
       let n = 0;

@@ -1,6 +1,6 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
-import { isLand, shipStats, tileAt } from '@corsair/data';
+import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
@@ -361,6 +361,7 @@ export function createTrafficSystem(
         news: [],
         purse: Math.round(draw.range(line.purse[0], line.purse[1])),
         convoy: { line: line.id, stage: 'inbound' },
+        ...drawCaptain(content, 'merchant', n),
       },
     };
     const told = newsItem({ ...state, nextShipId: n + 1 }, line.from ?? to, line.from ? 'treasureDue' : 'convoyDue', tick, name, line.nation);
@@ -696,6 +697,8 @@ export function createTrafficSystem(
     return s.ai.role === 'pirate' || atWar(content, state, hunter.ai!.nation, s.ai.nation);
   };
   /** A ship's fighting strength: her crew, and more for her guns (the same measure AI fights use). */
+  // What a captain weighs when he sights her: her men and her guns, as he can see them (her crew's and captain's
+  // quality tells only once the guns go off).
   const strength = (s: Ship) => crewOf(content, s) * (1 + shipStats(content, s).guns / 10);
   /** What a pirate stands to take from her: her cargo at base price and her purse; the player's ship counts more. */
   const worth = (s: Ship) =>
@@ -739,7 +742,7 @@ export function createTrafficSystem(
    */
   const seaFight = (state: WorldState, ships: Record<string, Ship>, a: Ship, b: Ship, tick: number, rng: Rng) => {
     const ar = cb.autoResolve;
-    const strength = (s: Ship) => (s.crew ?? content.ships[s.classId]!.minCrew) * (1 + content.ships[s.classId]!.guns / 10) * ar[s.ai!.role];
+    const strength = (s: Ship) => (s.crew ?? content.ships[s.classId]!.minCrew) * (1 + content.ships[s.classId]!.guns / 10) * ar[s.ai!.role] * fighting(content, s);
     const sa = strength(a);
     const sb = strength(b);
     const [winner, loser] = rng.float() < sa / (sa + sb) ? [a, b] : [b, a];
@@ -1547,6 +1550,43 @@ export function topTen(content: ContentPack, state: WorldState): TopTenEntry[] {
   return [...pirates, you].sort((a, b) => b.wealth - a.wealth || Number(Boolean(b.player)) - Number(Boolean(a.player)));
 }
 
+/**
+ * Her crew's grade and her captain's skills (combat.json captains, by role), from her own stream so the draw moves
+ * nothing else in the world.
+ */
+function drawCaptain(content: ContentPack, role: Role, n: number): Pick<AiCaptain, 'crew' | 'captain'> {
+  const d = content.combat.captains[role]!;
+  const draw = rngStream(seedRng(n, 'captain'));
+  const crew = draw.weighted(d.crew);
+  const skill = ([lo, hi]: [number, number]) => Math.round(draw.range(lo, hi));
+  return { crew, captain: { gunnery: skill(d.gunnery), seamanship: skill(d.seamanship), boarding: skill(d.boarding), resolve: skill(d.resolve) } };
+}
+
+/** Her crew and captain as one multiple of a ship's fighting strength: boarding and gunnery alike. */
+function quality(content: ContentPack, ai: Parameters<typeof crewQualityOf>[1]): number {
+  const q = crewQualityOf(content, ai);
+  return (q.boarding + 1 / q.reload) / 2;
+}
+
+/**
+ * How her crew and captain make her fight, against the usual for her role: a veteran pirate stands out among
+ * pirates, while pirates as a whole meet merchants and patrols at the odds the world was tuned to (combat.json
+ * autoResolve and the lookout). The player, and a ship with no captain, count as 1.
+ */
+function fighting(content: ContentPack, s: Ship): number {
+  if (!s.ai?.captain) return 1;
+  const d = content.combat.captains[s.ai.role]!;
+  // The role's usual: its crew grades by weight, under a captain at the middle of each range.
+  const total = Object.values(d.crew).reduce((a, b) => a + (b ?? 0), 0);
+  const mid = (r: [number, number]) => (r[0] + r[1]) / 2;
+  const usual = Object.entries(d.crew).reduce(
+    (n, [crew, w]) =>
+      n + ((w ?? 0) / total) * quality(content, { crew: crew as 'regular', captain: { gunnery: mid(d.gunnery), seamanship: mid(d.seamanship), boarding: mid(d.boarding) } }),
+    0,
+  );
+  return quality(content, s.ai) / usual;
+}
+
 /** Ports a role sets out from: havens for pirates, any other port with a lane for the rest. */
 function homePorts(settlements: Settlement[], lanes: SeaLanes, role: Role): Settlement[] {
   return settlements.filter((s) => (role === 'pirate' ? isHaven(s) : !isHaven(s)) && lanes.mooring(s.id));
@@ -1613,6 +1653,7 @@ function spawn(
       purse: Math.round(rng.range(gold0, gold1)),
       ...(temperament ? { temperament } : {}),
       ...(nerve !== undefined ? { nerve: Math.round(nerve * 100) / 100 } : {}),
+      ...drawCaptain(content, role, n),
     },
   };
   return { state: { ...state, nextShipId: n + 1 }, ship };

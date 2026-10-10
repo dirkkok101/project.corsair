@@ -112,9 +112,8 @@ through `shipStats` and the battle's `arm()`, so balance is tuned without code.
 
 - **Range bands**, the period's own measures: long shot (chance hits only), gunshot (real hull hits), musket
   (small arms and grape begin), pistol shot (case shot, swivels, boarding). Most decisive fire is at gunshot.
-- **Gun weight per ship**: each class carries light or heavy great guns (sakers against demi-culverins, period
-  names, shown as "light" and "heavy"). Heavy guns hit harder and reach further but reload slower, weigh more
-  (speed) and need more men per gun. A class's default is in `ships.json`; changing it is a shipwright job.
+- **No gun weights** (decided 2026-10-10: too much for the UI). A ship's firepower is her number of guns, her
+  crew's drill and her captain's gunnery.
 - **Ammunition** as today (round: hull; chain: rigging; grape: crew) plus the doctrine below deciding who uses what.
 - **Raking**: shot down her length (bow or stern) does double damage and more to crew. Rewards seamanship.
 - **Swivel guns** (a fit): anti-crew at pistol shot, fire without crew cost, help hold off boarders.
@@ -156,7 +155,7 @@ each tier belongs to (section 2) and must rise with rank, captain by captain, no
 | 1 | Henry Morgan | Frigate, 4 upgrades, with a consort | **Numbers and cunning**: sails with a second ship; a fireship ruse when cornered | 5 |
 | 2 | François l'Olonnais | Frigate, 3 upgrades | **Terror**: ships strike sooner at his flag; resist and he gives no quarter | 4-5 |
 | 3 | Edward Mansvelt | Frigate, 3 upgrades | **Old campaigner**: veteran boarders, never panics (no flight) | 4 |
-| 4 | Laurens de Graaf | Brigantine, coppered equivalent (fast) and heavy guns | **Gunnery and running fights**: elite gunnery, demasts at range, hard to catch | 4 |
+| 4 | Laurens de Graaf | Brigantine, copper sheathing and bronze cannon | **Gunnery and running fights**: elite gunnery, demasts at range, hard to catch | 4 |
 | 5 | Roche Braziliano | Brigantine, 2 upgrades | **Drunken fury**: reckless boarding when ahead, sloppy gunnery | 3 |
 | 6 | Michel de Grammont | Brigantine, 2 upgrades | **Disciplined boarders**: boards only at good odds, and wins them | 3 |
 | 7 | Bartolomeu Português | War sloop, 1 upgrade | **Slippery**: escapes when losing (he escaped the Spanish twice) | 2-3 |
@@ -167,31 +166,29 @@ each tier belongs to (section 2) and must rise with rank, captain by captain, no
 Ranks 1-4 change places as wealth moves, so ship, fit and skill follow the captain, not the rank slot: the table is
 each captain's own. The tavern names his ship and, for a price, his fit, so a player can plan the fight.
 
-## 6. Upgrades: period-true, one trade-off each, fitted to the class
+## 6. Upgrades: the Pirates! names, one trade-off each, fitted to the class
 
-Each is priced by the work (built), shows its upside and its downside on the shipwright's row, and shows on the 3D
-ship. A ship class has natural fits; none is strictly better.
+Decided 2026-10-10: keep the six names players know from Pirates! (even where the history is later), and give each a
+cost besides gold, so each fits some classes and not others. Each is priced by the work (built), shows its upside
+and its downside on the shipwright's row, and shows on the 3D ship. None is strictly better.
 
-| Upgrade (replaces) | Upside | Downside | Natural fit |
+| Upgrade | Upside | Downside | Natural fit |
 |---|---|---|---|
-| Sheathed bottom (copper) | Fouling grows half as fast | Small speed cost from weight; gold per hull point | Long-voyage ships |
-| Careening (an action, not an upgrade) | Clears fouling: back to full speed | Days in a cove or at a yard, defenceless | Everyone, every 2-3 months |
-| Holland duck sails (cotton) | Points 4 degrees closer, a little faster | Tears sooner in a gale | Square-riggers that must beat |
-| Fore-and-aft re-rig (new) | Points like a sloop | Slower running before the wind | Brigantines, small ships |
-| Doubled planking (scantlings) | +20% hull | -0.5 speed | Merchantmen, galleons, gunnery fights |
-| Bronze guns (bronze cannon) | Lighter: +0.5 speed or 2 more guns for the weight; never burst | Gold per gun (3-4x); overheat if fired fast | Big batteries |
-| Heavy guns (new) | Hit harder, reach further | Slower reload, more men a gun, heavier | Frigates and patrols holding range |
-| Fresh dry powder (fine-grain) | +10% range, fewer misfires | Spoils: renewed each voyage (a running cost) | Gunners |
+| Copper sheathing | No fouling (her bottom stays clean); +0.5 speed | Gold per hull point (the dearest) | Ships that cruise far, runners |
+| Cotton sails | Points 8 degrees closer to the wind | Tear sooner in a gale and in chain shot | Square-riggers that must beat |
+| Iron scantlings | +20% hull | -0.5 speed (weight) | Merchantmen, galleons, gunnery fights |
+| Bronze cannon | Reload 20% faster, +10% range; never burst | Gold per gun; overheat if fired fast (a slower reload after three quick broadsides) | Big batteries |
+| Fine-grain powder | +15% range | Spoils: renewed each voyage (a running cost) | Gunners holding range |
+| Triple hammocks | +25% berths | Food and wages for the extra men (shown) | Boarders |
 | Swivel guns (new) | Crew damage at pistol shot, boarding defence | Deck space: -5% berths | Boarders and merchants alike |
-| Boarding nettings and close quarters (new) | Strong defence when boarded | -10% boarding strength going over yourself | Merchants, treasure ships |
-| Flush deck (new) | Better handling, room for 2 more guns or 10% more men | No close-quarters defence | Pirate-style boarders |
-| Hammocks (keep) | +25% berths | Food and wages for the extra men (shown) | Boarders |
-| Sweeps (new) | Move at 2 knots in a calm, using men | Men at the oars can't fight the guns | Sloops, galleys |
+| Boarding nettings (new) | Strong defence when boarded | -10% boarding strength going over yourself | Merchants, treasure ships |
+| Sweeps (new) | Move at 2 knots in a calm, using men | Men at the oars can't fight the guns | Sloops |
 
-Fouling becomes a stat (speed falls with weeks since careening, up to 20% as the PRD's hull fouling section
-already plans): this is the period's real "copper" gap between a clean and a foul ship, and gives the player a
-reason to come home. AI ships carry fits by role (navy: planking and heavy guns; pirates: flush deck and swivels;
-merchants: nettings), so a well-fitted prize is worth more.
+**Fouling and careening (decided: now)**: speed falls with weeks since her bottom was cleaned, up to 20% (the
+PRD's hull fouling); careening at a shipwright (a day, gold by hull) or on a beach (days, free, defenceless)
+cleans it; copper sheathing stops it. This gives the player a reason to come home and makes copper a real choice.
+AI ships carry fits by role (navy: scantlings and bronze; pirates: copper and swivels; merchants: nettings), so a
+well-fitted prize is worth more.
 
 ## 7. Difficulty levels
 
@@ -219,16 +216,17 @@ strength.
 2. **Matched encounters**: region danger tiers, the cliff fixed, famous pirates by rung and haunts; voyage-probe
    targets.
 3. **Objectives**: the Goals page and the career probe for pacing.
-4. **Guns and range**: light and heavy guns, range bands, raking, swivels.
-5. **Upgrades rework**: period-true list with trade-offs, fouling and careening, AI fits by role, upgrades on the
-   3D ship.
+4. **Guns and range**: range bands, raking, swivels (no gun weights).
+5. **Upgrades rework**: the Pirates! six with trade-offs, three new fits, fouling and careening, AI fits by role,
+   upgrades on the 3D ship.
 6. **Difficulty levels.**
 
-## 10. Questions for you
+## 10. Decisions (2026-10-10)
 
-1. **Anachronisms**: replace copper sheathing, cotton sails and iron scantlings with period-true refits (section
-   6), or keep the Pirates! names the players know?
-2. **The player striking**: may a famous pirate ask the player to strike (lose the chest and hold, keep the ship)?
-3. **Gun weights**: is light and heavy guns per ship the right depth, or too much for the UI rule?
-4. **Fouling and careening**: in now (with slice 5), or later?
-5. **Order**: slices 1-3 first (opponents, encounters, objectives: the career feel), then guns and upgrades?
+1. **Upgrade names**: keep the Pirates! six (copper sheathing, cotton sails, iron scantlings, bronze cannon,
+   fine-grain powder, triple hammocks), each with a trade-off (section 6).
+2. **The player striking**: yes, a famous pirate may hail her to strike; striking loses the chest and the hold
+   and keeps the ship and men.
+3. **Gun weights**: no, too much for the UI.
+4. **Fouling and careening**: now, with the upgrades rework.
+5. **Order**: slices 1 to 6 as listed; all of it will be built.

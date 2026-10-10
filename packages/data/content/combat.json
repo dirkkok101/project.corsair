@@ -1,5 +1,5 @@
 {
-  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing. autoResolve: a fight between AI ships is settled by crew x (1 + guns/10) x the role's factor; the winner loses `losses` of her crew.",
+  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing. autoResolve: a fight between AI ships is settled by crew x (1 + guns/10) x the role's factor; the winner loses `losses` of her crew. Who sails her (slice 1a of docs/design/combat-model.md): an AI ship's crew is green, regular, seasoned or veteran ('crewQuality': multiples of reload time, shot scatter and boarding strength), and her captain has gunnery, seamanship, boarding and resolve from 0 to 100, drawn at spawn from her role's ranges ('captains', crew grades by weight). At 50 a skill changes nothing; at 100 gunnery cuts reload by half of 'skill.reload' and scatter by half of 'skill.spread', boarding adds half of 'skill.boarding' to boarding strength, and seamanship has her rethink every 'skill.thinkTicks' ticks (12 at 0 down to 4 at 100; 8 at 50). A ship with none of this (the player's) fights as a regular crew under a captain of 50.",
   "battle": {
     "tilesPerSecondPerSpeedPoint": 0.3,
     "accelPerSecond": 1,
@@ -86,6 +86,18 @@
     "merchant": "runner",
     "patrol": "cautious",
     "pirate": "aggressive"
+  },
+  "crewQuality": {
+    "green": { "reload": 1.2, "spread": 1.2, "boarding": 0.8 },
+    "regular": { "reload": 1, "spread": 1, "boarding": 1 },
+    "seasoned": { "reload": 0.9, "spread": 0.9, "boarding": 1.1 },
+    "veteran": { "reload": 0.8, "spread": 0.8, "boarding": 1.25 }
+  },
+  "skill": { "reload": 0.3, "spread": 0.6, "boarding": 0.6, "thinkTicks": [12, 4] },
+  "captains": {
+    "merchant": { "crew": { "green": 0.35, "regular": 0.55, "seasoned": 0.1 }, "gunnery": [15, 45], "seamanship": [30, 70], "boarding": [10, 40], "resolve": [10, 40] },
+    "patrol": { "crew": { "regular": 0.6, "seasoned": 0.35, "veteran": 0.05 }, "gunnery": [50, 80], "seamanship": [45, 75], "boarding": [25, 50], "resolve": [55, 85] },
+    "pirate": { "crew": { "green": 0.15, "regular": 0.45, "seasoned": 0.3, "veteran": 0.1 }, "gunnery": [25, 60], "seamanship": [40, 75], "boarding": [45, 75], "resolve": [35, 70] }
   },
   "crew": {
     "merchant": [

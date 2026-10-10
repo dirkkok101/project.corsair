@@ -443,7 +443,8 @@ describe('choosing a target at sea', () => {
     };
     // An AI ship sails where her `along` puts her on her route: all of them share the pirate's lane here.
     const on = (ship: Ship, k: number): Ship => ({ ...ship, ...along(k), ai: { ...ship.ai!, route: pirate0.ai!.route, along: 30 + k, offset: 0, waitUntil: undefined } });
-    const pirate = (temperament = 'bold', nerve = 1): Ship => ({ ...on(pirate0, 0), crew: 64, ai: { ...on(pirate0, 0).ai!, temperament, nerve } });
+    // An ordinary captain and crew for her role, so a test's odds are men and guns alone.
+    const pirate = (temperament = 'bold', nerve = 1): Ship => ({ ...on(pirate0, 0), crew: 64, ai: { ...on(pirate0, 0).ai!, temperament, nerve, crew: undefined, captain: undefined } });
     const merchant = (k: number, cargo: Record<string, number> = { sugar: 20 }): Ship => ({ ...on(merchant0, k), cargo });
     const patrol = (k: number): Ship => on(patrol0, k);
     const player = (k: number, outfit: Partial<Ship> = {}): Ship => ({ ...sim.state.ships.player!, ...along(k), guns: 10, crew: 75, docked: undefined, ...outfit });
