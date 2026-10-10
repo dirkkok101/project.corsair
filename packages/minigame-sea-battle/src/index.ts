@@ -1,7 +1,7 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
 import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
-import type { ContentPack, TileMap } from '@corsair/data';
+import type { ContentPack, DifficultyLevel, TileMap } from '@corsair/data';
 import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg, rowingSpeed, sailingSpeed } from '@corsair/systems-navigation';
 
 // The sea battle (PRD section 9.1): two ships on a local map cut from the world where they met, in
@@ -171,6 +171,8 @@ export interface BattleSetup {
   playerMorale?: number;
   /** Seat the enemy this far apart along this bearing from the player, in battle tiles. */
   bearingDeg: number;
+  /** The career's difficulty (combat.json difficulty): a veering wind, the player's near misses forgiven. Neutral when unset. */
+  difficulty?: DifficultyLevel;
 }
 
 const TPS = 30;
@@ -191,7 +193,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       decelPerSecond: c.battle.decelPerSecond,
     },
   };
-  const nav = createNavigationSystem(battleContent, setup.map, () => setup.wind);
+  // The fight's own wind: the world's where they met, veering through the fight on the harder levels.
+  const nav = createNavigationSystem(battleContent, setup.map, () => state.wind);
   const water = (x: number, y: number) => !isLand(tileAt(setup.map, x, y));
   const rng0 = rngStream(seedRng(setup.seed, 'battle'));
 
@@ -675,6 +678,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     step(ticks = 1, autopilot?: 'runner' | 'cautious' | 'aggressive') {
       for (let i = 0; i < ticks && !state.result; i++) {
         const rng = rngStream(state.rng);
+        // A veering wind (the harder levels): a new slant every windShiftSeconds, drawn only when the level veers it.
+        const veer = setup.difficulty?.windShiftDeg ?? 0;
+        if (veer && state.tick > 0 && state.tick % Math.round(c.difficulty.windShiftSeconds * TPS) === 0) {
+          state = { ...state, wind: { ...state.wind, fromDeg: normalizeDeg(setup.wind.fromDeg + rng.range(-veer, veer)) } };
+        }
         for (const cmd of queue.splice(0)) apply('player', cmd, rng);
         if (state.result) break;
         // Each captain rethinks at her own pace (her seamanship); the player's helpers at a steady eight ticks.
@@ -733,8 +741,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const across = rx * Math.cos(vr) + ry * Math.sin(vr);
           const half = sz.length / 2;
           // Her waterline narrows toward bow and stern.
-          const width = sz.beam * Math.sqrt(Math.max(0, 1 - (along / half) ** 2)) + 0.04;
-          const inHull = Math.abs(along) <= half && Math.abs(across) <= width && at[2] <= sz.rail && at[2] > -0.05;
+          // The easy levels forgive the player's near misses: her hull stands that much wider and taller to his balls.
+          const slack = shot.from === 'player' ? (setup.difficulty?.nearMissTiles ?? 0) : 0;
+          const width = sz.beam * Math.sqrt(Math.max(0, 1 - (along / (half + slack)) ** 2)) + 0.04 + slack;
+          const inHull = Math.abs(along) <= half + slack && Math.abs(across) <= width && at[2] <= sz.rail + slack && at[2] > -0.05;
           const inRig = !state.wreck && Math.abs(along) <= half * 0.85 && Math.abs(across) <= sz.yard && at[2] > sz.rail && at[2] <= sz.mast;
           if (!inHull && !inRig) {
             if (at[2] <= 0 || k > 2) effects.push({ kind: 'splash', x: at[0], y: at[1], at: seconds() });

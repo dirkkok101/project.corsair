@@ -1135,10 +1135,11 @@ describe('the famous pirates', () => {
     for (let y = 300; y < 1000 && !here; y += 7)
       for (let x = 300; x < 1500 && !here; x += 7)
         if (settlements.every((s) => Math.hypot(s.x - x, s.y - y) > 40) && lanes.clear([x, y], [x + 8, y]) && lanes.clear([x - 1, y], [x + 8, y])) here = [x, y];
-    const meet = (player: Partial<Ship>) => {
+    const meet = (player: Partial<Ship>, difficulty?: string) => {
       const s = createSim(
         {
           ...sim.state,
+          ...(difficulty ? { difficulty } : {}),
           ships: {
             ...sim.state.ships,
             player: { ...sim.state.ships.player!, docked: undefined, x: here![0] + 8, y: here![1], ...player },
@@ -1152,6 +1153,11 @@ describe('the famous pirates', () => {
     };
     expect(meet({ guns: 10, crew: 75 })).toBe(false);
     expect(meet({ classId: 'ship.frigate', guns: 32, crew: 230 })).toBe(true);
+    // The difficulty moves when he notices: a half-manned frigate draws him only on the hardest level, a full one
+    // not on the easiest.
+    expect(meet({ classId: 'ship.frigate', guns: 20, crew: 200 })).toBe(false);
+    expect(meet({ classId: 'ship.frigate', guns: 20, crew: 200 }, 'swashbuckler')).toBe(true);
+    expect(meet({ classId: 'ship.frigate', guns: 32, crew: 230 }, 'apprentice')).toBe(false);
   }, 30_000);
 
   it('out for revenge he comes for the captain at any odds, from further off, until beaten', () => {
@@ -1265,5 +1271,27 @@ describe('fits at sea', () => {
     const allowed = (role: string) => Object.keys(content.traffic.fits[role] ?? {});
     for (const role of ['merchant', 'patrol', 'pirate']) for (const u of fitted(role)) expect(allowed(role)).toContain(u);
     expect(fitted('pirate').length + fitted('patrol').length + fitted('merchant').length).toBeGreaterThan(3);
+  });
+
+  it('the difficulty moves every AI captain, crew and fit: sharper and better fitted on the hardest level, the reverse on the easiest', () => {
+    const at = (difficulty: string) => {
+      const ships = ai(world(3, { ...createWorld(def), difficulty }).state).filter((s) => !s.ai!.famous);
+      const grade = { green: 0, regular: 1, seasoned: 2, veteran: 3 } as const;
+      const n = ships.length;
+      return {
+        gunnery: ships.reduce((t, s) => t + s.ai!.captain!.gunnery, 0) / n,
+        crew: ships.reduce((t, s) => t + grade[s.ai!.crew!], 0) / n,
+        fits: ships.reduce((t, s) => t + (s.upgrades?.length ?? 0), 0) / n,
+      };
+    };
+    const easy = at('apprentice');
+    const tuned = at('adventurer');
+    const hard = at('swashbuckler');
+    expect(easy.gunnery).toBeLessThan(tuned.gunnery - 10);
+    expect(hard.gunnery).toBeGreaterThan(tuned.gunnery + 10);
+    expect(easy.crew).toBeLessThan(tuned.crew);
+    expect(hard.crew).toBeGreaterThan(tuned.crew);
+    expect(easy.fits).toBeLessThan(tuned.fits);
+    expect(hard.fits).toBeGreaterThan(tuned.fits);
   });
 });

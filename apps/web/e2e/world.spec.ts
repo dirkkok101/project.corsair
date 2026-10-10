@@ -7,12 +7,18 @@ const musicTitles = music.tunes.map((t) => t.title);
 // Drives the real game through window.__corsair (PRD section 16): the debug API confirms behaviour,
 // screenshots confirm rendering.
 
+/** Without a seed a new career opens on the difficulty pick: take the default. */
+async function setSail(page: Page, url: string) {
+  if (!url.includes('seed=')) await page.getByRole('button', { name: 'Set sail' }).click();
+}
+
 /** Start a new career. It begins docked in port; most checks set sail first (`inPort` keeps her there). */
 async function boot(page: Page, url = '/', { inPort = false } = {}) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto(url);
+  await setSail(page, url);
   await page.waitForFunction(() => Boolean(window.__corsair));
   // Freeze the clock so every check below steps the sim explicitly.
   await page.evaluate(() => window.__corsair.sim.pause());
@@ -119,6 +125,7 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
 
 test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
   await page.goto('/');
+  await setSail(page, '/');
   await page.waitForFunction(() => Boolean(window.__corsair));
   expect(await page.evaluate(() => window.__corsair.audio.levels().state)).toBe('locked');
   await expect(page.locator('.hud-sound')).toContainText('Press any key');
@@ -135,6 +142,7 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/');
+  await setSail(page, '/');
   await page.waitForFunction(() => Boolean(window.__corsair));
   // A career opens in port, where the clock stands still: set sail so it runs, and let her get under way.
   await page.keyboard.press('e');
@@ -254,8 +262,14 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
 
   await page.reload();
   await page.getByRole('button', { name: 'New career' }).click();
+  // A new career picks its difficulty, each level saying what it changes.
+  await page.getByRole('button', { name: 'Rogue' }).click();
+  await expect(page.locator('.start-about')).toContainText('the wind shifts in battle');
+  await page.screenshot({ path: 'test-results/start-difficulty.png' });
+  await page.getByRole('button', { name: 'Set sail' }).click();
   await page.waitForFunction(() => Boolean(window.__corsair));
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(1000);
+  expect(await page.evaluate(() => window.__corsair.state.get('difficulty'))).toBe('rogue');
   expect(errors).toEqual([]);
 });
 

@@ -1,7 +1,7 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship } from '@corsair/core';
-import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
+import { decodeRasterMap, difficultyOf, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
@@ -168,17 +168,29 @@ async function main() {
   });
   const settlements = placeSettlements(def, map, content.settlements);
   const stage = document.getElementById('stage')!;
-  // A stored career gets the start screen; without one the game opens straight onto a new career.
+  // The start screen: continue a stored career, or pick a new one's difficulty.
   // Only gameplay content counts: new music or sprite framing shouldn't flag every old save.
   const fingerprint = contentFingerprint(gameplayContent(content));
   // Whatever is stored goes to the start screen, readable or not, so a bad save is never silently replaced.
   const stored = await loadStoredSave();
-  const resumed = stored
-    ? await chooseCareer(stage, { raw: stored, fingerprint, startDate: def.startDate, ticksPerDay: content.calendar.ticksPerDay, settlements })
-    : undefined;
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
-  // `?seed=N` starts a known world, for replays and tests.
-  const asked = Number(new URLSearchParams(location.search).get('seed') ?? NaN);
+  // `?seed=N` starts a known world, for replays and tests: with nothing stored it opens straight onto a new
+  // career, at `?difficulty=` or the default.
+  const params = new URLSearchParams(location.search);
+  const asked = Number(params.get('seed') ?? NaN);
+  const choice =
+    stored || !Number.isInteger(asked)
+      ? await chooseCareer(stage, {
+          raw: stored || undefined,
+          fingerprint,
+          startDate: def.startDate,
+          ticksPerDay: content.calendar.ticksPerDay,
+          settlements,
+          levels: content.combat.difficulty.levels,
+          defaultLevel: content.combat.difficulty.default,
+        })
+      : { difficulty: difficultyOf(content, params.get('difficulty') ?? undefined).id };
+  const resumed = 'save' in choice ? choice.save : undefined;
   const seed = resumed?.seed ?? (Number.isInteger(asked) ? asked >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!);
   const windAt = createWindField(content, def, map);
   // Sea lanes for the AI ships, found per port pair on demand.
@@ -190,7 +202,7 @@ async function main() {
   const world =
     resumed?.state ??
     withTraffic(
-      withEconomy(withWeather({ ...createWorld(def), tick: startTick }, content, def, seed), content, settlements, seed),
+      withEconomy(withWeather({ ...createWorld(def), tick: startTick, ...('difficulty' in choice ? { difficulty: choice.difficulty } : {}) }, content, def, seed), content, settlements, seed),
       content,
       settlements,
       lanes,
@@ -305,6 +317,7 @@ async function main() {
       seed: (seed ^ Math.imul(sim.state.tick, 2654435761)) >>> 0,
       bearingDeg,
       playerMorale: moraleOf(content, sim.state),
+      difficulty: difficultyOf(content, sim.state.difficulty),
     });
     hailing = undefined;
     fight = { battle, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: crewLook(them) ? `${shipTitle(them)} · ${crewLook(them)}` : shipTitle(them), nation: them.ai?.nation, famous: them.ai?.famous, attacked };

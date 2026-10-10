@@ -412,6 +412,8 @@ export interface WorldState {
   /** Each port's people, its merchant's purse, and whether it is growing (+1), steady (0) or shrinking (-1). */
   towns?: Record<string, TownState>;
   captain?: Captain;
+  /** The career's difficulty level (combat.json difficulty levels), picked at its start; the default when unset. */
+  difficulty?: string;
   /** Market shocks in force; saves from before shocks existed have none. */
   shocks?: Shock[];
   contracts?: Contract[];

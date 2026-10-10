@@ -95,6 +95,34 @@ export function upgradePrice(content: ContentPack, classId: string, upgradeId: s
  * and boarding strength, and how many ticks between her captain's decisions. A ship with neither (the player's, or
  * one from before captains) is a regular crew under a captain of 50: every multiple exactly 1, and 8 ticks.
  */
+export type DifficultyLevel = ContentPack['combat']['difficulty']['levels'][number];
+
+/** A career's difficulty level (combat.json difficulty), the default where none was picked or the id is unknown. */
+export function difficultyOf(content: ContentPack, id?: string): DifficultyLevel {
+  const d = content.combat.difficulty;
+  return d.levels.find((l) => l.id === id) ?? d.levels.find((l) => l.id === d.default) ?? d.levels[0]!;
+}
+
+const GRADES = ['green', 'regular', 'seasoned', 'veteran'] as const;
+type Grade = (typeof GRADES)[number];
+
+/**
+ * An AI captain and crew as drawn, at a difficulty: each skill shifted by the level's `skill` (held to 0..100), and
+ * the crew a grade better or worse at the level's `crew` chance. `roll` is drawn only when the level moves the crew.
+ */
+export function atDifficulty<C extends { gunnery: number; seamanship: number; boarding: number; resolve: number }>(
+  level: DifficultyLevel,
+  crew: Grade,
+  captain: C,
+  roll: () => number,
+): { crew: Grade; captain: C } {
+  const at = GRADES.indexOf(crew);
+  const moved = level.crew !== 0 && roll() < Math.abs(level.crew) ? GRADES[Math.max(0, Math.min(GRADES.length - 1, at + Math.sign(level.crew)))]! : crew;
+  if (!level.skill) return { crew: moved, captain };
+  const shift = (v: number) => Math.max(0, Math.min(100, Math.round(v + level.skill)));
+  return { crew: moved, captain: { ...captain, gunnery: shift(captain.gunnery), seamanship: shift(captain.seamanship), boarding: shift(captain.boarding), resolve: shift(captain.resolve) } };
+}
+
 export function crewQualityOf(
   content: ContentPack,
   ai?: { crew?: 'green' | 'regular' | 'seasoned' | 'veteran'; captain?: { gunnery: number; seamanship: number; boarding: number } },

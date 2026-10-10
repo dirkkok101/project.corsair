@@ -1,6 +1,6 @@
 import type { Hoard, WorldState } from "@corsair/core";
-import { isLand, tileAt } from "@corsair/data";
-import type { ContentPack, PlacedSettlement, TileMap } from "@corsair/data";
+import { difficultyOf, isLand, tileAt } from "@corsair/data";
+import type { ContentPack, DifficultyLevel, PlacedSettlement, TileMap } from "@corsair/data";
 import { hoardRing } from "@corsair/systems-economy";
 import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -115,7 +115,19 @@ export interface LogProps {
 }
 
 /** The next three goals not yet done, each with its progress and one click to where it gets done; the done below. */
-function Goals({ goals, settlements, plot, open }: { goals: Goal[]; settlements: PlacedSettlement[]; plot: LogProps['plot']; open: (page: 'top' | 'maps') => void }) {
+function Goals({
+  goals,
+  settlements,
+  plot,
+  open,
+  level,
+}: {
+  goals: Goal[];
+  settlements: PlacedSettlement[];
+  plot: LogProps['plot'];
+  open: (page: 'top' | 'maps') => void;
+  level: DifficultyLevel;
+}) {
   const next = goals.filter((g) => !g.done).slice(0, 3);
   const done = goals.filter((g) => g.done);
   const port = (id?: string) => settlements.find((s) => s.id === id);
@@ -146,6 +158,9 @@ function Goals({ goals, settlements, plot, open }: { goals: Goal[]; settlements:
         <p class="tavern-quiet">Every goal is done: a career to be proud of.</p>
       )}
       {done.length ? <div class="port-sub goals-done">Done: {done.map((g) => g.title).join(' · ')}</div> : null}
+      <div class="port-sub goals-done">
+        Difficulty: {level.name}. {level.about}
+      </div>
     </div>
   );
 }
@@ -198,7 +213,7 @@ export function Log({
           </button>
         </div>
         {page === "goals" ? (
-          <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} />
+          <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} level={difficultyOf(content, state.difficulty)} />
         ) : page === "top" ? (
           <TopTen content={content} state={state} settlements={settlements} />
         ) : maps.length ? (

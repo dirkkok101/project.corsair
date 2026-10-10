@@ -352,6 +352,26 @@ export const combatSchema = z.object({
    * reload still to go). Badly hurt (hull below fleeBelowHull, or crew below fleeBelowCrew, as shares
    * of her start), she breaks off and runs. Each pirate captain has a temperament, drawn by share.
    */
+  /** Difficulty levels (slice 6 of docs/design/combat-model.md), easiest first: what each moves for the opponents and the battle. */
+  difficulty: z.object({
+    default: z.string(),
+    windShiftSeconds: z.number().positive(),
+    levels: z
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          about: z.string(),
+          skill: z.number(),
+          crew: z.number().min(-1).max(1),
+          fits: z.number().min(0),
+          windShiftDeg: z.number().min(0),
+          nearMissTiles: z.number().min(0),
+          notice: z.number().positive(),
+        }),
+      )
+      .min(1),
+  }),
   /** Upgrades in battle: reload while rowing, bronze guns' cooling (three broadsides within overheatSeconds), and nettings' boarding multiples (defending, going over). */
   upgrades: z.object({ rowingReload: z.number().positive(), overheatSeconds: z.number().positive(), overheatReload: z.number().positive(), nettingsDefence: z.number().positive(), nettingsBoarding: z.number().positive() }),
   /** A ball down her length (within `cos` of her heading) does `damage` times the harm. */

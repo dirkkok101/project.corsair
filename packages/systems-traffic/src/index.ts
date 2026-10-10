@@ -1,6 +1,6 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
-import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
+import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
@@ -203,8 +203,8 @@ export function createTrafficSystem(
         temperament: def.temperament,
         nerve: def.nerve,
         famous: def.id,
-        crew: def.crew,
-        captain: def.captain,
+        // His own crew and skills, moved by the career's difficulty like every captain's.
+        ...atDifficulty(difficultyOf(content, state.difficulty), def.crew, def.captain, () => draw.float()),
         ...(def.doctrine ? { doctrine: def.doctrine } : {}),
         ...(def.terror ? { terror: def.terror } : {}),
       },
@@ -376,9 +376,9 @@ export function createTrafficSystem(
         news: [],
         purse: Math.round(draw.range(line.purse[0], line.purse[1])),
         convoy: { line: line.id, stage: 'inbound' },
-        ...drawCaptain(content, 'merchant', n),
+        ...drawCaptain(content, 'merchant', n, state.difficulty),
       },
-      ...drawFits(content, 'merchant', n),
+      ...drawFits(content, 'merchant', n, state.difficulty),
     };
     const told = newsItem({ ...state, nextShipId: n + 1 }, line.from ?? to, line.from ? 'treasureDue' : 'convoyDue', tick, name, line.nation);
     return { state: told, ship };
@@ -635,11 +635,13 @@ export function createTrafficSystem(
    * A famous pirate hunts the player only once her ship has grown to his rung of the career (pirates.json rung and
    * rungStrength), so a new captain meets the famous only as she grows; revenge forgets that.
    */
-  const matched = (hunter: Ship, player: Ship) => {
+  const matched = (state: WorldState, hunter: Ship, player: Ship) => {
     const def = hunter.ai!.famous ? famousDef(hunter.ai!.famous) : undefined;
     if (!def) return true;
     const at = crewOf(content, player) * (1 + shipStats(content, player).guns / 10);
-    const rung = 1 + content.pirates.rules.rungStrength.filter((x) => at >= x).length;
+    // The career's difficulty moves when he takes notice: later on the easy levels, sooner on the hard.
+    const notice = difficultyOf(content, state.difficulty).notice;
+    const rung = 1 + content.pirates.rules.rungStrength.filter((x) => at >= x * notice).length;
     return rung >= def.rung;
   };
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
@@ -744,7 +746,7 @@ export function createTrafficSystem(
     const vengeful = avenging(state, hunter);
     let best: { s: Ship; score: number } | undefined;
     for (const s of Object.values(ships)) {
-      const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter) && !sheltered(state, hunter, s.x, s.y) && (matched(hunter, s) || vengeful);
+      const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter) && !sheltered(state, hunter, s.x, s.y) && (matched(state, hunter, s) || vengeful);
       if (!eligible) continue;
       const d = Math.hypot(s.x - hunter.x, s.y - hunter.y);
       // A famous pirate whose hoard the captain dug up comes for her from further off, whatever the odds.
@@ -1597,19 +1599,22 @@ export function topTen(content: ContentPack, state: WorldState): TopTenEntry[] {
  * Her crew's grade and her captain's skills (combat.json captains, by role), from her own stream so the draw moves
  * nothing else in the world.
  */
-function drawCaptain(content: ContentPack, role: Role, n: number): Pick<AiCaptain, 'crew' | 'captain'> {
+function drawCaptain(content: ContentPack, role: Role, n: number, difficulty?: string): Pick<AiCaptain, 'crew' | 'captain'> {
   const d = content.combat.captains[role]!;
   const draw = rngStream(seedRng(n, 'captain'));
   const crew = draw.weighted(d.crew);
   const skill = ([lo, hi]: [number, number]) => Math.round(draw.range(lo, hi));
-  return { crew, captain: { gunnery: skill(d.gunnery), seamanship: skill(d.seamanship), boarding: skill(d.boarding), resolve: skill(d.resolve) } };
+  const captain = { gunnery: skill(d.gunnery), seamanship: skill(d.seamanship), boarding: skill(d.boarding), resolve: skill(d.resolve) };
+  // The career's difficulty moves every captain and crew alike, so the world's own fights keep their odds.
+  return atDifficulty(difficultyOf(content, difficulty), crew, captain, () => draw.float());
 }
 
 /** The shipwright's upgrades she carries, by her role (traffic.json fits), from her own stream. */
-function drawFits(content: ContentPack, role: Role, n: number): Pick<Ship, 'upgrades'> {
+function drawFits(content: ContentPack, role: Role, n: number, difficulty?: string): Pick<Ship, 'upgrades'> {
   const draw = rngStream(seedRng(n, 'fits'));
+  const more = difficultyOf(content, difficulty).fits;
   const upgrades = Object.entries(content.traffic.fits[role] ?? {})
-    .filter(([id, chance]) => content.upgrades[id] && draw.float() < chance)
+    .filter(([id, chance]) => content.upgrades[id] && draw.float() < chance * more)
     .map(([id]) => id);
   return upgrades.length ? { upgrades } : {};
 }
@@ -1705,9 +1710,9 @@ function spawn(
       purse: Math.round(rng.range(gold0, gold1)),
       ...(temperament ? { temperament } : {}),
       ...(nerve !== undefined ? { nerve: Math.round(nerve * 100) / 100 } : {}),
-      ...drawCaptain(content, role, n),
+      ...drawCaptain(content, role, n, state.difficulty),
     },
-    ...drawFits(content, role, n),
+    ...drawFits(content, role, n, state.difficulty),
   };
   return { state: { ...state, nextShipId: n + 1 }, ship };
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Ship } from '@corsair/core';
-import { decodeRasterMap, loadContent, shipStats } from '@corsair/data';
+import { decodeRasterMap, difficultyOf, loadContent, shipStats } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
 import { createBattle } from '../src';
 
@@ -686,5 +686,45 @@ describe('sea battle', () => {
     process.stderr.write(`DODGE held ${JSON.stringify(held)} dodged ${JSON.stringify(dodged)}\n`);
     expect(held.fired).toBeGreaterThan(0);
     expect(dodged.hits).toBeLessThan(held.hits);
+  });
+});
+
+describe('difficulty in battle', () => {
+  const duel = (difficulty?: string) =>
+    createBattle(content, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: ship('ship.brig', undefined, 0.8),
+      enemy: ship('ship.brig', 'patrol', 0.8),
+      seed: 7,
+      bearingDeg: 90,
+      ...(difficulty ? { difficulty: difficultyOf(content, difficulty) } : {}),
+    });
+
+  it('the wind holds through a fight on the tuned level, and veers on the hardest', () => {
+    const steady = duel('adventurer');
+    const veering = duel('swashbuckler');
+    const seen = new Set<number>();
+    for (let i = 0; i < 4; i++) {
+      steady.step(30 * content.combat.difficulty.windShiftSeconds);
+      veering.step(30 * content.combat.difficulty.windShiftSeconds);
+      expect(steady.state.wind.fromDeg).toBe(0);
+      // Degrees off where it blew when they met.
+      const off = Math.abs(((veering.state.wind.fromDeg + 180) % 360) - 180);
+      seen.add(veering.state.wind.fromDeg);
+      expect(off).toBeLessThanOrEqual(difficultyOf(content, 'swashbuckler').windShiftDeg + 1e-9);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it('the easiest level forgives the player near misses: the same broadsides do more harm', () => {
+    const harm = (difficulty: string) => {
+      const b = duel(difficulty);
+      // A gunnery fight held at range, stopped before either strikes.
+      for (let i = 0; i < 30 * 45 && !b.result(); i++) b.step(1, 'cautious');
+      const e = b.state.ships.enemy;
+      return e.hullMax - e.hull + (100 - e.sailCondition);
+    };
+    expect(harm('apprentice')).toBeGreaterThan(harm('adventurer'));
   });
 });

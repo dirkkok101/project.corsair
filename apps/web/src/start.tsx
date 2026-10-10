@@ -1,6 +1,6 @@
 import { dateOf, formatDate, fromSave } from '@corsair/core';
 import type { Save } from '@corsair/core';
-import type { PlacedSettlement } from '@corsair/data';
+import type { DifficultyLevel, PlacedSettlement } from '@corsair/data';
 import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { exportSave, pickSaveFile } from './save';
@@ -11,20 +11,25 @@ const titleArt = Object.values(
 )[0];
 
 export interface StartOptions {
-  /** What the browser holds for the career slot, before any checks. */
+  /** What the browser holds for the career slot, before any checks; undefined when nothing is stored. */
   raw: unknown;
+  /** The difficulty levels a new career can pick (easiest first), and the one picked unless the player changes it. */
+  levels: DifficultyLevel[];
+  defaultLevel: string;
   fingerprint: string;
   startDate: string;
   ticksPerDay: number;
   settlements: PlacedSettlement[];
 }
 
-/** The start screen, shown when a career is stored: resolves to the save to continue, or undefined for a new career. */
-export function chooseCareer(root: HTMLElement, opts: StartOptions): Promise<Save | undefined> {
+export type Choice = { save: Save } | { difficulty: string };
+
+/** The start screen: resolves to the save to continue, or a new career at the difficulty picked. */
+export function chooseCareer(root: HTMLElement, opts: StartOptions): Promise<Choice> {
   return new Promise((resolve) => {
-    const done = (save: Save | undefined) => {
+    const done = (choice: Choice) => {
       render(null, root);
-      resolve(save);
+      resolve(choice);
     };
     render(<Start {...opts} done={done} />, root);
   });
@@ -39,9 +44,12 @@ function read(raw: unknown, fingerprint: string): { save: Save } | { reason: str
   }
 }
 
-function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, done }: StartOptions & { done: (save: Save | undefined) => void }) {
+function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, defaultLevel, done }: StartOptions & { done: (choice: Choice) => void }) {
   const [career, setCareer] = useState(() => ({ raw, ...read(raw, fingerprint) }));
   const [error, setError] = useState<string>();
+  // Nothing stored: straight to the new career's difficulty.
+  const [picking, setPicking] = useState(raw === undefined);
+  const [level, setLevel] = useState(defaultLevel);
 
   const load = () =>
     pickSaveFile()
@@ -61,6 +69,32 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, done }: 
   const where = ship?.docked ? settlements.find((s) => s.id === ship.docked)?.name : undefined;
   const date = save ? formatDate(dateOf(startDate, Math.floor(save.state.tick / ticksPerDay))) : undefined;
   const fileName = `corsair-${date ? date.replace(/\s+/g, '-') : 'unreadable'}.json`;
+
+  const picked = levels.find((l) => l.id === level) ?? levels[0]!;
+  if (picking)
+    return (
+      <div class="start" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
+        <h1 class="start-title">Project Corsair</h1>
+        <div class="start-panel">
+          <div class="start-career">A new career: how hard a sea?</div>
+          <div class="start-levels">
+            {levels.map((l) => (
+              <button key={l.id} class={l.id === level ? 'picked' : undefined} onClick={() => setLevel(l.id)}>
+                {l.name}
+              </button>
+            ))}
+          </div>
+          <div class="start-sub start-about">{picked.about}</div>
+          <div class="start-actions">
+            <button class="primary" onClick={() => done({ difficulty: picked.id })}>
+              Set sail
+            </button>
+            {raw !== undefined ? <button onClick={() => setPicking(false)}>Back</button> : null}
+          </div>
+          <div class="start-note">Your own ship sails the same at every level: only your opponents and the battle change.</div>
+        </div>
+      </div>
+    );
 
   return (
     <div class="start" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
@@ -87,10 +121,10 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, done }: 
           )}
         </div>
         <div class="start-actions">
-          <button class="primary" disabled={!save} onClick={() => save && done(save)}>
+          <button class="primary" disabled={!save} onClick={() => save && done({ save })}>
             Continue
           </button>
-          <button onClick={() => done(undefined)}>New career</button>
+          <button onClick={() => setPicking(true)}>New career</button>
         </div>
         <div class="start-files">
           <button onClick={() => exportSave(career.raw, fileName)}>Save to file</button>
