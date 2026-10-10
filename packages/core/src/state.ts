@@ -245,6 +245,8 @@ export interface Captain {
   sightings?: Record<string, Sighting>;
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
   standing?: Partial<Record<Nation, number>>;
+  /** Food bought from each ship spoken at sea (by her id): she has only so much to spare. */
+  provisionsFrom?: Record<string, number>;
   /** Nations whose letter of marque the captain holds; each covers whoever that nation is at war with now. */
   marques?: Nation[];
   /** Ships sunk or taken and not yet paid for by a governor (PRD section 12: bounties). */
@@ -429,7 +431,8 @@ export type Command =
   | { type: 'ReclaimShip'; shipId: string; laidUpId: string }
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
   | { type: 'Recruit'; shipId: string; count: number }
-  | { type: 'Repair'; shipId: string }
+  /** Mend the fleet at the shipwright: one ship (`fleetId` a fleet ship's id, or `shipId` for the flagship), or all. */
+  | { type: 'Repair'; shipId: string; only?: string }
   /** At the shipwright: mount or sell back cannon, or install an upgrade. */
   | { type: 'BuyGuns'; shipId: string; count: number }
   | { type: 'SellGuns'; shipId: string; count: number }
@@ -444,6 +447,8 @@ export type Command =
   | { type: 'CollectBounties'; shipId: string }
   /** Speak an AI ship within hailing range: learn who it is and hear its news. */
   | { type: 'Hail'; shipId: string; targetId: string }
+  /** Buy provisions from a ship spoken at sea (her spare stores, dear): up to `units` of food. */
+  | { type: 'BuyProvisions'; shipId: string; targetId: string; units: number }
   /** Debug: start an AI ship of a role at a port, bound for another. */
   | { type: 'SpawnShip'; role: AiCaptain['role']; from: string; to: string }
   /** The captain listens in the tavern of the port the ship is docked at. */

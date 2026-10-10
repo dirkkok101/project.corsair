@@ -1336,6 +1336,8 @@ export interface BuiltShip {
    * starboard side (`side` +1) or port (-1), `up` her side (0 the waterline .. 1 the rail).
    */
   hole(along: number, side: number, up: number): void;
+  /** Patches every shot hole in her side (a shipwright's repair). */
+  clearHoles(): void;
   /** Her guns still mounted, as a share of her battery: the muzzles of guns knocked out are gone from their ports. */
   setGuns(share: number): void;
   /**
@@ -1871,6 +1873,10 @@ export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
       const slot = n < SAIL_HOLES ? n : Math.floor(Math.random() * SAIL_HOLES);
       u.uHoles.value[slot]!.set(Math.random() * 10, y, z, 0.035 + Math.random() * 0.02);
       u.uHoleCount.value = Math.min(SAIL_HOLES, n + 1);
+    },
+    clearHoles() {
+      for (const h of holes) root.remove(h);
+      holes.length = 0;
     },
     hole(along, side, up) {
       if (holes.length >= MAX_HOLES) return;

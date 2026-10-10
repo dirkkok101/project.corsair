@@ -145,6 +145,12 @@ void main() {
     foam = max(foam, ring);
     fresh = max(fresh, ring);
   }
+  // Never keep a value that isn't a sane height: one bad number (a NaN) would otherwise spread through the whole
+  // grid and stay there, lifting the sea into walls. Anything out of bounds is still water.
+  if (!(abs(next) < 2.0)) next = 0.0;
+  if (!(abs(prev) < 2.0)) prev = 0.0;
+  if (!(foam >= 0.0 && foam <= 1.0)) foam = 0.0;
+  if (!(fresh >= 0.0 && fresh <= 1.0)) fresh = 0.0;
   // Foam reaching the grid's edge goes with the sponge.
   gl_FragColor = vec4(next, prev, foam * sponge, fresh * sponge);
 }
@@ -222,6 +228,8 @@ export function createWaves(): Waves {
       let n = 0;
       for (const s of ships) {
         if (n >= MAX_SHIPS) break;
+        // A ship with no sane position, heading, speed or size pushes nothing (it would poison the grid).
+        if (![s.x, s.z, s.headingDeg, s.speed, s.length].every(Number.isFinite) || s.length <= 0) continue;
         const gx = (s.x - area.x) / WAVE_CELL;
         const gz = (s.z - area.y) / WAVE_CELL;
         if (gx < -s.length / WAVE_CELL || gz < -s.length / WAVE_CELL || gx > WAVE_GRID + s.length / WAVE_CELL || gz > WAVE_GRID + s.length / WAVE_CELL) continue;

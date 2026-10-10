@@ -1165,9 +1165,9 @@ async function main() {
     const crewWarning = ship.docked
       ? undefined
       : days < 1
-        ? 'The food is gone: the crew is starving. Make port and buy food'
+        ? 'The food is gone: the crew is starving. Make port, or hail a passing ship (H) and buy food from her'
         : days <= 3
-          ? `Food for ${Math.floor(days)} days: buy food in port`
+          ? `Food for ${Math.floor(days)} days: buy food in port, or from a passing ship (H)`
           : mood < content.crew.morale.grumbling
             ? `The crew is ${moraleWord(content, mood).toLowerCase()}: divide the plunder or pay wages in a tavern`
             : undefined;
@@ -1203,6 +1203,11 @@ async function main() {
           news={hailing!.news}
           close={() => (hailing = undefined)}
           lawful={spoken.ai ? legalTarget(content, sim.state, sim.state.captain, spoken.ai.nation) : undefined}
+          buyFood={(units) => {
+            sim.send({ type: 'BuyProvisions', shipId: player().id, targetId: hailing!.targetId, units });
+            sim.applyCommands();
+          }}
+          room={Math.max(0, fleetHold(content, sim.state, player()) - cargoUsed(player()))}
           attack={() => {
             sim.send({ type: 'Attack', shipId: player().id, targetId: hailing!.targetId });
             sim.applyCommands();

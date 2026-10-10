@@ -30,6 +30,7 @@ test('a new career starts docked in port, under-gunned, and the shipwright outfi
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
   await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await page.locator('.shipwright-tabs').getByRole('button', { name: 'Upgrade' }).click();
   await expect(page.locator('.shipwright')).toContainText('Guns 10 / 18');
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
   await page.locator('.shipwright').getByRole('button', { name: /^Buy 1/ }).click();
@@ -861,6 +862,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await page.locator('.shipwright-tabs').getByRole('button', { name: /^Repair/ }).click();
   await expect(page.locator('.fleet-list:not(.ships-for-sale):not(.laid-up)')).toContainText('fluyt');
   await page.screenshot({ path: 'test-results/fleet-shipwright.png' });
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
@@ -940,6 +942,7 @@ test('the shipyard: new ships for sale, and why one can\'t be bought yet', async
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await page.locator('.shipwright-tabs').getByRole('button', { name: 'Buy ships' }).click();
   const yard = page.locator('.ships-for-sale');
   await expect(yard).toContainText('war sloop');
   await expect(yard).toContainText('merchantman');

@@ -331,11 +331,16 @@ export function crewMood(content: ContentPack, state: WorldState, ship: Ship): n
 }
 
 /** Repair bill: hull points and sail condition short of sound, at the shipwright's rates. */
-export function repairCost(content: ContentPack, ship: Ship, fleet: FleetShip[] = []): number {
+/** What the shipwright asks to make one ship sound: her hull and her sails. */
+export function shipRepairCost(content: ContentPack, s: Pick<Ship, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>): number {
   const p = content.combat.port;
+  const hullMax = shipStats(content, s).hullMax;
+  return Math.ceil(hullMax - (s.hull ?? hullMax)) * p.hullGold + Math.ceil(100 - (s.sailCondition ?? 100)) * p.sailGold;
+}
+
+export function repairCost(content: ContentPack, ship: Ship, fleet: FleetShip[] = []): number {
   const one = (s: Pick<Ship, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>) => {
-    const hullMax = shipStats(content, s).hullMax;
-    return Math.ceil(hullMax - (s.hull ?? hullMax)) * p.hullGold + Math.ceil(100 - (s.sailCondition ?? 100)) * p.sailGold;
+    return shipRepairCost(content, s);
   };
   // The whole fleet, as the shipwright mends it.
   return fleet.reduce((n, f) => n + one(f), one(ship));
@@ -831,7 +836,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         };
       }
       if (command.type === 'Repair') {
-        // The shipwright: every ship of the fleet, the flagship first, hull then sails, as far as the purse reaches.
+        // The shipwright: every ship of the fleet (or just the one asked for), the flagship first, hull then sails,
+        // as far as the purse reaches.
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
@@ -851,8 +857,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           if (hullFix > 0 || sailFix > 0) mended = true;
           return { ...s, hull, sailCondition: sails };
         };
-        const flagship = mend(ship);
-        const fleet = fleetOf(state).map(mend);
+        const one = command.only;
+        const flagship = !one || one === ship.id ? mend(ship) : ship;
+        const fleet = fleetOf(state).map((f) => (!one || one === f.id ? mend(f) : f));
         if (!mended) {
           const sound = [ship, ...fleetOf(state)].every((s) => (s.hull ?? Infinity) >= shipStats(content, { ...s, fleetSpeed: undefined }).hullMax && (s.sailCondition ?? 100) >= 100);
           return refuse(state, ship, sound ? 'sound' : 'not-enough-gold');
@@ -971,6 +978,31 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         return {
           state: { ...state, ships: { ...state.ships, [ship.id]: flagship }, captain: { ...state.captain, fleet: fleetAfter } },
           events: [{ type: 'FlagShifted', entityIds: [ship.id, ship.docked], payload: { name: sold.name, classId: sold.classId } }],
+        };
+      }
+      if (command.type === 'BuyProvisions') {
+        // A ship spoken at sea sells food from her spare stores, dear; a pirate, or a ship of a nation that hunts
+        // the captain, won't. Bought up to what she can spare, the hold holds and the purse pays.
+        const ship = state.ships[command.shipId];
+        const other = state.ships[command.targetId];
+        if (!ship || !other?.ai) return undefined;
+        if (ship.docked) return refuse(state, ship, 'in-port');
+        if (Math.hypot(other.x - ship.x, other.y - ship.y) > content.traffic.hailTiles) return refuse(state, ship, 'too-far');
+        const sp = content.economy.seaProvisions;
+        const nation = other.ai.nation;
+        if (nation === 'pirate' || (state.captain.standing?.[nation as keyof NonNullable<typeof state.captain.standing>] ?? 0) <= sp.refuseBelow) return refuse(state, ship, 'wont-sell');
+        const price = Math.ceil((content.goods.find((g) => g.id === 'food')?.basePrice ?? 2) * sp.markup);
+        const room = Math.max(0, fleetHold(content, state, ship) - cargoUsed(ship));
+        const sold = state.captain.provisionsFrom?.[other.id] ?? 0;
+        const units = Math.min(Math.floor(command.units), sp.spare - sold, room, Math.floor(state.captain.gold / price));
+        if (!(units > 0)) return refuse(state, ship, room <= 0 ? 'hold-full' : sold >= sp.spare ? 'none-to-spare' : 'not-enough-gold');
+        return {
+          state: {
+            ...state,
+            ships: { ...state.ships, [ship.id]: { ...ship, cargo: { ...ship.cargo, food: (ship.cargo.food ?? 0) + units } } },
+            captain: { ...state.captain, gold: state.captain.gold - units * price, provisionsFrom: { ...state.captain.provisionsFrom, [other.id]: sold + units } },
+          },
+          events: [{ type: 'ProvisionsBought', entityIds: [ship.id, other.id], payload: { units, gold: units * price } }],
         };
       }
       if (command.type === 'BuyGuns' || command.type === 'SellGuns') {

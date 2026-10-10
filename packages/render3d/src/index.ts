@@ -5,6 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Ship, Wind, WorldState } from '@corsair/core';
+import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from '@corsair/render/battle';
 import { sailAnim } from '@corsair/render/sails';
@@ -49,8 +50,8 @@ const RIDE_EASE = 1.1;
 const FAST_SHIP = 7;
 /** The speed in speed points at which the water round a ship is at its whitest (an ordinary good pace). */
 const BRISK = 4.5;
-/** The battle camera's distance in tiles, framing both ships, before the player's own zoom (a factor). */
-const BATTLE_VIEW = { min: 9, max: 90 };
+/** The battle camera's distance in tiles: no nearer or further than this, whatever the zoom. */
+const BATTLE_VIEW = { min: 6, max: 90 };
 /**
  * In battle ships are drawn at their true size (the map's 1.6x enlargement would make them dwarf the fight:
  * broadsides from barely a ship's length apart), so they trade shots across a few lengths of sea, as in Pirates!.
@@ -64,7 +65,6 @@ const BATTLE_MODEL_SCALE = MODEL_SCALE / SHIP_SCALE;
 const TURN_HEEL = 0.28;
 const TURN_FULL_DEG = 30;
 const TURN_EASE = 2.5;
-const BATTLE_ZOOM = { min: 0.45, max: 3 };
 /** A sunk ship takes this long to go under. */
 const SINK_SECONDS = 6;
 
@@ -124,7 +124,7 @@ export interface SeaRenderer {
   renderBattle(view: BattleViewState, nowMs: number, enemyNation?: string): void;
   /** CSS size of the view; the canvas renders at the device's pixel ratio. */
   resize(width: number, height: number): void;
-  /** Zoom by wheel steps (positive out); in a battle, the camera's framing of the fight. */
+  /** Zoom by wheel steps (positive out); one zoom for the sea and its battles. */
   zoom(steps: number): void;
   /** Overhead or from astern. */
   toggleChase(): void;
@@ -220,7 +220,7 @@ export async function createSeaRenderer(
 
   const worldShips = new THREE.Group();
   scene.add(worldShips);
-  const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; classId: string }>();
+  const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
     if (m && m.classId !== s.classId) {
@@ -234,6 +234,8 @@ export async function createSeaRenderer(
         root: built.root,
         setSails: (anim: string) => built.setSails(...sailsOf(anim), lastMs),
         setCrew: (share: number) => built.setCrew(share, lastMs),
+        built,
+        holes: 0,
         classId: s.classId,
       };
       ships.set(s.id, m);
@@ -493,7 +495,6 @@ export async function createSeaRenderer(
   scene.add(fx.object);
   const fighters = new Map<'player' | 'enemy', { built: BuiltShip; classId: string; plan: ShipPlan }>();
   let inBattle = false;
-  let battleZoom = 1;
   let battleView = BATTLE_VIEW.min;
   let sinkingFrom: number | undefined;
   /** Masts going by the board, by ship and mast: when it began, and the way it falls on her bearings. */
@@ -552,6 +553,24 @@ export async function createSeaRenderer(
       // Her men on deck, as many as she has hands for (a full complement shows a full deck).
       const maxCrew = content.ships[s.classId]?.maxCrew ?? 100;
       m.setCrew((s.crew ?? maxCrew * 0.7) / maxCrew);
+      // Her damage, as a fight left it: canvas in rags by her sails' state, her side holed by her hull's, empty
+      // ports for guns lost. Holes are placed the same way each time (her id's own rolls), patched when repaired.
+      m.built.setTatters(1 - (s.sailCondition ?? 100) / 100);
+      const stats = shipStats(content, s);
+      const holes = Math.round(Math.max(0, 1 - (s.hull ?? stats.hullMax) / stats.hullMax) * 24);
+      if (holes < m.holes) {
+        m.built.clearHoles();
+        m.holes = 0;
+      }
+      for (; m.holes < holes; m.holes++) {
+        const r = (k: number) => {
+          const v = Math.sin((m.holes + 1) * 12.9898 + k * 78.233 + s.id.length * 3.1) * 43758.5453;
+          return v - Math.floor(v);
+        };
+        m.built.hole(r(1) - 0.5, r(2) < 0.5 ? -1 : 1, 0.25 + r(3) * 0.6);
+      }
+      const battery = content.ships[s.classId]?.guns;
+      if (battery) m.built.setGuns((s.guns ?? battery) / battery);
       const pace = s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP;
       const len = placeShip(s.id, m.root, s, w, dt, farScale, pace);
       if (Math.hypot(s.x - me.x, s.y - me.y) < 30 + distance * 0.6) sprayShips.push(bowOf(s.id, m.root, s.headingDeg, len, Math.min(1, pace * 1.4), dt));
@@ -611,7 +630,9 @@ export async function createSeaRenderer(
     const { player, enemy } = view.ships;
     const apart = Math.hypot(enemy.x - player.x, enemy.y - player.y);
     // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close.
-    const want = THREE.MathUtils.clamp(apart * 1.3 + 6, BATTLE_VIEW.min, BATTLE_VIEW.max) * battleZoom;
+    // The sea's own zoom (the wheel sets the same one in battle), so ships look as big as at sea (they are drawn
+    // at true size here, the map's ships 1.6x); pulled back only as far as keeps both ships on screen.
+    const want = THREE.MathUtils.clamp(Math.max(distance / SHIP_SCALE, apart * 0.8 + 4), BATTLE_VIEW.min, BATTLE_VIEW.max);
     // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
     gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
     stormShare = battleStorm;
@@ -732,7 +753,9 @@ export async function createSeaRenderer(
     // The camera: on the pair (a little toward the player), high and oblique; from astern of her on C.
     target.set(player.x + (enemy.x - player.x) * 0.45, 0, player.y + (enemy.y - player.y) * 0.45);
     if (chase) target.set(player.x, 0, player.y);
-    const pitch = THREE.MathUtils.degToRad(chase ? 24 : 52);
+    // The sea's camera angle for this zoom.
+    const zt = Math.log(Math.max(ZOOM.min, battleView * SHIP_SCALE) / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
+    const pitch = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
     viewHeading = player.headingDeg;
     finishFrame(chase ? Math.min(battleView, 30) : battleView, pitch, chase ? (-player.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
   };
@@ -750,8 +773,7 @@ export async function createSeaRenderer(
       camera.updateProjectionMatrix();
     },
     zoom(steps) {
-      if (inBattle) battleZoom = THREE.MathUtils.clamp(battleZoom * Math.pow(1.12, steps), BATTLE_ZOOM.min, BATTLE_ZOOM.max);
-      else distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
+      distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
     },
     viewDeg: () => (chase ? viewHeading : 0),
     toggleChase() {

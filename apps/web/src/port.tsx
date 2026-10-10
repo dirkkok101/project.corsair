@@ -3,6 +3,7 @@ import type { Contract, WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
+  shipRepairCost,
   bountiesOwed,
   cargoUsed,
   crewOf,
@@ -524,21 +525,45 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
 }
 
 /**
- * The fleet at the shipwright (PRD section 7): each ship's condition, making her the flagship, or selling her
- * for her class's price by her condition. A sale that would leave too little hold for the cargo, or too few
- * berths for the crew, says so instead.
+ * The fleet at the shipwright (PRD section 7), the flagship first: each ship's condition and what mending her costs,
+ * a repair for each one on her own; making a ship the flagship, or selling her for her class's price by her
+ * condition. A sale that would leave too little hold for the cargo, or too few berths for the crew, says so instead.
  */
 function FleetList({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
   const ship = state.ships[shipId]!;
   const fleet = fleetOf(state);
-  if (!fleet.length) return <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her to grow it.</div>;
   const hold = fleetHold(content, state, ship);
   const berths = fleetBerths(content, state, ship);
   const cargo = cargoUsed(ship);
   const crew = crewOf(content, ship);
+  const gold = state.captain?.gold ?? 0;
+  const condition = (f: { classId: string; hull?: number; sailCondition?: number; upgrades?: string[]; guns?: number }) => {
+    const stats = shipStats(content, f);
+    return (
+      <>
+        hull {Math.round(f.hull ?? stats.hullMax)} / {stats.hullMax} · sails {Math.round(f.sailCondition ?? 100)}%
+      </>
+    );
+  };
+  const mend = (id: string, f: Parameters<typeof shipRepairCost>[1]) => {
+    const cost = shipRepairCost(content, f);
+    if (cost <= 0) return <span class="trend export">sound</span>;
+    return (
+      <button title={gold < cost ? `She needs ${cost} gold to be made sound; you have ${gold}: as far as the purse reaches.` : undefined} disabled={gold <= 0} onClick={() => send({ type: 'Repair', shipId, only: id })}>
+        Repair · {cost.toLocaleString()} gold
+      </button>
+    );
+  };
   return (
     <table class="fleet-list">
       <tbody>
+        <tr class="flagship">
+          <td>
+            <Art id={shipIcon(content, ship.classId)} class="fleet-ship" /> {ship.name ?? 'Your flagship'} <span class="port-sub">({shipKind(ship.classId)}, flagship)</span>
+          </td>
+          <td class="port-sub">{condition(ship)}</td>
+          <td class="actions">{mend(ship.id, ship)}</td>
+        </tr>
         {fleet.map((f) => {
           const cls = content.ships[f.classId]!;
           const stats = shipStats(content, f);
@@ -548,16 +573,16 @@ function FleetList({ content, state, shipId, send }: { content: ContentPack; sta
               : berths - stats.maxCrew < crew
                 ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
                 : undefined;
-          const kind = shipKind(f.classId);
           return (
             <tr key={f.id}>
               <td>
-                <Art id={shipIcon(content, f.classId)} class="fleet-ship" /> {f.name} <span class="port-sub">({kind})</span>
+                <Art id={shipIcon(content, f.classId)} class="fleet-ship" /> {f.name} <span class="port-sub">({shipKind(f.classId)})</span>
               </td>
               <td class="port-sub">
-                hull {Math.round(f.hull)} / {stats.hullMax} · sails {Math.round(f.sailCondition)}% · hold {cls.cargo} · speed {stats.speed}
+                {condition(f)} · hold {cls.cargo} · speed {stats.speed}
               </td>
               <td class="actions">
+                {mend(f.id, f)}
                 <button onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>Make flagship</button>
                 <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
                   Sell · {shipValue(content, f).toLocaleString()} gold
@@ -746,6 +771,9 @@ function Governor({
   );
 }
 
+/** The shipwright's three yards: mending the fleet, buying ships, fitting a ship out. */
+type Yard = 'repair' | 'buy' | 'upgrade';
+
 function Shipwright({
   content,
   state,
@@ -760,30 +788,69 @@ function Shipwright({
   send: PortProps['send'];
 }) {
   const ship = state.ships[shipId]!;
-  const stats = shipStats(content, ship);
   const fleet = fleetOf(state);
   const cost = repairCost(content, ship, fleet);
+  // Straight to the repairs when anything needs mending, else to the ships for sale.
+  const [yard, setYard] = useState<Yard>(cost > 0 ? 'repair' : 'buy');
+  const tabs: [Yard, string][] = [
+    ['repair', cost > 0 ? `Repair · ${cost.toLocaleString()} gold` : 'Repair'],
+    ['buy', 'Buy ships'],
+    ['upgrade', 'Upgrade'],
+  ];
+  return (
+    <div class="shipwright">
+      <div class="shipwright-tabs">
+        {tabs.map(([id, label]) => (
+          <button key={id} class={yard === id ? 'active' : ''} onClick={() => setYard(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {yard === 'repair' ? (
+        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} />
+      ) : yard === 'buy' ? (
+        <>
+          <LaidUp content={content} state={state} shipId={shipId} send={send} />
+          <ShipsForSale content={content} state={state} town={town} shipId={shipId} send={send} />
+        </>
+      ) : (
+        <UpgradeYard content={content} state={state} town={town} shipId={shipId} send={send} />
+      )}
+    </div>
+  );
+}
+
+/** Mending: every ship's condition and her own repair, and the whole fleet at once. */
+function RepairYard({ content, state, shipId, send, cost }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; cost: number }) {
+  const fleet = fleetOf(state);
+  return (
+    <>
+      <div class="shipwright-row">
+        {cost > 0 ? (
+          <button onClick={() => send({ type: 'Repair', shipId })}>
+            Repair {fleet.length ? 'the whole fleet' : 'her'} · {cost.toLocaleString()} gold
+          </button>
+        ) : (
+          <span class="port-sub">{fleet.length ? 'Every ship is sound.' : 'She is sound.'}</span>
+        )}
+        <span class="port-sub">Hull then sails, the flagship first, as far as the purse reaches.</span>
+      </div>
+      <FleetList content={content} state={state} shipId={shipId} send={send} />
+      {!fleet.length ? <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</div> : null}
+    </>
+  );
+}
+
+/** Fitting out the flagship: her guns, and the yard's improvements. */
+function UpgradeYard({ content, state, town, shipId, send }: { content: ContentPack; state: WorldState; town: PlacedSettlement; shipId: string; send: PortProps['send'] }) {
+  const ship = state.ships[shipId]!;
+  const stats = shipStats(content, ship);
   const gold = state.captain?.gold ?? 0;
   const p = content.combat.port;
   const room = stats.maxGuns - stats.guns;
   const installed = new Set(ship.upgrades ?? []);
   return (
-    <div class="shipwright">
-      <div class="shipwright-row">
-        <span>
-          {ship.name ? `${ship.name}: ` : 'Your flagship: '}hull {Math.round(ship.hull ?? stats.hullMax)} / {stats.hullMax} · sails {Math.round(ship.sailCondition ?? 100)}%
-        </span>
-        {cost > 0 ? (
-          <button onClick={() => send({ type: 'Repair', shipId })}>
-            Repair {fleet.length ? 'the fleet' : ''} · {cost} gold
-          </button>
-        ) : (
-          <span class="port-sub">{fleet.length ? 'Every ship is sound.' : 'She is sound.'}</span>
-        )}
-      </div>
-      <LaidUp content={content} state={state} shipId={shipId} send={send} />
-      <FleetList content={content} state={state} shipId={shipId} send={send} />
-      <ShipsForSale content={content} state={state} town={town} shipId={shipId} send={send} />
+    <>
       <div class="shipwright-row">
         <span>
           Guns {stats.guns} / {stats.maxGuns}
@@ -825,7 +892,7 @@ function Shipwright({
           ))}
         </tbody>
       </table>
-    </div>
+    </>
   );
 }
 

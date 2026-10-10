@@ -23,6 +23,7 @@ import {
   priceStory,
   quote,
   repairCost,
+  shipRepairCost,
   seawardHeading,
   sellDepth,
   shipValue,
@@ -446,6 +447,43 @@ describe('the shipwright, the tavern and a hostile port', () => {
   });
 });
 
+describe('provisions from a ship at sea', () => {
+  const at = (nation: string, extra: { standing?: Record<string, number>; gold?: number } = {}) => {
+    const sim = moored(portRoyal);
+    const me = player(sim.state);
+    const other = { ...me, id: 'ship.9', ai: { nation, role: 'merchant', name: 'Hope', from: 'a', to: 'b', route: [], along: 0, offset: 0, tackSign: 1, news: [] } } as unknown as WorldState['ships'][string];
+    return createSim(
+      { ...sim.state, ships: { player: me, 'ship.9': { ...other, x: me.x + 1 } }, captain: { ...sim.state.captain!, gold: extra.gold ?? 1000, standing: extra.standing } },
+      [createEconomySystem(content, settlements)],
+    );
+  };
+  const sp = content.economy.seaProvisions;
+  const price = Math.ceil(content.goods.find((g) => g.id === 'food')!.basePrice * sp.markup);
+
+  it('a passing merchant sells food from her spare stores, dear, and only so much', () => {
+    const sim = at('england');
+    sim.send({ type: 'BuyProvisions', shipId: 'player', targetId: 'ship.9', units: 1000 });
+    sim.applyCommands();
+    expect(player(sim.state).cargo.food).toBe(sp.spare);
+    expect(sim.state.captain!.gold).toBe(1000 - sp.spare * price);
+    sim.send({ type: 'BuyProvisions', shipId: 'player', targetId: 'ship.9', units: 5 });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('none-to-spare');
+  });
+
+  it('pirates, and ships of a nation that hunts the captain, will not sell; the purse limits the rest', () => {
+    for (const sim of [at('pirate'), at('spain', { standing: { spain: -60 } })]) {
+      sim.send({ type: 'BuyProvisions', shipId: 'player', targetId: 'ship.9', units: 5 });
+      sim.applyCommands();
+      expect(sim.events().at(-1)!.payload.reason).toBe('wont-sell');
+    }
+    const poor = at('england', { gold: price * 3 + 1 });
+    poor.send({ type: 'BuyProvisions', shipId: 'player', targetId: 'ship.9', units: 20 });
+    poor.applyCommands();
+    expect(player(poor.state).cargo.food).toBe(3);
+  });
+});
+
 describe('outfitting at the shipwright', () => {
   const docked = (at = portRoyal, gold?: number) => {
     const sim = moored(at);
@@ -791,6 +829,22 @@ describe('the fleet', () => {
     docked.applyCommands();
     return docked;
   };
+
+  it('the shipwright mends one ship on her own, or the whole fleet', () => {
+    const sim = withFluyt([fluyt], { hull: 50, sailCondition: 60 });
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'Repair', shipId: 'player', only: 'f1' });
+    sim.applyCommands();
+    const fluytAfter = sim.state.captain!.fleet![0]!;
+    expect(fluytAfter.hull).toBe(shipStats(content, fluytAfter).hullMax);
+    // The flagship is left as she was, and only the fluyt was paid for.
+    expect(player(sim.state).hull).toBe(50);
+    expect(gold - sim.state.captain!.gold).toBe(shipRepairCost(content, fluyt));
+    sim.send({ type: 'Repair', shipId: 'player' });
+    sim.applyCommands();
+    expect(player(sim.state).hull).toBe(shipStats(content, player(sim.state)).hullMax);
+    expect(player(sim.state).sailCondition).toBe(100);
+  });
 
   it("counts every ship's hold and berths, and buying fills the fleet's hold", () => {
     const sim = withFluyt();

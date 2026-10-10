@@ -1567,6 +1567,29 @@ body {
   border-color: #4f8fba;
 }
 
+.hail-food {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.hail-food button {
+  padding: 2px 10px;
+  font: inherit;
+  color: #ebede9;
+  background: #253a5e;
+  border: 1px solid #4f8fba;
+  cursor: pointer;
+}
+
+.hail-food button:disabled {
+  color: #577277;
+  background: transparent;
+  border-color: #394a50;
+  cursor: default;
+}
+
 .hail-actions button.attack {
   color: #ebede9;
   background: #752438;
@@ -1609,6 +1632,24 @@ body {
 
 .shipwright {
   min-height: 120px;
+}
+
+/* The shipwright's three yards: repair, buy, upgrade. */
+.shipwright-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.shipwright .shipwright-tabs button {
+  color: #a4dddb;
+  background: transparent;
+  border-color: #394a50;
+}
+
+.shipwright .shipwright-tabs button.active {
+  color: #e8c170;
+  border-color: #e8c170;
 }
 
 .shipwright-row {

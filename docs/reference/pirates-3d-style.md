@@ -169,6 +169,8 @@ own off a real island, at every zoom, hour and wind.
     water just aft of her, opening into a V of fine combed streaks, foam along her sides and a bow wave curling
     back from her stem. All of it is whiter the faster she goes. The wake drifts downwind with the water and
     fades out within a few of her lengths, so it never draws a lasting line on the sea.
+  - At sea a ship shows the damage a fight left: canvas in rags by her sails' state, her side holed by her
+    hull's, empty ports for guns lost; patched when the shipwright mends her.
   - Decks a weathered, oiled reddish brown (a pale deck reads as a tan slab from the overhead camera).
 - **Sea battles** (`battle.ts`): fought on the same 3D sea as the map, its positions being world tiles.
   - The two ships at their true size (the map's 1.6x enlargement would leave no sea between them), so they
@@ -191,7 +193,7 @@ own off a real island, at every zoom, hour and wind.
     calls it out ("Her foremast goes by the board!") and her card shows the masts still standing.
   - The player's firing arcs on the water, kept light: a faint edge, filled gold only when a broadside is ready.
   - The compass top-left (the wind's red arrow, heading, knots), as at sea.
-  - The camera frames both ships, high and oblique, closer as they close; the wheel zooms, C views from astern.
+  - The camera at the sea's own zoom (one wheel zoom for both), ships the same size on screen as at sea, pulled back only as far as keeps both in view; C views from astern.
 - **Image:** bloom, SMAA and ACES tone mapping.
 - **Compass** (HUD, top-right): a gilt rose on a sea-blue face, turned with the view (north-up overhead, her bow up
   from astern), so it matches the sea on screen; the wind a red arrow through it to where it blows, longer and

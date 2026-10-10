@@ -29,10 +29,13 @@ export interface HailProps {
   attack: () => void;
   /** The nation whose letter of marque makes this attack lawful, if any. */
   lawful?: string;
+  /** Buy up to this much of her spare food; and the room in the hold for it. */
+  buyFood: (units: number) => void;
+  room: number;
 }
 
 /** Speaking a ship at sea (PRD section 4): who she is, a hint of what she carries, and her news. */
-export function Hail({ state, content, settlements, ship, news, close, attack, lawful }: HailProps) {
+export function Hail({ state, content, settlements, ship, news, close, attack, lawful, buyFood, room }: HailProps) {
   const ai = ship.ai!;
   const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const goods = Object.keys(ship.cargo).map((g) => content.goods.find((x) => x.id === g)?.name.toLowerCase() ?? g);
@@ -71,6 +74,7 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
             <div class="port-sub">No news you haven't heard.</div>
           )}
         </div>
+        <Provisions content={content} state={state} ship={ship} buyFood={buyFood} room={room} />
         <div class="hail-actions">
           <button class="attack" onClick={attack} title={ai.nation === 'pirate' ? 'A pirate: fair game' : `Costs standing with the ${NATION_ADJECTIVE[ai.nation]}`}>
             Attack
@@ -85,6 +89,35 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Food from her spare stores (dear, as far from market), for a captain running short at sea: what she can spare,
+ * the price, and one click for as much as the hold and purse allow. A pirate, or a ship of a nation that hunts the
+ * captain, says why she won't.
+ */
+function Provisions({ content, state, ship, buyFood, room }: { content: ContentPack; state: WorldState; ship: Ship; buyFood: (units: number) => void; room: number }) {
+  const sp = content.economy.seaProvisions;
+  const ai = ship.ai!;
+  const standing = state.captain?.standing?.[ai.nation as keyof NonNullable<NonNullable<WorldState['captain']>['standing']>] ?? 0;
+  if (ai.nation === 'pirate') return <div class="hail-food port-sub">She has no food to sell you: pirates keep what they have.</div>;
+  if (standing <= sp.refuseBelow) return <div class="hail-food port-sub">Her captain won't trade with you: the {NATION_ADJECTIVE[ai.nation]} want you hanged.</div>;
+  const price = Math.ceil((content.goods.find((g) => g.id === 'food')?.basePrice ?? 2) * sp.markup);
+  const left = sp.spare - (state.captain?.provisionsFrom?.[ship.id] ?? 0);
+  if (left <= 0) return <div class="hail-food port-sub">She has no more food to spare.</div>;
+  const gold = state.captain?.gold ?? 0;
+  const can = Math.min(left, room, Math.floor(gold / price));
+  const why = room <= 0 ? 'Your hold is full.' : gold < price ? 'Not enough gold.' : undefined;
+  return (
+    <div class="hail-food">
+      <span>
+        She can spare {left} food at {price} gold each (dear: far from market).
+      </span>
+      <button disabled={can <= 0} title={why} onClick={() => buyFood(can)}>
+        Buy {Math.max(0, can)} food · {Math.max(0, can) * price} gold
+      </button>
     </div>
   );
 }

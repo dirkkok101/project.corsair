@@ -224,6 +224,12 @@ const goodRates = z.record(z.string(), z.number().min(0));
 
 export const economySchema = z.object({
   startingGold: z.number().int().min(0),
+  /**
+   * Provisions bought from a ship spoken at sea: what she can spare (units of food) and the price, as a multiple
+   * of food's base price (dear, as far from market). Pirates and ships of a nation that hunts the captain won't
+   * sell; standing at or below `refuseBelow` with her nation turns her away.
+   */
+  seaProvisions: z.object({ spare: z.number().int().positive(), markup: z.number().positive(), refuseBelow: z.number() }),
   daysPerWeek: z.number().int().positive(),
   /** Price stays within base x [min, max]. */
   priceClamp: z.tuple([z.number().positive(), z.number().positive()]),
