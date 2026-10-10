@@ -662,7 +662,14 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
   and the Maps: each map a parchment drawn from the real coast, a quarter per piece (the hoard's own quarter first,
   the X from the third piece), with its worth, the port it lies near and, from the second piece, its landmark; one
   click plots a course to the search ring. The chart rings each search area, 40 tiles across with one piece down
-  to 8 with four. Not yet: digging, landmarks in 3D and revenge (slice 4); flags at sea.
+  to 8 with four.
+- Built (digging, slice 4): inside a map's search ring and within 2 tiles of a beach, G ("go ashore and dig"; D
+  already steers) heaves to and puts the men ashore; half a day passes. Within 2 tiles of the hoard it comes up:
+  its gold to the plunder chest (out of the pirate's wealth), +1 fame, and news. A miss inside the ring has the men
+  name the landmark, which way it lies and how far. Dug up before its pirate was ever beaten, he swears revenge
+  (news, and "hunting you" on the Top Ten): he comes for the captain at any odds and from half as far again, until
+  beaten. In 3D each held map's landmark stands on its coast (a lone palm, three palms, a split rock, a wrecked hull,
+  a ruined hut, a cairn), with a dug pit once found. Not yet: landmarks in the 2D view; flags at sea; items in hoards.
 
 ## 13. News and events
 

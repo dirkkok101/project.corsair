@@ -617,6 +617,11 @@ async function main() {
       else hail(shipInHail());
     }
     if (e.key === 'Escape') hailing = undefined;
+    // G: go ashore and dig, inside a treasure map's search ring and near a beach (D steers; G boards only in battle).
+    if (e.key.toLowerCase() === 'g' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
+      if (digHere()) dig();
+      else digNote = { text: "Nothing to dig for here: sail into a treasure map's search ring (M), close to the shore", until: performance.now() + 4000 };
+    }
     // L: the captain's log (the Top Ten and the treasure maps), at sea; Escape closes it too.
     if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen && !player().docked;
     if (e.key === 'Escape') logOpen = false;
@@ -803,6 +808,67 @@ async function main() {
   const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 2.5);
 
   /** The nearest port close enough to dock at, if any. */
+  /**
+   * Where the men could go ashore and dig: close to a beach (treasure.json dig reach) inside the search ring of a map
+   * she holds a piece of and hasn't dug up. The map's pirate, or undefined.
+   */
+  const digHere = (): string | undefined => {
+    const me = player();
+    if (me.docked) return undefined;
+    const d = content.treasure.dig;
+    const r = Math.ceil(d.reachTiles);
+    let shore = false;
+    for (let dy = -r; dy <= r && !shore; dy++)
+      for (let dx = -r; dx <= r && !shore; dx++) {
+        const tx = Math.floor(me.x) + dx;
+        const ty = Math.floor(me.y) + dy;
+        shore = isLand(tileAt(map, tx, ty)) && Math.hypot(tx + 0.5 - me.x, ty + 0.5 - me.y) <= d.reachTiles;
+      }
+    if (!shore) return undefined;
+    return content.pirates.captains.find((c) => {
+      const hoard = sim.state.famous?.[c.id]?.hoard;
+      const held = sim.state.captain?.mapPieces?.[c.id] ?? 0;
+      if (!hoard || !held || hoard.found) return false;
+      const ring = hoardRing(content, hoard, held);
+      return Math.hypot(ring.x - me.x, ring.y - me.y) <= ring.r + d.reachTiles;
+    })?.name;
+  };
+  // What the last dig turned up, said a while.
+  let digNote: { text: string; until: number } | undefined;
+  /**
+   * G: heave to, put the men ashore on the nearest beach and dig. Half a day passes (treasure.json dig hours) while
+   * they do; then what they found, or which way the landmark lies.
+   */
+  const dig = () => {
+    const me = player();
+    const before = sim.events().length;
+    sim.send({ type: 'SetSails', shipId: me.id, sails: 'furled' });
+    sim.send({ type: 'Dig', shipId: me.id });
+    sim.applyCommands();
+    const ev = sim.events().slice(before).find((e) => e.type === 'HoardFound' || e.type === 'DigMissed' || e.type === 'DigRefused');
+    const now = performance.now();
+    if (!ev || ev.type === 'DigRefused') {
+      digNote = { text: 'No beach within reach to put the men ashore: close the shore first', until: now + 4000 };
+      return;
+    }
+    sim.step(Math.round((content.calendar.ticksPerDay * content.treasure.dig.hours) / 24));
+    if (ev.type === 'HoardFound') {
+      const p = ev.payload as { name: string; gold: number; fame: number; revenge: boolean };
+      digNote = {
+        text: `You dig up ${p.name}'s hoard! ${p.gold.toLocaleString()} gold to the plunder chest, +${p.fame} fame.${p.revenge ? ` ${p.name} will hear of it: he swears revenge, and will hunt you.` : ''}`,
+        until: now + 10000,
+      };
+      return;
+    }
+    const hint = ev.payload.hint as { landmark: string; bearingDeg: number; tiles: number } | null;
+    const way = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round((hint?.bearingDeg ?? 0) / 45) % 8];
+    digNote = {
+      text: hint
+        ? `Half a day's digging, and only sand. From the beach the men see ${hint.landmark} to the ${way}, about ${Math.max(1, Math.round(hint.tiles * kmPerTile))} km off`
+        : "Half a day's digging, and only sand. Nothing on this coast matches your maps",
+      until: now + 9000,
+    };
+  };
   const portInReach = () => {
     const ship = player();
     let best: { s: PlacedSettlement; d: number } | undefined;
@@ -1219,6 +1285,7 @@ async function main() {
     const near = reach || hailing ? undefined : shipInHail();
     // A hunter closing on the player: a warning beats any other prompt.
     const hunter = Object.values(sim.state.ships).find((s) => s.ai?.chasing);
+    const treasure = reach || hailing ? undefined : digHere();
     const spoken = hailing && sim.state.ships[hailing.targetId];
     render(
       spoken ? (
@@ -1353,10 +1420,14 @@ async function main() {
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
-            : reach
+            : digNote && now < digNote.until
+              ? digNote.text
+              : reach
               ? `Enter ${reach.name} · E`
               : near
                 ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
+                : treasure
+                  ? `${treasure}'s hoard could lie on this coast: go ashore and dig · G`
                 : raider && raided?.ai
                   ? raided.ai.role === 'patrol'
                     ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`

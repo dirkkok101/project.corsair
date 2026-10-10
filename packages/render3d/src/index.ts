@@ -19,6 +19,7 @@ import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import { createStorm } from './storm';
 import type { SprayShip } from './storm';
 import type { BattleHull } from './battle';
+import { createLandmarks } from './landmarks';
 import { createTowns, TOWN_GLOW, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
@@ -202,6 +203,9 @@ export async function createSeaRenderer(
   });
   let bannersAt = -Infinity;
   scene.add(towns.object);
+  // The treasure maps' landmarks on their coasts (and a dug pit once a hoard is found).
+  const landmarks = createLandmarks(ground.heightAt);
+  scene.add(landmarks.object);
 
   // Clouds: soft white puffs drifting downwind (Pirates!: white clouds are wind, dark ones a storm).
   const puff = puffTexture();
@@ -538,6 +542,12 @@ export async function createSeaRenderer(
     if (!me) return;
     gloomWant = gloomAt(state, me.x, me.y);
     const dt = beginFrame(nowMs, distance);
+    landmarks.set(
+      content.pirates.captains.flatMap((c) => {
+        const hoard = state.famous?.[c.id]?.hoard;
+        return hoard && state.captain?.mapPieces?.[c.id] ? [{ id: c.id, x: hoard.x, y: hoard.y, kind: hoard.landmark, found: hoard.found }] : [];
+      }),
+    );
     const t = nowMs / 1000;
     const wind = options.windAt(state, me.x, me.y);
     const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };

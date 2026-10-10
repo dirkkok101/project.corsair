@@ -415,6 +415,37 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
   expect(errors).toEqual([]);
 });
 
+test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes up', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  for (let w = 0; w < 16 && !(await page.locator('.stranger').count()); w++) {
+    await page.evaluate(() => window.__corsair.sim.step(7 * 771));
+    await page.waitForTimeout(50);
+  }
+  await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
+  await page.keyboard.press('e');
+  // Off the hoard's own beach (the test knows where it is; the captain only has the ring).
+  const hoard = await page.evaluate(() => {
+    const famous = window.__corsair.state.get('famous') as Record<string, { hoard?: { landing: [number, number]; value: number } }>;
+    const h = Object.values(famous).find((f) => f.hoard)!.hoard!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: h.landing[0], y: h.landing[1] });
+    window.__corsair.sim.step(1);
+    return h;
+  });
+  await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig · G');
+  const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
+  await page.keyboard.press('g');
+  await expect(page.locator('.hud-prompt')).toContainText('You dig up');
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { chest?: number }).chest)).toBe(hoard.value);
+  // Half a day went by.
+  expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThanOrEqual(tick + Math.round(771 / 2));
+  await page.screenshot({ path: 'test-results/dig.png' });
+  await page.keyboard.press('l');
+  await expect(page.locator('.log-map')).toContainText('dug up');
+  expect(errors).toEqual([]);
+});
+
 test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // News is known at once where it happens, so a shock in the port we're at needs no waiting.

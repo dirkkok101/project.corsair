@@ -82,7 +82,7 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 ### 4. Digging
 
 - No full shore expedition yet (that's PRD section 4's landfall). Instead: sail within 2 tiles of the coast near
-  the site and press **D, "Go ashore and dig"** (shown as a prompt when you are near a mapped search area).
+  the site and press **G, "Go ashore and dig"** (D already steers) (shown as a prompt when you are near a mapped search area).
 - A dig costs half a day. Within the tolerance (2 tiles, the same for everyone): the hoard (gold to the plunder chest,
   sometimes an item), news, fame. Missing it, a hint from the landmark: "the lone palm stands to the north-east",
   so a careful captain closes in.
@@ -115,8 +115,9 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 3. **Maps** (built): pieces from the tavern stranger, beaten pirates and survivors; hoards placed on the first piece
    (from the tick and the pirate's id, as the world keeps no seed); the Maps page in a new captain's log (L); the
    chart's search ring and a course to it (never straight to the X). The burying rumour is left for slice 4's hints.
-4. **Digging and landmarks**: going ashore near the site, the dig, hints when you miss, landmark models in 3D,
-   revenge when you dig before beating him.
+4. **Digging and landmarks** (built): going ashore near the site (G), the dig, hints when you miss, landmark models
+   in 3D, revenge when you dig before beating him (at any odds, from 1.5x as far, until he is beaten). Not built:
+   items in hoards, landmarks in the 2D view.
 
 ## Decisions (2026-10-10)
 

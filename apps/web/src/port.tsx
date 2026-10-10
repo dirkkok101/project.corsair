@@ -963,6 +963,8 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
                   ? ''
                   : jailed.has(r.id!)
                     ? 'your prisoner, for a governor'
+                    : state.famous?.[r.id!]?.revenge
+                      ? 'hunting you, for his hoard'
                     : r.returnAt
                       ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}`
                       : `sails from ${haven(r.haven)}`}

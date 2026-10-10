@@ -484,7 +484,7 @@ function card(w: number, h: number): THREE.BufferGeometry {
  * undergrowth; and grey shore rocks. Leaves are textured cards (alpha-cut), lit both sides; each part is its own
  * instanced draw.
  */
-function treeKit() {
+export function treeKit() {
   // A palm frond: a midrib with leaflets either side, greener at the base, yellowing and browner at the tip.
   const frondMap = foliageTexture(
     256,
