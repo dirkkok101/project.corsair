@@ -406,6 +406,8 @@ export interface FamousPirate {
   spared?: boolean;
   /** Her buried hoard, placed when the captain gets the first piece of its map. */
   hoard?: Hoard;
+  /** The captain dug up her hoard before ever beating her: she hunts the captain, at any odds, until beaten. */
+  revenge?: boolean;
 }
 
 /** A famous pirate's buried hoard (treasure.json): where it lies, what marks it, and what it holds. */
@@ -470,6 +472,8 @@ export type Command =
       /** A famous pirate taken prisoner: ask her for a piece of her hoard's map, hold her for a bounty, or set her free (the default). */
       captive?: 'hoard' | 'bounty' | 'free';
     }
+  /** Go ashore on the nearest beach and dig for a hoard whose map the captain holds a piece of. */
+  | { type: 'Dig'; shipId: string }
   /** In a tavern: buy the piece of a famous pirate's map the shady stranger offers this week. */
   | { type: 'BuyMapPiece'; shipId: string; pirateId: string }
   /** At the shipwright: sell a ship of the fleet, or make one the flagship. */

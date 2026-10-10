@@ -2,7 +2,7 @@ import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
-import { crewOf, fleetBerths, givePiece, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
+import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import type { SeaLanes } from './lanes';
@@ -154,7 +154,7 @@ export function createTrafficSystem(
     const id = ship.ai!.famous!;
     const r = content.pirates.rules;
     const f = famousOf(state, id);
-    const next = withFamous(state, id, { ...f, wealth: Math.round(wealthLeft * r.keeps), returnAt: tick + Math.round(r.returnDays * tpd), defeats: (f.defeats ?? 0) + 1 });
+    const next = withFamous(state, id, { ...f, wealth: Math.round(wealthLeft * r.keeps), returnAt: tick + Math.round(r.returnDays * tpd), defeats: (f.defeats ?? 0) + 1, revenge: undefined });
     return newsItem(next, nearestPort(ship.x, ship.y).id, 'famousBeaten', tick, ship.ai!.name, 'pirate', { captain: ship.ai!.name });
   };
   /** A famous pirate sails from her haven: her own ship and class, a full crew, and her temperament. */
@@ -614,6 +614,8 @@ export function createTrafficSystem(
     Object.fromEntries(Object.entries(ship.plunder ?? {}).filter(([g]) => cargo[g]).map(([g, n]) => [g, Math.min(n, cargo[g]!)]));
   const standingWith = (state: WorldState, nation: Nation) => state.captain?.standing?.[nation] ?? 0;
   /** Pirates hunt the player; a nation's patrols do too once the player has made it an enemy. */
+  /** A famous pirate out for revenge on the captain who dug up her hoard. */
+  const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
   const hunts = (state: WorldState, ship: Ship) =>
     (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) || (ship.ai!.role === 'patrol' && standingWith(state, ship.ai!.nation) <= cb.standing.hostile);
 
@@ -709,12 +711,16 @@ export function createTrafficSystem(
     const need = pirate ? (cb.tactics.temperaments[hunter.ai!.temperament ?? 'bold']?.attackOdds ?? 1) * (hunter.ai!.nerve ?? 1) : cb.hunt.patrolOdds;
     const mine = strength(hunter);
     const sight = cb.chase.chaseTiles;
+    const vengeful = avenging(state, hunter);
     let best: { s: Ship; score: number } | undefined;
     for (const s of Object.values(ships)) {
       const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter) && !sheltered(state, hunter, s.x, s.y);
       if (!eligible) continue;
       const d = Math.hypot(s.x - hunter.x, s.y - hunter.y);
-      if (d > sight || !lanes.clear([hunter.x, hunter.y], [s.x, s.y])) continue;
+      // A famous pirate whose hoard the captain dug up comes for her from further off, whatever the odds.
+      const revenge = vengeful && !s.ai;
+      if (d > sight * (revenge ? content.treasure.dig.revengeReach : 1) || !lanes.clear([hunter.x, hunter.y], [s.x, s.y])) continue;
+      if (revenge) return s;
       const odds = mine / Math.max(1, strength(s));
       if (odds < need) continue;
       const near = 1 / (1 + d / sight);
@@ -817,6 +823,20 @@ export function createTrafficSystem(
     return { state: f.state, ships: f.state.ships, events: [...events, ...f.events] };
   };
 
+  /** The nearest land within `reach` tiles of a spot at sea (a tile's centre), where a boat can put the men ashore. */
+  const beachNear = (x: number, y: number, reach: number): { x: number; y: number } | undefined => {
+    let best: { x: number; y: number; d: number } | undefined;
+    const r = Math.ceil(reach);
+    for (let ty = Math.floor(y) - r; ty <= Math.floor(y) + r; ty++) {
+      for (let tx = Math.floor(x) - r; tx <= Math.floor(x) + r; tx++) {
+        if (water(tx, ty)) continue;
+        const d = Math.hypot(tx + 0.5 - x, ty + 0.5 - y);
+        if (d <= reach && (!best || d < best.d)) best = { x: tx + 0.5, y: ty + 0.5, d };
+      }
+    }
+    return best;
+  };
+
   /** The port nearest a spot at sea, where news of what happened there starts out from. */
   const nearestPort = (x: number, y: number) =>
     settlements.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) < Math.hypot(a.x - x, a.y - y) ? b : a));
@@ -827,6 +847,58 @@ export function createTrafficSystem(
   return {
     name: 'traffic',
     command(state, command) {
+      if (command.type === 'Dig') {
+        // Ashore on the nearest beach within reach: a hoard within tolerance comes up; otherwise, inside a map's
+        // search ring, the men spot its landmark and say which way it lies. The half day it takes is the app's to pass.
+        const player = state.ships[command.shipId];
+        if (!player || !state.captain) return undefined;
+        const d = content.treasure.dig;
+        const fail = (reason: string) => ({ state, events: [{ type: 'DigRefused', entityIds: [player.id], payload: { reason } }] as EmittedEvent[] });
+        if (player.docked) return fail('in-port');
+        const site = beachNear(player.x, player.y, d.reachTiles);
+        if (!site) return fail('no-shore');
+        const maps = content.pirates.captains.flatMap((c) => {
+          const hoard = state.famous?.[c.id]?.hoard;
+          const held = state.captain?.mapPieces?.[c.id] ?? 0;
+          return hoard && held && !hoard.found ? [{ c, hoard, held }] : [];
+        });
+        const hit = maps.find((m) => Math.hypot(m.hoard.x - site.x, m.hoard.y - site.y) <= d.toleranceTiles);
+        if (hit) {
+          const f = famousOf(state, hit.c.id);
+          // Dug up before he was ever beaten, he swears revenge.
+          const revenge = !(f.defeats ?? 0);
+          let next = withFamous(state, hit.c.id, {
+            ...f,
+            wealth: Math.max(0, f.wealth - hit.hoard.value),
+            hoard: { ...hit.hoard, found: true },
+            ...(revenge ? { revenge: true, spared: undefined } : {}),
+          });
+          const captain = { ...state.captain, chest: (state.captain.chest ?? 0) + hit.hoard.value, fame: (state.captain.fame ?? 0) + d.fame };
+          next = newsItem({ ...next, captain }, hit.hoard.near, 'hoardDug', state.tick, hit.c.name, 'pirate', { captain: hit.c.name });
+          if (revenge) next = newsItem(next, hit.hoard.near, 'famousRevenge', state.tick, hit.c.name, 'pirate', { captain: hit.c.name });
+          return {
+            state: next,
+            events: [{ type: 'HoardFound', entityIds: [player.id], payload: { pirateId: hit.c.id, name: hit.c.name, gold: hit.hoard.value, fame: d.fame, revenge } }],
+          };
+        }
+        // A miss: the nearest map whose ring she is in gives its landmark's bearing and distance.
+        const inRing = maps
+          .filter((m) => {
+            const ring = hoardRing(content, m.hoard, m.held);
+            return Math.hypot(ring.x - site.x, ring.y - site.y) <= ring.r + d.reachTiles;
+          })
+          .sort((a, b) => Math.hypot(a.hoard.x - site.x, a.hoard.y - site.y) - Math.hypot(b.hoard.x - site.x, b.hoard.y - site.y))[0];
+        const hint = inRing
+          ? {
+              pirateId: inRing.c.id,
+              name: inRing.c.name,
+              landmark: inRing.hoard.landmark,
+              bearingDeg: Math.round(normalizeDeg((Math.atan2(inRing.hoard.x - site.x, -(inRing.hoard.y - site.y)) * 180) / Math.PI)),
+              tiles: Math.round(Math.hypot(inRing.hoard.x - site.x, inRing.hoard.y - site.y) * 10) / 10,
+            }
+          : null;
+        return { state, events: [{ type: 'DigMissed', entityIds: [player.id], payload: { hint } }] };
+      }
       if (command.type === 'Hail') {
         const player = state.ships[command.shipId];
         const other = state.ships[command.targetId];
@@ -1301,7 +1373,8 @@ export function createTrafficSystem(
           const calm = (ship.ai.calmUntil ?? 0) > tick;
           if (ship.ai.chasing) {
             const d = p ? Math.hypot(p.x - ship.x, p.y - ship.y) : Infinity;
-            if (!p || p.docked || calm || sheltered(next, ship, p.x, p.y) || d > cb.chase.giveUpTiles || !hunts(next, ship)) {
+            const giveUp = cb.chase.giveUpTiles * (avenging(next, ship) ? content.treasure.dig.revengeReach : 1);
+            if (!p || p.docked || calm || sheltered(next, ship, p.x, p.y) || d > giveUp || !hunts(next, ship)) {
               ships = { ...ships, [id]: rejoin(ship) };
             } else if (d <= cb.chase.contactTiles) {
               const calmUntil = tick + Math.round(cb.chase.calmDays * tpd);

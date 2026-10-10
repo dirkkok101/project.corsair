@@ -745,6 +745,13 @@ export const treasureSchema = z.object({
     unfinishedWeight: z.number().positive(),
   }),
   survivorChance: share01,
+  dig: z.object({
+    reachTiles: z.number().positive(),
+    toleranceTiles: z.number().positive(),
+    hours: z.number().min(0),
+    fame: z.number().int().min(0),
+    revengeReach: z.number().min(1),
+  }),
   landmarks: z.array(z.string()).min(1),
 });
 export type TreasureConfig = z.infer<typeof treasureSchema>;

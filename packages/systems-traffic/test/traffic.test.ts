@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
-import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, newsText, normalStock, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -1022,6 +1022,120 @@ describe('the famous pirates', () => {
     // No one picked up, no piece.
     expect(sunk(sure, 0).state.captain!.mapPieces).toBeUndefined();
   });
+
+  /** A world a day old with Morgan's hoard placed and a piece of his map held, the player at `at` (or off the hoard). */
+  const withMap = (at?: (h: NonNullable<ReturnType<typeof placeHoard>>) => [number, number]) => {
+    const sim = world(4);
+    sim.step(day);
+    const hoard = placeHoard(content, map, settlements, 'morgan', 9000, 77)!;
+    const [x, y] = at ? at(hoard) : hoard.landing;
+    const state: WorldState = {
+      ...sim.state,
+      famous: { ...sim.state.famous, morgan: { ...sim.state.famous!.morgan!, hoard } },
+      captain: { ...sim.state.captain!, chest: 0, mapPieces: { morgan: 1 } },
+      ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, docked: undefined, x, y } },
+    };
+    return { dig: createSim(state, [traffic()]), hoard };
+  };
+  const digThere = (sim: ReturnType<typeof withMap>['dig']) => {
+    sim.send({ type: 'Dig', shipId: 'player' });
+    sim.applyCommands();
+    return sim.events().at(-1)!;
+  };
+  const isWater = (x: number, y: number) => !isLand(tileAt(map, x, y));
+
+  it('digging off the hoard brings it up: the gold, fame, news, and revenge from a pirate never beaten', () => {
+    const { dig, hoard } = withMap();
+    const found = digThere(dig);
+    expect(found).toMatchObject({ type: 'HoardFound', payload: { pirateId: 'morgan', gold: hoard.value, revenge: true } });
+    expect(dig.state.captain!.chest).toBe(hoard.value);
+    expect(dig.state.captain!.fame).toBe(content.treasure.dig.fame);
+    expect(dig.state.famous!.morgan).toMatchObject({ wealth: 9000 - hoard.value, revenge: true, hoard: { found: true } });
+    expect(dig.state.news!.slice(-2).map((n) => n.kind)).toEqual(['hoardDug', 'famousRevenge']);
+    // Dug up, there is nothing more there.
+    expect(digThere(dig)).toMatchObject({ type: 'DigMissed', payload: { hint: null } });
+  });
+
+  it("a miss inside the search ring: the men see the landmark and say which way it lies; open sea, there's no beach", () => {
+    const t = content.treasure.dig;
+    // Off a beach some way from the hoard, still inside the one-piece ring.
+    const spot = (h: NonNullable<ReturnType<typeof placeHoard>>): [number, number] => {
+      for (let r = 4; r < 14; r += 0.5) {
+        for (let a = 0; a < 360; a += 10) {
+          const x = h.x + Math.sin((a * Math.PI) / 180) * r;
+          const y = h.y - Math.cos((a * Math.PI) / 180) * r;
+          const shore = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !isWater(x + dx! * 1.5, y + dy! * 1.5));
+          const beachFar = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5]].every(
+            ([dx, dy]) => isWater(x + dx!, y + dy!) || Math.hypot(x + dx! - h.x, y + dy! - h.y) > t.toleranceTiles + 2,
+          );
+          const ring = hoardRing(content, h, 1);
+          if (isWater(x, y) && shore && beachFar && Math.hypot(ring.x - x, ring.y - y) < ring.r) return [x, y];
+        }
+      }
+      throw new Error('no spot');
+    };
+    const { dig, hoard } = withMap(spot);
+    const missed = digThere(dig);
+    expect(missed.type).toBe('DigMissed');
+    const hint = missed.payload.hint as { landmark: string; bearingDeg: number; tiles: number };
+    expect(hint.landmark).toBe(hoard.landmark);
+    const me = dig.state.ships.player!;
+    const want = (Math.atan2(hoard.x - me.x, -(hoard.y - me.y)) * 180) / Math.PI;
+    expect(Math.abs(((hint.bearingDeg - want + 540) % 360) - 180)).toBeLessThan(25);
+    expect(dig.state.captain!.chest).toBe(0);
+    // Far out at sea there is no beach to dig on.
+    const open = withMap((h) => {
+      for (let r = 8; ; r++) for (let a = 0; a < 360; a += 15) {
+        const x = h.x + Math.sin((a * Math.PI) / 180) * r;
+        const y = h.y - Math.cos((a * Math.PI) / 180) * r;
+        if ([...Array(9)].every((_, i) => isWater(x + ((i % 3) - 1) * 3, y + (Math.floor(i / 3) - 1) * 3))) return [x, y];
+      }
+    });
+    expect(digThere(open.dig)).toMatchObject({ type: 'DigRefused', payload: { reason: 'no-shore' } });
+  });
+
+  it('out for revenge he comes for the captain at any odds, from further off, until beaten', () => {
+    const sim = world(4);
+    sim.step(day);
+    const coxon = famous(sim.state).find((s) => s.ai!.famous === 'coxon')!;
+    // Open water, clear of every port's guns, and the captain a little beyond his usual sight on a clear line.
+    const reach = content.combat.chase.chaseTiles + 4;
+    let here: [number, number] | undefined;
+    let at: [number, number] | undefined;
+    for (let y = 300; y < 1000 && !at; y += 7)
+      for (let x = 300; x < 1500 && !at; x += 7) {
+        const far = settlements.every((s) => Math.hypot(s.x - x, s.y - y) > 40);
+        const around = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+        if (far && around.every(([dx, dy]) => lanes.clear([x + dx!, y + dy!], [x + reach, y]))) {
+          here = [x, y];
+          at = [x + reach, y];
+        }
+      }
+    // A great crew aboard: the odds are hopeless for him.
+    const meet = (revenge: boolean) =>
+      createSim(
+        {
+          ...sim.state,
+          famous: { ...sim.state.famous, coxon: { ...sim.state.famous!.coxon!, ...(revenge ? { revenge: true } : {}) } },
+          ships: {
+            ...sim.state.ships,
+            player: { ...sim.state.ships.player!, docked: undefined, x: at![0], y: at![1], crew: 600 },
+            [coxon.id]: { ...coxon, x: here![0], y: here![1], ai: { ...coxon.ai!, waitUntil: undefined, route: [here!, [here![0] - 0.5, here![1]]], along: 0 } },
+          },
+        },
+        [traffic()],
+      );
+    const calm = meet(false);
+    calm.step(30);
+    expect(calm.state.ships[coxon.id]!.ai!.chasing).toBeFalsy();
+    const angry = meet(true);
+    angry.step(30);
+    expect(angry.state.ships[coxon.id]!.ai!.chasing).toBe(true);
+    // Beaten, it is over.
+    angry.send({ type: 'BattleEnded', shipId: 'player', targetId: coxon.id, result: result('sunk') });
+    angry.applyCommands();
+    expect(angry.state.famous!.coxon!.revenge).toBeUndefined();
+  }, 30_000);
 
   it('losing to her makes her richer by the plunder chest', () => {
     const sim = world(4);
