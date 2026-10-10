@@ -4,7 +4,7 @@ import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, Known
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigation';
 import { atWar, enemiesOf } from '@corsair/systems-politics';
-import { isLand, shipStats, tileAt } from '@corsair/data';
+import { isLand, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
@@ -1184,14 +1184,16 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!ship.docked) return refuse(state, ship, 'not-docked');
         if (ship.upgrades?.includes(upgrade.id)) return refuse(state, ship, 'installed');
         if (!sellsUpgrade(content, byId.get(ship.docked)!, upgrade.id)) return refuse(state, ship, 'not-sold-here');
-        if (state.captain.gold < upgrade.price) return refuse(state, ship, 'not-enough-gold');
+        // Priced by the work on her class (guns, hull or berths), not one price for every ship.
+        const price = upgradePrice(content, ship.classId, upgrade.id).price;
+        if (state.captain.gold < price) return refuse(state, ship, 'not-enough-gold');
         return {
           state: {
             ...state,
             ships: { ...state.ships, [ship.id]: { ...ship, upgrades: [...(ship.upgrades ?? []), upgrade.id] } },
-            captain: { ...state.captain, gold: state.captain.gold - upgrade.price },
+            captain: { ...state.captain, gold: state.captain.gold - price },
           },
-          events: [{ type: 'UpgradeBought', entityIds: [ship.id, ship.docked], payload: { upgradeId: upgrade.id, gold: upgrade.price } }],
+          events: [{ type: 'UpgradeBought', entityIds: [ship.id, ship.docked], payload: { upgradeId: upgrade.id, gold: price } }],
         };
       }
       if (command.type === 'HearNews') {

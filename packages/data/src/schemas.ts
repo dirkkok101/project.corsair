@@ -615,7 +615,9 @@ export const upgradeSchema = z.object({
   id: z.string(),
   name: z.string(),
   effect: z.string(),
+  /** What it costs for upgrades.json's priceFor class; other classes pay by `per` against that class. */
   price: z.number().min(0),
+  per: z.enum(['gun', 'hull', 'berth']),
   sizes: z.array(z.enum(['hamlet', 'town', 'city'])),
   modifiers: z.object({
     speed: z.number().optional(),
@@ -626,7 +628,7 @@ export const upgradeSchema = z.object({
     reloadMult: z.number().positive().optional(),
   }),
 });
-export const upgradesSchema = z.object({ upgrades: z.array(upgradeSchema) });
+export const upgradesSchema = z.object({ priceFor: z.string(), upgrades: z.array(upgradeSchema) });
 export type Upgrade = z.infer<typeof upgradeSchema>;
 
 const share01 = z.number().min(0).max(1);

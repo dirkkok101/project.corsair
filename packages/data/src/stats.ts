@@ -50,3 +50,20 @@ export function shipStats(content: ContentPack, ship: { classId: string; guns?: 
   stats.maxCrew = Math.round(stats.maxCrew);
   return stats;
 }
+
+/** How an upgrade's price grows with the ship: by her guns, her hull or her berths. */
+const PER = { gun: 'guns', hull: 'hull', berth: 'maxCrew' } as const;
+
+/**
+ * What an upgrade costs on a ship of this class: its listed price (for upgrades.json's priceFor class, the brig)
+ * scaled by the work, gun for gun, hull point for hull point or berth for berth, to the nearest 10 gold. A sloop's
+ * bronze cannon cost a fraction of a ship of the line's. `each` and `units` explain the sum on the shipwright's row.
+ */
+export function upgradePrice(content: ContentPack, classId: string, upgradeId: string): { price: number; each: number; units: number; per: 'gun' | 'hull' | 'berth' } {
+  const u = content.upgrades[upgradeId]!;
+  const ref = content.ships[content.upgradePriceFor]!;
+  const cls = content.ships[classId]!;
+  const stat = PER[u.per];
+  const each = u.price / ref[stat];
+  return { price: Math.max(10, Math.round((each * cls[stat]) / 10) * 10), each, units: cls[stat], per: u.per };
+}

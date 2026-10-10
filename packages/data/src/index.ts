@@ -85,6 +85,8 @@ export interface ContentPack {
   combat: Combat;
   politics: PoliticsConfig;
   upgrades: Record<string, Upgrade>;
+  /** The class whose upgrade prices upgrades.json lists (the rest pay by the work: see upgradePrice). */
+  upgradePriceFor: string;
   crew: CrewConfig;
   pirates: PiratesConfig;
   treasure: TreasureConfig;
@@ -120,10 +122,12 @@ export function loadContent(): ContentPack {
     politics: politicsSchema.parse(politicsJson),
     crew: crewSchema.parse(crewJson),
     upgrades: Object.fromEntries(upgradesSchema.parse(upgradesJson).upgrades.map((u) => [u.id, u])),
+    upgradePriceFor: upgradesSchema.parse(upgradesJson).priceFor,
     pirates: piratesSchema.parse(piratesJson),
     treasure: treasureSchema.parse(treasureJson),
   };
   if (pack.treasure.ringTiles.length !== pack.pirates.rules.mapPieces) throw new Error('treasure: ringTiles needs one ring per map piece');
+  if (!pack.ships[pack.upgradePriceFor]) throw new Error(`upgrades: unknown priceFor class ${pack.upgradePriceFor}`);
   const places = new Set(pack.settlements.map((s) => s.id));
   for (const c of pack.pirates.captains) {
     if (!pack.ships[c.classId]) throw new Error(`pirates: ${c.id} sails unknown class ${c.classId}`);

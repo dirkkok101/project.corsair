@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
-import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
+import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
@@ -554,6 +554,26 @@ describe('outfitting at the shipwright', () => {
     small.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'copper' });
     small.applyCommands();
     expect(reason(small)).toBe('not-sold-here');
+  });
+
+  it('upgrades are priced by the work on her class: the brig pays the list price, a sloop less, a ship of the line more', () => {
+    // The brig (the list's own class) pays exactly the listed prices.
+    for (const u of Object.values(content.upgrades)) expect(upgradePrice(content, 'ship.brig', u.id).price).toBe(u.price);
+    const stat = { gun: 'guns', hull: 'hull', berth: 'maxCrew' } as const;
+    for (const u of Object.values(content.upgrades)) {
+      // More guns, hull or berths: never cheaper.
+      const classes = Object.values(content.ships).sort((a, b) => a[stat[u.per]] - b[stat[u.per]]);
+      const prices = classes.map((c) => upgradePrice(content, c.id, u.id).price);
+      expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    }
+    expect(upgradePrice(content, 'ship.sloop', 'bronze_cannon').price).toBeLessThan(content.upgrades.bronze_cannon!.price / 2);
+    expect(upgradePrice(content, 'ship.ship_of_the_line', 'bronze_cannon').price).toBeGreaterThan(content.upgrades.bronze_cannon!.price * 2);
+    // The shipwright charges her class's price.
+    const sim = docked(portRoyal, 10_000);
+    const sloop = createSim({ ...sim.state, ships: { player: { ...player(sim.state), classId: 'ship.sloop', guns: 8 } } }, [createEconomySystem(content, settlements)]);
+    sloop.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'bronze_cannon' });
+    sloop.applyCommands();
+    expect(sloop.state.captain!.gold).toBe(10_000 - upgradePrice(content, 'ship.sloop', 'bronze_cannon').price);
   });
 });
 

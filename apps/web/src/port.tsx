@@ -1,6 +1,6 @@
 import { inPort } from '@corsair/core';
 import type { Contract, WorldState } from '@corsair/core';
-import { shipStats } from '@corsair/data';
+import { shipStats, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
   shipRepairCost,
@@ -883,23 +883,29 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
       </div>
       <table class="upgrades">
         <tbody>
-          {Object.values(content.upgrades).map((u) => (
+          {Object.values(content.upgrades).map((u) => {
+            // Priced by the work on her class: her guns, her hull or her berths.
+            const cost = upgradePrice(content, ship.classId, u.id);
+            return (
             <tr key={u.id}>
               <td>{u.name}</td>
-              <td class="port-sub">{u.effect}</td>
+              <td class="port-sub">
+                {u.effect} · {Math.round(cost.each)} gold a {cost.per === 'hull' ? 'hull point' : cost.per} × her {cost.units}
+              </td>
               <td>
                 {installed.has(u.id) ? (
                   <span class="trend export">installed</span>
                 ) : sellsUpgrade(content, town, u.id) ? (
-                  <button disabled={gold < u.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
-                    Buy · {u.price} gold
+                  <button disabled={gold < cost.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
+                    Buy · {cost.price.toLocaleString()} gold
                   </button>
                 ) : (
                   <span class="port-sub">not sold here</span>
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </>

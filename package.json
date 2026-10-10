@@ -9,6 +9,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "e2e": "playwright test",
+    "probe:battle": "cd packages/minigame-sea-battle/probe && vitest run --config vitest.config.ts",
     "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build apps/web && playwright test"
   },
   "devDependencies": {
