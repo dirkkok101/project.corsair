@@ -726,3 +726,25 @@ export const piratesSchema = z.object({
 });
 export type PiratesConfig = z.infer<typeof piratesSchema>;
 export type FamousPirateDef = PiratesConfig['captains'][number];
+
+/** Treasure maps (treasure.json): where a famous pirate's hoard lies, the chart's search ring, and the pieces' sources. */
+export const treasureSchema = z.object({
+  hoardShare: share01,
+  placeTiles: z.tuple([z.number().min(0), z.number().positive()]),
+  clearOfTownsTiles: z.number().min(0),
+  /** The search ring's diameter in tiles with 1, 2, 3 and 4 pieces held. */
+  ringTiles: z.array(z.number().positive()).min(1),
+  ringOffset: share01,
+  stranger: z.object({
+    chance: share01,
+    unfinishedChance: share01,
+    priceShare: share01,
+    minPrice: z.number().int().min(0),
+    nearTiles: z.number().positive(),
+    nearWeight: z.number().positive(),
+    unfinishedWeight: z.number().positive(),
+  }),
+  survivorChance: share01,
+  landmarks: z.array(z.string()).min(1),
+});
+export type TreasureConfig = z.infer<typeof treasureSchema>;

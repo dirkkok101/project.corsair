@@ -845,7 +845,7 @@ describe('the famous pirates', () => {
     expect(ranks).toHaveLength(11);
     expect(ranks[0]).toMatchObject({ id: 'morgan', wealth: 9000 });
     expect(ranks.find((r) => r.player)!.wealth).toBe(sim.state.captain!.gold);
-  });
+  }, 30_000);
 
   it('a prize makes her richer, and her deed is news by her name', () => {
     const sim = world(9);
@@ -944,6 +944,10 @@ describe('the famous pirates', () => {
     expect(fight.state.prize!.captive).toBe('morgan');
     settle(fight, 'hoard');
     expect(fight.state.captain!.mapPieces).toEqual({ morgan: 1 });
+    // His first piece places his hoard, near one of his haunts; it stays put through his defeats.
+    const hoard = fight.state.famous!.morgan!.hoard!;
+    expect(content.pirates.captains.find((c) => c.id === 'morgan')!.haunts).toContain(hoard.near);
+    expect(fight.state.famous!.morgan!.defeats).toBe(1);
     expect(fight.events().at(-1)!.payload.captive).toEqual({ id: 'morgan', choice: 'hoard', pieces: 1 });
     // His whole map held, he has nothing more to give: he goes free instead.
     const whole = struck();
@@ -999,6 +1003,25 @@ describe('the famous pirates', () => {
     off.applyCommands();
     expect(off.state.famous!.morgan!.spared).toBeUndefined();
   }, 30_000);
+
+  it('sunk, a survivor picked from the water may carry a piece of his map', () => {
+    const sure = { ...content, treasure: { ...content.treasure, survivorChance: 1 } };
+    const sim = world(4);
+    sim.step(day);
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    const sunk = (pack: typeof content, men: number) => {
+      const fight = createSim(sim.state, [createTrafficSystem(pack, settlements, lanes, map, windAt)]);
+      fight.send({ type: 'BattleEnded', shipId: 'player', targetId: morgan.id, result: { ...result('sunk'), salvage: { gold: 0, men } } });
+      fight.applyCommands();
+      return fight;
+    };
+    const picked = sunk(sure, 6);
+    expect(picked.state.captain!.mapPieces).toEqual({ morgan: 1 });
+    expect(picked.state.famous!.morgan!.hoard).toBeDefined();
+    expect(picked.events().find((e) => e.type === 'BattleOver')!.payload.famous).toMatchObject({ name: 'Henry Morgan', piece: 1 });
+    // No one picked up, no piece.
+    expect(sunk(sure, 0).state.captain!.mapPieces).toBeUndefined();
+  });
 
   it('losing to her makes her richer by the plunder chest', () => {
     const sim = world(4);

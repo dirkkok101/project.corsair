@@ -251,6 +251,8 @@ export interface Captain {
   fame?: number;
   /** Pieces of each famous pirate's hoard map held (by her id): keepsakes, never sold. */
   mapPieces?: Record<string, number>;
+  /** The tavern strangers' offers already bought from (`town:week`). */
+  strangerDeals?: string[];
   /** Food bought from each ship spoken at sea (by her id): she has only so much to spare. */
   provisionsFrom?: Record<string, number>;
   /** Nations whose letter of marque the captain holds; each covers whoever that nation is at war with now. */
@@ -402,6 +404,27 @@ export interface FamousPirate {
   defeats?: number;
   /** Set free by the captain: she leaves her be, until the captain attacks her. */
   spared?: boolean;
+  /** Her buried hoard, placed when the captain gets the first piece of its map. */
+  hoard?: Hoard;
+}
+
+/** A famous pirate's buried hoard (treasure.json): where it lies, what marks it, and what it holds. */
+export interface Hoard {
+  /** The spot (tile coordinates, the tile's centre). */
+  x: number;
+  y: number;
+  /** Water off the coast there: where a ship sails to look for it. */
+  landing: [number, number];
+  landmark: string;
+  /** Gold buried. */
+  value: number;
+  /** The widest search ring's centre, off the spot; the ring closes on the spot as pieces come in. */
+  dx: number;
+  dy: number;
+  /** The port the coast lies nearest, which the first piece names. */
+  near: string;
+  /** Dug up already (slice 4). */
+  found?: boolean;
 }
 
 export type Command =
@@ -447,6 +470,8 @@ export type Command =
       /** A famous pirate taken prisoner: ask her for a piece of her hoard's map, hold her for a bounty, or set her free (the default). */
       captive?: 'hoard' | 'bounty' | 'free';
     }
+  /** In a tavern: buy the piece of a famous pirate's map the shady stranger offers this week. */
+  | { type: 'BuyMapPiece'; shipId: string; pirateId: string }
   /** At the shipwright: sell a ship of the fleet, or make one the flagship. */
   | { type: 'SellShip'; shipId: string; fleetId: string }
   | { type: 'MakeFlagship'; shipId: string; fleetId: string }

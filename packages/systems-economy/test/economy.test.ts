@@ -13,12 +13,14 @@ import {
   fleetBerths,
   fleetHold,
   foodDays,
+  hoardRing,
   midPrice,
   moraleOf,
   newsArrives,
   newsAt,
   newsText,
   normalStock,
+  placeHoard,
   portTrade,
   priceStory,
   quote,
@@ -29,6 +31,7 @@ import {
   shipValue,
   shockFactor,
   stockCap,
+  strangerOffer,
   usualStock,
   tradeLean,
   tradePreview,
@@ -622,6 +625,64 @@ describe('the governor', () => {
     expect(gov.state.captain!.deeds).toEqual([]);
     expect(gov.state.famous!.morgan).toEqual({ wealth: 900, returnAt: gov.state.tick + Math.round(r.returnDays * content.calendar.ticksPerDay) });
     expect(gov.events().at(-1)!.payload).toMatchObject({ gold: r.bounty, captives: ['morgan'] });
+  });
+});
+
+describe('treasure maps', () => {
+  const week = content.economy.daysPerWeek * day;
+
+  it("every famous pirate's hoard lies on a coast near his haunts, clear of the towns, inside every search ring", () => {
+    const t = content.treasure;
+    for (const c of content.pirates.captains) {
+      const hoard = placeHoard(content, map, settlements, c.id, c.wealth, 1234)!;
+      expect(hoard, c.id).toBeDefined();
+      expect(placeHoard(content, map, settlements, c.id, c.wealth, 1234)).toEqual(hoard);
+      expect(isLand(tileAt(map, hoard.x, hoard.y))).toBe(true);
+      expect(isLand(tileAt(map, hoard.landing[0], hoard.landing[1]))).toBe(false);
+      const haunt = settlements.find((s) => s.id === hoard.near)!;
+      expect(c.haunts).toContain(haunt.id);
+      expect(Math.hypot(haunt.x - hoard.x, haunt.y - hoard.y)).toBeLessThanOrEqual(t.placeTiles[1] + 1);
+      for (const s of settlements) expect(Math.hypot(s.x - hoard.x, s.y - hoard.y)).toBeGreaterThanOrEqual(t.clearOfTownsTiles - 1);
+      expect(hoard.value).toBe(Math.round(c.wealth * t.hoardShare));
+      for (let pieces = 1; pieces <= content.pirates.rules.mapPieces; pieces++) {
+        const ring = hoardRing(content, hoard, pieces);
+        expect(ring.r).toBe(t.ringTiles[pieces - 1]! / 2);
+        expect(Math.hypot(ring.x - hoard.x, ring.y - hoard.y)).toBeLessThanOrEqual(ring.r);
+      }
+    }
+  });
+
+  it("the tavern stranger: some weeks in a town, the same all week, never in a hamlet, never a whole map's", () => {
+    const sim = moored(portRoyal);
+    const at = (w: number) => strangerOffer(content, { ...sim.state, tick: w * week + 5 }, portRoyal, settlements);
+    const weeks = Array.from({ length: 30 }, (_, w) => at(w));
+    expect(weeks.filter(Boolean).length).toBeGreaterThan(3);
+    expect(weeks.filter(Boolean).length).toBeLessThan(30);
+    const w = weeks.findIndex(Boolean);
+    expect(strangerOffer(content, { ...sim.state, tick: w * week + week - 1 }, portRoyal, settlements)).toEqual(weeks[w]);
+    const hamlet = settlements.find((s) => s.size === 'hamlet')!;
+    expect(Array.from({ length: 30 }, (_, i) => strangerOffer(content, { ...sim.state, tick: i * week }, hamlet, settlements)).some(Boolean)).toBe(false);
+    const whole = Object.fromEntries(content.pirates.captains.map((c) => [c.id, content.pirates.rules.mapPieces]));
+    expect(strangerOffer(content, { ...sim.state, tick: w * week, captain: { ...sim.state.captain!, mapPieces: whole } }, portRoyal, settlements)).toBeUndefined();
+  });
+
+  it('buying his piece: the gold goes, the first piece places the hoard, and he sells only once a week', () => {
+    const moor = moored(portRoyal);
+    let w = 0;
+    while (!strangerOffer(content, { ...moor.state, tick: w * week }, portRoyal, settlements) && w < 60) w++;
+    const docked = { ...moor.state, tick: w * week, ships: { player: { ...moor.state.ships.player!, docked: portRoyal.id } } };
+    const offer = strangerOffer(content, docked, portRoyal, settlements)!;
+    const sim = createSim(docked, [createEconomySystem(content, settlements, map)]);
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'BuyMapPiece', shipId: 'player', pirateId: offer.pirateId });
+    sim.applyCommands();
+    expect(sim.events().at(-1)).toMatchObject({ type: 'MapPieceBought', payload: { pirateId: offer.pirateId, gold: offer.price, pieces: 1 } });
+    expect(sim.state.captain!.gold).toBe(gold - offer.price);
+    expect(sim.state.captain!.mapPieces).toEqual({ [offer.pirateId]: 1 });
+    expect(sim.state.famous![offer.pirateId]!.hoard).toBeDefined();
+    sim.send({ type: 'BuyMapPiece', shipId: 'player', pirateId: offer.pirateId });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('no-offer');
   });
 });
 

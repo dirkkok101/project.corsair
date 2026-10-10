@@ -1,0 +1,11 @@
+{
+  "$comment": "Treasure maps (docs/design/famous-pirates-and-treasure.md, slice 3). A famous pirate's hoard holds 'hoardShare' of his wealth when it is placed, which is when the captain gets the first piece of its map: on a coastal land tile 'placeTiles' from one of his haunts, at least 'clearOfTownsTiles' from any town, by a landmark. The chart rings the search area, 'ringTiles' across by pieces held (1 to 4); the ring's centre lies off the hoard by up to 'ringOffset' of the widest ring, closing on it as the ring shrinks, so the hoard is always inside. A shady stranger sits in a town's tavern some weeks ('stranger.chance', or 'unfinishedChance' while the captain holds an unfinished map) and sells a piece of one pirate's map for 'priceShare' of the hoard's worth (at least 'minPrice'): an unfinished map is 'unfinishedWeight' times likelier, a pirate whose haven or haunts lie within 'nearTiles' 'nearWeight' times. Sinking a famous pirate, a survivor picked from the water carries a piece of his map with 'survivorChance'.",
+  "hoardShare": 0.4,
+  "placeTiles": [6, 30],
+  "clearOfTownsTiles": 5,
+  "ringTiles": [16, 10, 6, 3],
+  "ringOffset": 0.5,
+  "stranger": { "chance": 0.35, "unfinishedChance": 0.6, "priceShare": 0.15, "minPrice": 150, "nearTiles": 200, "nearWeight": 2, "unfinishedWeight": 4 },
+  "survivorChance": 0.35,
+  "landmarks": ["a lone palm", "a split rock", "a wrecked hull", "a ruined hut", "three palms in a row", "a stone cairn"]
+}

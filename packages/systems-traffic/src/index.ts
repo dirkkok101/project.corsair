@@ -2,7 +2,7 @@ import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
-import { crewOf, fleetBerths, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
+import { crewOf, fleetBerths, givePiece, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import type { SeaLanes } from './lanes';
@@ -154,7 +154,7 @@ export function createTrafficSystem(
     const id = ship.ai!.famous!;
     const r = content.pirates.rules;
     const f = famousOf(state, id);
-    const next = withFamous(state, id, { wealth: Math.round(wealthLeft * r.keeps), returnAt: tick + Math.round(r.returnDays * tpd), defeats: (f.defeats ?? 0) + 1 });
+    const next = withFamous(state, id, { ...f, wealth: Math.round(wealthLeft * r.keeps), returnAt: tick + Math.round(r.returnDays * tpd), defeats: (f.defeats ?? 0) + 1 });
     return newsItem(next, nearestPort(ship.x, ship.y).id, 'famousBeaten', tick, ship.ai!.name, 'pirate', { captain: ship.ai!.name });
   };
   /** A famous pirate sails from her haven: her own ship and class, a full crew, and her temperament. */
@@ -1101,7 +1101,16 @@ export function createTrafficSystem(
             laid.push({ name: p.name, classId: p.classId, at: byId.get(e.entityIds[1]!)?.name ?? e.entityIds[1]! });
           }
         }
-        if (famousId) next = famousBeaten(next, other, famousLeft, state.tick);
+        if (famousId) {
+          // Sunk, a survivor picked from the water may carry a piece of his map (his own stream, so nothing else moves).
+          const survivor = outcome === 'sunk' && (salvage?.men ?? 0) > 0 && rngStream(seedRng(state.tick, `survivor:${famousId}`)).float() < content.treasure.survivorChance;
+          if (survivor) {
+            const given = givePiece(content, map, settlements, next, famousId, state.tick);
+            next = given.state;
+            (events[0]!.payload.famous as Record<string, unknown>).piece = given.given ? given.pieces : 0;
+          }
+          next = famousBeaten(next, other, famousLeft, state.tick);
+        }
         else if (won) {
           const kind = nation === 'pirate' && outcome === 'sunk' ? 'pirateSunk' : outcome === 'sunk' ? 'sunk' : 'taken';
           const rng = rngStream(state.rng?.traffic ?? seedRng(0, 'traffic'));
@@ -1205,8 +1214,11 @@ export function createTrafficSystem(
           const held = captain.mapPieces?.[id] ?? 0;
           const choice = command.captive === 'hoard' && held < r.mapPieces ? 'hoard' : command.captive === 'bounty' ? 'bounty' : 'free';
           if (choice === 'hoard') {
-            captain = { ...captain, mapPieces: { ...captain.mapPieces, [id]: held + 1 } };
-            captive = { id, choice, pieces: held + 1 };
+            // His piece (the first places his hoard).
+            const given = givePiece(content, map, settlements, { ...world, captain }, id, state.tick);
+            world = given.state;
+            captain = given.state.captain!;
+            captive = { id, choice, pieces: given.pieces };
           } else if (choice === 'bounty') {
             captain = { ...captain, deeds: [...(captain.deeds ?? []), { nation: 'pirate', role: 'pirate', kind: 'taken', tick: state.tick, captive: id }] };
             captive = { id, choice };

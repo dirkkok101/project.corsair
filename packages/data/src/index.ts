@@ -17,6 +17,7 @@ import polarsJson from '../content/polars.json';
 import shipsJson from '../content/ships.json';
 import spritesJson from '../content/sprites.json';
 import trafficJson from '../content/traffic.json';
+import treasureJson from '../content/treasure.json';
 import upgradesJson from '../content/upgrades.json';
 import {
   calendarSchema,
@@ -35,6 +36,7 @@ import {
   shipClassSchema,
   spriteSchema,
   trafficSchema,
+  treasureSchema,
   upgradesSchema,
   weatherSchema,
   windZonesSchema,
@@ -44,6 +46,7 @@ import type {
   Combat,
   CrewConfig,
   PiratesConfig,
+  TreasureConfig,
   PoliticsConfig,
   Economy,
   Goods,
@@ -84,6 +87,7 @@ export interface ContentPack {
   upgrades: Record<string, Upgrade>;
   crew: CrewConfig;
   pirates: PiratesConfig;
+  treasure: TreasureConfig;
 }
 
 /**
@@ -117,7 +121,9 @@ export function loadContent(): ContentPack {
     crew: crewSchema.parse(crewJson),
     upgrades: Object.fromEntries(upgradesSchema.parse(upgradesJson).upgrades.map((u) => [u.id, u])),
     pirates: piratesSchema.parse(piratesJson),
+    treasure: treasureSchema.parse(treasureJson),
   };
+  if (pack.treasure.ringTiles.length !== pack.pirates.rules.mapPieces) throw new Error('treasure: ringTiles needs one ring per map piece');
   const places = new Set(pack.settlements.map((s) => s.id));
   for (const c of pack.pirates.captains) {
     if (!pack.ships[c.classId]) throw new Error(`pirates: ${c.id} sails unknown class ${c.classId}`);

@@ -1,5 +1,5 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, Deed, EmittedEvent, FleetShip, KnownPrices, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, KnownPrices, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigation';
@@ -228,6 +228,122 @@ export function bountiesOwed(content: ContentPack, state: WorldState, nation: Pl
     } else kept.push(d);
   }
   return { pay, kept, total };
+}
+
+/**
+ * Where a famous pirate buries her hoard (treasure.json), placed when the captain gets the first piece of its map:
+ * a coastal land tile some way from one of her haunts and clear of the towns, by a landmark, holding a share of her
+ * wealth. Drawn from its own stream (the tick and her id), so a replay places it alike and moves nothing else.
+ */
+export function placeHoard(content: ContentPack, map: TileMap, settlements: Pick<PlacedSettlement, 'id' | 'x' | 'y'>[], id: string, wealth: number, tick: number): Hoard | undefined {
+  const def = content.pirates.captains.find((c) => c.id === id);
+  const haunts = (def?.haunts ?? []).flatMap((h) => settlements.filter((s) => s.id === h));
+  if (!haunts.length) return undefined;
+  const t = content.treasure;
+  const draw = rngStream(seedRng(tick, `hoard:${id}`));
+  const SIDES: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let tries = 0; tries < 2000; tries++) {
+    const port = haunts[Math.floor(draw.float() * haunts.length)]!;
+    const a = draw.float() * Math.PI * 2;
+    const d = draw.range(t.placeTiles[0], t.placeTiles[1]);
+    const tx = Math.floor(port.x + Math.sin(a) * d);
+    const ty = Math.floor(port.y - Math.cos(a) * d);
+    if (!isLand(tileAt(map, tx, ty)) || tx < 1 || ty < 1 || tx >= map.width - 1 || ty >= map.height - 1) continue;
+    if (settlements.some((s) => Math.hypot(s.x - tx, s.y - ty) < t.clearOfTownsTiles)) continue;
+    const side = SIDES.find(([dx, dy]) => !isLand(tileAt(map, tx + dx, ty + dy)));
+    if (!side) continue;
+    const oa = draw.float() * Math.PI * 2;
+    const od = draw.float() * (t.ringTiles[0]! / 2) * t.ringOffset;
+    return {
+      x: tx + 0.5,
+      y: ty + 0.5,
+      landing: [tx + 0.5 + side[0], ty + 0.5 + side[1]],
+      landmark: t.landmarks[Math.floor(draw.float() * t.landmarks.length)]!,
+      value: Math.round(wealth * t.hoardShare),
+      dx: Math.round(Math.sin(oa) * od * 10) / 10,
+      dy: Math.round(-Math.cos(oa) * od * 10) / 10,
+      near: port.id,
+    };
+  }
+  return undefined;
+}
+
+/** The chart's search ring for a hoard with `pieces` of its map held: smaller with each piece, always about the spot. */
+export function hoardRing(content: ContentPack, hoard: Hoard, pieces: number): { x: number; y: number; r: number } {
+  const rings = content.treasure.ringTiles;
+  const d = rings[Math.max(0, Math.min(rings.length, pieces) - 1)]!;
+  const k = d / rings[0]!;
+  return { x: hoard.x + hoard.dx * k, y: hoard.y + hoard.dy * k, r: d / 2 };
+}
+
+/** A famous pirate's record (pirates.json wealth until the world has one). */
+export function famousOf(content: ContentPack, state: WorldState, id: string): FamousPirate {
+  return state.famous?.[id] ?? { wealth: content.pirates.captains.find((c) => c.id === id)?.wealth ?? 0 };
+}
+
+/**
+ * A piece of a famous pirate's map comes to the captain (a prisoner's, a survivor's, the tavern stranger's): one more
+ * held, up to the whole map; the first places the hoard. `given` is false when the map was whole already.
+ */
+export function givePiece(
+  content: ContentPack,
+  map: TileMap | undefined,
+  settlements: Pick<PlacedSettlement, 'id' | 'x' | 'y'>[],
+  state: WorldState,
+  id: string,
+  tick: number,
+): { state: WorldState; given: boolean; pieces: number } {
+  const held = state.captain?.mapPieces?.[id] ?? 0;
+  if (!state.captain || held >= content.pirates.rules.mapPieces) return { state, given: false, pieces: held };
+  let next: WorldState = { ...state, captain: { ...state.captain, mapPieces: { ...state.captain.mapPieces, [id]: held + 1 } } };
+  const f = famousOf(content, state, id);
+  if (!f.hoard && map) {
+    const hoard = placeHoard(content, map, settlements, id, f.wealth, tick);
+    if (hoard) next = { ...next, famous: { ...next.famous, [id]: { ...f, hoard } } };
+  }
+  return { state: next, given: true, pieces: held + 1 };
+}
+
+/** What a piece of a famous pirate's map costs the tavern stranger's way: a share of what the hoard holds. */
+export function piecePrice(content: ContentPack, state: WorldState, id: string): number {
+  const f = famousOf(content, state, id);
+  const s = content.treasure.stranger;
+  return Math.max(s.minPrice, Math.round((f.hoard?.value ?? f.wealth * content.treasure.hoardShare) * s.priceShare));
+}
+
+/**
+ * The shady stranger in a town's tavern this week (treasure.json), and the piece he sells: likelier while the
+ * captain holds an unfinished map, and a pirate near this town or with an unfinished map likelier to be his.
+ * Pure (the town and the week decide it), so the port screen may ask every frame. None in hamlets, none bought twice.
+ */
+export function strangerOffer(
+  content: ContentPack,
+  state: WorldState,
+  town: Pick<PlacedSettlement, 'id' | 'x' | 'y' | 'size'>,
+  settlements: Pick<PlacedSettlement, 'id' | 'x' | 'y'>[],
+): { pirateId: string; price: number; key: string } | undefined {
+  if (town.size === 'hamlet' || !state.captain) return undefined;
+  const s = content.treasure.stranger;
+  const week = Math.floor(state.tick / (content.economy.daysPerWeek * content.calendar.ticksPerDay));
+  const key = `${town.id}:${week}`;
+  if (state.captain.strangerDeals?.includes(key)) return undefined;
+  const whole = content.pirates.rules.mapPieces;
+  const held = (id: string) => state.captain?.mapPieces?.[id] ?? 0;
+  const open = content.pirates.captains.filter((c) => held(c.id) < whole);
+  if (!open.length) return undefined;
+  const unfinished = open.some((c) => held(c.id) > 0);
+  let h = 2166136261;
+  for (let i = 0; i < town.id.length; i++) h = Math.imul(h ^ town.id.charCodeAt(i), 16777619);
+  const draw = rngStream(seedRng(week * 7919 + (h >>> 0) % 7907, 'stranger'));
+  if (draw.float() >= (unfinished ? s.unfinishedChance : s.chance)) return undefined;
+  const near = (c: (typeof open)[number]) =>
+    [c.haven, ...c.haunts].some((id) => {
+      const p = settlements.find((x) => x.id === id);
+      return p !== undefined && Math.hypot(p.x - town.x, p.y - town.y) <= s.nearTiles;
+    });
+  const weights = Object.fromEntries(open.map((c) => [c.id, (held(c.id) > 0 ? s.unfinishedWeight : 1) * (near(c) ? s.nearWeight : 1)]));
+  const pirateId = draw.weighted(weights);
+  return { pirateId, price: piecePrice(content, state, pirateId), key };
 }
 
 /** The rest of the player's fleet (the flagship aside). */
@@ -801,6 +917,23 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           // Bounties are plunder: they go into the chest the crew sails for.
           state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing }, ...(famous ? { famous } : {}) },
           events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive) } }],
+        };
+      }
+      if (command.type === 'BuyMapPiece') {
+        // The tavern's shady stranger sells a piece of a famous pirate's map: the first places her hoard.
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const town = byId.get(ship.docked);
+        const offer = town && strangerOffer(content, state, town, settlements);
+        if (!offer || offer.pirateId !== command.pirateId) return refuse(state, ship, 'no-offer');
+        if (state.captain.gold < offer.price) return refuse(state, ship, 'not-enough-gold');
+        const given = givePiece(content, map, settlements, state, offer.pirateId, state.tick);
+        if (!given.given) return refuse(state, ship, 'map-whole');
+        const captain = { ...given.state.captain!, gold: state.captain.gold - offer.price, strangerDeals: [...(state.captain.strangerDeals ?? []), offer.key].slice(-20) };
+        return {
+          state: { ...given.state, captain },
+          events: [{ type: 'MapPieceBought', entityIds: [ship.id, town!.id], payload: { pirateId: offer.pirateId, gold: offer.price, pieces: given.pieces } }],
         };
       }
       if (command.type === 'Recruit') {
