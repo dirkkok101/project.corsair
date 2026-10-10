@@ -133,6 +133,7 @@ export function loadContent(): ContentPack {
     if (!pack.ships[c.classId]) throw new Error(`pirates: ${c.id} sails unknown class ${c.classId}`);
     if (!pack.combat.tactics.temperaments[c.temperament]) throw new Error(`pirates: ${c.id} has unknown temperament ${c.temperament}`);
     for (const id of [c.haven, ...c.haunts]) if (!places.has(id)) throw new Error(`pirates: ${c.id} names unknown port ${id}`);
+    for (const u of c.upgrades) if (!pack.upgrades[u]) throw new Error(`pirates: ${c.id} fits unknown upgrade ${u}`);
   }
   for (const r of Object.values(pack.traffic.roles)) {
     if (!pack.ships[r.classId]) throw new Error(`traffic: unknown class ${r.classId}`);

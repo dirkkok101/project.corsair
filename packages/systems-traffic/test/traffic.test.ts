@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
-import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
+import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
@@ -34,8 +34,11 @@ function world(seed: number, start: WorldState = createWorld(def), pack = conten
 }
 const ai = (state: WorldState) => Object.values(state.ships).filter((s) => s.ai);
 /** The everyday traffic: AI ships less the convoys, which sail on a timetable of their own. */
-// The population: the famous pirates sail over and above it.
-const traffic0 = (state: WorldState) => ai(state).filter((s) => !s.ai!.convoy && !s.ai!.famous).flatMap((s) => [s, ...(s.ai!.prizes ?? []).filter((p) => p.takenFrom !== 'player')]);
+// The population: the famous pirates sail over and above it (the merchants they tow are still the population's).
+const traffic0 = (state: WorldState) =>
+  ai(state)
+    .filter((s) => !s.ai!.convoy)
+    .flatMap((s) => [...(s.ai!.famous ? [] : [s]), ...(s.ai!.prizes ?? []).filter((p) => p.takenFrom !== 'player')]);
 
 describe('ships at sea', () => {
   it('start with the full population moored at home ports, by role', () => {
@@ -840,7 +843,7 @@ describe('the famous pirates', () => {
     expect(ten).toHaveLength(content.pirates.captains.length);
     for (const def of content.pirates.captains) {
       const ship = ten.find((s) => s.ai!.famous === def.id)!;
-      expect(ship).toMatchObject({ classId: def.classId, crew: content.ships[def.classId]!.maxCrew, ai: { name: def.name, from: def.haven, role: 'pirate', temperament: def.temperament } });
+      expect(ship).toMatchObject({ classId: def.classId, crew: shipStats(content, { classId: def.classId, upgrades: def.upgrades }).maxCrew, upgrades: def.upgrades, ai: { name: def.name, from: def.haven, role: 'pirate', temperament: def.temperament, crew: def.crew } });
     }
     expect(traffic0(sim.state).length).toBeLessThanOrEqual(content.traffic.population);
     const ranks = topTen(content, sim.state);
@@ -988,7 +991,8 @@ describe('the famous pirates', () => {
         ...state,
         ships: {
           ...later.state.ships,
-          player: { ...later.state.ships.player!, docked: undefined, x: sea.x + 3, y: sea.y },
+          // In a frigate: Morgan's rung of the career.
+          player: { ...later.state.ships.player!, classId: 'ship.frigate', guns: 32, crew: 250, docked: undefined, x: sea.x + 3, y: sea.y },
           [morgan.id]: { ...morgan, ai: { ...morgan.ai!, waitUntil: undefined, route: [[sea.x, sea.y], [sea.x + 1, sea.y]], along: 0, calmUntil: undefined } },
         },
       }) as WorldState;
@@ -1095,6 +1099,33 @@ describe('the famous pirates', () => {
     });
     expect(digThere(open.dig)).toMatchObject({ type: 'DigRefused', payload: { reason: 'no-shore' } });
   });
+
+  it('a famous pirate hunts the player only once her ship has grown to his rung: Morgan leaves a new brig be, and comes for a frigate', () => {
+    const sim = world(4);
+    sim.step(day);
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    let here: [number, number] | undefined;
+    for (let y = 300; y < 1000 && !here; y += 7)
+      for (let x = 300; x < 1500 && !here; x += 7)
+        if (settlements.every((s) => Math.hypot(s.x - x, s.y - y) > 40) && lanes.clear([x, y], [x + 8, y]) && lanes.clear([x - 1, y], [x + 8, y])) here = [x, y];
+    const meet = (player: Partial<Ship>) => {
+      const s = createSim(
+        {
+          ...sim.state,
+          ships: {
+            ...sim.state.ships,
+            player: { ...sim.state.ships.player!, docked: undefined, x: here![0] + 8, y: here![1], ...player },
+            [morgan.id]: { ...morgan, x: here![0], y: here![1], ai: { ...morgan.ai!, waitUntil: undefined, route: [here!, [here![0] - 0.5, here![1]]], along: 0 } },
+          },
+        },
+        [traffic()],
+      );
+      s.step(30);
+      return Boolean(s.state.ships[morgan.id]!.ai!.chasing);
+    };
+    expect(meet({ guns: 10, crew: 75 })).toBe(false);
+    expect(meet({ classId: 'ship.frigate', guns: 32, crew: 230 })).toBe(true);
+  }, 30_000);
 
   it('out for revenge he comes for the captain at any odds, from further off, until beaten', () => {
     const sim = world(4);

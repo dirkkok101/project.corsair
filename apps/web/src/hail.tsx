@@ -51,7 +51,9 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
       : ai.role === 'patrol'
         ? `A man-of-war on patrol, bound for ${name(ai.to)}. Her gunports are closed.`
         : ai.famous
-          ? `${ai.name} himself, in a ${shipKind(ship.classId)} full of veterans: worth about ${(state.famous?.[ai.famous]?.wealth ?? content.pirates.captains.find((c) => c.id === ai.famous)?.wealth ?? 0).toLocaleString()} gold, by the talk in the taverns. Beat him and half of it is yours.`
+          ? `${ai.name} himself, in a ${shipKind(ship.classId)} with ${crewLook(ship) || 'a crew of his own'}${
+              ship.upgrades?.length ? `, fitted with ${ship.upgrades.map((u) => content.upgrades[u]?.name.toLowerCase() ?? u).join(', ')}` : ''
+            }: worth about ${(state.famous?.[ai.famous]?.wealth ?? content.pirates.captains.find((c) => c.id === ai.famous)?.wealth ?? 0).toLocaleString()} gold, by the talk in the taverns. Beat him and half of it is yours.`
           : `A ${shipKind(ship.classId)} with a hard-looking crew. She keeps a wary distance and answers short.`;
   const prizes = ai.prizes ?? [];
   const mine = prizes.filter((p) => p.takenFrom === 'player');

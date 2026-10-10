@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Ship } from '@corsair/core';
-import { decodeRasterMap, loadContent } from '@corsair/data';
+import { decodeRasterMap, loadContent, shipStats } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
 import { createBattle } from '../src';
 
@@ -407,6 +407,41 @@ describe('sea battle', () => {
     famous.step(1);
     expect(famous.result()!.outcome).toBe('yielded');
   }, 60_000);
+
+  it('ten famous captains, each his own: harder by tier against an armed brig, and no two of a class alike', () => {
+    const asHeSails = (c: (typeof content.pirates.captains)[number]): Ship => {
+      const s = ship(c.classId, 'pirate');
+      return {
+        ...s,
+        upgrades: c.upgrades,
+        crew: shipStats(content, { classId: c.classId, upgrades: c.upgrades }).maxCrew,
+        ai: { ...s.ai!, temperament: c.temperament, famous: c.id, crew: c.crew, captain: c.captain, ...(c.doctrine ? { doctrine: c.doctrine } : {}), ...(c.terror ? { terror: c.terror } : {}) },
+      };
+    };
+    const losses = new Map<string, number>();
+    const ends = new Map<string, string>();
+    for (const c of content.pirates.captains) {
+      let lost = 0;
+      const seen: string[] = [];
+      for (let seed = 1; seed <= 16; seed++) {
+        const b = fight(asHeSails(c), seed, 'cautious', { crew: 120 });
+        seen.push(`${b.result()!.outcome}:${b.state.tick}`);
+        if (b.result()!.outcome === 'lost') lost++;
+      }
+      losses.set(c.id, lost);
+      ends.set(c.id, seen.join(','));
+    }
+    const mean = (ids: string[]) => ids.reduce((n, id) => n + losses.get(id)!, 0) / ids.length;
+    const top = mean(['morgan', 'lolonnais', 'mansvelt']);
+    const middle = mean(['braziliano', 'degraaf', 'grammont']);
+    const bottom = mean(['portugues', 'willems', 'coxon', 'legrand']);
+    expect(top).toBeGreaterThan(middle);
+    expect(middle).toBeGreaterThan(bottom);
+    // Captains of one class no longer fight seed for seed alike.
+    expect(ends.get('morgan')).not.toBe(ends.get('lolonnais'));
+    expect(ends.get('braziliano')).not.toBe(ends.get('grammont'));
+    expect(ends.get('willems')).not.toBe(ends.get('coxon'));
+  }, 300_000);
 
   it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
     const wins = (outfit: Partial<Ship>) => {

@@ -44,8 +44,9 @@ export interface BattleShip extends Ship {
   boardingDefence: number;
   /** Her captain's resolve (0-100, 50 when unset): how long she holds out once beaten. */
   resolve: number;
-  /** A famous pirate (pirates.json id): he may call on the player to strike. */
+  /** A famous pirate (pirates.json id): he may call on the player to strike, sooner by his terror. */
   famous?: string;
+  terror: number;
   /** Each mast's strength, fore to aft (her class's masts), 100 sound .. 0 gone by the board. */
   masts: number[];
 }
@@ -213,9 +214,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       spreadMult: quality.spread,
       boardMult: quality.boarding,
       thinkTicks: quality.thinkTicks,
-      doctrine: doctrine.ammo ?? 'round',
+      doctrine: ship.ai?.doctrine ?? doctrine.ammo ?? 'round',
       boardingDefence: doctrine.boardingDefence ?? 1,
       resolve: ship.ai?.captain?.resolve ?? 50,
+      terror: ship.ai?.terror ?? 1,
       ...(ship.ai?.famous ? { famous: ship.ai.famous } : {}),
       reload: { port: 0, starboard: 0 },
       ammo: 'round',
@@ -524,7 +526,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const demands = () => {
     const p = state.ships.player;
     const e = state.ships.enemy;
-    return Boolean(e.famous) && !state.result && !state.wreck && distance() <= c.strike.demandTiles && (boardingOdds() < c.strike.demandOdds || p.hull < p.hullMax * c.strike.demandHull);
+    return Boolean(e.famous) && !state.result && !state.wreck && distance() <= c.strike.demandTiles && (boardingOdds() < c.strike.demandOdds * e.terror || p.hull < p.hullMax * c.strike.demandHull * e.terror);
   };
   /**
    * A merchant gives up outright: her sails shot away (she can't run), or outmanned odds to one with the

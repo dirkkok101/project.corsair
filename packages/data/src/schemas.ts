@@ -722,6 +722,8 @@ export const piratesSchema = z.object({
     returnDays: z.number().positive(),
     /** Her crew's morale in battle: veterans. */
     morale: z.number().min(0).max(100),
+    /** The player's ship's strength (men x (1 + guns / 10)) at career rungs 2, 3 and 4. */
+    rungStrength: z.array(z.number().positive()),
     /** Pieces to each hoard's map. */
     mapPieces: z.number().int().positive(),
     /** Gold any governor pays for her, handed over a prisoner, and the standing his nation gives for it. */
@@ -743,7 +745,16 @@ export const piratesSchema = z.object({
       /** Ports whose lanes she lies in wait on. */
       haunts: z.array(z.string()).min(1),
       /** Gold to her name when the world begins. */
+      /** The career rung (2 to 5) whose ships she hunts: none weaker. */
+      rung: z.number().int().min(1).max(5),
       wealth: z.number().int().min(0),
+      /** Who sails with her: her crew's grade, her own skills, her ship's fit, and her own way of fighting. */
+      crew: z.enum(['green', 'regular', 'seasoned', 'veteran']),
+      captain: z.object({ gunnery: z.number().min(0).max(100), seamanship: z.number().min(0).max(100), boarding: z.number().min(0).max(100), resolve: z.number().min(0).max(100) }),
+      upgrades: z.array(z.string()),
+      doctrine: z.enum(['round', 'chain', 'pirate']).optional(),
+      /** Her name's terror: she calls on a beaten captain to strike this many times as readily. */
+      terror: z.number().positive().optional(),
       /** Her own flag: its field, and a device in a colour. */
       flag: z.object({ field: z.string(), colour: z.string(), device: z.enum(['skull', 'swords', 'hourglass', 'heart', 'spear', 'bones']) }),
     }),

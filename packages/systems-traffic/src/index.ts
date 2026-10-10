@@ -177,7 +177,8 @@ export function createTrafficSystem(
       cargo: {},
       hull: cls.hull,
       sailCondition: 100,
-      crew: cls.maxCrew,
+      // Every berth filled, hammocks and all.
+      crew: shipStats(content, { classId: def.classId, upgrades: def.upgrades }).maxCrew,
       ai: {
         nation: 'pirate',
         role: 'pirate',
@@ -194,7 +195,13 @@ export function createTrafficSystem(
         temperament: def.temperament,
         nerve: def.nerve,
         famous: def.id,
+        crew: def.crew,
+        captain: def.captain,
+        ...(def.doctrine ? { doctrine: def.doctrine } : {}),
+        ...(def.terror ? { terror: def.terror } : {}),
       },
+      // Her own fit, as the tavern tells it.
+      upgrades: def.upgrades,
     };
     // At sea again: her time lying low is over (the rest of her record stands).
     const { returnAt: _over, ...f } = famousOf(state, def.id);
@@ -615,6 +622,17 @@ export function createTrafficSystem(
     Object.fromEntries(Object.entries(ship.plunder ?? {}).filter(([g]) => cargo[g]).map(([g, n]) => [g, Math.min(n, cargo[g]!)]));
   const standingWith = (state: WorldState, nation: Nation) => state.captain?.standing?.[nation] ?? 0;
   /** Pirates hunt the player; a nation's patrols do too once the player has made it an enemy. */
+  /**
+   * A famous pirate hunts the player only once her ship has grown to his rung of the career (pirates.json rung and
+   * rungStrength), so a new captain meets the famous only as she grows; revenge forgets that.
+   */
+  const matched = (hunter: Ship, player: Ship) => {
+    const def = hunter.ai!.famous ? famousDef(hunter.ai!.famous) : undefined;
+    if (!def) return true;
+    const at = crewOf(content, player) * (1 + shipStats(content, player).guns / 10);
+    const rung = 1 + content.pirates.rules.rungStrength.filter((x) => at >= x).length;
+    return rung >= def.rung;
+  };
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
   const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
   const hunts = (state: WorldState, ship: Ship) =>
@@ -717,7 +735,7 @@ export function createTrafficSystem(
     const vengeful = avenging(state, hunter);
     let best: { s: Ship; score: number } | undefined;
     for (const s of Object.values(ships)) {
-      const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter) && !sheltered(state, hunter, s.x, s.y);
+      const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter) && !sheltered(state, hunter, s.x, s.y) && (matched(hunter, s) || vengeful);
       if (!eligible) continue;
       const d = Math.hypot(s.x - hunter.x, s.y - hunter.y);
       // A famous pirate whose hoard the captain dug up comes for her from further off, whatever the odds.

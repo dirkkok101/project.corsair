@@ -20,7 +20,12 @@
     "openingReload": 0.6,
     "temperaments": {
       "bold": { "share": 0.5, "boardBelowSails": 50, "boardCrewRatio": 1.2, "seizeOpenings": true, "fleeBelowHull": 0.25, "fleeBelowCrew": 0.35, "attackOdds": 0.6 },
-      "cautious": { "share": 0.5, "boardBelowSails": 35, "boardCrewRatio": 1.5, "seizeOpenings": false, "fleeBelowHull": 0.45, "fleeBelowCrew": 0.5, "attackOdds": 0.9 }
+      "cautious": { "share": 0.5, "boardBelowSails": 35, "boardCrewRatio": 1.5, "seizeOpenings": false, "fleeBelowHull": 0.45, "fleeBelowCrew": 0.5, "attackOdds": 0.9 },
+      "reckless": { "share": 0, "boardBelowSails": 85, "boardCrewRatio": 0.9, "seizeOpenings": true, "fleeBelowHull": 0.1, "fleeBelowCrew": 0.2, "attackOdds": 0.4 },
+      "slippery": { "share": 0, "boardBelowSails": 30, "boardCrewRatio": 1.6, "seizeOpenings": false, "fleeBelowHull": 0.6, "fleeBelowCrew": 0.6, "attackOdds": 0.9 },
+      "steadfast": { "share": 0, "boardBelowSails": 50, "boardCrewRatio": 1.2, "seizeOpenings": true, "fleeBelowHull": 0, "fleeBelowCrew": 0, "attackOdds": 0.6 },
+      "disciplined": { "share": 0, "boardBelowSails": 45, "boardCrewRatio": 1.5, "seizeOpenings": true, "fleeBelowHull": 0.3, "fleeBelowCrew": 0.4, "attackOdds": 0.8 },
+      "gunner": { "share": 0, "boardBelowSails": 25, "boardCrewRatio": 1.6, "seizeOpenings": true, "fleeBelowHull": 0.35, "fleeBelowCrew": 0.4, "attackOdds": 0.7 }
     }
   },
   "guns": {

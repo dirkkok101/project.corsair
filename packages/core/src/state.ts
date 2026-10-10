@@ -79,6 +79,10 @@ export interface AiCaptain {
   crew?: CrewGrade;
   /** Her captain's skills, 0 to 100 (50 when unset): gunnery, seamanship, boarding, and resolve (how long she holds out). */
   captain?: CaptainSkills;
+  /** Her own way with her guns, over her role's (a famous pirate's). */
+  doctrine?: 'round' | 'chain' | 'pirate';
+  /** Her name's terror: she calls on a beaten captain to strike this many times as readily. */
+  terror?: number;
   /**
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.
