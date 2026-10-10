@@ -1655,6 +1655,15 @@ body {
   border-color: #e8c170;
 }
 
+/* A famous pirate calls on the player to strike: under the wavering line, in red. */
+.battle-demand {
+  top: 132px;
+  color: #ebede9;
+  border-color: #a53030;
+  white-space: normal;
+  max-width: min(720px, 90vw);
+}
+
 .battle-mast {
   top: 176px;
   color: #ebede9;

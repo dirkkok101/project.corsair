@@ -555,6 +555,8 @@ async function main() {
       } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
       else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
       else if (k === 'g' && !e.repeat) fight.battle.send({ type: 'Board' });
+      // Y: strike your colours, when a famous pirate calls on you to.
+      else if (k === 'y' && !e.repeat && fight.battle.demands()) fight.battle.send({ type: 'Strike' });
       else if (k === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
       return;
@@ -946,6 +948,7 @@ async function main() {
           enemyName={fight.name}
           enemyTitle={fight.title}
           wavering={fight.battle.wavering()}
+          demand={fight.battle.demands() ? fight.name : undefined}
           report={fight.report}
           attacked={fight.attacked}
           offer={

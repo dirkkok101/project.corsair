@@ -38,6 +38,14 @@ export interface BattleShip extends Ship {
   spreadMult: number;
   boardMult: number;
   thinkTicks: number;
+  /** What she fires (combat.json doctrines): round at the hull, chain at the rigging, or a pirate's chain then grape. */
+  doctrine: 'round' | 'chain' | 'pirate';
+  /** Soldiers aboard: her boarding strength as a multiple (a Spanish guarda costa's). */
+  boardingDefence: number;
+  /** Her captain's resolve (0-100, 50 when unset): how long she holds out once beaten. */
+  resolve: number;
+  /** A famous pirate (pirates.json id): he may call on the player to strike. */
+  famous?: string;
   /** Each mast's strength, fore to aft (her class's masts), 100 sound .. 0 gone by the board. */
   masts: number[];
 }
@@ -136,7 +144,9 @@ export type BattleCommand =
   /** Done picking over the wreck: the fight ends now. */
   | { type: 'LeaveWreck' }
   /** Close to board: the helm steers alongside her and holds there for the grapples (again, or any helm, to stop). */
-  | { type: 'Board' };
+  | { type: 'Board' }
+  /** Strike her colours, when a famous pirate calls on her to (`demands`): she keeps her ship and men. */
+  | { type: 'Strike' };
 
 export interface BattleSetup {
   map: TileMap;
@@ -178,6 +188,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const crew = ship.crew ?? Math.round(cls.maxCrew * c.startCrew);
     // Who sails her: a drilled crew reloads faster and shoots straighter; a good captain thinks quicker.
     const quality = crewQualityOf(content, ship.ai);
+    // What she fires and who is aboard, by her role and, for a patrol, her nation's ways.
+    const role = ship.ai?.role;
+    const ways = role === 'patrol' ? c.doctrines.patrolNations[ship.ai!.nation] : undefined;
+    const doctrine = role ? { ...c.doctrines[role], ...ways } : { ammo: 'round' as const };
     return {
       ...ship,
       id: side,
@@ -199,6 +213,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       spreadMult: quality.spread,
       boardMult: quality.boarding,
       thinkTicks: quality.thinkTicks,
+      doctrine: doctrine.ammo ?? 'round',
+      boardingDefence: doctrine.boardingDefence ?? 1,
+      resolve: ship.ai?.captain?.resolve ?? 50,
+      ...(ship.ai?.famous ? { famous: ship.ai.famous } : {}),
       reload: { port: 0, starboard: 0 },
       ammo: 'round',
       role: ship.ai?.role,
@@ -390,7 +408,9 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const cmds: BattleCommand[] = [{ type: 'SetHelm', shipId: side, helm }];
     if (me.sails !== 'full') cmds.push({ type: 'SetSails', shipId: side, sails: 'full' });
     // Ammo: pirates cripple with chain, then sweep the deck with grape before boarding; others fire round shot.
-    const ammo: Ammo = personality === 'aggressive' ? (d <= reach(me, 'grape') ? 'grape' : 'chain') : 'round';
+    // Her doctrine's shot; the player's autopilot fires as its personality would (a boarder's chain and grape).
+    const doctrine = side === 'enemy' ? me.doctrine : personality === 'aggressive' ? 'pirate' : 'round';
+    const ammo: Ammo = doctrine === 'pirate' ? (d <= reach(me, 'grape') ? 'grape' : 'chain') : doctrine;
     if (me.ammo !== ammo) cmds.push({ type: 'SetAmmo', ammo });
     const side2 = bears(me, them);
     if (side2) cmds.push({ type: 'Fire', side: side2 });
@@ -428,8 +448,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const boardingOdds = () => {
     const p = state.ships.player;
     const e = state.ships.enemy;
-    const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult;
-    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult;
+    const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence;
+    const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence;
     return ps / Math.max(1e-6, ps + es);
   };
 
@@ -441,6 +461,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     }
     if (cmd.type === 'Board') {
       state = { ...state, boarding: !state.boarding };
+      return;
+    }
+    if (cmd.type === 'Strike') {
+      // Only when called on to: a captain doesn't haul down her colours to a ship that hasn't asked.
+      if (side === 'player' && demands()) end('yielded');
       return;
     }
     // Taking the helm by hand drops "close to board".
@@ -477,6 +502,30 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
 
   /** Beaten enough that she may strike: each second, at strike.chance. */
   const beaten = (e: BattleShip) => e.hull < e.hullMax * c.strike.hull || e.crew < e.crewStart * c.strike.crew;
+  /** Her men and guns, as a captain weighs the odds. */
+  const might = (s: BattleShip) => Math.max(1, s.crew) * (1 + s.guns / 10);
+  /**
+   * The chance a beaten ship strikes this second (strike.chance at the usual): a captain of resolve holds out
+   * longer, a crew in better heart than her role's usual too, and the worse the odds against her the sooner she
+   * gives up.
+   */
+  const strikeChance = (e: BattleShip, p: BattleShip) => {
+    const s = c.strike;
+    const lean = (e.resolve - 50) / 50;
+    const usual = content.crew.enemyMorale[e.role ?? 'merchant'] ?? 50;
+    const heart = (usual + 30) / (e.morale + 30);
+    const odds = Math.pow(Math.min(2, Math.max(0.5, might(p) / might(e))), s.oddsWeight);
+    return Math.min(1, s.chance * (1 - (s.resolve / 2) * lean) * heart * odds);
+  };
+  /**
+   * A famous pirate calls on the player to strike: her boarders would lose, or her hull is going, and he is close.
+   * Striking gives up the chest and the hold and keeps the ship and her men.
+   */
+  const demands = () => {
+    const p = state.ships.player;
+    const e = state.ships.enemy;
+    return Boolean(e.famous) && !state.result && !state.wreck && distance() <= c.strike.demandTiles && (boardingOdds() < c.strike.demandOdds || p.hull < p.hullMax * c.strike.demandHull);
+  };
   /**
    * A merchant gives up outright: her sails shot away (she can't run), or outmanned odds to one with the
    * player close enough to board (Pirates! 2004: a demasted ship strikes, and merchants give up sooner).
@@ -531,6 +580,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     boardingOdds: () => boardingOdds(),
     /** She may strike any moment now (shown to the player, so a surrender can be worked for). */
     wavering: () => !state.result && !state.wreck && (beaten(state.ships.enemy) || yields(state.ships.enemy, state.ships.player)),
+    /** A famous pirate is calling on the player to strike (Strike yields: she keeps her ship and men). */
+    demands,
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
     /** The player's guns now: a broadside's reload, and how far the shot loaded reaches. */
@@ -662,8 +713,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         else if (p.hull <= 0) end('lost');
         else if (state.grappling >= c.battle.grappleSeconds) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
-          const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult;
-          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult;
+          const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence;
+          const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence;
           const won = rng.float() < ps / (ps + es);
           const pLoss = Math.round(p.crew * c.boarding.losses * (es / (ps + es)));
           const eLoss = Math.round(e.crew * c.boarding.losses * (ps / (ps + es)));
@@ -679,7 +730,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           // Once a second: a merchant that can't run or can't fight gives up; a beaten enemy may haul down
           // her colours.
           if (yields(e, p)) end('struck');
-          else if (beaten(e) && rng.float() < c.strike.chance) end('struck');
+          else if (beaten(e) && rng.float() < strikeChance(e, p)) end('struck');
         }
         state = { ...state, rng: rng.state() };
       }

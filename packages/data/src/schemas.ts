@@ -410,6 +410,12 @@ export const combatSchema = z.object({
     merchantSails: share,
     odds: z.number().positive(),
     oddsTiles: z.number().positive(),
+    /** Surrender (slice 1b): how far resolve moves the chance, how much the odds count, and when a famous pirate calls on the player to strike. */
+    resolve: share,
+    oddsWeight: z.number().min(0),
+    demandOdds: share,
+    demandHull: share,
+    demandTiles: z.number().positive(),
   }),
   /** After a sinking: barrels of her purse and men in the water to pick up within pickupTiles, for `seconds`. */
   salvage: z.object({
@@ -426,6 +432,13 @@ export const combatSchema = z.object({
   autoResolve: z.object({ merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
   /** Steering style per AI role. */
   personality: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.enum(['runner', 'cautious', 'aggressive'])),
+  /** What each role fires (round at the hull; chain at the rigging; pirate: chain, then grape, to take her whole), and patrols' ways by nation. */
+  doctrines: z.object({
+    merchant: z.object({ ammo: z.enum(['round', 'chain', 'pirate']), boardingDefence: z.number().positive().optional() }),
+    patrol: z.object({ ammo: z.enum(['round', 'chain', 'pirate']), boardingDefence: z.number().positive().optional() }),
+    pirate: z.object({ ammo: z.enum(['round', 'chain', 'pirate']), boardingDefence: z.number().positive().optional() }),
+    patrolNations: z.record(z.string(), z.object({ ammo: z.enum(['round', 'chain', 'pirate']).optional(), boardingDefence: z.number().positive().optional() })),
+  }),
   /** A crew's grade: multiples of reload time, shot scatter and boarding strength. */
   crewQuality: z.record(z.enum(['green', 'regular', 'seasoned', 'veteran']), z.object({ reload: z.number().positive(), spread: z.number().positive(), boarding: z.number().positive() })),
   /** What a captain's skills (0-100, neutral at 50) do: the most each moves her reload, scatter and boarding, and how often she rethinks. */

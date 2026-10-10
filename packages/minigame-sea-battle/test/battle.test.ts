@@ -355,6 +355,59 @@ describe('sea battle', () => {
     expect(hard).toBeGreaterThan(easy + 5);
   }, 120_000);
 
+  it('doctrine: a French patrol fires chain at the rigging, an English one round shot, and Spanish soldiers are hard to board', () => {
+    const patrol = (nation: 'england' | 'france' | 'spain'): Ship => {
+      const s = ship('ship.war_sloop', 'patrol', 0.8);
+      return { ...s, ai: { ...s.ai!, nation } };
+    };
+    const ammoAfter = (nation: 'england' | 'france' | 'spain') => {
+      const b = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.5), enemy: patrol(nation), seed: 1, bearingDeg: 0 });
+      b.step(60);
+      return b.state.ships.enemy.ammo;
+    };
+    expect(ammoAfter('england')).toBe('round');
+    expect(ammoAfter('france')).toBe('chain');
+    const odds = (nation: 'england' | 'spain') =>
+      createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.5), enemy: patrol(nation), seed: 1, bearingDeg: 0 }).boardingOdds();
+    expect(odds('spain')).toBeLessThan(odds('england'));
+  });
+
+  it('surrender: a captain of resolve holds out longer than a faint-hearted one', () => {
+    const sloop = (resolve: number): Ship => {
+      const s = ship('ship.sloop', 'pirate', 0.85);
+      return { ...s, ai: { ...s.ai!, temperament: 'cautious', captain: { gunnery: 50, seamanship: 50, boarding: 50, resolve } } };
+    };
+    const struck = (resolve: number) => {
+      let n = 0;
+      for (let seed = 1; seed <= 30; seed++) if (fight(sloop(resolve), seed).result()!.outcome === 'struck') n++;
+      return n;
+    };
+    expect(struck(5)).toBeGreaterThan(struck(95));
+  }, 120_000);
+
+  it('a famous pirate calls on the player to strike when her boarders would lose; striking yields, and only then', () => {
+    const morgan = (famous?: string): Ship => {
+      const s = ship('ship.frigate', 'pirate', 1);
+      return { ...s, x: SEA.x, y: SEA.y, ai: { ...s.ai!, ...(famous ? { famous } : {}) } };
+    };
+    const close = (enemy: Ship) => {
+      const b = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.brig', undefined, 0.5), x: SEA.x, y: SEA.y }, enemy, seed: 2, bearingDeg: 0 });
+      // Run in until she is within hailing reach.
+      for (let i = 0; i < 30 * 120 && !b.demands() && !b.result(); i++) b.step(1);
+      return b;
+    };
+    const plain = close(morgan());
+    expect(plain.demands()).toBe(false);
+    plain.send({ type: 'Strike' });
+    plain.step(1);
+    expect(plain.result()?.outcome).not.toBe('yielded');
+    const famous = close(morgan('morgan'));
+    expect(famous.demands()).toBe(true);
+    famous.send({ type: 'Strike' });
+    famous.step(1);
+    expect(famous.result()!.outcome).toBe('yielded');
+  }, 60_000);
+
   it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
     const wins = (outfit: Partial<Ship>) => {
       let n = 0;

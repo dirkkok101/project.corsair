@@ -1,5 +1,5 @@
 {
-  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing. autoResolve: a fight between AI ships is settled by crew x (1 + guns/10) x the role's factor; the winner loses `losses` of her crew. Who sails her (slice 1a of docs/design/combat-model.md): an AI ship's crew is green, regular, seasoned or veteran ('crewQuality': multiples of reload time, shot scatter and boarding strength), and her captain has gunnery, seamanship, boarding and resolve from 0 to 100, drawn at spawn from her role's ranges ('captains', crew grades by weight). At 50 a skill changes nothing; at 100 gunnery cuts reload by half of 'skill.reload' and scatter by half of 'skill.spread', boarding adds half of 'skill.boarding' to boarding strength, and seamanship has her rethink every 'skill.thinkTicks' ticks (12 at 0 down to 4 at 100; 8 at 50). A ship with none of this (the player's) fights as a regular crew under a captain of 50.",
+  "$comment": "Sea battle tuning (PRD sections 9.1 and 9.6). Every number a fight turns on lives here: battle pace and map, gun arcs, ranges, reloads and hit chances, what each ammo does, when a ship strikes, boarding strength, how each kind of captain fights, and what a fight does to standing. autoResolve: a fight between AI ships is settled by crew x (1 + guns/10) x the role's factor; the winner loses `losses` of her crew. Who sails her (slice 1a of docs/design/combat-model.md): an AI ship's crew is green, regular, seasoned or veteran ('crewQuality': multiples of reload time, shot scatter and boarding strength), and her captain has gunnery, seamanship, boarding and resolve from 0 to 100, drawn at spawn from her role's ranges ('captains', crew grades by weight). At 50 a skill changes nothing; at 100 gunnery cuts reload by half of 'skill.reload' and scatter by half of 'skill.spread', boarding adds half of 'skill.boarding' to boarding strength, and seamanship has her rethink every 'skill.thinkTicks' ticks (12 at 0 down to 4 at 100; 8 at 50). A ship with none of this (the player's) fights as a regular crew under a captain of 50. Doctrine and surrender (slice 1b): what each role fires ('doctrines': round at the hull; chain at the rigging; 'pirate' chain, then grape at grape range, to take her whole), French patrols chain, Spanish patrols' soldiers make them 'boardingDefence' times harder to board. A beaten ship strikes each second at strike.chance, more or less by her captain's resolve (up to half of strike.resolve either way), her crew's morale against her role's usual, and the odds against her (her opponent's men x guns over hers, 0.5 to 2, to the power strike.oddsWeight). A famous pirate calls on the player to strike when her boarding odds fall below strike.demandOdds or her hull below strike.demandHull, within strike.demandTiles: striking gives up the plunder chest and the hold and keeps the ship and her men.",
   "battle": {
     "tilesPerSecondPerSpeedPoint": 0.3,
     "accelPerSecond": 1,
@@ -65,8 +65,7 @@
     "chance": 0.15,
     "merchantSails": 0.25,
     "odds": 3,
-    "oddsTiles": 6
-  },
+    "oddsTiles": 6, "resolve": 0.6, "oddsWeight": 0.5, "demandOdds": 0.3, "demandHull": 0.35, "demandTiles": 12 },
   "salvage": {
     "seconds": 25,
     "barrels": 5,
@@ -86,6 +85,12 @@
     "merchant": "runner",
     "patrol": "cautious",
     "pirate": "aggressive"
+  },
+  "doctrines": {
+    "merchant": { "ammo": "round" },
+    "patrol": { "ammo": "round" },
+    "pirate": { "ammo": "pirate" },
+    "patrolNations": { "france": { "ammo": "chain" }, "spain": { "boardingDefence": 1.4 } }
   },
   "crewQuality": {
     "green": { "reload": 1.2, "spread": 1.2, "boarding": 0.8 },

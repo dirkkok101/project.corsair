@@ -1139,6 +1139,27 @@ describe('the famous pirates', () => {
     expect(angry.state.famous!.coxon!.revenge).toBeUndefined();
   }, 30_000);
 
+  it('striking to a famous pirate gives up the chest and the hold, and keeps the ships and the men', () => {
+    const sim = world(4);
+    sim.step(day);
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    const fleetShip = { id: 'fleet.1', name: 'Swallow', classId: 'ship.sloop', hull: content.ships['ship.sloop']!.hull, sailCondition: 100 };
+    const start = {
+      ...sim.state,
+      captain: { ...sim.state.captain!, chest: 600, fleet: [fleetShip] },
+      ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, cargo: { sugar: 30, food: 10 }, crew: 90 } },
+    };
+    const yieldTo = createSim(start, [traffic()]);
+    yieldTo.send({ type: 'BattleEnded', shipId: 'player', targetId: morgan.id, result: { ...result('lost'), outcome: 'yielded', player: { hull: 70, sailCondition: 80, crew: 90, guns: 18 } } });
+    yieldTo.applyCommands();
+    expect(yieldTo.state.captain!.chest).toBe(0);
+    expect(yieldTo.state.ships.player!.cargo.sugar).toBeUndefined();
+    expect(yieldTo.state.ships.player!.cargo.food).toBe(10);
+    expect(yieldTo.state.captain!.fleet).toEqual([fleetShip]);
+    expect(yieldTo.state.ships.player!.crew).toBe(90);
+    expect(yieldTo.state.famous!.morgan!.wealth).toBeGreaterThan(9000);
+  });
+
   it('losing to her makes her richer by the plunder chest', () => {
     const sim = world(4);
     sim.step(day);

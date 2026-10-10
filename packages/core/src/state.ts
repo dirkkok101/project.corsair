@@ -318,9 +318,10 @@ export interface BattleResult {
   /**
    * sunk: the enemy went down with her cargo. struck: she hauled down her colours. boarded: the player
    * carried her by boarding. escaped: she drew clear (or the fight ran out of time). fled: the player
-   * drew clear. lost: the player was beaten, boarded or sinking, and struck to her.
+   * drew clear. lost: the player was beaten, boarded or sinking, and struck to her. yielded: the player struck her
+   * colours when a famous pirate called on her to (she keeps her ship and men, and gives up the chest and the hold).
    */
-  outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'fled' | 'lost';
+  outcome: 'sunk' | 'struck' | 'boarded' | 'escaped' | 'fled' | 'lost' | 'yielded';
   /** Each side's state at the end. The fight is virtual: both ships stay where they met on the world map. */
   player: BattleEnd;
   enemy: BattleEnd;

@@ -19,6 +19,7 @@ const OUTCOME: Record<BattleResult['outcome'], string> = {
   escaped: 'She draws clear and slips away over the horizon.',
   fled: 'You break off and leave her astern. She will remember your colours.',
   lost: 'You are beaten and forced to strike. They let you go, but not empty-handed.',
+  yielded: 'You strike your colours. He takes the plunder chest and your hold, and leaves you your ship and your men.',
 };
 
 /** The painted picture for each ending (art/sources/paintings/README.md, group outcomes). */
@@ -35,6 +36,7 @@ const PICTURE: Record<BattleResult['outcome'], string> = {
   escaped: 'outcome.escaped',
   fled: 'outcome.escaped',
   lost: 'outcome.lost',
+  yielded: 'outcome.lost',
 };
 
 const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands', pirate: 'the pirates' };
@@ -379,6 +381,7 @@ const TITLE: Record<BattleResult['outcome'], string> = {
   escaped: 'She got away',
   fled: 'You broke off',
   lost: 'Defeat',
+  yielded: 'You struck',
 };
 
 function Bar({ label, value, max, unit = '' }: { label: string; value: number; max: number; unit?: string }) {
@@ -428,6 +431,8 @@ export interface BattleHudProps {
   panel: ShipPanelProps;
   /** She may strike any moment now. */
   wavering: boolean;
+  /** A famous pirate calls on her to strike: who, and the key that yields. */
+  demand?: string;
   /** The after-action report, once the fight's result has reached the world. */
   report?: BattleReport;
   /** The player started the fight (an attack on a nation's ship costs standing with it). */
@@ -444,7 +449,7 @@ export interface BattleHudProps {
   onContinue: () => void;
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -474,6 +479,11 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
         </div>
       ) : null}
       {wavering ? <div class="battle-parting battle-waver">She's wavering: keep at her and she'll strike</div> : null}
+      {demand && !report ? (
+        <div class="battle-parting battle-demand">
+          {demand} calls on you to strike · Y strikes your colours: he takes the plunder chest and your hold, you keep your ship and your men
+        </div>
+      ) : null}
       {!state.result && now < mastCall.current.until ? <div class="battle-parting battle-mast">{mastCall.current.text}</div> : null}
       {state.wreck && !state.result ? (
         <div class="battle-parting battle-wreck">

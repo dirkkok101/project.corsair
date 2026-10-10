@@ -951,7 +951,9 @@ export function createTrafficSystem(
         const nation = other.ai.nation;
         const taken = outcome === 'struck' || outcome === 'boarded';
         const won = taken || outcome === 'sunk';
-        const beaten = outcome === 'lost';
+        // Struck when a famous pirate called on her to: beaten all the same, but she keeps her ships and her men.
+        const yielded = outcome === 'yielded';
+        const beaten = outcome === 'lost' || yielded;
         const before = state.captain;
         let captain = before;
         let cargo = player.cargo;
@@ -975,7 +977,7 @@ export function createTrafficSystem(
           if (other.ai.role === 'pirate') {
             // She takes the most valuable ship of the fleet in tow (never the flagship), room allowing.
             let prizes = other.ai.prizes ?? [];
-            if (fleetAfter.length && prizes.length < pz.max) {
+            if (fleetAfter.length && prizes.length < pz.max && !yielded) {
               const best = [...fleetAfter].sort((a, b) => shipValue(content, b) - shipValue(content, a))[0]!;
               fleetAfter = fleetAfter.filter((f) => f !== best);
               prizes = [...prizes, asPrize(best, 'player', 'merchant', state.tick)];
