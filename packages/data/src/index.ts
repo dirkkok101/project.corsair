@@ -12,6 +12,7 @@ import weatherJson from '../content/maps/caribbean/weather.json';
 import windZonesJson from '../content/maps/caribbean/wind_zones.json';
 import placeholderMap from '../content/maps/placeholder.json';
 import navigationJson from '../content/navigation.json';
+import piratesJson from '../content/pirates.json';
 import polarsJson from '../content/polars.json';
 import shipsJson from '../content/ships.json';
 import spritesJson from '../content/sprites.json';
@@ -26,6 +27,7 @@ import {
   goodsSchema,
   musicSchema,
   navigationSchema,
+  piratesSchema,
   polarSchema,
   proceduralMapSchema,
   rasterMapSchema,
@@ -41,6 +43,7 @@ import type {
   Calendar,
   Combat,
   CrewConfig,
+  PiratesConfig,
   PoliticsConfig,
   Economy,
   Goods,
@@ -80,6 +83,7 @@ export interface ContentPack {
   politics: PoliticsConfig;
   upgrades: Record<string, Upgrade>;
   crew: CrewConfig;
+  pirates: PiratesConfig;
 }
 
 /**
@@ -112,7 +116,14 @@ export function loadContent(): ContentPack {
     politics: politicsSchema.parse(politicsJson),
     crew: crewSchema.parse(crewJson),
     upgrades: Object.fromEntries(upgradesSchema.parse(upgradesJson).upgrades.map((u) => [u.id, u])),
+    pirates: piratesSchema.parse(piratesJson),
   };
+  const places = new Set(pack.settlements.map((s) => s.id));
+  for (const c of pack.pirates.captains) {
+    if (!pack.ships[c.classId]) throw new Error(`pirates: ${c.id} sails unknown class ${c.classId}`);
+    if (!pack.combat.tactics.temperaments[c.temperament]) throw new Error(`pirates: ${c.id} has unknown temperament ${c.temperament}`);
+    for (const id of [c.haven, ...c.haunts]) if (!places.has(id)) throw new Error(`pirates: ${c.id} names unknown port ${id}`);
+  }
   for (const r of Object.values(pack.traffic.roles)) {
     if (!pack.ships[r.classId]) throw new Error(`traffic: unknown class ${r.classId}`);
   }

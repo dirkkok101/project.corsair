@@ -641,6 +641,13 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
 - Named pirate captains (about 10, generated from name tables) roam, raid and bury treasure. Their fame is tracked on a leaderboard the player can see.
 - The main villain is a noble tied to the family backstory. He moves between hideouts and is found through clues.
 - Defeating pirate captains raises fame and removes them; their haven may lose power.
+- Built (famous pirates, slice 1 of `docs/design/famous-pirates-and-treasure.md`): ten real buccaneers of the 1660s
+  (`pirates.json`) sail from the three havens over and above the traffic population, in their own classes with full
+  veteran crews (morale 90 in battle), lying in wait on the lanes to their haunts. Each ship one takes adds its purse
+  and cargo at base price to his wealth, and is news by his name. Beating one puts half his wealth in the plunder
+  chest and gives a point of fame; beaten by anyone, he keeps a fifth of the rest, lies low 90 days and sails again
+  in a new ship. A taken ship of his is a prize under her own name. The tavern shows the Top Ten by wealth, the
+  captain ranked by purse and plunder chest. Not yet: flags at sea, captured captains, maps and digging (slices 2-4).
 
 ## 13. News and events
 

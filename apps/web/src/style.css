@@ -507,6 +507,43 @@ body {
   min-height: 120px;
 }
 
+/* The Top Ten: rank, name, wealth, and where each one is. */
+.top-ten {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.top-ten ol {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top-ten li {
+  display: grid;
+  grid-template-columns: 2em minmax(0, 15em) 7em minmax(0, 1fr);
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.top-ten li.you {
+  color: #e8c170;
+}
+
+.top-ten .top-rank {
+  text-align: right;
+  color: #819796;
+}
+
+.top-ten .top-wealth {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.top-ten .age {
+  color: #819796;
+}
+
 .market {
   width: 100%;
   border-collapse: collapse;

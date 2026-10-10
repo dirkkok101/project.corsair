@@ -4,7 +4,8 @@ import { expect, test } from '@playwright/test';
 // switches to a view from astern on C, and goes away in port.
 test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to the harbour', async ({ page }) => {
   // Headless browsers draw WebGL on the CPU; a full 3D island with its jungle takes seconds a frame there.
-  test.setTimeout(150_000);
+  // Every ship on the map is built and drawn too, the famous pirates' frigates and full decks among them.
+  test.setTimeout(240_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));

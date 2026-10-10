@@ -56,6 +56,8 @@ export interface BattleReport {
   /** Ships of the player's she had in tow: back in the fleet, or laid up in port when there was no room. */
   retaken?: { name: string; classId: string }[];
   laidUp?: { name: string; classId: string; at: string }[];
+  /** A famous pirate beaten: her name, the share of her wealth that came to the chest, and the fame. */
+  famous?: { name: string; share: number; fame: number } | null;
 }
 
 /** A prize waiting on the plunder screen: her hold, the men who would sign on, and the player's own hold. */
@@ -96,6 +98,10 @@ interface Row {
 /** The report, a row each: what was won, what was lost, and what it did to the crew. */
 function reportRows(content: ContentPack, r: BattleReport): Row[] {
   const rows: Row[] = [];
+  if (r.famous) {
+    rows.push({ icon: 'ui.icon.chest', text: `+${r.famous.share.toLocaleString()} gold of ${r.famous.name}'s fortune, into the plunder chest`, tone: 'good' });
+    rows.push({ icon: 'ui.icon.morale', text: `+${r.famous.fame} fame: ${r.famous.name} is beaten, and the whole Main will hear of it`, tone: 'good' });
+  }
   if (r.purse) rows.push({ icon: 'ui.icon.chest', text: `+${r.purse} gold from her purse, into the plunder chest`, tone: 'good' });
   if (r.salvageGold) rows.push({ icon: 'ui.icon.gold', text: `+${r.salvageGold} gold from the barrels, into the plunder chest`, tone: 'good' });
   if (r.rescued) rows.push({ icon: 'ui.icon.crew', text: `+${r.rescued} men pulled from the water join your crew`, tone: 'good' });

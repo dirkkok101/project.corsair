@@ -349,6 +349,22 @@ describe('sea battle', () => {
     expect(fitted).toBeGreaterThanOrEqual(full);
   }, 120_000);
 
+  it('a famous pirate is a hard fight: her veterans beat a stock 10-gun brig most times (the top of the list nearly always)', () => {
+    const famous = (classId: string, temperament: string) => {
+      const s = ship(classId, 'pirate', 1);
+      return { ...s, ai: { ...s.ai!, famous: 'test', temperament } };
+    };
+    const tally: Record<string, number> = {};
+    for (const c of content.pirates.captains) {
+      let lost = 0;
+      for (let seed = 1; seed <= 6; seed++) if (fight(famous(c.classId, c.temperament), seed, 'cautious', { guns: 10 }).result()!.outcome === 'lost') lost++;
+      tally[c.id] = lost;
+    }
+    console.log('FAMOUS stock brig losses of 6 against each', JSON.stringify(tally));
+    const losses = Object.values(tally).reduce((a, b) => a + b, 0);
+    expect(losses).toBeGreaterThan(content.pirates.captains.length * 6 * 0.5);
+  }, 300_000);
+
   it('plays matchups with the outcomes the design intends (headless runner)', () => {
     const tally = (enemy: () => Ship, n = 40) => {
       const outcomes: Record<string, number> = {};

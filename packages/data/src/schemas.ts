@@ -685,3 +685,37 @@ export const crewSchema = z.object({
   volunteers: z.object({ pirate: share01, other: share01 }),
 });
 export type CrewConfig = z.infer<typeof crewSchema>;
+
+/** The famous pirates (pirates.json): ten named captains the world keeps, and the rules for beating one. */
+export const piratesSchema = z.object({
+  rules: z.object({
+    /** Fame a captain gains for beating one. */
+    fame: z.number().int().min(0),
+    /** Share of her wealth that goes to the player's plunder chest when the player beats her. */
+    wealthShare: share01,
+    /** Share of what is left that she keeps, beaten by anyone. */
+    keeps: share01,
+    /** Days she lies low before she sails again in a new ship. */
+    returnDays: z.number().positive(),
+    /** Her crew's morale in battle: veterans. */
+    morale: z.number().min(0).max(100),
+  }),
+  captains: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      /** Her ship's name (what she is called when taken as a prize). */
+      ship: z.string(),
+      haven: z.string(),
+      classId: z.string(),
+      temperament: z.string(),
+      nerve: z.number().positive(),
+      /** Ports whose lanes she lies in wait on. */
+      haunts: z.array(z.string()).min(1),
+      /** Gold to her name when the world begins. */
+      wealth: z.number().int().min(0),
+    }),
+  ),
+});
+export type PiratesConfig = z.infer<typeof piratesSchema>;
+export type FamousPirateDef = PiratesConfig['captains'][number];

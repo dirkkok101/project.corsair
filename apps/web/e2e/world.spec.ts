@@ -371,6 +371,19 @@ test('ships lying in port are listed in the tavern with when each sails', async 
   expect(errors).toEqual([]);
 });
 
+test('the Top Ten: the tavern ranks the famous pirates by wealth, and the captain below them to start', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  const list = page.locator('.top-ten li');
+  await expect(list).toHaveCount(10);
+  await expect(list.first()).toContainText('Henry Morgan');
+  await expect(list.first()).toContainText('9,000 gold');
+  // A new captain's 1,000 gold is less than the poorest of them: eleventh, and told how to make the list.
+  await expect(page.locator('.top-ten')).toContainText('You: 1,000 gold, 11th');
+  await page.screenshot({ path: 'test-results/top-ten.png' });
+  expect(errors).toEqual([]);
+});
+
 test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // News is known at once where it happens, so a shock in the port we're at needs no waiting.

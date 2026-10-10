@@ -1149,7 +1149,8 @@ async function main() {
     for (const s of Object.values(sim.state.ships)) {
       if (!s.ai || inPort(s) || ship.docked || Math.hypot(s.x - ship.x, s.y - ship.y) > SAIL_HO_TILES) continue;
       seen.add(s.id);
-      if (!inSight.has(s.id)) sailHo = { text: `Sail ho! ${shipTitle(s).replace(/^./, (c) => c.toUpperCase())}, the ${s.ai.name}`, until: now + SAIL_HO_MS };
+      const title = shipTitle(s).replace(/^./, (c) => c.toUpperCase());
+      if (!inSight.has(s.id)) sailHo = { text: s.ai.famous ? `Sail ho! ${title}: ${s.ai.name} himself` : `Sail ho! ${title}, the ${s.ai.name}`, until: now + SAIL_HO_MS };
     }
     inSight.clear();
     for (const id of seen) inSight.add(id);

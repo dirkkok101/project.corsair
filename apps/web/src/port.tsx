@@ -39,6 +39,7 @@ import {
   tradePreview,
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
+import { topTen } from '@corsair/systems-traffic';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
@@ -923,6 +924,43 @@ function Harbour({ content, state, town }: { content: ContentPack; state: WorldS
   );
 }
 
+/**
+ * The Top Ten (Pirates! 2004): the famous pirates and the captain, richest first, as the tavern tells it. Each
+ * pirate's wealth is what beating her is worth (half of it); a beaten one says when he is due back.
+ */
+function TopTen({ content, state, settlements }: { content: ContentPack; state: WorldState; settlements: PlacedSettlement[] }) {
+  const ranks = topTen(content, state);
+  const place = ranks.findIndex((r) => r.player) + 1;
+  const tpd = content.calendar.ticksPerDay;
+  const haven = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id;
+  const fame = state.captain?.fame ?? 0;
+  return (
+    <div class="top-ten">
+      <span class="port-sub">
+        The Top Ten pirates on the Main, by their wealth. You count your purse and plunder chest{fame ? ` · your fame ${fame}` : ''}.
+      </span>
+      <ol>
+        {ranks.slice(0, 10).map((r, i) => {
+          const months = r.returnAt ? Math.max(1, Math.ceil((r.returnAt - state.tick) / tpd / 30)) : 0;
+          return (
+            <li key={r.id ?? 'you'} class={r.player ? 'you' : undefined}>
+              <span class="top-rank">{i + 1}.</span>
+              <span class="top-name">{r.name}</span>
+              <span class="top-wealth">{r.wealth.toLocaleString()} gold</span>
+              <span class="age">{r.player ? '' : r.returnAt ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}` : `sails from ${haven(r.haven)}`}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {place > 10 ? (
+        <div class="port-sub">
+          You: {ranks[place - 1]!.wealth.toLocaleString()} gold, {place}th. Beat one of them, or grow richer than {ranks[9]!.name}, to make the list.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** The tavern: talk of the docks, newest first. Listening marks it heard. */
 function Tavern({ content, state, settlements, town, rumours, hear, shipId, send }: TavernProps) {
   // What was new when the captain walked in stays marked for this visit.
@@ -953,6 +991,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
       <>
         {recruit}
         {offers}
+        <TopTen content={content} state={state} settlements={settlements} />
         <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>
       </>
     );
@@ -960,6 +999,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
     <>
       {recruit}
       {offers}
+      <TopTen content={content} state={state} settlements={settlements} />
       <ul class="tavern">
         {rumours.map((n) => {
           const town = settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId;

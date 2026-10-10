@@ -511,6 +511,7 @@ export function newsText(content: ContentPack, item: NewsItem, townName: string)
     .replaceAll('{nation}', nationWords[item.nation ?? ''] ?? '')
     .replaceAll('{other}', nationWords[item.other ?? ''] ?? '')
     .replaceAll('{vessel}', item.vessel ?? 'a ship')
+    .replaceAll('{captain}', item.captain ?? 'a pirate')
     .replace(/^./, (c) => c.toUpperCase());
 }
 

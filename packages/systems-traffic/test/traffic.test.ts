@@ -3,12 +3,12 @@ import { fileURLToPath } from 'node:url';
 import { createSim } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, tileAt } from '@corsair/data';
-import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, normalStock, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, newsText, normalStock, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import { atWar } from '@corsair/systems-politics';
-import { createSeaLanes, createTrafficSystem, withTraffic } from '../src';
+import { createSeaLanes, createTrafficSystem, topTen, withTraffic } from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -34,7 +34,8 @@ function world(seed: number, start: WorldState = createWorld(def), pack = conten
 }
 const ai = (state: WorldState) => Object.values(state.ships).filter((s) => s.ai);
 /** The everyday traffic: AI ships less the convoys, which sail on a timetable of their own. */
-const traffic0 = (state: WorldState) => ai(state).filter((s) => !s.ai!.convoy).flatMap((s) => [s, ...(s.ai!.prizes ?? []).filter((p) => p.takenFrom !== 'player')]);
+// The population: the famous pirates sail over and above it.
+const traffic0 = (state: WorldState) => ai(state).filter((s) => !s.ai!.convoy && !s.ai!.famous).flatMap((s) => [s, ...(s.ai!.prizes ?? []).filter((p) => p.takenFrom !== 'player')]);
 
 describe('ships at sea', () => {
   it('start with the full population moored at home ports, by role', () => {
@@ -322,7 +323,7 @@ describe('ships that carry the world', () => {
   it('the English convoy sails on her timetable: lands luxuries and settlers at Port Royal, loads sugar and rum, and goes home', () => {
     // No pirates: this is the convoy's timetable, not her luck (pirates take convoys, and keep them).
     const roles = content.traffic.roles;
-    const calm = { ...content, traffic: { ...content.traffic, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } } };
+    const calm = { ...content, traffic: { ...content.traffic, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } }, pirates: { ...content.pirates, captains: [] } };
     const sim = world(2, createWorld(def), calm);
     const line = content.traffic.convoys.lines.find((l) => l.id === 'english')!;
     const royal = 'town.port_royal';
@@ -818,5 +819,112 @@ describe('ships that change hands', () => {
     expect(laid[0]!.fee).toBe(Math.round(shipValue(content, laid[0]!) * content.combat.prizes.salvage));
     expect(settlements.find((s) => s.id === laid[0]!.settlementId)!.nation).toBe('england');
     expect(fight.state.news!.some((n) => n.kind === 'yourShipRetaken')).toBe(true);
+  });
+});
+
+describe('the famous pirates', () => {
+  const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
+  const famous = (state: WorldState) => ai(state).filter((s) => s.ai!.famous);
+  const result = (outcome: BattleResult['outcome']) => ({
+    outcome,
+    player: { hull: 60, sailCondition: 80, crew: 50, guns: 14 },
+    enemy: { hull: 10, sailCondition: 40, crew: 30, guns: 6 },
+  });
+
+  it('the ten sail from their havens on the first day, over and above the population, and rank on the Top Ten', () => {
+    const sim = world(3);
+    sim.step(day);
+    const ten = famous(sim.state);
+    expect(ten).toHaveLength(content.pirates.captains.length);
+    for (const def of content.pirates.captains) {
+      const ship = ten.find((s) => s.ai!.famous === def.id)!;
+      expect(ship).toMatchObject({ classId: def.classId, crew: content.ships[def.classId]!.maxCrew, ai: { name: def.name, from: def.haven, role: 'pirate', temperament: def.temperament } });
+    }
+    expect(traffic0(sim.state).length).toBeLessThanOrEqual(content.traffic.population);
+    const ranks = topTen(content, sim.state);
+    expect(ranks).toHaveLength(11);
+    expect(ranks[0]).toMatchObject({ id: 'morgan', wealth: 9000 });
+    expect(ranks.find((r) => r.player)!.wealth).toBe(sim.state.captain!.gold);
+  });
+
+  it('a prize makes her richer, and her deed is news by her name', () => {
+    const sim = world(9);
+    sim.step(day);
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    sim.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    sim.applyCommands();
+    const merchant = Object.keys(sim.state.ships).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    const m0 = sim.state.ships[merchant]!;
+    // Halfway down the merchant's lane (by distance), on open water, Morgan alongside.
+    const route = m0.ai!.route;
+    const legs = route.slice(1).map((q, i) => Math.hypot(q[0] - route[i]![0], q[1] - route[i]![1]));
+    const along = legs.reduce((t, l) => t + l, 0) / 2;
+    let i = 0;
+    let run = 0;
+    while (run + legs[i]! < along) run += legs[i++]!;
+    const f = (along - run) / legs[i]!;
+    const [x0, y0] = route[i]!;
+    const [x1, y1] = route[i + 1]!;
+    const m = { ...m0, x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f, crew: 5, cargo: { sugar: 10 }, ai: { ...m0.ai!, along, purse: 200 } };
+    const ships = {
+      ...sim.state.ships,
+      player: { ...sim.state.ships.player!, docked: 'town.port_royal' },
+      [merchant]: m,
+      [morgan.id]: { ...morgan, x: m.x + 1, y: m.y, ai: { ...morgan.ai!, waitUntil: undefined, route, along } },
+    };
+    const fight = createSim({ ...sim.state, ships }, [traffic()]);
+    fight.step(30);
+    expect(fight.state.ships[merchant]).toBeUndefined();
+    const sugar = content.goods.find((g) => g.id === 'sugar')!.basePrice;
+    expect(fight.state.famous!.morgan!.wealth).toBe(9000 + 200 + 10 * sugar);
+    expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'famousTaken', captain: 'Henry Morgan', nation: 'england' });
+    expect(newsText(content, fight.state.news!.at(-1)!, 'Port Royal')).toMatch(/^Henry Morgan has taken the English .+ off Port Royal\.$/);
+  });
+
+  it('beaten, she gives up half her wealth and the captain gains fame; she lies low, then sails again in a new ship', () => {
+    const sim = world(4);
+    sim.step(day);
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    const r = content.pirates.rules;
+    const fight = createSim({ ...sim.state, captain: { ...sim.state.captain!, chest: 0 } }, [traffic()]);
+    fight.send({ type: 'BattleEnded', shipId: 'player', targetId: morgan.id, result: result('struck') });
+    fight.applyCommands();
+    const share = Math.round(9000 * r.wealthShare);
+    expect(fight.state.captain!.chest).toBe((morgan.ai!.purse ?? 0) + share);
+    expect(fight.state.captain!.fame).toBe(r.fame);
+    expect(fight.events().find((e) => e.type === 'BattleOver')!.payload.famous).toEqual({ name: 'Henry Morgan', share, fame: r.fame });
+    const back = fight.state.famous!.morgan!;
+    expect(back).toMatchObject({ wealth: Math.round((9000 - share) * r.keeps), defeats: 1 });
+    expect(back.returnAt).toBe(fight.state.tick + Math.round(r.returnDays * day));
+    // The prize is just a ship under her own name; the pirate is not aboard her.
+    expect(fight.state.prize!.ship.ai).toMatchObject({ name: 'Satisfaction', famous: undefined });
+    expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'famousBeaten', captain: 'Henry Morgan' });
+    // He drops down the Top Ten, and says when he is due back.
+    const ranks = topTen(content, fight.state);
+    expect(ranks.find((x) => x.id === 'morgan')).toMatchObject({ wealth: back.wealth, returnAt: back.returnAt });
+    expect(ranks[0]!.id).toBe('lolonnais');
+
+    // Let the prize go, and come to the day he is due back: he sails from his haven in a new ship.
+    fight.send({ type: 'TakePlunder', shipId: 'player', take: {}, volunteers: false, release: false });
+    fight.applyCommands();
+    const due = Math.ceil(back.returnAt! / day) * day;
+    const later = createSim({ ...fight.state, tick: due - 2 }, [traffic()]);
+    later.step(1);
+    expect(famous(later.state).some((s) => s.ai!.famous === 'morgan')).toBe(false);
+    later.step(1);
+    const again = famous(later.state).find((s) => s.ai!.famous === 'morgan')!;
+    expect(again).toMatchObject({ classId: 'ship.frigate', ai: { from: 'town.ile_a_vache', name: 'Henry Morgan' } });
+    expect(later.state.famous!.morgan!.returnAt).toBeUndefined();
+  });
+
+  it('losing to her makes her richer by the plunder chest', () => {
+    const sim = world(4);
+    sim.step(day);
+    const grammont = famous(sim.state).find((s) => s.ai!.famous === 'grammont')!;
+    const lose = createSim({ ...sim.state, captain: { ...sim.state.captain!, chest: 700 } }, [traffic()]);
+    lose.send({ type: 'BattleEnded', shipId: 'player', targetId: grammont.id, result: result('lost') });
+    lose.applyCommands();
+    expect(lose.state.famous!.grammont!.wealth).toBe(4000 + 700);
+    expect(lose.state.ships[grammont.id]!.ai!.famous).toBe('grammont');
   });
 });

@@ -65,6 +65,8 @@ export interface AiCaptain {
    * them at her haven after `sellAfter`. Take her, or a patrol beats her, and they are free again.
    */
   prizes?: Prize[];
+  /** One of the famous pirates (pirates.json id): her wealth and fate are kept in `WorldState.famous`. */
+  famous?: string;
   /**
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.
@@ -245,6 +247,8 @@ export interface Captain {
   sightings?: Record<string, Sighting>;
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
   standing?: Partial<Record<Nation, number>>;
+  /** Fame: a point for each famous pirate beaten. */
+  fame?: number;
   /** Food bought from each ship spoken at sea (by her id): she has only so much to spare. */
   provisionsFrom?: Record<string, number>;
   /** Nations whose letter of marque the captain holds; each covers whoever that nation is at war with now. */
@@ -350,6 +354,8 @@ export interface NewsItem {
   other?: Nation;
   /** News of a ship changing hands: the ship taken, sold or freed ("brig Swallow"). */
   vessel?: string;
+  /** News of a famous pirate's deed: her name. */
+  captain?: string;
 }
 
 export interface WorldState {
@@ -379,6 +385,17 @@ export interface WorldState {
    * who would sign on, and whether she was carried by boarding or struck.
    */
   prize?: { ship: Ship; volunteers: number };
+  /** The famous pirates (pirates.json) by id: their wealth, and when one beaten sails again. */
+  famous?: Record<string, FamousPirate>;
+}
+
+export interface FamousPirate {
+  /** Gold to her name, which ranks her on the Top Ten. */
+  wealth: number;
+  /** Beaten and lying low: she sails again in a new ship from this tick. */
+  returnAt?: number;
+  /** Times she has been beaten. */
+  defeats?: number;
 }
 
 export type Command =

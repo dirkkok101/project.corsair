@@ -201,7 +201,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       reload: { port: 0, starboard: 0 },
       ammo: 'round',
       role: ship.ai?.role,
-      morale: side === 'player' ? (setup.playerMorale ?? content.crew.morale.start) : (content.crew.enemyMorale[ship.ai?.role ?? 'merchant'] ?? 50),
+      // A famous pirate's veterans (pirates.json) fight in better heart than any other crew.
+      morale:
+        side === 'player'
+          ? (setup.playerMorale ?? content.crew.morale.start)
+          : ship.ai?.famous
+            ? content.pirates.rules.morale
+            : (content.crew.enemyMorale[ship.ai?.role ?? 'merchant'] ?? 50),
       masts: cls.masts.map(() => 100),
     };
   };

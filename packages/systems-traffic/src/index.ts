@@ -1,7 +1,7 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
-import type { AiCaptain, EmittedEvent, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
+import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { isLand, shipStats, tileAt } from '@corsair/data';
-import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
+import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, fleetBerths, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
@@ -91,6 +91,9 @@ export function createTrafficSystem(
       const size = { hamlet: 1, town: 2, city: 4 } as const;
       const marks = settlements.filter((s) => !isHaven(s) && reachable(s));
       const weights = Object.fromEntries(marks.map((s) => [s.id, size[s.size] / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.pirateRangeTiles)]));
+      // A famous pirate keeps to her own waters: the lanes toward her haunts.
+      const haunts = ai.famous ? famousDef(ai.famous)?.haunts.filter((id) => marks.some((s) => s.id === id)) : undefined;
+      if (haunts?.length) return { to: byId.get(haunts[Math.floor(rng.float() * haunts.length)]!), good: undefined };
       const pick = marks.length ? rng.weighted(weights) : undefined;
       return { to: marks.find((s) => s.id === pick), good: undefined };
     }
@@ -134,6 +137,67 @@ export function createTrafficSystem(
     const n = state.nextNewsId ?? 0;
     const item = { id: `news.${n}`, tick, settlementId, kind, good: '', delayDays: 0, ship, nation, ...extra };
     return { ...state, news: [...(state.news ?? []), item], nextNewsId: n + 1 };
+  };
+
+  // The famous pirates (pirates.json): each one's wealth and fate, kept in the world between her ships.
+  const famousDef = (id: string) => content.pirates.captains.find((c) => c.id === id);
+  const famousOf = (state: WorldState, id: string): FamousPirate => state.famous?.[id] ?? { wealth: famousDef(id)?.wealth ?? 0 };
+  const withFamous = (state: WorldState, id: string, f: FamousPirate): WorldState => ({ ...state, famous: { ...state.famous, [id]: f } });
+  /** Cargo at base price: what a famous pirate's wealth gains by it. */
+  const cargoWorth = (cargo: Record<string, number>) =>
+    Object.entries(cargo).reduce((n, [g, units]) => n + units * (content.goods.find((x) => x.id === g)?.basePrice ?? 0), 0);
+  /**
+   * A famous pirate beaten (by the player or a patrol): her ship is gone, she keeps a share of the wealth left
+   * her, lies low and sails again in a new ship later; the news goes round from the nearest port.
+   */
+  const famousBeaten = (state: WorldState, ship: Ship, wealthLeft: number, tick: number): WorldState => {
+    const id = ship.ai!.famous!;
+    const r = content.pirates.rules;
+    const f = famousOf(state, id);
+    const next = withFamous(state, id, { wealth: Math.round(wealthLeft * r.keeps), returnAt: tick + Math.round(r.returnDays * tpd), defeats: (f.defeats ?? 0) + 1 });
+    return newsItem(next, nearestPort(ship.x, ship.y).id, 'famousBeaten', tick, ship.ai!.name, 'pirate', { captain: ship.ai!.name });
+  };
+  /** A famous pirate sails from her haven: her own ship and class, a full crew, and her temperament. */
+  const spawnFamous = (state: WorldState, def: FamousPirateDef, home: Settlement, at: [number, number], tick: number): { state: WorldState; ship: Ship } => {
+    const n = state.nextShipId ?? 0;
+    // From her own stream, so her sailing moves nothing else in the world.
+    const draw = rngStream(seedRng(n, `famous:${def.id}`));
+    const cls = content.ships[def.classId]!;
+    const [gold0, gold1] = content.combat.purse.pirate!;
+    const ship: Ship = {
+      id: `ai.${n}`,
+      classId: def.classId,
+      x: at[0],
+      y: at[1],
+      headingDeg: Math.floor(draw.float() * 32) * 11.25,
+      speed: 0,
+      helm: 0,
+      sails: 'furled',
+      blocked: false,
+      cargo: {},
+      hull: cls.hull,
+      sailCondition: 100,
+      crew: cls.maxCrew,
+      ai: {
+        nation: 'pirate',
+        role: 'pirate',
+        name: def.name,
+        from: home.id,
+        to: home.id,
+        route: [],
+        along: 0,
+        offset: 0,
+        tackSign: draw.float() < 0.5 ? 1 : -1,
+        waitUntil: tick + Math.round(draw.range(0, t.portDays[1]) * tpd),
+        news: [],
+        purse: Math.round(draw.range(gold0, gold1)),
+        temperament: def.temperament,
+        nerve: def.nerve,
+        famous: def.id,
+      },
+    };
+    const f = famousOf(state, def.id);
+    return { state: withFamous({ ...state, nextShipId: n + 1 }, def.id, { wealth: f.wealth, ...(f.defeats ? { defeats: f.defeats } : {}) }), ship };
   };
 
   // Ships that change hands (combat.json prizes): a pirate keeps the ships she takes in tow until she sells
@@ -681,6 +745,8 @@ export function createTrafficSystem(
     let prizes = winner.ai!.prizes ?? [];
     // Prizes the loser held, freed unless a pirate takes them on (as far as she has room in tow).
     let freed = loser.ai!.prizes ?? [];
+    // What she took, at base price: a famous pirate's wealth grows by it.
+    let gained = 0;
     if (winner.ai!.role === 'pirate') {
       // She keeps the beaten ship in tow (a pirate she beats goes down), and any the loser had.
       const taken = loser.ai!.role === 'pirate' ? [] : [asPrize({ ...loser, name: loser.ai!.name }, loser.ai!.nation, loser.ai!.role, tick)];
@@ -694,8 +760,10 @@ export function createTrafficSystem(
       for (const [good, units] of Object.entries(loser.cargo)) {
         const take = Math.min(units, room());
         if (take > 0) cargo[good] = (cargo[good] ?? 0) + take;
+        if (take > 0) gained += cargoWorth({ [good]: take });
       }
       purse += loser.ai!.purse ?? 0;
+      gained += loser.ai!.purse ?? 0;
     }
     // A pirate with a prize makes for home (the lane back to her haven), at her prizes' pace, and lies low a week.
     const homeward = winner.ai!.role === 'pirate' && loser.ai!.role !== 'pirate';
@@ -718,7 +786,9 @@ export function createTrafficSystem(
     );
     out[winner.id] = homeward ? makeForHaven(sailor) : sailor;
     let next = state;
-    const kind = winner.ai!.role === 'pirate' ? 'aiTaken' : loser.ai!.role === 'pirate' ? 'aiPirateSunk' : 'warPrize';
+    const famous = winner.ai!.famous;
+    if (famous) next = withFamous(next, famous, { ...famousOf(next, famous), wealth: famousOf(next, famous).wealth + gained });
+    const kind = famous ? 'famousTaken' : winner.ai!.role === 'pirate' ? 'aiTaken' : loser.ai!.role === 'pirate' ? 'aiPirateSunk' : 'warPrize';
     if (winner.ai!.role === 'pirate' && loser.ai!.role === 'merchant') {
       next = raisePiracy(content, next, settlements, loser.ai!.nation, Math.floor(rng.range(content.economy.news.delayDays[0], content.economy.news.delayDays[1] + 1)));
     }
@@ -733,8 +803,10 @@ export function createTrafficSystem(
       ship: loser.ai!.name,
       nation: loser.ai!.nation,
       other: winner.ai!.nation,
+      ...(famous ? { captain: winner.ai!.name } : {}),
     };
-    next = { ...next, news: [...(next.news ?? []), item], nextNewsId: n + 1 };
+    // A famous pirate beaten is news of its own.
+    next = loser.ai!.famous ? famousBeaten(next, loser, famousOf(next, loser.ai!.famous).wealth, tick) : { ...next, news: [...(next.news ?? []), item], nextNewsId: n + 1 };
     const events: EmittedEvent[] = [
       { type: 'SeaFight', entityIds: [winner.id, loser.id], payload: { x: loser.x, y: loser.y, winner: winner.ai!.nation, loser: loser.ai!.nation } },
     ];
@@ -817,6 +889,7 @@ export function createTrafficSystem(
           cargo: {},
         };
         let victor = other;
+        let famousAfter = state.famous;
         // The fleet as the fight leaves it: a pirate may take a ship of it; beating a pirate may win ships back.
         let fleetAfter = fleetOf(state);
         if (beaten) {
@@ -858,6 +931,11 @@ export function createTrafficSystem(
             cargo = left;
             captain = { ...captain, chest: 0 };
             victor = { ...other, cargo: theirHold, ai: { ...other.ai, purse: (other.ai.purse ?? 0) + Math.round(lost.chest), prizes: prizes.length ? prizes : undefined } };
+            // A famous pirate is the richer by it: the chest, and the cargo at base price.
+            if (other.ai.famous) {
+              const f = famousOf(state, other.ai.famous);
+              famousAfter = { ...famousAfter, [other.ai.famous]: { ...f, wealth: f.wealth + Math.round(lost.chest) + cargoWorth(lost.cargo) } };
+            }
           } else {
             lost.gold = Math.floor(before.gold / 2);
             captain = { ...captain, gold: before.gold - lost.gold };
@@ -903,6 +981,9 @@ export function createTrafficSystem(
         }
         let prize: WorldState['prize'];
         let purse = 0;
+        const famousId = won ? other.ai.famous : undefined;
+        let famousShare = 0;
+        let famousLeft = 0;
         if (!won) {
           // She sails on, mauled, and leaves the player be a while.
           const calmUntil = state.tick + Math.round(cb.chase.calmDays * tpd);
@@ -926,13 +1007,26 @@ export function createTrafficSystem(
               retaken.push({ name: p.name, classId: p.classId });
             } else freedHere.push(p);
           }
+          if (famousId) {
+            // A famous pirate's wealth: a share to the plunder chest, and fame.
+            const r = content.pirates.rules;
+            const wealth = famousOf(state, famousId).wealth;
+            famousShare = Math.round(wealth * r.wealthShare);
+            famousLeft = wealth - famousShare;
+            captain = { ...captain, chest: (captain.chest ?? 0) + famousShare, fame: (captain.fame ?? 0) + r.fame };
+          }
           if (taken) {
             purse = other.ai.purse ?? 0;
             captain = { ...captain, chest: (captain.chest ?? 0) + purse };
             const share = other.ai.role === 'pirate' ? content.crew.volunteers.pirate : content.crew.volunteers.other;
             const berths = fleetBerths(content, state, player) - ships[player.id]!.crew!;
             const volunteers = Math.max(0, Math.min(berths, Math.round(theirs.crew * share)));
-            prize = { ship: { ...other, ...theirs, ai: { ...other.ai, purse: 0, chasing: false, target: undefined, skirmish: undefined, prizes: undefined } }, volunteers };
+            // A famous pirate's ship taken is just a ship, under her own name; the pirate lives to sail again.
+            const name = famousId ? (famousDef(famousId)?.ship ?? other.ai.name) : other.ai.name;
+            prize = {
+              ship: { ...other, ...theirs, ai: { ...other.ai, name, famous: undefined, purse: 0, chasing: false, target: undefined, skirmish: undefined, prizes: undefined } },
+              volunteers,
+            };
           }
           const standing = { ...captain.standing };
           // A nation thinks the better of the captain who freed its ships.
@@ -979,6 +1073,7 @@ export function createTrafficSystem(
               lost,
               retaken,
               laidUp: [] as { name: string; classId: string; at: string }[],
+              famous: famousId ? { name: other.ai.name, share: famousShare, fame: content.pirates.rules.fame } : null,
             },
           },
         ];
@@ -988,7 +1083,7 @@ export function createTrafficSystem(
           captain = { ...captain, fleet: fleetAfter };
         }
         // The fight is news, starting from the nearest port.
-        let next: WorldState = { ...state, ships, captain, prize };
+        let next: WorldState = { ...state, ships, captain, prize, ...(famousAfter ? { famous: famousAfter } : {}) };
         // So is the ship she took: the pirate who has her.
         if (lost.ship) next = newsItem(next, nearestPort(other.x, other.y).id, 'yourShipTaken', state.tick, other.ai.name, 'pirate', { vessel: vessel(lost.ship) });
         if (freedHere.length) {
@@ -1001,7 +1096,8 @@ export function createTrafficSystem(
             laid.push({ name: p.name, classId: p.classId, at: byId.get(e.entityIds[1]!)?.name ?? e.entityIds[1]! });
           }
         }
-        if (won) {
+        if (famousId) next = famousBeaten(next, other, famousLeft, state.tick);
+        else if (won) {
           const kind = nation === 'pirate' && outcome === 'sunk' ? 'pirateSunk' : outcome === 'sunk' ? 'sunk' : 'taken';
           const rng = rngStream(state.rng?.traffic ?? seedRng(0, 'traffic'));
           const n = next.nextNewsId ?? 0;
@@ -1264,7 +1360,7 @@ export function createTrafficSystem(
         for (const role of ROLES) {
           // Prizes in tow are still hulls of their role: replaced only once sold.
           const have = Object.values(ships).reduce(
-            (n, s) => n + (s.ai?.role === role && !s.ai.convoy ? 1 : 0) + (s.ai?.prizes ?? []).filter((p) => p.takenFrom !== 'player' && p.role === role).length,
+            (n, s) => n + (s.ai?.role === role && !s.ai.convoy && !s.ai.famous ? 1 : 0) + (s.ai?.prizes ?? []).filter((p) => p.takenFrom !== 'player' && p.role === role).length,
             0,
           );
           if (have >= target(role)) continue;
@@ -1275,6 +1371,22 @@ export function createTrafficSystem(
           next = made.state;
           ships = { ...ships, [made.ship.id]: made.ship };
           events.push({ type: 'ShipSpawned', entityIds: [made.ship.id], payload: { role } });
+        }
+      }
+
+      // The famous pirates, over and above the population: each sails from her haven on the first day, and again
+      // once she has lain low long enough after a beating.
+      if (tick % tpd === 0) {
+        const afloat = new Set(Object.values(ships).map((s) => s.ai?.famous));
+        for (const def of content.pirates.captains) {
+          if (afloat.has(def.id) || (next.famous?.[def.id]?.returnAt ?? 0) > tick) continue;
+          const home = byId.get(def.haven);
+          const at = home && lanes.mooring(home.id);
+          if (!home || !at) continue;
+          const made = spawnFamous({ ...next, ships }, def, home, at, tick);
+          next = made.state;
+          ships = { ...ships, [made.ship.id]: made.ship };
+          events.push({ type: 'ShipSpawned', entityIds: [made.ship.id], payload: { role: 'pirate', famous: def.id } });
         }
       }
 
@@ -1296,6 +1408,30 @@ export function createTrafficSystem(
       return { state: { ...next, ships, captain, rng: { ...next.rng, traffic: rng.state() } }, events };
     },
   };
+}
+
+/** One line of the Top Ten: a famous pirate (by id) or the captain. */
+export interface TopTenEntry {
+  name: string;
+  wealth: number;
+  id?: string;
+  player?: boolean;
+  /** Beaten and lying low until this tick. */
+  returnAt?: number;
+  haven?: string;
+}
+
+/**
+ * The Top Ten (Pirates! 2004): the famous pirates and the captain, richest first. A pirate's wealth is her own
+ * (pirates.json, then what she takes and loses); the captain's is her purse and the plunder chest.
+ */
+export function topTen(content: ContentPack, state: WorldState): TopTenEntry[] {
+  const pirates: TopTenEntry[] = content.pirates.captains.map((c) => {
+    const f = state.famous?.[c.id];
+    return { id: c.id, name: c.name, wealth: f?.wealth ?? c.wealth, haven: c.haven, ...(f?.returnAt !== undefined && f.returnAt > state.tick ? { returnAt: f.returnAt } : {}) };
+  });
+  const you: TopTenEntry = { name: 'You', wealth: Math.round((state.captain?.gold ?? 0) + (state.captain?.chest ?? 0)), player: true };
+  return [...pirates, you].sort((a, b) => b.wealth - a.wealth || Number(Boolean(b.player)) - Number(Boolean(a.player)));
 }
 
 /** Ports a role sets out from: havens for pirates, any other port with a lane for the rest. */

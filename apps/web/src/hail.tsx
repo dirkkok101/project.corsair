@@ -44,7 +44,9 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
       ? `${goods.length ? `Laden with ${goods.join(' and ')}` : 'Sailing light, in ballast'}, bound for ${name(ai.to)}.`
       : ai.role === 'patrol'
         ? `A man-of-war on patrol, bound for ${name(ai.to)}. Her gunports are closed.`
-        : `A ${shipKind(ship.classId)} with a hard-looking crew. She keeps a wary distance and answers short.`;
+        : ai.famous
+          ? `${ai.name} himself, in a ${shipKind(ship.classId)} full of veterans: worth about ${(state.famous?.[ai.famous]?.wealth ?? content.pirates.captains.find((c) => c.id === ai.famous)?.wealth ?? 0).toLocaleString()} gold, by the talk in the taverns. Beat him and half of it is yours.`
+          : `A ${shipKind(ship.classId)} with a hard-looking crew. She keeps a wary distance and answers short.`;
   const prizes = ai.prizes ?? [];
   const mine = prizes.filter((p) => p.takenFrom === 'player');
   const kind = (classId: string) => classId.replace(/^ship\./, '').replace(/_/g, ' ');
