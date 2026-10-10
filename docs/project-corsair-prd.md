@@ -653,7 +653,16 @@ Nation traits (fort quality, navy size, aggression, tolerance of pirates) are da
   a piece of his hoard's map (4 to a map, keepsakes). Hold him for a bounty: any governor pays 1,500 gold and his
   nation +10 standing; he stays in irons until handed over, then sails again after his time in jail. Set him free:
   +10 crew morale, and he leaves the captain be when he sails again, until fired on. The Top Ten shows pieces held
-  and prisoners. Not yet: flags at sea, the Maps page and other piece sources, digging (slices 3-4).
+  and prisoners.
+- Built (treasure maps, slice 3; `treasure.json`): a hoard is placed when its first map piece comes, on a coast
+  6 to 30 tiles from one of the pirate's haunts, clear of towns, by a landmark, holding 40% of his wealth. Pieces
+  come from a prisoner asked about his hoard, a survivor picked up when one sinks (35%), and the shady stranger, who
+  sits in a town's tavern some weeks and sells a piece for 15% of the hoard's worth (likelier while a map is
+  unfinished, and for pirates whose waters are near). The captain's log (L at sea, time stops) holds the Top Ten
+  and the Maps: each map a parchment drawn from the real coast, a quarter per piece (the hoard's own quarter first,
+  the X from the third piece), with its worth, the port it lies near and, from the second piece, its landmark; one
+  click plots a course to the search ring. The chart rings each search area, 40 tiles across with one piece down
+  to 8 with four. Not yet: digging, landmarks in 3D and revenge (slice 4); flags at sea.
 
 ## 13. News and events
 

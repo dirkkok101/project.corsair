@@ -260,6 +260,10 @@ export function createCharts(
   // Ships the lookouts have seen, fading as the sighting ages (PRD section 3: last-known markers).
   const sighted = sheet.appendChild(document.createElement('div'));
   sighted.className = 'chart-ships';
+  // Treasure maps: a dashed ring about each search area (smaller with more pieces of its map).
+  const ringsLayer = sheet.appendChild(document.createElement('div'));
+  ringsLayer.className = 'chart-rings';
+  let ringsDrawn = '';
   const marker = sheet.appendChild(document.createElement('img'));
   marker.className = 'chart-player';
   marker.src = ART['ui.chart.you'] ?? '';
@@ -392,6 +396,16 @@ export function createCharts(
     /** The chart is open: the world waits while the captain studies it. */
     get open() {
       return !chart.hidden;
+    },
+    /** The search rings of the treasure maps held: centre and radius in tiles, and whose hoard. */
+    rings(list: { x: number; y: number; r: number; label: string }[]) {
+      const html = list
+        .map(
+          (g) =>
+            `<div class="chart-ring" title="${g.label}" style="left:${(g.x / map.width) * 100}%;top:${(g.y / map.height) * 100}%;width:${((2 * g.r) / map.width) * 100}%"></div>`,
+        )
+        .join('');
+      if (html !== ringsDrawn) ringsLayer.innerHTML = ringsDrawn = html;
     },
     /** Forget the destination (made port): no port highlighted. */
     clearDestination() {

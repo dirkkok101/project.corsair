@@ -112,8 +112,9 @@ Each hoard's map has **4 pieces**. Sources, from easiest to hardest:
 2. **Captured captains** (built): the three choices after taking one (hoard piece, bounty, set free). Set free,
    he leaves the captain be when he sails again (his crew remember it), until she fires on him; held for a bounty,
    he stays in irons until a governor takes him, then sails after his time in jail.
-3. **Maps**: pieces from the tavern stranger, beaten pirates and survivors; hoards placed on the first piece; the
-   Maps page; the chart's search ring and course.
+3. **Maps** (built): pieces from the tavern stranger, beaten pirates and survivors; hoards placed on the first piece
+   (from the tick and the pirate's id, as the world keeps no seed); the Maps page in a new captain's log (L); the
+   chart's search ring and a course to it (never straight to the X). The burying rumour is left for slice 4's hints.
 4. **Digging and landmarks**: going ashore near the site, the dig, hints when you miss, landmark models in 3D,
    revenge when you dig before beating him.
 

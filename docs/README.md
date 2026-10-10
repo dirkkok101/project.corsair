@@ -14,6 +14,7 @@ Canonical home for the product requirements and art / sprite planning. Art notes
 | `reference/pirates-youtube-videos.md` | YouTube reference videos for Pirates! sea battles, world-map sailing, UI, and design retrospectives (with timestamps) |
 | `reference/pirates-sid-meier-design.md` | Sid Meier's own design decisions for Pirates! (fantasy, genre mix, towns, sailing, career, what was cut) from interviews and talks, plus Corsair takeaways |
 | `reference/pirates-trading-battles-navigation.md` | How Black Flag, Sea of Thieves and Sid Meier's Pirates! handle trading, ship-to-ship battles and ocean navigation, with Corsair takeaways |
+| `reference/corsair-game-loops.md` | Game loop design reference: purpose, verbs, feedback, failure cost and feeds for each Corsair loop, compared to 1987, 2004 and Corsair |
 | `reference/pirates-sailing-combat-rewards.md` | How Sid Meier's Pirates! (2004) handles sailing, wind and weather, sea combat, player motivation and rewards (ranks, items, Fame, retirement), from the manual and Sid's talks, plus Corsair takeaways |
 
 Vault notes under DirkVault `00-System/Skills/` for these titles are stubs pointing here.

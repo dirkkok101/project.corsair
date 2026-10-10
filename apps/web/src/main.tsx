@@ -24,7 +24,7 @@ import { compassProps, Hud } from './hud';
 import { shipIcon, shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { createLabels } from './labels';
@@ -32,6 +32,7 @@ import { createShipLabels } from './shiplabels';
 import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
 import { Hail, shipTitle } from './hail';
+import { Log } from './log';
 import { bindMouse } from './mouse';
 import { ShipPanel } from './panel';
 import { BattleHud } from './battle';
@@ -295,6 +296,9 @@ async function main() {
   const panelRoot = stage.appendChild(document.createElement('div'));
   const portRoot = stage.appendChild(document.createElement('div'));
   const hailRoot = stage.appendChild(document.createElement('div'));
+  const logRoot = stage.appendChild(document.createElement('div'));
+  // The captain's log (L) is open: the world waits, as with the chart.
+  let logOpen = false;
   // The ship being spoken and the news she brought; the clock stops while the captains talk.
   let hailing: { targetId: string; news: string[] } | undefined;
   const battleRoot = stage.appendChild(document.createElement('div'));
@@ -613,6 +617,9 @@ async function main() {
       else hail(shipInHail());
     }
     if (e.key === 'Escape') hailing = undefined;
+    // L: the captain's log (the Top Ten and the treasure maps), at sea; Escape closes it too.
+    if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen && !player().docked;
+    if (e.key === 'Escape') logOpen = false;
     // Ctrl+S (Cmd+S on a Mac) saves the career instead of the browser's "save page".
     if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -1054,7 +1061,7 @@ async function main() {
         panelRoot,
       );
     }
-    if (player().docked || hailing || charts.open) {
+    if (player().docked || hailing || charts.open || logOpen) {
       // World time stops in port (PRD section 2), while hailing, and while the chart is open; commands
       // still apply at once.
       sim.applyCommands();
@@ -1146,6 +1153,13 @@ async function main() {
       renderer.view(),
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
     );
+    charts.rings(
+      content.pirates.captains.flatMap((c) => {
+        const hoard = sim.state.famous?.[c.id]?.hoard;
+        const held = sim.state.captain?.mapPieces?.[c.id] ?? 0;
+        return hoard && held && !hoard.found ? [{ ...hoardRing(content, hoard, held), label: `${c.name}'s hoard: ${held} of ${content.pirates.rules.mapPieces} pieces` }] : [];
+      }),
+    );
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     const hour = hourOf(sim.state.tick, content.calendar.ticksPerDay);
@@ -1229,6 +1243,23 @@ async function main() {
         />
       ) : null,
       hailRoot,
+    );
+    if (player().docked || fight) logOpen = false;
+    render(
+      logOpen ? (
+        <Log
+          content={content}
+          state={sim.state}
+          map={map}
+          settlements={settlements}
+          close={() => (logOpen = false)}
+          plot={(x, y) => {
+            setCourse(x, y, false);
+            logOpen = false;
+          }}
+        />
+      ) : null,
+      logRoot,
     );
     const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
     const harbour = town && harbourScene(town);

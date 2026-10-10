@@ -4,6 +4,7 @@ import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import {
   shipRepairCost,
+  strangerOffer,
   bountiesOwed,
   cargoUsed,
   crewOf,
@@ -936,7 +937,7 @@ function Harbour({ content, state, town }: { content: ContentPack; state: WorldS
  * The Top Ten (Pirates! 2004): the famous pirates and the captain, richest first, as the tavern tells it. Each
  * pirate's wealth is what beating her is worth (half of it); a beaten one says when he is due back.
  */
-function TopTen({ content, state, settlements }: { content: ContentPack; state: WorldState; settlements: PlacedSettlement[] }) {
+export function TopTen({ content, state, settlements }: { content: ContentPack; state: WorldState; settlements: PlacedSettlement[] }) {
   const ranks = topTen(content, state);
   const place = ranks.findIndex((r) => r.player) + 1;
   const tpd = content.calendar.ticksPerDay;
@@ -980,6 +981,34 @@ function TopTen({ content, state, settlements }: { content: ContentPack; state: 
   );
 }
 
+/**
+ * The shady stranger (treasure.json): some weeks a sailor in the corner sells a piece of a famous pirate's map,
+ * for a share of what the hoard holds. He says whose, what it is worth, and how much of that map the captain holds.
+ */
+function Stranger({ content, state, settlements, town, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'settlements' | 'town' | 'shipId' | 'send'>) {
+  const here = settlements.find((s) => s.id === town);
+  const offer = here && strangerOffer(content, state, here, settlements);
+  if (!offer) return null;
+  const c = content.pirates.captains.find((x) => x.id === offer.pirateId)!;
+  const f = state.famous?.[c.id];
+  const worth = f?.hoard?.value ?? Math.round((f?.wealth ?? c.wealth) * content.treasure.hoardShare);
+  const held = state.captain?.mapPieces?.[c.id] ?? 0;
+  const gold = state.captain?.gold ?? 0;
+  return (
+    <div class="stranger">
+      <span class="trend want">stranger</span> A sailor in the corner leans close: "A piece of {c.name}'s map, captain. They say his hoard holds{' '}
+      {worth.toLocaleString()} gold." <span class="port-sub">You hold {held} of {content.pirates.rules.mapPieces} pieces of it.</span>{' '}
+      <button
+        disabled={gold < offer.price}
+        title={gold < offer.price ? `You have ${gold} gold.` : 'The first piece shows where on the coast it lies; each one more narrows the search.'}
+        onClick={() => send({ type: 'BuyMapPiece', shipId, pirateId: c.id })}
+      >
+        Buy the piece · {offer.price.toLocaleString()} gold
+      </button>
+    </div>
+  );
+}
+
 /** The tavern: talk of the docks, newest first. Listening marks it heard. */
 function Tavern({ content, state, settlements, town, rumours, hear, shipId, send }: TavernProps) {
   // What was new when the captain walked in stays marked for this visit.
@@ -1010,6 +1039,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
       <>
         {recruit}
         {offers}
+        <Stranger content={content} state={state} settlements={settlements} town={town} shipId={shipId} send={send} />
         <TopTen content={content} state={state} settlements={settlements} />
         <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>
       </>
@@ -1018,6 +1048,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
     <>
       {recruit}
       {offers}
+      <Stranger content={content} state={state} settlements={settlements} town={town} shipId={shipId} send={send} />
       <TopTen content={content} state={state} settlements={settlements} />
       <ul class="tavern">
         {rumours.map((n) => {

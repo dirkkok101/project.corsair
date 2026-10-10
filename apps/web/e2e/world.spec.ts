@@ -384,6 +384,37 @@ test('the Top Ten: the tavern ranks the famous pirates by wealth, and the captai
   expect(errors).toEqual([]);
 });
 
+test("treasure maps: the tavern stranger sells a piece, the log draws the map, and the chart rings the search", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  // He sits in the corner some weeks: wait them out in port.
+  for (let w = 0; w < 16 && !(await page.locator('.stranger').count()); w++) {
+    await page.evaluate(() => window.__corsair.sim.step(7 * 771));
+    await page.waitForTimeout(50);
+  }
+  await expect(page.locator('.stranger')).toBeVisible();
+  await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
+  await expect(page.locator('.stranger')).toHaveCount(0);
+  const pieces = await page.evaluate(() => (window.__corsair.state.get('captain') as { mapPieces?: Record<string, number> }).mapPieces);
+  expect(Object.values(pieces ?? {})).toEqual([1]);
+  // At sea, L opens the log at the map: a parchment of the coast, and what it is worth.
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('l');
+  await expect(page.locator('.log')).toBeVisible();
+  await expect(page.locator('.parchment')).toHaveCount(1);
+  await expect(page.locator('.log-map')).toContainText('1 of 4 pieces');
+  await page.screenshot({ path: 'test-results/treasure-map.png' });
+  await page.keyboard.press('l');
+  await expect(page.locator('.log')).toHaveCount(0);
+  // The chart rings the search area.
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-ring')).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/treasure-chart.png' });
+  expect(errors).toEqual([]);
+});
+
 test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // News is known at once where it happens, so a shock in the port we're at needs no waiting.

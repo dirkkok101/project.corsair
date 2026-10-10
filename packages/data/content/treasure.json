@@ -3,7 +3,7 @@
   "hoardShare": 0.4,
   "placeTiles": [6, 30],
   "clearOfTownsTiles": 5,
-  "ringTiles": [16, 10, 6, 3],
+  "ringTiles": [40, 24, 14, 8],
   "ringOffset": 0.5,
   "stranger": { "chance": 0.35, "unfinishedChance": 0.6, "priceShare": 0.15, "minPrice": 150, "nearTiles": 200, "nearWeight": 2, "unfinishedWeight": 4 },
   "survivorChance": 0.35,
