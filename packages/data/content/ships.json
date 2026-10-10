@@ -23,8 +23,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.brig.world",
-      "combat": "ship.brig.combat"
+      "world": "ship.brig.world"
     }
   },
   {
@@ -52,8 +51,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.fluyt.world",
-      "combat": "ship.fluyt.combat"
+      "world": "ship.fluyt.world"
     }
   },
   {
@@ -82,8 +80,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.sloop.world",
-      "combat": "ship.sloop.combat"
+      "world": "ship.sloop.world"
     }
   },
   {
@@ -109,8 +106,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.frigate.world",
-      "combat": "ship.frigate.combat"
+      "world": "ship.frigate.world"
     }
   },
   {
@@ -137,8 +133,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.war_sloop.world",
-      "combat": "ship.war_sloop.combat"
+      "world": "ship.war_sloop.world"
     }
   },
   {
@@ -163,8 +158,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.royal_sloop.world",
-      "combat": "ship.royal_sloop.combat"
+      "world": "ship.royal_sloop.world"
     }
   },
   {
@@ -193,8 +187,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.barque.world",
-      "combat": "ship.barque.combat"
+      "world": "ship.barque.world"
     }
   },
   {
@@ -222,8 +215,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.merchantman.world",
-      "combat": "ship.merchantman.combat"
+      "world": "ship.merchantman.world"
     }
   },
   {
@@ -250,8 +242,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.brigantine.world",
-      "combat": "ship.brigantine.combat"
+      "world": "ship.brigantine.world"
     }
   },
   {
@@ -276,8 +267,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.ship_of_the_line.world",
-      "combat": "ship.ship_of_the_line.combat"
+      "world": "ship.ship_of_the_line.world"
     }
   },
   {
@@ -306,8 +296,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.galleon.world",
-      "combat": "ship.galleon.combat"
+      "world": "ship.galleon.world"
     }
   },
   {
@@ -336,8 +325,7 @@
       "1680"
     ],
     "sprites": {
-      "world": "ship.treasure_galleon.world",
-      "combat": "ship.treasure_galleon.combat"
+      "world": "ship.treasure_galleon.world"
     }
   }
 ]

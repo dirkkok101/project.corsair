@@ -96,7 +96,7 @@ The same NPC always gets the same parts from the character seed. The HUD portrai
 
 Top-down. The frame scrolls. The flagship is steered with keyboard, mouse or touch. The fleet follows. This is the only scene where world time runs.
 
-**Superseded 2026-10-10:** drawn in 3D by `@corsair/render3d`: islands from the tile map (`terrain.ts`), towns (`towns.ts`), ships built in code (`shipyard.ts`, `rigs.ts`), wakes, sky, clouds and storms, landmarks (`landmarks.ts`). None of the terrain tiles, wakes, clouds, ship or settlement sprites and markers below are drawn at sea. The rendered settlement sprites (`art/game/settlements`), sea life (`art/game/wildlife`) and the ships' `*.tops.json` are no longer loaded; the ship atlases are used only for the ship at anchor in the harbour (S8). Town names hang over the 3D towns. The plan below is kept for the record.
+**Superseded 2026-10-10:** drawn in 3D by `@corsair/render3d`: islands from the tile map (`terrain.ts`), towns (`towns.ts`), ships built in code (`shipyard.ts`, `rigs.ts`), wakes, sky, clouds and storms, landmarks (`landmarks.ts`). None of the terrain tiles, wakes, clouds, ship or settlement sprites and markers below are drawn at sea. The rendered settlement sprites, sea life frames, the ships' `*.tops.json` and the combat sets were removed on 2026-10-10; the ship atlases are used only for the ship at anchor in the harbour (S8). Town names hang over the 3D towns. The plan below is kept for the record.
 
 ### Terrain
 
@@ -204,7 +204,7 @@ The same map, drawn in a parchment frame, with fog remembered. No new terrain an
 
 ## 6. S3 — Sea battle
 
-**Superseded 2026-10-10:** fought on the same 3D sea as S1 (`@corsair/render3d`: ships from `shipyard.ts`, shot, smoke, splashes, splinters, torn canvas, fire and wreckage from `battle.ts`). The combat atlases in `art/game/ships` are not drawn and none of the sprites below are used. The plan is kept for the record.
+**Superseded 2026-10-10:** fought on the same 3D sea as S1 (`@corsair/render3d`: ships from `shipyard.ts`, shot, smoke, splashes, splinters, torn canvas, fire and wreckage from `battle.ts`). The combat atlases were removed on 2026-10-10 and none of the sprites below are used. The plan is kept for the record.
 
 Top-down, like the ocean, cropped to the local tiles the fight started on (coast, shallows, reef included). Wind carries over. The player steers the flagship only. Ships are the 192×192 combat set: same 12 classes, 16 facings, 3 sail states. Render that size directly. Do not scale the 96 px world sprites up to make the battle frames. A nearest-neighbour integer upscale is for display only.
 

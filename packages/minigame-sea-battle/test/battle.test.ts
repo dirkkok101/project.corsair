@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { Ship } from '@corsair/core';
 import { decodeRasterMap, loadContent } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
-import { battleMap, createBattle } from '../src';
+import { createBattle } from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -13,7 +13,8 @@ const world = decodeRasterMap(def, {
   elevation: readFileSync(dir + def.layers.elevation),
   zones: readFileSync(dir + def.layers.zones),
 });
-const map = battleMap(content, world);
+// Fights are sailed on the world map itself.
+const map = world;
 // Open water south of Jamaica, so fights here are about seamanship, not coastlines.
 const SEA = { x: 880, y: 680 };
 

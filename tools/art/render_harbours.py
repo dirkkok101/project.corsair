@@ -64,7 +64,7 @@ RAMPS = {
     'wall.england': ('ae7858', ['4d2b32', '7a4841', 'ad7757']),
     'wall.france': ('a8b5b3', ['819796', 'a8b5b2', 'c7cfcc']),
     'wall.netherlands': ('a53030', ['602c2c', '884b2b', 'a53030']),
-    # nation roofs, same keys and ramps as render_towns.py
+    # nation roofs: one ramp per nation
     'roof.spain': ('cf573c', ['752438', 'a53030', 'cf573c']),
     'roof.england': ('577278', ['202e37', '394a50', '577277']),
     'roof.france': ('3c5e8c', ['172038', '253a5e', '253a5e']),
@@ -359,7 +359,7 @@ def shipwright_yard(cx, y0):
     REG['shipwright'] = ['shed_w', 'shed_r', 'rib0', 'rib4', 'slip']
 
 
-# --- render setup: workbench, flat + studio passes like render_towns.py ---
+# --- render setup: workbench, flat + studio passes ---
 sc.render.engine = 'BLENDER_WORKBENCH'
 sc.display.shading.color_type = 'MATERIAL'
 sc.display.shading.show_cavity = False

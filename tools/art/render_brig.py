@@ -2,8 +2,7 @@
 
 Run from the repo root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/art/render_brig.py -- "$PWD" <tmp dir>
-Add --combat to render the sea-battle set instead: 3 sail states x 16 facings at 192 px, same camera and
-framing, named ship.brig.combat.sail_{full,half,furled}.fNN.png (check with render_ships.py --check --combat).
+The sea is drawn in 3D now; the game uses only the furled frames, for the player's ship at anchor in a harbour scene.
 """
 import bpy, math, os, sys
 import numpy as np
@@ -11,7 +10,6 @@ from mathutils import Vector
 
 REPO = sys.argv[sys.argv.index('--') + 1]
 TMP = sys.argv[sys.argv.index('--') + 2]
-COMBAT = '--combat' in sys.argv
 OUT = os.path.join(REPO, 'art/sources/renders/ships')
 os.makedirs(OUT, exist_ok=True)
 
@@ -235,8 +233,7 @@ for setting in ('full', 'half'):
         for frame in (0, 1):
             STATES[f'{setting}_irons_{tack}{frame}'] = rig(f'{setting}_irons_{tack}{frame}', setting, 'irons', side, frame)
 
-# The combat run never overwrites the world master .blend.
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(TMP, 'brig-45-combat.blend') if COMBAT else os.path.join(REPO, 'art/sources/blender/brig-45.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(REPO, 'art/sources/blender/brig-45.blend'))
 
 # --- render setup: workbench, studio light (view-space, so light stays consistent per facing) ---
 sc.render.engine = 'BLENDER_WORKBENCH'
@@ -323,7 +320,7 @@ def snap(flat, lit):
 
 # Locked world-map camera (art pipeline section 4): orthographic, 45 deg, 96 px cell; the framing (ortho 3.7) is fixed, so the pivot fraction never changes with cell size.
 # Combat uses the same framing at 192 px, rendered directly, so the pivot fraction is unchanged.
-CELL, FACINGS = (192, 16) if COMBAT else (96, 32)
+CELL, FACINGS = 96, 32
 cam_data.ortho_scale = 3.7
 cam_data.clip_end = 100
 T = Vector((0, 0, 0.6))
@@ -332,10 +329,7 @@ cam.location = T + Vector((0, -math.cos(e), math.sin(e))) * 20
 cam.rotation_euler = (T - cam.location).to_track_quat('-Z', 'Y').to_euler()
 sc.render.resolution_x = sc.render.resolution_y = CELL
 
-# Combat sprites: full and half are set as on a beam reach, starboard tack; furled as on the world map.
-COMBAT_STATES = {'full': 'full_beam_s', 'half': 'half_beam_s', 'furled': 'furled'}
-JOBS = {s: (r, f'ship.brig.combat.sail_{s}') for s, r in COMBAT_STATES.items()} if COMBAT else \
-    {s: (s, f'ship.brig.world.sail_{s}') for s in STATES}
+JOBS = {s: (s, f'ship.brig.world.sail_{s}') for s in STATES}
 os.makedirs(TMP, exist_ok=True)
 tmp = os.path.join(TMP, 'brig_pass.png')
 for state, (rig_state, prefix) in JOBS.items():

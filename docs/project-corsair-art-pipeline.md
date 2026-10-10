@@ -83,7 +83,7 @@ Superseded 2026-10-10: the world-map ship, combat ship, damage overlay, settleme
 
 ## 4. Ship pipeline
 
-**Superseded 2026-10-10:** ships at sea and in battle are built in code by `@corsair/render3d` (`shipyard.ts`, with each class's plan in `rigs.ts`, proportioned after the Blender models below). The rendered world atlases in `art/game/ships` are now used only for the player's ship at anchor in the harbour (`sail_furled`); the combat atlases and `*.tops.json` are not used. The settlement sprites (`art/game/settlements`) are not loaded: towns are 3D (`towns.ts`).
+**Superseded 2026-10-10:** ships at sea and in battle are built in code by `@corsair/render3d` (`shipyard.ts`, with each class's plan in `rigs.ts`, proportioned after the Blender models below). The rendered world atlases in `art/game/ships` are now used only for the player's ship at anchor in the harbour (`sail_furled`); the combat atlases, `*.tops.json`, the settlement sprites and the sea life frames were removed on 2026-10-10 (towns are 3D, `towns.ts`).
 
 The research settled this (`docs/corsair-pixel-art-research.md` Part A §1). No AI tool offers 16 directions: PixelLab and Retro Diffusion both stop at 8, and neither documents results on ships. Runtime rotation of a single sprite distorts pixels at these sizes. So ships come from 3D.
 
@@ -101,7 +101,7 @@ The locked read is the 45° row of the brig tilt spike (`art/sources/spikes/brig
 
 The world map stays a top-down tilemap. Only ships and settlements are drawn at 45°.
 
-**Settlements** use the same path. Low-poly Blender models are rendered by `tools/art/render_towns.py` into 96×96 cells with the locked 45° camera, output in `art/game/settlements/`. The ids are `settlement.{spain,england,france,netherlands}.{hamlet,town,city}` and `settlement.pirate.haven`: 13 sprites. Nation variants of a size share geometry; only roof colour and flag change.
+**Settlements** used the same path (removed 2026-10-10 with `render_towns.py`; towns are 3D). Low-poly Blender models were rendered by `tools/art/render_towns.py` into 96×96 cells with the locked 45° camera, output in `art/game/settlements/`. The ids are `settlement.{spain,england,france,netherlands}.{hamlet,town,city}` and `settlement.pirate.haven`: 13 sprites. Nation variants of a size share geometry; only roof colour and flag change.
 
 Mirroring is optional here, since renders are cheap. It's still useful to cut the 96 px hand pass to 17 facings and mirror the other 15 when hull asymmetry allows.
 
@@ -165,7 +165,7 @@ Sources: section 13, items R1 and R2.
 
 | Script | Does |
 |---|---|
-| `render_brig.py`, `render_ships.py` | Blender (headless): build each ship class low-poly and render its world set (23 sail sprites × 32 facings at 96 px) or, with `--combat`, its combat set, palette-snapped, into `art/sources/renders/ships` |
+| `render_brig.py`, `render_ships.py` | Blender (headless): build each ship class low-poly and render its world set (23 sail sprites × 32 facings at 96 px), palette-snapped, into `art/sources/renders/ships` (the `--combat` set was removed 2026-10-10) |
 | `pack_ships.ts` | Packs each class's world frames into one atlas, `art/game/ships/{sprite}.png`, laid out by `sprites.json` |
 | `render_harbours.py` | Blender: renders the layered 960×540 harbour scenes and writes `art/game/harbours/harbours.json` (layers, hotspots, flag point, anchorage) |
 | `composite_harbours.ts` | Flattens each harbour composition into a layout reference for painting, `art/sources/references/harbours` |
@@ -173,7 +173,6 @@ Sources: section 13, items R1 and R2.
 | `import_paintings.ts` | Snaps the kept paintings in `art/sources/paintings/{group}` to `art/game/scenes`, plus four sea shimmer frames per harbour |
 | `import_ui.ts` | Keys out, crops, shrinks and snaps the painted UI kit (`art/sources/paintings/ui`) to `art/game/ui` |
 | `missing_art.ts` | Lists every image the game asks for that is missing, every painting in the brief not yet painted or imported, and what is drawn in code for now |
-| `render_towns.py`, `render_wildlife.py` | Rendered the world-map settlement and sea life sprites; no longer loaded since the sea is 3D |
 
 The plan as written:
 
@@ -182,7 +181,7 @@ A package in the pnpm workspace. It uses Node/TypeScript for orchestration and v
 | Command | Does |
 |---|---|
 | `pnpm art:snap` | 1) Detect the true pixel grid on generated images with Retro Diffusion's Pixel Art Fixer (MIT, Rust CLI) or unfake (WASM/CLI). 2) Downsample by mode, one majority colour per cell, not nearest. 3) Map to `corsair.gpl` by nearest colour in OKLab, dithering off. 4) Force binary alpha. 5) Apply the outline rule. 6) Crop into the target cell. Animation strips share one grid and palette. |
-| `pnpm art:render` | Batch-render Blender ship files from the locked 45° camera: 32 facings at 96 px, 16 at 192 px. `tools/art/render_brig.py` is the first one (brig world set); `tools/art/render_towns.py` renders the settlement set (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
+| `pnpm art:render` | Batch-render Blender ship files from the locked 45° camera: 32 facings at 96 px, 16 at 192 px. `tools/art/render_brig.py` is the first one (brig world set) (Blender CLI; Maghwyn/Foozle/framemill scripts optional wrappers) |
 | `pnpm art:mirror` | Produce mirrored facings from the declared mirror map |
 | `pnpm art:align` | Align frames to the pivot and normalise baseline |
 | `pnpm art:index` | Convert packed atlases to palette-index textures for the day/night filter |
@@ -255,9 +254,7 @@ art/
   palette/                     # corsair.gpl plus the dusk and night rows
   audio/                       # sfx, instrument samples, CREDITS.json (loaded by the game)
   game/                        # everything the game loads: palette-exact, named by sprite id
-    ships/                     # one atlas per ship class, facings across, anims down (pack_ships.ts); only the world sail_furled frames are drawn, at anchor in the harbour; combat atlases and *.tops.json unused
-    settlements/               # world-map towns (render_towns.py); no longer loaded, towns are 3D
-    wildlife/                  # sea life frames + wildlife.json (render_wildlife.py); no longer loaded
+    ships/                     # one atlas per ship class, facings across, anims down (pack_ships.ts); only the world sail_furled frames are drawn, at anchor in the harbour
     harbours/                  # layered Blender harbour scenes + harbours.json (render_harbours.py)
     scenes/                    # painted full-frame scenes: harbours with sea frames, interiors, battle outcomes, title (import_paintings.ts)
     ui/                        # painted UI kit: ship icons, goods and HUD icons, chart marks, panel frame (import_ui.ts)

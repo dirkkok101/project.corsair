@@ -4,8 +4,6 @@
     "tilesPerSecondPerSpeedPoint": 0.3,
     "accelPerSecond": 1,
     "decelPerSecond": 0.35,
-    "tileSize": 24,
-    "sprites": "world",
     "startApart": 24,
     "boardTiles": 1.6,
     "grappleSeconds": 3,
@@ -57,7 +55,6 @@
   },
   "masts": {
     "$comment": "Rigging hits wear down the nearest mast (strength 100); a fallen mast takes its share of canvas and a few men. Chain is aimed high.",
-    "rigging": { "round": 0.2, "chain": 0.9, "grape": 0 },
     "damage": { "round": 20, "chain": 10, "grape": 0 },
     "crewLoss": 3
   },

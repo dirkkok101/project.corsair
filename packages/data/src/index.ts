@@ -150,7 +150,6 @@ export function loadContent(): ContentPack {
   for (const ship of ships) {
     if (!pack.polars[ship.polar]) throw new Error(`${ship.id}: unknown polar ${ship.polar}`);
     if (!pack.sprites[ship.sprites.world]) throw new Error(`${ship.id}: unknown sprite ${ship.sprites.world}`);
-    if (ship.sprites.combat && !pack.sprites[ship.sprites.combat]) throw new Error(`${ship.id}: unknown sprite ${ship.sprites.combat}`);
   }
   for (const map of Object.values(pack.maps)) {
     if (!pack.ships[map.start.classId]) throw new Error(`${map.id}: unknown start class`);

@@ -30,7 +30,7 @@ export const shipClassSchema = z.object({
   price: z.number().positive(),
   polar: z.string(),
   /** Her sprites, and her ship-card portrait (`ui.ship.<class>` when absent): a class not yet painted borrows another's. */
-  sprites: z.object({ world: z.string(), combat: z.string().optional(), icon: z.string().optional() }),
+  sprites: z.object({ world: z.string(), icon: z.string().optional() }),
 });
 
 export const polarSchema = z
@@ -60,8 +60,6 @@ export const spriteSchema = z.object({
   facings: z.number().int().positive(),
   pivot: z.object({ x: z.number(), y: z.number() }),
   anims: z.array(z.string()).min(1),
-  /** Ships: the masthead the flag streams from, in model units (forward of the pivot, up from the waterline). */
-  mast: z.object({ forward: z.number(), up: z.number() }).optional(),
 });
 
 /** The player's ship at the start of a career: her class, guns mounted (her class's full battery when
@@ -322,10 +320,6 @@ export const combatSchema = z.object({
      * her way through a tack instead of stopping dead. */
     accelPerSecond: z.number().positive(),
     decelPerSecond: z.number().positive(),
-    /** The battle is fought on the world map itself (a battle tile is a world tile). Both were for the 2D view,
-     * removed 2026-10-10: the 3D view draws the battle on the world sea, so neither is read for drawing now. */
-    tileSize: z.number().int().positive(),
-    sprites: z.enum(['world', 'combat']),
     /** How far apart the ships start, in battle tiles. */
     startApart: z.number().positive(),
     /** Hulls this close (tiles) touch and the grapples go out; held for grappleSeconds, the boarders go
@@ -399,12 +393,11 @@ export const combatSchema = z.object({
   /** Chance a round-shot hit dismounts a gun. */
   gunLoss: share,
   /**
-   * Masts: the share of each shot's hits that land in the rigging (the rest in her hull, grape on her deck),
-   * what a rigging hit takes off the nearest mast's strength (out of 100), and what a mast costs her when it
-   * falls: its share of her canvas, and men crushed or carried over the side.
+   * Masts: what a ball into her rigging (where it strikes her decides it) takes off the nearest mast's strength
+   * (out of 100), and what a mast costs her when it falls: its share of her canvas, and men crushed or carried
+   * over the side.
    */
   masts: z.object({
-    rigging: z.record(z.enum(['round', 'chain', 'grape']), share),
     damage: z.record(z.enum(['round', 'chain', 'grape']), z.number().min(0)),
     crewLoss: z.number().min(0),
   }),

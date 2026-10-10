@@ -8,9 +8,7 @@ Run from the repo root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/art/render_ships.py -- "$PWD" <tmp dir> <class>
 Add --check to verify the class's outputs instead of rendering (use class `all` to check every class).
 Add --state <name> to render a single sail state while working on a model.
-Add --combat to render the sea-battle set instead: 3 sail states x 16 facings at 192 px, same camera
-and framing (so the same pivot fraction), named ship.{class}.combat.sail_{full,half,furled}.fNN.png.
---check --combat checks the combat sets (class `all` includes the brig, rendered by render_brig.py).
+The sea is drawn in 3D now; the game uses only the furled frames, for the player's ship at anchor in a harbour scene.
 """
 import bpy, math, os, sys
 import numpy as np
@@ -19,16 +17,13 @@ from mathutils import Vector
 ARGS = sys.argv[sys.argv.index('--') + 1:]
 REPO, TMP, CLASS = ARGS[0], ARGS[1], ARGS[2]
 CHECK = '--check' in ARGS
-COMBAT = '--combat' in ARGS
 ONLY = ARGS[ARGS.index('--state') + 1] if '--state' in ARGS else None
 CLASSES = ('fluyt', 'sloop', 'frigate', 'war_sloop', 'royal_sloop', 'barque', 'merchantman', 'brigantine', 'ship_of_the_line',
            'galleon', 'treasure_galleon')
 OUT = os.path.join(REPO, 'art/sources/renders/ships')
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(TMP, exist_ok=True)
-CELL, FACINGS = (192, 16) if COMBAT else (96, 32)
-# Combat sprites: full and half are set as on a beam reach, starboard tack; furled as on the world map.
-COMBAT_STATES = {'full': 'full_beam_s', 'half': 'half_beam_s', 'furled': 'furled'}
+CELL, FACINGS = 96, 32
 STATE_NAMES = ['furled'] + [f'{s}_{p}' for s in ('full', 'half') for p in
                             ['run'] + [f'{pt}_{t}' for t in ('s', 'p') for pt in ('broad', 'beam', 'close')]
                             + [f'irons_{t}{fr}' for t in ('s', 'p') for fr in (0, 1)]]
@@ -47,9 +42,9 @@ def check_outputs(classes):
             pal.add(tuple(int(p) for p in parts[:3]))
     bad = total = 0
     for cls in classes:
-        for state in (COMBAT_STATES if COMBAT else STATE_NAMES):
+        for state in STATE_NAMES:
             for f in range(FACINGS):
-                name = f'ship.{cls}.{"combat" if COMBAT else "world"}.sail_{state}.f{f:02d}.png'
+                name = f'ship.{cls}.world.sail_{state}.f{f:02d}.png'
                 path = os.path.join(OUT, name)
                 total += 1
                 if not os.path.exists(path):
@@ -73,7 +68,7 @@ def check_outputs(classes):
 
 
 if CHECK:
-    check_outputs((('brig',) if COMBAT else ()) + CLASSES if CLASS == 'all' else (CLASS,))
+    check_outputs(CLASSES if CLASS == 'all' else (CLASS,))
     print('DONE')
     raise SystemExit(0)
 
@@ -842,8 +837,7 @@ STATES = {'fluyt': build_fluyt, 'sloop': build_sloop, 'frigate': build_frigate, 
           'treasure_galleon': build_treasure_galleon}[CLASS]()
 print('INFO', CLASS, INFO)
 
-# The combat run never overwrites the world master .blend.
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(TMP, f'{CLASS}-45-combat.blend') if COMBAT else os.path.join(REPO, f'art/sources/blender/{CLASS}-45.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(REPO, f'art/sources/blender/{CLASS}-45.blend'))
 
 # --- render setup: identical to render_brig.py ---
 sc.render.engine = 'BLENDER_WORKBENCH'
@@ -931,8 +925,7 @@ cam.rotation_euler = (T - cam.location).to_track_quat('-Z', 'Y').to_euler()
 sc.render.resolution_x = sc.render.resolution_y = CELL
 
 tmp = os.path.join(TMP, f'{CLASS}_pass.png')
-JOBS = {s: (r, f'ship.{CLASS}.combat.sail_{s}') for s, r in COMBAT_STATES.items()} if COMBAT else \
-    {s: (s, f'ship.{CLASS}.world.sail_{s}') for s in STATES}
+JOBS = {s: (s, f'ship.{CLASS}.world.sail_{s}') for s in STATES}
 for state, (rig_state, prefix) in JOBS.items():
     if ONLY and state != ONLY:
         continue

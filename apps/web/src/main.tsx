@@ -35,9 +35,8 @@ import { bindMouse } from './mouse';
 import { ShipPanel } from './panel';
 import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
-import { battleMap, createBattle } from '@corsair/minigame-sea-battle';
+import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import type { TileMap } from '@corsair/data';
 import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, legalTarget, NATIONS } from '@corsair/systems-politics';
 
@@ -264,7 +263,6 @@ async function main() {
   let fight:
     | {
         battle: Battle;
-        map: TileMap;
         targetId: string;
         acc: number;
         heardAt: number;
@@ -281,8 +279,6 @@ async function main() {
   let eventsSeen = 0;
   // When each ship in a skirmish within sight fires next.
   const nextVolley = new Map<string, number>();
-  // Fights are sailed on the world map itself, drawn at battle scale.
-  const battleSea = battleMap(content, map);
   // Space held in battle: fire each broadside as it bears. Released (or the window loses focus), it stops.
   let fireHeld = false;
   window.addEventListener('keyup', (e) => {
@@ -296,7 +292,7 @@ async function main() {
     if (!them || fight) return;
     const bearingDeg = ((Math.atan2(them.x - me.x, -(them.y - me.y)) * 180) / Math.PI + 360) % 360;
     const battle = createBattle(content, {
-      map: battleSea,
+      map,
       wind: windAt(sim.state, me.x, me.y),
       // Only the flagship fights: her berths' worth of the fleet's men, at her own pace.
       player: { ...me, crew: Math.min(crewOf(content, me), shipStats(content, { ...me, fleetSpeed: undefined }).maxCrew), fleetSpeed: undefined },
@@ -306,7 +302,7 @@ async function main() {
       playerMorale: moraleOf(content, sim.state),
     });
     hailing = undefined;
-    fight = { battle, map: battleSea, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: shipTitle(them), nation: them.ai?.nation, attacked };
+    fight = { battle, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: shipTitle(them), nation: them.ai?.nation, attacked };
   };
   /**
    * The result goes into the world as a command the moment the fight ends (so replays and saves see it),
