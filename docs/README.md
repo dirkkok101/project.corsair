@@ -15,6 +15,8 @@ Canonical home for the product requirements, design, reference research and art 
 | `design/combat-model-baseline.md` | Combat as built on 2026-10-10: the model with code references, its gaps, and measured famous-pirate difficulty |
 | `reference/naval-combat-history.md` | Ships, guns, refits, boarding and captains of the 1650-1720 Caribbean, for the combat model (sourced) |
 | `reference/naval-combat-in-games.md` | How Pirates!, Black Flag, Naval Action and others build upgrades, opponents and difficulty, and what players thought (sourced) |
+| `reference/career-progression-in-games.md` | Starting ships, how better ships are got, ranks, objectives and pacing across Pirates!, Akella, Black Flag, Port Royale, Patrician, Uncharted Waters and others (sourced) |
+| `reference/ship-types.md` | Every ship in Pirates!, Akella and period rosters, the 1650-1720 types, and the gaps in Corsair's twelve (sourced) |
 | `reference/pirates-3d-style.md` | 3D style guide for the sea map and sea battles (decided 2026-10-08; Black Flag realism for sea, sky and light from 2026-10-09) |
 | `reference/ocean-renderer.md` | How the 3D sea is drawn: technique, waves, weather-driven sea state |
 | `reference/corsair-video-reminder.md` | Reminder to record a short Corsair demo video in reply to an AI-games post (2026-10-10) |

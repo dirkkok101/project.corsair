@@ -1,6 +1,6 @@
 # Career and combat model (design)
 
-Proposed 2026-10-10, for review: nothing here is built yet. It answers three asks together, because they are one
+Proposed 2026-10-10; decisions in section 10; slice 1a (crew grades and captain skills) built. It answers three asks together, because they are one
 problem: a combat model with meaningful upgrades, opponents that fight differently, and famous pirates of real and
 ordered difficulty, all fitted to a career that starts in a brig and climbs by trade, refits, matched fights, prizes
 and better ships, with clear objectives at every step. Judged against the pillars (best sailing, best combat,
@@ -14,6 +14,10 @@ Background, all in this folder or `docs/reference/`:
   (31 sources).
 - `../reference/naval-combat-in-games.md`: how Pirates!, Black Flag, Naval Action and others build upgrades, enemy
   types and difficulty, and what players liked and hated.
+- `../reference/career-progression-in-games.md`: starting ships, how better ships are got, ranks, objectives and
+  pacing in Pirates! (1987, Gold, 2004), the Akella games, Black Flag, Port Royale, Patrician, Uncharted Waters
+  and others, with what players hated.
+- `../reference/ship-types.md`: every ship in those games' rosters and in the period, and the gaps in ours.
 
 ## 1. Where we stand (measured)
 
@@ -68,6 +72,69 @@ ships.
   named quarry (rung 2-3), the top tier the end-game (rung 4-5). Their havens and haunts are already spread; the
   top three should haunt the Main and the treasure routes, not Jamaica's doorstep.
 
+### 2.1 Start, better ships, ranks and pace
+
+From the career research: no game that worked let a player buy the best ship early (Sail Forth had to patch it
+out), and even Pirates! keeps its climb sideways, because big ships cost speed, shoals and men.
+
+- **One start: the brig, in 1660, nation chosen.** She is already a rung above every comparable game's start
+  (sloop, lugger, pinnace), so her half-armed, half-manned state is the first rung, and "fill the battery and the
+  crew" is the first goal the player can finish. No choice of starting ship.
+- **Better ships by place, standing and prize, never by the player's level:**
+  - Every yard (town and city) sells the brig's peers: sloop, war sloop, brigantine, royal sloop, merchantman,
+    fluyt, barque, and the new pinnace, ketch and pink (2.2).
+  - City yards sell the new light frigate, the bridge from brig to frigate.
+  - A frigate is sold only at a nation's capital yard, to a captain of rank there (2.1 ranks); taken as a prize
+    anywhere.
+  - Galleons, the treasure galleon and the ship of the line are never sold: prize only.
+  - An underdog prize stays possible: a well-handled brig can take a frigate.
+- **Big ships pay their way**, shown before buying: minimum crew and wages, draught over shoals, the fleet's pace,
+  upkeep (repairs and careening by hull), and the attention a rich ship draws. A full-fit brig should beat an
+  unfitted ship of the next class.
+- **Ranks per nation**, from a letter of marque up, as Pirates! 2004; each brings one benefit and one access:
+
+| Rank | Benefit at that nation's ports | Access |
+|---|---|---|
+| Letter of marque | Lawful prizes, bounties | Governors' missions |
+| Captain | Easier recruiting | Escort and hunting missions |
+| Major | Cheaper repairs | The best upgrades at that nation's yards |
+| Colonel | Better prices | Frigates for sale at its capital |
+| Admiral | Cheaper upgrades | A second captain for a consort |
+| Baron and up | Land that pays rent, more for each deed | Governors' daughters; land counts in the score |
+
+- **Three kinds of fame** (Uncharted Waters): trade, war and adventure. Every objective adds to one, so a trader
+  climbs too, and the retirement score sums them with rank, land and deeds.
+- **Pace** (in-game time; to be measured by the career probe, section 8):
+
+| Milestone | Target |
+|---|---|
+| First prize or first pirate beaten | First week or two |
+| Full battery and crew (rung 2) | 1-3 months |
+| Letter of marque, first upgrades (rung 3) | 3-6 months |
+| First famous pirate beaten | 6-12 months |
+| A frigate (rung 4) | 1-2 years, sooner by prize |
+| A fleet and a place in the Top Ten (rung 5) | 3-5 years |
+| Retirement | 5-10 years (Pirates!: "five to ten years of active endeavor") |
+
+### 2.2 The ships: what's missing
+
+Keeping the Pirates! names players know (decision 1: brig, barque, royal sloop and ship of the line stay, though
+the period said snow, bark and fourth rate). The roster's gaps, in the order to add them:
+
+| New type | Size (guns, crew) | What she does in a fight | Where in the career |
+|---|---|---|---|
+| **Light frigate** (sixth rate) | 22 guns, 35-160 men | A frigate's lines at a brig's cost: no new mechanics | Rung 3-4: the bridge from brig to frigate (10,000 gold) |
+| **Pinnace** (the small oared raider of Pirates!, the period's barque longue) | 6 guns, 8-60 men | Sweeps: rows in a calm and into the wind, lies on a becalmed ship's bow and boards; points high (lug rig); shallow | Rung 1-2 enemy and a cheap fast hull for a raiding player |
+| **Periagua** (war canoe) | 2 swivels, up to 40 men | Oars and swivels: ambush in a calm, crosses reefs | Rung 1-2 enemy only |
+| **Half-galley** (Spanish guarda costa) | 1 bow gun, 4 swivels, up to 120 men | Attacks bow-on with oars; hard to board (soldiers) | Rung 1-3 enemy off Cuba and Puerto Rico |
+| **Ketch**, **pink** | 6 guns | Small, slow: prey and coastal traders | Rung 1-2 prey; cheap traders |
+| **Galley-frigate** (from 1676) | 32 guns, sweeps | A frigate that can't be becalmed | Rung 4 privateer flagship, pirate hunter |
+| Later: wartime third rate (70 guns, never sold), bomb ketch (mortars, navy only), schooner (from 1716) | | | Rung 5 escorts, sieges, a late unlock |
+
+The fireship is an action (turn a prize into one), not a class. New ship fields: `oars` (a fifth of top sail
+speed, any wind, in a calm), `swivels`, `chasers` (bow and stern guns), `draft` (reefs and bars), and a lug polar.
+Stats for each, in `ships.json` units, are in `../reference/ship-types.md` section 3.3, to be tuned by the probe.
+
 ## 3. Objectives: a clear next step, always
 
 A **Goals** page in the captain's log (L), with the next three objectives and what each unlocks, in plain words
@@ -88,8 +155,12 @@ and with progress shown. One click on a goal plots the course or opens the right
 | Dig up a hoard | Maps held / found | Gold, revenge |
 
 Objectives come in order but more than one is open at a time, so a trader and a fighter both always have a next
-step. Each finished objective is a line in the log and a point of fame where it is a deed (prizes, famous pirates,
-hoards).
+step. Each finished objective is a line in the log and adds to one kind of fame (trade, war or adventure).
+
+- **Long threads from the first week**, untimed and with no cost for failing: a map piece or a relative in the
+  first hour, a named villain, the treasure fleet's season shown. Three or four open at once.
+- **Milestones change the world, not only a number**: the first prize brings volunteers, a letter of marque opens
+  missions, the first famous pirate beaten brings the tavern's notice. Show what the last half hour was worth.
 
 ## 4. The combat model
 
@@ -220,6 +291,11 @@ strength.
 5. **Upgrades rework**: the Pirates! six with trade-offs, three new fits, fouling and careening, AI fits by role,
    upgrades on the 3D ship.
 6. **Difficulty levels.**
+7. **Ships**: the light frigate (data only, with slice 2, since the ladder needs it); oars, swivels, chasers and
+   draught with the pinnace, periagua, half-galley and galley-frigate (with slice 4); ketch and pink as prey;
+   shipyards stocked by place and standing.
+8. **Ranks and fame**: per-nation ranks with their benefit and access, land, three kinds of fame, the retirement
+   score.
 
 ## 10. Decisions (2026-10-10)
 
@@ -229,4 +305,6 @@ strength.
    and keeps the ship and men.
 3. **Gun weights**: no, too much for the UI.
 4. **Fouling and careening**: now, with the upgrades rework.
-5. **Order**: slices 1 to 6 as listed; all of it will be built.
+5. **Order**: slices 1 to 6 as listed; all of it will be built. Slices 7 and 8 (ships, ranks) were added after
+   the career and roster research and fit in as their slice notes say.
+6. **Ship names**: keep the Pirates! names (as for upgrades); "pinnace" is the small oared raider players remember.
