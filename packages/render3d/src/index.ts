@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -22,6 +25,8 @@ import { createStorm } from './storm';
 import type { SprayShip } from './storm';
 import type { BattleHull } from './battle';
 import { createLandmarks } from './landmarks';
+import { createWildlife } from './wildlife';
+import type { WildlifeKind, WildlifeSound } from './wildlife';
 import { createTowns, TOWN_GLOW, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
@@ -124,7 +129,7 @@ export interface SeaRenderer {
   /** Draws the sea map for this state; `nowMs` is the frame time (the sky keeps its own slow day). */
   render(state: WorldState, nowMs: number): void;
   /** Draws the sea battle (on the same sea: its positions are world tiles); `enemyNation` flies her colours. */
-  renderBattle(view: BattleViewState, nowMs: number, enemyNation?: string): void;
+  renderBattle(view: BattleViewState, nowMs: number, enemyNation?: string, enemyFamous?: string): void;
   /** CSS size of the view; the canvas renders at the device's pixel ratio. */
   resize(width: number, height: number): void;
   /** Zoom by wheel steps (positive out); one zoom for the sea and its battles. */
@@ -144,6 +149,10 @@ export interface SeaRenderer {
   project(x: number, y: number): { px: number; py: number } | undefined;
   /** The stretch of sea in view, in tiles (the corners picked; the horizon clamps a view from astern). */
   viewBox(): { x: number; y: number; w: number; h: number };
+  /** Debug: start a sea-life event now, by the player's ship, and count the animals out. */
+  wildlife: { spawn(kind: WildlifeKind): void; readonly count: number };
+  /** Two other ships firing on each other at (x, y) tiles: a bank of gun smoke there, drifting and thinning. */
+  seaFight(x: number, y: number): void;
   /** The plotted route to the destination (waypoints after the ship, tiles), drawn on the sea until cleared. */
   guide(points: [number, number][] | undefined): void;
   /** For review: a row of these classes under sail, abeam of the player, drawn only (not in the world). */
@@ -164,6 +173,8 @@ export async function createSeaRenderer(
      * bring them back (flecks, shadows, ripples, surf, swell, clouds, wakes). Unset, everything.
      */
     sea?: string[];
+    /** Sea life's sounds (dolphins, gulls, a whale blowing); omit for silence. */
+    sound?: WildlifeSound;
   },
 ): Promise<SeaRenderer> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -241,14 +252,24 @@ export async function createSeaRenderer(
   const worldShips = new THREE.Group();
   scene.add(worldShips);
   // The course to the destination: a gold line on the water from her bow along the route, over the waves.
-  const guideLine = new THREE.Line(
-    new THREE.BufferGeometry(),
-    new THREE.LineDashedMaterial({ color: '#e8c170', dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.85, depthTest: false }),
-  );
+  // A fat line (pixels wide at any zoom, which plain WebGL lines can't be), drawn over the waves.
+  const guideMaterial = new LineMaterial({ color: '#e8c170', linewidth: 3, dashed: true, dashSize: 0.8, gapSize: 0.5, transparent: true, opacity: 0.9, depthTest: false });
+  const guideLine = new Line2(new LineGeometry(), guideMaterial);
   guideLine.renderOrder = 10;
   guideLine.frustumCulled = false;
   scene.add(guideLine);
   let guidePoints: [number, number][] | undefined;
+  /** A famous pirate's own flag (pirates.json), by her id. */
+  const famousFlag = (id?: string) => (id ? content.pirates.captains.find((c) => c.id === id)?.flag : undefined);
+  // Gun smoke where other ships fight within sight: puffs that swell, rise and thin over SMOKE_SECONDS.
+  const SMOKE_SECONDS = 5;
+  const smokeLayer = new THREE.Group();
+  scene.add(smokeLayer);
+  // Sea life about her: dolphins, flying fish, a whale, gulls near land.
+  const wildlife = createWildlife(ground.heightAt, options.sound ?? (() => {}));
+  scene.add(wildlife.object);
+  const smokes: { sprite: THREE.Sprite; at: number; size: number; drift: number }[] = [];
+  let smokeClock = 0;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
@@ -258,7 +279,8 @@ export async function createSeaRenderer(
     }
     if (!m) {
       // Built in code from her class's plan (cloth sails, her nation's colours).
-      const built = buildShip(RIGS[s.classId] ?? RIGS['ship.brig']!, s.ai?.nation ?? 'player');
+      // A famous pirate flies her own flag.
+      const built = buildShip(RIGS[s.classId] ?? RIGS['ship.brig']!, s.ai?.nation ?? 'player', famousFlag(s.ai?.famous));
       m = {
         root: built.root,
         setSails: (anim: string) => built.setSails(...sailsOf(anim), lastMs),
@@ -567,6 +589,26 @@ export async function createSeaRenderer(
     if (!me) return;
     gloomWant = gloomAt(state, me.x, me.y);
     const dt = beginFrame(nowMs, distance);
+    wildlife.update(me, dt, skyHour(skySeconds));
+    // The smoke of distant fights: swelling, rising downwind, thinning to nothing.
+    smokeClock += dt;
+    const downwind = (options.windAt(state, me.x, me.y).fromDeg + 180) * (Math.PI / 180);
+    for (let i = smokes.length - 1; i >= 0; i--) {
+      const p = smokes[i]!;
+      const age = (smokeClock - p.at) / SMOKE_SECONDS;
+      if (age >= 1) {
+        smokeLayer.remove(p.sprite);
+        p.sprite.material.dispose();
+        smokes.splice(i, 1);
+        continue;
+      }
+      const k = Math.max(0, age);
+      p.sprite.scale.setScalar(p.size * (1 + k * 3));
+      p.sprite.position.x += Math.sin(downwind) * dt * (0.5 + p.drift * 0.3);
+      p.sprite.position.z -= Math.cos(downwind) * dt * (0.5 + p.drift * 0.3);
+      p.sprite.position.y = 0.4 + k * 2.5;
+      p.sprite.material.opacity = 0.55 * (1 - k) * Math.min(1, (smokeClock - p.at) * 6 + 0.2);
+    }
     // The course she is sailing (the autopilot's route to its mark, or the ship she is intercepting), else the
     // route plotted to the destination picked on the chart.
     const plan = me.assist;
@@ -575,7 +617,9 @@ export async function createSeaRenderer(
       plan?.mode === 'course' && plan.x !== undefined && plan.y !== undefined ? [...(plan.route ?? []), [plan.x, plan.y]] : them ? [[them.x, them.y]] : guidePoints;
     guideLine.visible = Boolean(ahead?.length);
     if (ahead?.length) {
-      guideLine.geometry.setFromPoints([[me.x, me.y] as [number, number], ...ahead].map(([x, y]) => new THREE.Vector3(x, 0.3, y)));
+      // A fresh geometry each frame: LineGeometry's buffers are sized by the first points it is given.
+      guideLine.geometry.dispose();
+      guideLine.geometry = new LineGeometry().setPositions([[me.x, me.y] as [number, number], ...ahead].flatMap(([x, y]) => [x, 0.3, y]));
       guideLine.computeLineDistances();
     }
     landmarks.set(
@@ -658,7 +702,7 @@ export async function createSeaRenderer(
   };
 
   /** The sea battle, on the same sea as the map (its positions are world tiles). */
-  const renderBattle = (view: BattleViewState, nowMs: number, enemyNation?: string) => {
+  const renderBattle = (view: BattleViewState, nowMs: number, enemyNation?: string, enemyFamous?: string) => {
     if (!inBattle) {
       // A fresh fight: the world's ships give way to the two fighting, the camera starts framing them.
       inBattle = true;
@@ -696,7 +740,7 @@ export async function createSeaRenderer(
       }
       if (!f) {
         const plan = RIGS[s.classId] ?? RIGS['ship.brig']!;
-        f = { built: buildShip(plan, side === 'player' ? 'player' : (enemyNation ?? 'pirate')), classId: s.classId, plan };
+        f = { built: buildShip(plan, side === 'player' ? 'player' : (enemyNation ?? 'pirate'), side === 'enemy' ? famousFlag(enemyFamous) : undefined), classId: s.classId, plan };
         fighters.set(side, f);
         scene.add(f.built.root);
       }
@@ -817,6 +861,7 @@ export async function createSeaRenderer(
       composer.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      guideMaterial.resolution.set(width, height);
     },
     zoom(steps) {
       distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
@@ -855,6 +900,21 @@ export async function createSeaRenderer(
       return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
     },
     viewDeg: () => (chase ? viewHeading : 0),
+    wildlife: {
+      spawn: (kind) => wildlife.spawn(kind),
+      get count() {
+        return wildlife.count;
+      },
+    },
+    seaFight(x, y) {
+      for (let k = 0; k < 6; k++) {
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, color: '#b8b5ad', transparent: true, depthWrite: false, opacity: 0.55 }));
+        const a = (k / 6) * Math.PI * 2 + Math.random();
+        sprite.position.set(x + Math.cos(a) * 0.6, 0.4, y + Math.sin(a) * 0.6);
+        smokeLayer.add(sprite);
+        smokes.push({ sprite, at: smokeClock + k * 0.08, size: 1.2 + Math.random() * 0.8, drift: Math.random() });
+      }
+    },
     guide(points) {
       guidePoints = points;
     },

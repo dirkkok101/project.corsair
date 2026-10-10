@@ -714,6 +714,8 @@ export const piratesSchema = z.object({
       haunts: z.array(z.string()).min(1),
       /** Gold to her name when the world begins. */
       wealth: z.number().int().min(0),
+      /** Her own flag: its field, and a device in a colour. */
+      flag: z.object({ field: z.string(), colour: z.string(), device: z.enum(['skull', 'swords', 'hourglass', 'heart', 'spear', 'bones']) }),
     }),
   ),
 });

@@ -492,6 +492,22 @@ test('leaving port: E sets sail back to the sea view, pointing out of the harbou
   await page.screenshot({ path: 'test-results/left-port.png' });
 });
 
+test('sea life and gun smoke on the 3D sea: dolphins, flying fish, a whale and gulls appear on demand', async ({ page }) => {
+  const errors = await boot(page);
+  // The renderer keeps drawing while the sim is paused, so the animals move.
+  for (const kind of ['dolphins', 'flyingFish', 'whale', 'gulls'] as const) {
+    await page.evaluate((k) => window.__corsair.wildlife.spawn(k), kind);
+  }
+  await page.evaluate(() => {
+    const me = window.__corsair.state.get('ships.player') as { x: number; y: number };
+    (window as unknown as { __corsair3d: { seaFight(x: number, y: number): void } }).__corsair3d.seaFight(me.x + 4, me.y + 2);
+  });
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => window.__corsair.wildlife.count)).toBeGreaterThan(5);
+  await page.screenshot({ path: 'test-results/wildlife.png' });
+  expect(errors).toEqual([]);
+});
+
 test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart marks ships seen', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   const count = await page.evaluate(() => Object.values(window.__corsair.state.get('ships') as Record<string, { ai?: unknown }>).filter((s) => s.ai).length);
@@ -516,6 +532,8 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
     return newest;
   });
   await expect(page.locator('.hud-prompt')).toContainText('Hail the English fluyt');
+  // Her name rides under her on the 3D sea.
+  await expect(page.locator('.ship-label', { hasText: 'English fluyt' })).toBeVisible();
   await page.keyboard.press('h');
   await expect(page.locator('.hail')).toContainText('bound for Cartagena');
   // Firing on a nation's ship is allowed, with a warning of what it costs.

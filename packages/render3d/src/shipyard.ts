@@ -1244,14 +1244,93 @@ function flagMaterial(texture: THREE.Texture): THREE.MeshStandardMaterial & { us
 
 /** Each nation's colours, drawn: Spain's Burgundy cross, England's red ensign, France's white, the Dutch tricolour, the pirates' black. */
 const FLAGS = new Map<string, THREE.CanvasTexture>();
-export function flagTexture(nation: string): THREE.CanvasTexture {
-  const cached = FLAGS.get(nation);
+/** A famous pirate's own flag (pirates.json): a field, and a device in a colour. */
+export interface FlagDesign {
+  field: string;
+  colour: string;
+  device: 'skull' | 'swords' | 'hourglass' | 'heart' | 'spear' | 'bones';
+}
+
+/** A famous pirate's device on her flag, in a 128x80 canvas, centred a little forward of the hoist. */
+function drawDevice(g: CanvasRenderingContext2D, design: FlagDesign) {
+  g.fillStyle = design.colour;
+  g.strokeStyle = design.colour;
+  const bar = (x: number, y: number, len: number, angle: number, w = 6) => {
+    g.save();
+    g.translate(x, y);
+    g.rotate(angle);
+    g.fillRect(-len / 2, -w / 2, len, w);
+    g.restore();
+  };
+  if (design.device === 'skull' || design.device === 'bones') {
+    if (design.device === 'skull') {
+      g.beginPath();
+      g.arc(64, 30, 13, 0, Math.PI * 2);
+      g.fill();
+      g.fillRect(56, 38, 16, 9);
+      g.fillStyle = design.field;
+      g.beginPath();
+      g.arc(59, 29, 3.5, 0, Math.PI * 2);
+      g.arc(69, 29, 3.5, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = design.colour;
+    }
+    bar(64, design.device === 'skull' ? 60 : 40, 58, 0.55);
+    bar(64, design.device === 'skull' ? 60 : 40, 58, -0.55);
+  } else if (design.device === 'swords') {
+    // Two cutlasses crossed, hilts down.
+    for (const side of [-1, 1]) {
+      g.save();
+      g.translate(64, 40);
+      g.rotate(side * 0.6);
+      g.fillRect(-2.5, -30, 5, 50);
+      g.fillRect(-9, 18, 18, 4);
+      g.restore();
+    }
+  } else if (design.device === 'hourglass') {
+    g.beginPath();
+    g.moveTo(48, 14);
+    g.lineTo(80, 14);
+    g.lineTo(64, 40);
+    g.lineTo(80, 66);
+    g.lineTo(48, 66);
+    g.lineTo(64, 40);
+    g.closePath();
+    g.fill();
+  } else if (design.device === 'heart') {
+    // A heart, bleeding.
+    g.beginPath();
+    g.moveTo(64, 58);
+    g.bezierCurveTo(30, 36, 46, 12, 64, 28);
+    g.bezierCurveTo(82, 12, 98, 36, 64, 58);
+    g.fill();
+    for (const x of [58, 66, 72]) g.fillRect(x, 58, 3, 8 + (x % 5) * 2);
+  } else {
+    // A spear, point up, and a dart beside it.
+    g.fillRect(52, 18, 4, 52);
+    g.beginPath();
+    g.moveTo(54, 6);
+    g.lineTo(46, 22);
+    g.lineTo(62, 22);
+    g.closePath();
+    g.fill();
+    bar(80, 44, 30, -0.9, 4);
+  }
+}
+
+export function flagTexture(nation: string, design?: FlagDesign): THREE.CanvasTexture {
+  const key = design ? `${design.field}|${design.colour}|${design.device}` : nation;
+  const cached = FLAGS.get(key);
   if (cached) return cached;
   const c = document.createElement('canvas');
   c.width = 128;
   c.height = 80;
   const g = c.getContext('2d')!;
-  if (nation === 'spain') {
+  if (design) {
+    g.fillStyle = design.field;
+    g.fillRect(0, 0, 128, 80);
+    drawDevice(g, design);
+  } else if (nation === 'spain') {
     g.fillStyle = '#f4eee0';
     g.fillRect(0, 0, 128, 80);
     g.strokeStyle = '#b3262c';
@@ -1302,7 +1381,7 @@ export function flagTexture(nation: string): THREE.CanvasTexture {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  FLAGS.set(nation, t);
+  FLAGS.set(key, t);
   return t;
 }
 
@@ -1390,14 +1469,14 @@ function kitFor(plan: ShipPlan): ClassKit {
   return kit;
 }
 
-export function buildShip(plan: ShipPlan, nation: string): BuiltShip {
+export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): BuiltShip {
   const kit = kitFor(plan);
   const root = new THREE.Group();
   root.add(kit.hull.clone());
   // Square sails carry the nation's emblem (Spain's cross, a pirate's skull); fore-and-aft canvas is plain.
   const sailMat = sailMaterial(sailTexture(nation === 'spain' || nation === 'pirate' ? nation : 'plain'));
   const flatMat = sailMaterial(sailTexture('plain'), sailMat.userData.uniforms);
-  const flagMat = flagMaterial(flagTexture(nation));
+  const flagMat = flagMaterial(flagTexture(nation, flag));
   const h = plan.hull;
   const railAt = (forward: number) => stationOf(h, 0.5 + forward / h.length);
 

@@ -31,6 +31,7 @@ import { loadStoredSave, storeSave } from './save';
 import { chooseCareer } from './start';
 import { Hail, shipTitle } from './hail';
 import { Log } from './log';
+import { createShipLabels } from './shiplabels';
 import { bindMouse } from './mouse';
 import { ShipPanel } from './panel';
 import { BattleHud } from './battle';
@@ -226,6 +227,7 @@ async function main() {
           windAt,
           // ?sea=plain (then layers by name) for review: what's drawn on the 3D sea.
           sea: new URLSearchParams(location.search).get('sea')?.split(',') ?? undefined,
+          sound: (id, opts) => audio.playSfx(id, opts),
           townLine: (s, state) => {
             // "Prosperous English Capital": the town's trend, nation and kind, and anything ailing it.
             const t = townOf(content, state, s);
@@ -237,6 +239,7 @@ async function main() {
           },
         });
   viewport.appendChild(sea3d.canvas);
+  const shipLabels = createShipLabels(viewport);
   // For review and tests: the 3D renderer's showcase and sky controls.
   (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
   // ?sky=17.5 starts the 3D sky at that hour, for reviewing sunrise, sunset and night.
@@ -270,6 +273,8 @@ async function main() {
         name: string;
         title: string;
         nation?: Nation;
+        /** A famous pirate's id: she flies her own flag. */
+        famous?: string;
         /** The player attacked her (rather than being run down). */
         attacked: boolean;
         /** What the fight changed, once its result has reached the world. */
@@ -302,7 +307,7 @@ async function main() {
       playerMorale: moraleOf(content, sim.state),
     });
     hailing = undefined;
-    fight = { battle, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: shipTitle(them), nation: them.ai?.nation, attacked };
+    fight = { battle, targetId, acc: 0, heardAt: -1, name: them.ai?.name ?? 'Enemy', title: shipTitle(them), nation: them.ai?.nation, famous: them.ai?.famous, attacked };
   };
   /**
    * The result goes into the world as a command the moment the fight ends (so replays and saves see it),
@@ -695,6 +700,7 @@ async function main() {
     ...createDebugApi(sim, loop),
     seed,
     audio: { levels: () => audio.levels() },
+    wildlife: sea3d.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
     snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },
     view: () => (fight ? 'battle' : renderer.harbour.visible ? 'harbour' : 'sea'),
@@ -930,7 +936,7 @@ async function main() {
           };
       // The fight is drawn on the same sea as the map.
       sea3d.canvas.style.display = '';
-      sea3d.renderBattle({ ...bs, arcs }, now, fight.nation);
+      sea3d.renderBattle({ ...bs, arcs }, now, fight.nation, fight.famous);
       const me = player();
       const prize = sim.state.prize;
       render(
@@ -1123,11 +1129,14 @@ async function main() {
         const x = ev.payload.x as number;
         const y = ev.payload.y as number;
         const d = Math.hypot(x - me.x, y - me.y);
-        if (d <= content.traffic.sightTiles) audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
+        if (d <= content.traffic.sightTiles) {
+          sea3d.seaFight(x, y);
+          audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
+        }
       }
     }
     eventsSeen = evs.length;
-    // Ships hove to fighting within sight (a skirmish): the guns heard back and forth until it's settled.
+    // Ships hove to fighting within sight (a skirmish): broadsides back and forth until it's settled.
     for (const s of Object.values(sim.state.ships)) {
       const foe = s.ai?.skirmish ? sim.state.ships[s.ai.skirmish.with] : undefined;
       if (!foe) continue;
@@ -1136,6 +1145,7 @@ async function main() {
       if (d > content.traffic.sightTiles || loop.paused || now < (nextVolley.get(s.id) ?? 0)) continue;
       // Each side fires every couple of seconds, staggered so the guns answer each other.
       nextVolley.set(s.id, now + VOLLEY_MS * (0.8 + 0.4 * Math.random()));
+      sea3d.seaFight(s.x, s.y);
       audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
     }
     // In port the harbour scene (2D, illustrated) covers the screen; at sea the 3D view does.
@@ -1143,6 +1153,7 @@ async function main() {
     if (!atSea && !fight) renderer.render(sim.state, now);
     sea3d.canvas.style.display = atSea || fight ? '' : 'none';
     if (atSea) sea3d.render(sim.state, now);
+    shipLabels.update(sim.state, def.start.shipId, (x, y) => sea3d.project(x, y), atSea);
     charts.update(
       sim.state.ships[def.start.shipId],
       sea3d.viewBox(),
