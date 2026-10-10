@@ -9,6 +9,8 @@ import { zoneAt } from '@corsair/systems-weather';
 import type { SeaLanes } from './lanes';
 
 export { createSeaLanes } from './lanes';
+export { careerGoals } from './goals';
+export type { Goal } from './goals';
 export type { SeaLanes } from './lanes';
 
 // Ships at sea (PRD sections 4 and 6). AI ships sail sea lanes between ports at the speed their
@@ -1153,6 +1155,17 @@ export function createTrafficSystem(
           // A deed for a governor's bounty: any governor pays for pirates; enemies of his nation, too.
           const deed = { nation, role: other.ai.role, kind: outcome === 'sunk' ? ('sunk' as const) : ('taken' as const), tick: state.tick };
           captain = { ...captain, deeds: [...(captain.deeds ?? []), deed] };
+          // The career's record: prizes taken, pirates beaten by class, famous pirates beaten.
+          const r = captain.record ?? {};
+          captain = {
+            ...captain,
+            record: {
+              ...r,
+              ...(taken ? { prizes: (r.prizes ?? 0) + 1 } : {}),
+              ...(nation === 'pirate' ? { beaten: { ...r.beaten, [other.classId]: (r.beaten?.[other.classId] ?? 0) + 1 } } : {}),
+              ...(other.ai.famous ? { famousBeaten: (r.famousBeaten ?? 0) + 1 } : {}),
+            },
+          };
         }
         // The after-action report: everything the fight changed, for the battle's last screen.
         const standingChange: Record<string, number> = {};

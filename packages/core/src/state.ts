@@ -253,6 +253,18 @@ export interface Contract {
   newsId: string;
 }
 
+/** What the captain has done, kept as she goes (the Goals page in the log reads it). */
+export interface CareerRecord {
+  /** Gold made selling trade goods, over what they cost (plunder's sale goes to the chest, not here). */
+  tradeProfit?: number;
+  /** Ships taken (struck or boarded). */
+  prizes?: number;
+  /** Pirates beaten (taken or sunk), by their class. */
+  beaten?: Record<string, number>;
+  /** Famous pirates beaten by her. */
+  famousBeaten?: number;
+}
+
 export interface Captain {
   gold: number;
   /** Prices the captain last saw in each port, so routes can be planned from memory. */
@@ -265,6 +277,8 @@ export interface Captain {
   standing?: Partial<Record<Nation, number>>;
   /** Fame: a point for each famous pirate beaten. */
   fame?: number;
+  /** The career so far, for the captain's goals: gold made trading, prizes taken, pirates beaten by class, famous pirates beaten. */
+  record?: CareerRecord;
   /** Pieces of each famous pirate's hoard map held (by her id): keepsakes, never sold. */
   mapPieces?: Record<string, number>;
   /** The tavern strangers' offers already bought from (`town:week`). */

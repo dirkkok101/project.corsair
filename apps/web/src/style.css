@@ -1102,6 +1102,36 @@ body {
   border-color: #e8c170;
 }
 
+/* The Goals page: the next three goals, each with its progress bar and where it gets done. */
+.goals {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.goal-bar {
+  width: 100%;
+  height: 6px;
+  background: #202e37;
+}
+
+.goal-bar span {
+  display: block;
+  height: 100%;
+  background: #e8c170;
+}
+
+.goals-done {
+  margin-top: 4px;
+}
+
 .log-maps {
   display: flex;
   flex-direction: column;

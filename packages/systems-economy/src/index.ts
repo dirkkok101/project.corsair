@@ -1306,7 +1306,16 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           }
         }
         // The rest of the captain (standing, marques, deeds, news heard, the crew's side) stays as it was.
-        const captain = { ...state.captain, gold, knownPrices: seen(next, s, market), ...(chestGain ? { chest: (state.captain.chest ?? 0) + chestGain } : {}) };
+        // A sale's trade profit (for the career's goals): the gold for her own goods over what they cost.
+        const profit = command.type === 'Sell' ? total - chestGain - (before - cost) : 0;
+        const record = profit ? { ...state.captain.record, tradeProfit: Math.round((state.captain.record?.tradeProfit ?? 0) + profit) } : state.captain.record;
+        const captain = {
+          ...state.captain,
+          gold,
+          knownPrices: seen(next, s, market),
+          ...(chestGain ? { chest: (state.captain.chest ?? 0) + chestGain } : {}),
+          ...(record ? { record } : {}),
+        };
         return { state: { ...next, captain, ...(contracts ? { contracts } : {}), ...(shocks ? { shocks } : {}) }, events };
       }
       return undefined;

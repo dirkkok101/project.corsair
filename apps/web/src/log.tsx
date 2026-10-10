@@ -2,6 +2,7 @@ import type { Hoard, WorldState } from "@corsair/core";
 import { isLand, tileAt } from "@corsair/data";
 import type { ContentPack, PlacedSettlement, TileMap } from "@corsair/data";
 import { hoardRing } from "@corsair/systems-economy";
+import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { TopTen } from "./port";
 
@@ -109,6 +110,44 @@ export interface LogProps {
   /** Plot a course to a spot at sea (tile coordinates). */
   plot: (x: number, y: number) => void;
   close: () => void;
+  /** The career's goals (careerGoals), in order. */
+  goals: Goal[];
+}
+
+/** The next three goals not yet done, each with its progress and one click to where it gets done; the done below. */
+function Goals({ goals, settlements, plot, open }: { goals: Goal[]; settlements: PlacedSettlement[]; plot: LogProps['plot']; open: (page: 'top' | 'maps') => void }) {
+  const next = goals.filter((g) => !g.done).slice(0, 3);
+  const done = goals.filter((g) => g.done);
+  const port = (id?: string) => settlements.find((s) => s.id === id);
+  return (
+    <div class="goals">
+      {next.length ? (
+        next.map((g) => {
+          const where = port(g.port);
+          return (
+            <div key={g.id} class="goal">
+              <div class="log-map-title">{g.title}</div>
+              <div class="goal-bar">
+                <span style={{ width: `${Math.round(Math.min(1, g.have / Math.max(1, g.of)) * 100)}%` }} />
+              </div>
+              <div class="port-sub">
+                {g.unit ? `${g.have.toLocaleString()} / ${g.of.toLocaleString()} ${g.unit} · ` : ''}
+                {g.why}
+              </div>
+              {where ? (
+                <button onClick={() => plot(where.x, where.y)}>Plot a course to {where.name}</button>
+              ) : g.page ? (
+                <button onClick={() => open(g.page!)}>{g.page === 'top' ? 'See the Top Ten' : 'See your maps'}</button>
+              ) : null}
+            </div>
+          );
+        })
+      ) : (
+        <p class="tavern-quiet">Every goal is done: a career to be proud of.</p>
+      )}
+      {done.length ? <div class="port-sub goals-done">Done: {done.map((g) => g.title).join(' · ')}</div> : null}
+    </div>
+  );
 }
 
 /** The captain's log (L): the Top Ten, and the treasure maps she holds pieces of. */
@@ -119,15 +158,14 @@ export function Log({
   settlements,
   plot,
   close,
+  goals,
 }: LogProps) {
   const pieces = state.captain?.mapPieces ?? {};
   const maps = content.pirates.captains.flatMap((c) => {
     const hoard = state.famous?.[c.id]?.hoard;
     return pieces[c.id] && hoard ? [{ c, hoard, held: pieces[c.id]! }] : [];
   });
-  const [page, setPage] = useState<"top" | "maps">(
-    maps.length ? "maps" : "top",
-  );
+  const [page, setPage] = useState<"goals" | "top" | "maps">("goals");
   const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const whole = content.pirates.rules.mapPieces;
   return (
@@ -136,6 +174,12 @@ export function Log({
         <div class="log-head">
           <span class="port-name">Captain's log</span>
           <nav class="log-tabs">
+            <button
+              class={page === "goals" ? "active" : ""}
+              onClick={() => setPage("goals")}
+            >
+              Goals
+            </button>
             <button
               class={page === "top" ? "active" : ""}
               onClick={() => setPage("top")}
@@ -153,7 +197,9 @@ export function Log({
             Close · L
           </button>
         </div>
-        {page === "top" ? (
+        {page === "goals" ? (
+          <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} />
+        ) : page === "top" ? (
           <TopTen content={content} state={state} settlements={settlements} />
         ) : maps.length ? (
           <div class="log-maps">

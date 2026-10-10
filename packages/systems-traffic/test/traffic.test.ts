@@ -8,7 +8,7 @@ import { createNavigationSystem, createWorld } from '@corsair/systems-navigation
 import { createWeatherSystem, createWindField, withWeather, zoneAt } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import { atWar } from '@corsair/systems-politics';
-import { createSeaLanes, createTrafficSystem, topTen, withTraffic } from '../src';
+import { careerGoals, createSeaLanes, createTrafficSystem, topTen, withTraffic } from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -1227,5 +1227,33 @@ describe('the famous pirates', () => {
     lose.applyCommands();
     expect(lose.state.famous!.grammont!.wealth).toBe(4000 + 700);
     expect(lose.state.ships[grammont.id]!.ai!.famous).toBe('grammont');
+  });
+});
+
+describe("the captain's goals", () => {
+  const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
+
+  it('a new career: arm her, man her, trade; each with its progress and where it gets done', () => {
+    const sim = world(3);
+    const goals = careerGoals(content, sim.state, settlements);
+    const open = goals.filter((g) => !g.done);
+    expect(open.slice(0, 3).map((g) => g.id)).toEqual(['guns', 'crew', 'trade']);
+    expect(open[0]).toMatchObject({ have: 10, of: 18, unit: 'guns' });
+    expect(settlements.find((s) => s.id === open[0]!.port)!.size).toBe('city');
+    // Armed and manned, the next three move on.
+    const ready = { ...sim.state, ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, guns: 18, crew: 150 } } };
+    expect(careerGoals(content, ready, settlements).filter((g) => !g.done).slice(0, 3).map((g) => g.id)).toEqual(['trade', 'prize', 'marque']);
+  });
+
+  it('the record: a pirate taken counts a prize and a pirate of her class beaten', () => {
+    const sim = world(6);
+    sim.send({ type: 'SpawnShip', role: 'pirate', from: 'town.tortuga', to: 'town.port_royal' });
+    sim.applyCommands();
+    const id = Object.keys(sim.state.ships).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    const fight = createSim(sim.state, [traffic()]);
+    fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: { outcome: 'struck', player: { hull: 60, sailCondition: 80, crew: 50, guns: 14 }, enemy: { hull: 10, sailCondition: 40, crew: 9, guns: 6 } } });
+    fight.applyCommands();
+    expect(fight.state.captain!.record).toEqual({ prizes: 1, beaten: { [sim.state.ships[id]!.classId]: 1 } });
+    expect(careerGoals(content, fight.state, settlements).find((g) => g.id === 'prize')!.done).toBe(true);
   });
 });

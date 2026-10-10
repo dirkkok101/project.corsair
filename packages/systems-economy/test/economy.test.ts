@@ -556,6 +556,19 @@ describe('outfitting at the shipwright', () => {
     expect(reason(small)).toBe('not-sold-here');
   });
 
+  it("a sale's trade profit goes on the career's record: the gold for her own goods over what they cost", () => {
+    const sim = docked(portRoyal, 5000);
+    sim.send({ type: 'Buy', shipId: 'player', good: 'luxuries', quantity: 6 });
+    sim.applyCommands();
+    const afterBuy = sim.state.captain!.gold;
+    sim.send({ type: 'Sell', shipId: 'player', good: 'luxuries', quantity: 6 });
+    sim.applyCommands();
+    // Sold back where she bought: the merchant's spread, a loss, and the record says so.
+    expect(sim.state.captain!.record!.tradeProfit).toBe(sim.state.captain!.gold - 5000);
+    expect(sim.state.captain!.gold).toBeLessThan(5000);
+    expect(afterBuy).toBeLessThan(5000);
+  });
+
   it('upgrades are priced by the work on her class: the brig pays the list price, a sloop less, a ship of the line more', () => {
     // The brig (the list's own class) pays exactly the listed prices.
     for (const u of Object.values(content.upgrades)) expect(upgradePrice(content, 'ship.brig', u.id).price).toBe(u.price);

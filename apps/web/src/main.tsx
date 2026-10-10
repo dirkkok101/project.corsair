@@ -38,7 +38,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, legalTarget, NATIONS } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -786,6 +786,9 @@ async function main() {
   };
   // What the last dig turned up, said a while.
   let digNote: { text: string; until: number } | undefined;
+  // A goal just done (careerGoals), said a while; the goals already done when the career was loaded say nothing.
+  let goalNote: { text: string; until: number } | undefined;
+  let goalsDone: Set<string> | undefined;
   /**
    * G: heave to, put the men ashore on the nearest beach and dig. Half a day passes (treasure.json dig hours) while
    * they do; then what they found, or which way the landmark lies.
@@ -1254,6 +1257,15 @@ async function main() {
       ) : null,
       hailRoot,
     );
+    // The career's goals: done ones are noticed the moment they are (the HUD says so), the rest wait in the log.
+    const goals = careerGoals(content, sim.state, settlements);
+    const doneNow = new Set(goals.filter((g) => g.done).map((g) => g.id));
+    const fresh = goalsDone ? goals.find((g) => g.done && !goalsDone!.has(g.id)) : undefined;
+    if (fresh) {
+      const next = goals.find((g) => !g.done);
+      goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, until: now + 7000 };
+    }
+    goalsDone = doneNow;
     if (player().docked || fight) logOpen = false;
     render(
       logOpen ? (
@@ -1263,8 +1275,13 @@ async function main() {
           map={map}
           settlements={settlements}
           close={() => (logOpen = false)}
+          goals={goals}
           plot={(x, y) => {
-            setCourse(x, y, false);
+            // A port already in reach: go in, rather than plot a course to where she lies.
+            const port = portAt(x, y);
+            const reach = portInReach();
+            if (port && reach && port.id === reach.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
+            else setCourse(x, y, false);
             logOpen = false;
           }}
         />
@@ -1369,6 +1386,8 @@ async function main() {
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
             : digNote && now < digNote.until
               ? digNote.text
+            : goalNote && now < goalNote.until
+              ? goalNote.text
               : reach
               ? `Enter ${reach.name} · E`
               : near

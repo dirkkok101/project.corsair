@@ -360,6 +360,29 @@ test('ships lying in port are listed in the tavern with when each sails', async 
   expect(errors).toEqual([]);
 });
 
+test("the captain's goals: L opens the log at the next three, with progress and a course to where each is done", async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await page.keyboard.press('e');
+  // Out on open water south of Jamaica.
+  await page.evaluate(() => {
+    window.__corsair.sim.step(1);
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('l');
+  const goals = page.locator('.goal');
+  await expect(goals).toHaveCount(3);
+  await expect(goals.first()).toContainText('Mount a full battery');
+  await expect(goals.first()).toContainText('10 / 18 guns');
+  await page.screenshot({ path: 'test-results/goals.png' });
+  // One click plots the course to a shipwright that sells cannon.
+  await goals.first().getByRole('button', { name: /^Plot a course to/ }).click();
+  await expect(page.locator('.log')).toHaveCount(0);
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await page.evaluate(() => (window.__corsair.state.get('ships.player') as { assist?: { mode: string } }).assist?.mode)).toBe('course');
+  expect(errors).toEqual([]);
+});
+
 test('the Top Ten: the tavern ranks the famous pirates by wealth, and the captain below them to start', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
@@ -392,6 +415,7 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.keyboard.press('l');
   await expect(page.locator('.log')).toBeVisible();
+  await page.locator('.log-tabs').getByRole('button', { name: /^Maps/ }).click();
   await expect(page.locator('.parchment')).toHaveCount(1);
   await expect(page.locator('.log-map')).toContainText('1 of 4 pieces');
   await page.screenshot({ path: 'test-results/treasure-map.png' });
@@ -431,6 +455,7 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
   expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThanOrEqual(tick + Math.round(771 / 2));
   await page.screenshot({ path: 'test-results/dig.png' });
   await page.keyboard.press('l');
+  await page.locator('.log-tabs').getByRole('button', { name: /^Maps/ }).click();
   await expect(page.locator('.log-map')).toContainText('dug up');
   expect(errors).toEqual([]);
 });
