@@ -59,6 +59,15 @@ describe('the logbook', () => {
     expect(news[0]!.text).toContain(port.name);
   });
 
+  it('writes the news a hailed ship gives', () => {
+    const sim = docked();
+    sim.send({ type: 'SpawnShock', settlementId: port.id, good: 'sugar', kind: 'shortage' });
+    sim.applyCommands();
+    const id = sim.state.news![0]!.id;
+    const book = createLogbookSystem(content, settlements).observe!(sim.state, [{ tick: 5, type: 'Hailed', system: 'traffic', entityIds: ['player', 'ai.1'], payload: { news: [id] } }]);
+    expect(book.captain!.logbook!.at(-1)).toMatchObject({ kind: 'news', place: port.id });
+  });
+
   it('keeps the last 200 lines', () => {
     const log = createLogbookSystem(content, settlements);
     let state = docked().state as WorldState;

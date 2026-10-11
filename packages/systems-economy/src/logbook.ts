@@ -10,7 +10,7 @@ const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', fr
 
 /**
  * The captain's log (storyboard 6.1): it watches what the systems do and writes the captain's deeds and losses, and
- * the news he hears in taverns, as dated lines. Sales of one good in one port on one day make one line.
+ * the news he hears in taverns and from ships he hails, as dated lines. Sales of one good in one port on one day make one line.
  */
 export function createLogbookSystem(content: ContentPack, settlements: Pick<PlacedSettlement, 'id' | 'name'>[]): System {
   const town = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id ?? '';
@@ -92,8 +92,9 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
         log = [...log, entry];
       };
       for (const e of events) {
-        if (e.type === 'NewsHeard') {
-          for (const id of (e.payload.ids as string[]) ?? []) {
+        // News heard in a tavern, or from a ship spoken at sea.
+        if (e.type === 'NewsHeard' || e.type === 'Hailed') {
+          for (const id of ((e.type === 'NewsHeard' ? e.payload.ids : e.payload.news) as string[]) ?? []) {
             const item = state.news?.find((n) => n.id === id);
             if (item) write({ tick: e.tick, kind: 'news', text: newsText(content, item, town(item.settlementId)), place: item.settlementId });
           }
