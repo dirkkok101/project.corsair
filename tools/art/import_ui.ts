@@ -1,6 +1,7 @@
-// Imports the painted UI kit (the ship panel's portraits, icons and frame, and the chart's marks): for every prompt record in
-// art/sources/paintings/ui/*.yaml, keys out the flat background of the kept raw image, crops to what's
-// left, shrinks it to its game size and snaps it to the palette, writing art/game/ui/{id}.png.
+// Imports the painted UI kit (the ship panel's portraits, icons and frame, and the chart's marks) and the people's
+// busts: for every prompt record in art/sources/paintings/{ui,people}/*.yaml, keys out the flat background of the
+// kept raw image, crops to what's left, shrinks it to its game size and snaps it to the palette, writing
+// art/game/{ui,people}/{id}.png.
 //
 //   node tools/art/import_ui.ts
 //
@@ -14,8 +15,8 @@ import { join } from 'node:path';
 import { paletteMatcher } from './snap_painting.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..');
-const SOURCES = join(ROOT, 'art', 'sources', 'paintings', 'ui');
-const OUT = join(ROOT, 'art', 'game', 'ui');
+/** Each group's raw paintings and where its game images go. */
+const GROUPS = ['ui', 'people'].map((g) => ({ sources: join(ROOT, 'art', 'sources', 'paintings', g), out: join(ROOT, 'art', 'game', g) }));
 
 /** Game size by id prefix: the box each image is shrunk to fit (aspect kept), in art pixels. */
 const SIZES: [prefix: string, w: number, h: number][] = [
@@ -25,6 +26,8 @@ const SIZES: [prefix: string, w: number, h: number][] = [
   ['ui.chart.compass', 64, 64],
   ['ui.chart.', 20, 20],
   ['ui.panel.', 96, 64],
+  // The people who speak to the captain (docs/design/storyboard.md), head and shoulders.
+  ['bust.', 192, 224],
 ];
 /** Corner patches the key colour is read from, in source pixels. */
 const CORNER = 24;
@@ -36,9 +39,10 @@ const FRINGE_PASSES = 2;
 /** A shrunk pixel is opaque when at least this share of what it covers is object. */
 const COVERAGE = 0.5;
 
-mkdirSync(OUT, { recursive: true });
 const match = paletteMatcher();
 
+for (const { sources: SOURCES, out: OUT } of GROUPS) {
+mkdirSync(OUT, { recursive: true });
 for (const file of readdirSync(SOURCES).filter((f) => f.endsWith('.yaml')).sort()) {
   const text = readFileSync(join(SOURCES, file), 'utf8');
   const id = /^id:\s*(\S+)/m.exec(text)?.[1];
@@ -54,7 +58,9 @@ for (const file of readdirSync(SOURCES).filter((f) => f.endsWith('.yaml')).sort(
 
   // The key: the median corner colour, and how far the corners stray from it.
   const samples: (readonly [number, number, number])[] = [];
-  for (const [cx, cy] of [[0, 0], [w - CORNER, 0], [0, h - CORNER], [w - CORNER, h - CORNER]] as const) {
+  // A bust runs off the bottom edge (cut at the chest), so only its top corners are background.
+  const corners = id.startsWith('bust.') ? [[0, 0], [w - CORNER, 0]] : [[0, 0], [w - CORNER, 0], [0, h - CORNER], [w - CORNER, h - CORNER]];
+  for (const [cx, cy] of corners as [number, number][]) {
     for (let y = cy; y < cy + CORNER; y++) for (let x = cx; x < cx + CORNER; x++) samples.push(px(x, y));
   }
   const median = (k: 0 | 1 | 2) => samples.map((s) => s[k]).sort((a, b) => a - b)[samples.length >> 1]!;
@@ -123,4 +129,5 @@ for (const file of readdirSync(SOURCES).filter((f) => f.endsWith('.yaml')).sort(
   }
   writeFileSync(join(OUT, `${id}.png`), encode({ width: ow, height: oh, data: out, channels: 4 }));
   console.log(`${id} <- ${kept}: key ${key.join(',')} ±${tolerance}, ${ow}x${oh}`);
+}
 }

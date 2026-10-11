@@ -1,0 +1,13 @@
+id: bust.captain.merchant
+tool: Grok Imagine
+model: ""                 # as shown in the app
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art game sprite, a single character centred on a perfectly flat solid magenta background (#FF00FF) that fills everything around it, with no shadow, glow or texture on the background. Crisp hard-edged pixels, flat colour areas, a clean dark outline one pixel wide, no anti-aliasing, no blur, no gradients, no film grain. A limited palette: weathered wood browns, warm canvas cream, brass and gold, iron greys and black, sea blues, a touch of brick red. Lit softly from the upper left. No text, no letters, no logos, no watermark, no frame. A single character portrait from the chest up, in a 1660s Caribbean setting, three-quarter view facing slightly left, looking at the viewer, framed from the top of the head to mid-chest, centred. Expressive face readable at small size, warm skin tones, clothing in the period's fashion.
+
+  A merchant ship's master: a plain grey coat, a felt hat, a weathered careful face.
+seed: ""
+kept: [v2, v1]
+hand_changes: "No hand pixel pass."
