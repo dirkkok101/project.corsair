@@ -24,7 +24,7 @@ import { compassProps, Hud } from './hud';
 import { shipIcon, shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, createLogbookSystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { loadStoredSave, storeSave } from './save';
@@ -218,6 +218,8 @@ async function main() {
     createPoliticsSystem(content, def.startDate, settlements),
     createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt),
+    // Last, so it writes up what the others did.
+    createLogbookSystem(content, settlements),
   ]);
   // A new career begins in port, so the ship can be outfitted before she first sails.
   if (!resumed && def.start.port) {
@@ -613,8 +615,8 @@ async function main() {
       if (digHere()) dig();
       else digNote = { text: "Nothing to dig for here: sail into a treasure map's search ring (M), close to the shore", until: performance.now() + 4000 };
     }
-    // L: the captain's log (the Top Ten and the treasure maps), at sea; Escape closes it too.
-    if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen && !player().docked;
+    // L: the captain's log, at sea or in port; Escape closes it too.
+    if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen;
     // F1: every key, grouped (the HUD shows only the one that applies now).
     if (e.key === 'F1' && !e.repeat) {
       e.preventDefault();
@@ -1298,7 +1300,7 @@ async function main() {
       goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, until: now + 7000 };
     }
     goalsDone = doneNow;
-    if (player().docked || fight) logOpen = false;
+    if (fight) logOpen = false;
     render(
       logOpen ? (
         <Log
@@ -1306,12 +1308,18 @@ async function main() {
           state={sim.state}
           map={map}
           settlements={settlements}
+          shipId={ship.id}
+          send={(command) => {
+            sim.send(command);
+            sim.applyCommands();
+          }}
           close={() => (logOpen = false)}
           goals={goals}
+          date={(tick) => formatDate(dateOf(def.startDate, Math.floor(tick / content.calendar.ticksPerDay)))}
           plot={(x, y) => {
-            // A port already in reach: go in, rather than plot a course to where she lies.
+            // A port already in reach at sea: go in, rather than plot a course to where she lies.
             const port = portAt(x, y);
-            const reach = portInReach();
+            const reach = player().docked ? undefined : portInReach();
             if (port && reach && port.id === reach.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
             else setCourse(x, y, false);
             logOpen = false;
@@ -1359,6 +1367,7 @@ async function main() {
           date={formatDate(dateOf(def.startDate, Math.floor(sim.state.tick / content.calendar.ticksPerDay)))}
           map={map}
           plot={(x, y) => setCourse(x, y, false)}
+          openLog={() => (logOpen = true)}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();

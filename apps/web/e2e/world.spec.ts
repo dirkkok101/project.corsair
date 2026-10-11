@@ -250,6 +250,13 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await page.screenshot({ path: 'test-results/port-trade.png' });
   await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Sell all' }).click();
   expect(await gold()).toBeGreaterThan(startGold);
+  // The sale is in the captain's log, which opens in port too: one line, with what it made.
+  await page.keyboard.press('l');
+  await expect(page.locator('.log-mark.active')).toHaveText('Log');
+  await expect(page.locator('.logbook-line').first()).toContainText(/Sold \d+ sugar at Port Royal for [\d,]+ gold: \+/);
+  await page.screenshot({ path: 'test-results/logbook.png' });
+  await page.keyboard.press('l');
+  await expect(page.locator('.log')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -401,6 +408,7 @@ test("the captain's goals: L opens the log at the next three, with progress and 
     window.__corsair.sim.step(1);
   });
   await page.keyboard.press('l');
+  await page.locator('.log-tabs').getByRole('button', { name: 'Goals' }).click();
   const goals = page.locator('.goal');
   await expect(goals).toHaveCount(3);
   await expect(goals.first()).toContainText('Mount a full battery');
@@ -1043,7 +1051,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   await page.evaluate(() => window.__corsair.sim.step(60));
   await page.screenshot({ path: 'test-results/fleet-at-sea.png' });
 
-  // Into Port Royal: the shipwright lists her, and sells her.
+  // Into Port Royal, where she can be sold.
   await page.evaluate(() => {
     const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
     window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
@@ -1051,12 +1059,14 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await openService(page, 'Shipwright');
-  await page.locator('.shipwright-tabs').getByRole('button', { name: 'Mend' }).click();
-  await expect(page.locator('.fleet-list:not(.ships-for-sale):not(.laid-up)')).toContainText('fluyt');
-  await page.screenshot({ path: 'test-results/fleet-shipwright.png' });
+  // The log's Fleet page, in port: her state, and selling her.
+  await page.getByRole('button', { name: /^Log/ }).click();
+  await page.locator('.log-tabs').getByRole('button', { name: 'Fleet' }).click();
+  const prize = page.locator('.fleet-row:not(.flagship)');
+  await expect(prize).toContainText('fluyt');
+  await page.screenshot({ path: 'test-results/fleet-log.png' });
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
-  await page.locator('.fleet-list:not(.ships-for-sale):not(.laid-up)').getByRole('button', { name: /^Sell/ }).click();
+  await prize.getByRole('button', { name: /^Sell/ }).click();
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBeGreaterThan(gold);
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(0);
   expect(errors).toEqual([]);

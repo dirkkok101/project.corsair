@@ -1,11 +1,12 @@
-import type { Hoard, WorldState } from "@corsair/core";
-import { difficultyOf, isLand, tileAt } from "@corsair/data";
+import type { Command, Hoard, WorldState } from "@corsair/core";
+import { difficultyOf, isLand, shipStats, tileAt } from "@corsair/data";
 import type { ContentPack, DifficultyLevel, PlacedSettlement, TileMap } from "@corsair/data";
 import { CareerCard } from "./career";
-import { hoardRing } from "@corsair/systems-economy";
+import { cargoUsed, crewOf, fleetBerths, fleetHold, fleetOf, fleetShipPace, hoardRing, perkPrice, shipRepairCost, shipValue } from "@corsair/systems-economy";
 import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { TopTen } from "./port";
+import { LaidUp, TopTen } from "./port";
+import { Art, shipIcon, shipKind } from "./ui-art";
 
 /** The parchment's size on screen, in pixels. */
 const PARCHMENT_PX = 216;
@@ -103,70 +104,6 @@ function waterNear(map: TileMap, x: number, y: number): [number, number] {
   return [x, y];
 }
 
-export interface LogProps {
-  content: ContentPack;
-  state: WorldState;
-  map: TileMap;
-  settlements: PlacedSettlement[];
-  /** Plot a course to a spot at sea (tile coordinates). */
-  plot: (x: number, y: number) => void;
-  close: () => void;
-  /** The career's goals (careerGoals), in order. */
-  goals: Goal[];
-}
-
-/** The next three goals not yet done, each with its progress and one click to where it gets done; the done below. */
-function Goals({
-  goals,
-  settlements,
-  plot,
-  open,
-  level,
-}: {
-  goals: Goal[];
-  settlements: PlacedSettlement[];
-  plot: LogProps['plot'];
-  open: (page: 'top' | 'maps') => void;
-  level: DifficultyLevel;
-}) {
-  const next = goals.filter((g) => !g.done).slice(0, 3);
-  const done = goals.filter((g) => g.done);
-  const port = (id?: string) => settlements.find((s) => s.id === id);
-  return (
-    <div class="goals">
-      {next.length ? (
-        next.map((g) => {
-          const where = port(g.port);
-          return (
-            <div key={g.id} class="goal">
-              <div class="log-map-title">{g.title}</div>
-              <div class="goal-bar">
-                <span style={{ width: `${Math.round(Math.min(1, g.have / Math.max(1, g.of)) * 100)}%` }} />
-              </div>
-              <div class="port-sub">
-                {g.unit ? `${g.have.toLocaleString()} / ${g.of.toLocaleString()} ${g.unit} · ` : ''}
-                {g.why}
-              </div>
-              {where ? (
-                <button onClick={() => plot(where.x, where.y)}>Plot a course to {where.name}</button>
-              ) : g.page ? (
-                <button onClick={() => open(g.page!)}>{g.page === 'top' ? 'See the Top Ten' : 'See your maps'}</button>
-              ) : null}
-            </div>
-          );
-        })
-      ) : (
-        <p class="tavern-quiet">Every goal is done: a career to be proud of.</p>
-      )}
-      {done.length ? <div class="port-sub goals-done">Done: {done.map((g) => g.title).join(' · ')}</div> : null}
-      <div class="port-sub goals-done">
-        Difficulty: {level.name}. {level.about}
-      </div>
-    </div>
-  );
-}
-
-/** The captain's log (L): the Top Ten, and the treasure maps she holds pieces of. */
 /** One hoard's map: the parchment as far as the pieces held show it, what it says, and where to dig. */
 export function HoardMap({
   content,
@@ -241,75 +178,334 @@ export function HoardMap({
   );
 }
 
-export function Log({
-  content,
-  state,
-  map,
+export interface LogProps {
+  content: ContentPack;
+  state: WorldState;
+  map: TileMap;
+  settlements: PlacedSettlement[];
+  /** The player's flagship. */
+  shipId: string;
+  /** Orders from the book's Fleet page (in port). */
+  send: (command: Command) => void;
+  /** Plot a course to a spot at sea (tile coordinates). */
+  plot: (x: number, y: number) => void;
+  close: () => void;
+  /** The career's goals (careerGoals), in order. */
+  goals: Goal[];
+  /** A tick as a date ("14 May 1661"). */
+  date: (tick: number) => string;
+}
+
+type Page = 'log' | 'goals' | 'fleet' | 'career' | 'top' | 'maps';
+/** The book's bookmarks, top to bottom. */
+const BOOKMARKS: [Page, string][] = [
+  ['log', 'Log'],
+  ['goals', 'Goals'],
+  ['fleet', 'Fleet'],
+  ['career', 'Career'],
+  ['top', 'Top Ten'],
+  ['maps', 'Maps'],
+];
+/** Lines on each page of the Log's spread. */
+const LINES_PER_PAGE = 8;
+
+/** The Log page (storyboard 6.1): the captain's deeds and the news he heard, newest first, over a spread of two pages. */
+function LogPage({ state, settlements, date, plot }: Pick<LogProps, 'state' | 'settlements' | 'date' | 'plot'>) {
+  const lines = [...(state.captain?.logbook ?? [])].reverse();
+  const [spread, setSpread] = useState(0);
+  const per = LINES_PER_PAGE * 2;
+  const shown = lines.slice(spread * per, spread * per + per);
+  const page = (entries: typeof lines) =>
+    entries.map((e, i) => {
+      const where = settlements.find((s) => s.id === e.place);
+      return (
+        <div key={`${e.tick}-${i}`} class="logbook-line">
+          <div class="logbook-date">{date(e.tick)}</div>
+          <div class="logbook-text">
+            <span class={`k-tag ${e.kind}`}>{e.kind === 'loss' ? 'deed' : e.kind}</span> {e.text}
+            {where ? (
+              <button class="logbook-place" title={`Plot a course to ${where.name}`} onClick={() => plot(where.x, where.y)}>
+                {where.name}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      );
+    });
+  return (
+    <>
+      <div class="book-page">
+        <h2 class="book-title">Captain's log</h2>
+        <div class="book-sub">Your deeds and the news you heard, newest first. A place plots a course there.</div>
+        <div class="book-rule" />
+        {lines.length ? page(shown.slice(0, LINES_PER_PAGE)) : <p class="book-sub">Nothing written yet: the log fills as you trade, fight and hear the news.</p>}
+      </div>
+      <div class="book-page">
+        {page(shown.slice(LINES_PER_PAGE))}
+        {lines.length > per ? (
+          <div class="book-turn">
+            <button class="k-btn small paper" disabled={spread === 0} onClick={() => setSpread(spread - 1)}>
+              Newer
+            </button>
+            <span class="book-sub">
+              {spread + 1} of {Math.ceil(lines.length / per)}
+            </span>
+            <button class="k-btn small paper" disabled={(spread + 1) * per >= lines.length} onClick={() => setSpread(spread + 1)}>
+              Older
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/** The next three goals not yet done, each with its progress and one click to where it gets done; the done opposite. */
+function Goals({
+  goals,
   settlements,
   plot,
-  close,
-  goals,
-}: LogProps) {
+  open,
+  level,
+}: {
+  goals: Goal[];
+  settlements: PlacedSettlement[];
+  plot: LogProps['plot'];
+  open: (page: 'top' | 'maps') => void;
+  level: DifficultyLevel;
+}) {
+  const next = goals.filter((g) => !g.done).slice(0, 3);
+  const done = goals.filter((g) => g.done);
+  const port = (id?: string) => settlements.find((s) => s.id === id);
+  return (
+    <>
+      <div class="book-page goals">
+        <h2 class="book-title">What next</h2>
+        <div class="book-sub">The career's next three steps; each one says where it gets done.</div>
+        <div class="book-rule" />
+        {next.length ? (
+          next.map((g) => {
+            const where = port(g.port);
+            return (
+              <div key={g.id} class="goal">
+                <div class="goal-head">
+                  <b>{g.title}</b>
+                  {g.unit ? (
+                    <span class="goal-have">
+                      {g.have.toLocaleString()} / {g.of.toLocaleString()} {g.unit}
+                    </span>
+                  ) : null}
+                </div>
+                <div class="goal-bar">
+                  <span style={{ width: `${Math.round(Math.min(1, g.have / Math.max(1, g.of)) * 100)}%` }} />
+                </div>
+                <div class="goal-foot">
+                  <span class="book-sub">{g.why}</span>
+                  {where ? (
+                    <button class="k-btn small paper" onClick={() => plot(where.x, where.y)}>
+                      Plot a course to {where.name}
+                    </button>
+                  ) : g.page ? (
+                    <button class="k-btn small paper" onClick={() => open(g.page!)}>
+                      {g.page === 'top' ? 'See the Top Ten' : 'See your maps'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <p class="book-sub">Every goal is done: a career to be proud of.</p>
+        )}
+      </div>
+      <div class="book-page">
+        <h3 class="book-heading">Done</h3>
+        <div class="goals-done">
+          {done.length ? (
+            done.map((g) => (
+              <div key={g.id} class="goal-done">
+                <span aria-hidden="true">✓</span> {g.title}
+              </div>
+            ))
+          ) : (
+            <span class="book-sub">Nothing yet.</span>
+          )}
+        </div>
+        <div class="book-rule" />
+        <h3 class="book-heading">Difficulty: {level.name}</h3>
+        <p class="book-sub">{level.about}</p>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The Fleet page (storyboard 3.4): every ship, the flagship first, her state, and in port her mending, making her the
+ * flagship or selling her; what the fleet carries and the pace it keeps; ships laid up here; what a ship sells for.
+ */
+function Fleet({ content, state, settlements, shipId, send }: Pick<LogProps, 'content' | 'state' | 'settlements' | 'shipId' | 'send'>) {
+  const ship = state.ships[shipId]!;
+  const fleet = fleetOf(state);
+  const hold = fleetHold(content, state, ship);
+  const berths = fleetBerths(content, state, ship);
+  const cargo = cargoUsed(ship);
+  const crew = crewOf(content, ship);
+  const gold = state.captain?.gold ?? 0;
+  const port = settlements.find((s) => s.id === ship.docked);
+  // A major of the port's nation has his repairs cheaper.
+  const cut = port ? perkPrice(content, state.captain, port.nation, 'repair') : 1;
+  // The flagship's own pace, not the fleet's she is held to.
+  const slowest = [{ ...ship, fleetSpeed: undefined }, ...fleet].reduce((a, b) => (fleetShipPace(content, b) < fleetShipPace(content, a) ? b : a));
+  const fits = (u?: string[]) => (u ?? []).map((id) => content.upgrades[id]?.name.toLowerCase()).filter(Boolean);
+  const condition = (f: { classId: string; hull?: number; upgrades?: string[]; guns?: number }) => {
+    const stats = shipStats(content, f);
+    return [`hull ${Math.round(f.hull ?? stats.hullMax)} of ${stats.hullMax}`, `${stats.guns} guns`, ...fits(f.upgrades)].join(' · ');
+  };
+  const mend = (id: string, f: Parameters<typeof shipRepairCost>[1]) => {
+    const cost = shipRepairCost(content, f, cut);
+    return cost > 0 ? (
+      <button class="k-btn small paper" disabled={gold <= 0} title={gold < cost ? `You have ${gold} gold: as far as the purse reaches.` : undefined} onClick={() => send({ type: 'Repair', shipId, only: id })}>
+        Mend · {cost.toLocaleString()}
+      </button>
+    ) : null;
+  };
+  return (
+    <>
+      <div class="book-page">
+        <h2 class="book-title">Your fleet</h2>
+        <div class="book-sub">Only the flagship fights; the others carry cargo and men, and sail at the pace of the slowest.</div>
+        <div class="book-rule" />
+        <div class="fleet-list">
+          <div class="fleet-row flagship">
+            <Art id={shipIcon(content, ship.classId)} class="fleet-ship" />
+            <div class="fleet-what">
+              <b>{ship.name ?? 'Your flagship'}</b> <span class="book-sub">{shipKind(ship.classId)} · flagship</span>
+              <div class="book-small">{condition(ship)}</div>
+            </div>
+            {port ? mend(ship.id, ship) : null}
+          </div>
+          {fleet.map((f) => {
+            const cls = content.ships[f.classId]!;
+            const why =
+              hold - cls.cargo < cargo
+                ? `Her hold is needed: the rest of the fleet can't carry the ${cargo} tons aboard.`
+                : berths - shipStats(content, f).maxCrew < crew
+                  ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
+                  : undefined;
+            return (
+              <div key={f.id} class="fleet-row">
+                <Art id={shipIcon(content, f.classId)} class="fleet-ship" />
+                <div class="fleet-what">
+                  <b>{f.name}</b> <span class="book-sub">{shipKind(f.classId)}</span>
+                  <div class="book-small">{condition(f)}</div>
+                </div>
+                {port ? (
+                  <div class="fleet-actions">
+                    {mend(f.id, f)}
+                    <button class="k-btn small paper" onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>
+                      Make flagship
+                    </button>
+                    <button class="k-btn small paper" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
+                      Sell · {shipValue(content, f).toLocaleString()}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+        <div class="fleet-totals">
+          <span>
+            <b>Hold</b> {hold} ({cargo} used)
+          </span>
+          <span>
+            <b>Berths</b> {berths}
+          </span>
+          <span>
+            <b>Pace</b> {fleetShipPace(content, slowest)}
+            {fleet.length ? `, the ${shipKind(slowest.classId)}'s` : ''}
+          </span>
+        </div>
+        {!fleet.length ? <p class="book-sub">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</p> : null}
+        {!port && fleet.length ? <p class="book-sub">In port, mend a ship, make her your flagship or sell her here.</p> : null}
+      </div>
+      <div class="book-page">
+        {port ? (
+          <>
+            <h3 class="book-heading">Laid up at {port.name}</h3>
+            <LaidUp content={content} state={state} shipId={shipId} send={send} />
+            {!(state.captain?.laidUp ?? []).some((l) => l.settlementId === port.id) ? <p class="book-sub">None of your ships lies here.</p> : null}
+            <div class="book-rule" />
+          </>
+        ) : null}
+        <h3 class="book-heading">Selling</h3>
+        <p class="book-small">
+          A shipwright pays {Math.round(content.combat.fleet.sellShare * 100)}% of her class's price, less for a holed hull and torn sails, and half what her fits cost. Sell her in any port.
+        </p>
+      </div>
+    </>
+  );
+}
+
+/** The captain's log (L, storyboard 6.1-6.3): a book with bookmarks, open at sea or in port. */
+export function Log({ content, state, map, settlements, shipId, send, plot, close, goals, date }: LogProps) {
   const pieces = state.captain?.mapPieces ?? {};
   const maps = content.pirates.captains.flatMap((c) => {
     const hoard = state.famous?.[c.id]?.hoard;
     return pieces[c.id] && hoard ? [{ c, hoard, held: pieces[c.id]! }] : [];
   });
-  const [page, setPage] = useState<"goals" | "career" | "top" | "maps">("goals");
+  const [page, setPage] = useState<Page>('log');
   return (
     <div class="log">
-      <div class="log-panel">
-        <div class="log-head">
-          <span class="port-name">Captain's log</span>
-          <nav class="log-tabs">
-            <button
-              class={page === "goals" ? "active" : ""}
-              onClick={() => setPage("goals")}
-            >
-              Goals
-            </button>
-            <button
-              class={page === "career" ? "active" : ""}
-              onClick={() => setPage("career")}
-            >
-              Career
-            </button>
-            <button
-              class={page === "top" ? "active" : ""}
-              onClick={() => setPage("top")}
-            >
-              Top Ten
-            </button>
-            <button
-              class={page === "maps" ? "active" : ""}
-              onClick={() => setPage("maps")}
-            >
-              Maps{maps.length ? ` (${maps.length})` : ""}
-            </button>
-          </nav>
-          <button class="leave" onClick={close}>
-            Close · L
-          </button>
+      <div class="k-paper log-book">
+        <button class="k-btn small paper log-close" onClick={close}>
+          Close · L
+        </button>
+        <div class="book-spread">
+          {page === 'log' ? (
+            <LogPage state={state} settlements={settlements} date={date} plot={plot} />
+          ) : page === 'goals' ? (
+            <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} level={difficultyOf(content, state.difficulty)} />
+          ) : page === 'fleet' ? (
+            <Fleet content={content} state={state} settlements={settlements} shipId={shipId} send={send} />
+          ) : page === 'career' ? (
+            <div class="book-page wide">
+              <h2 class="book-title">Your career</h2>
+              <div class="book-rule" />
+              <CareerCard content={content} state={state} />
+            </div>
+          ) : page === 'top' ? (
+            <div class="book-page wide">
+              <h2 class="book-title">The Top Ten</h2>
+              <div class="book-rule" />
+              <TopTen content={content} state={state} settlements={settlements} />
+            </div>
+          ) : (
+            <div class="book-page wide">
+              <h2 class="book-title">Treasure maps</h2>
+              <div class="book-rule" />
+              {maps.length ? (
+                <div class="log-maps">
+                  {maps.map(({ c, hoard, held }) => (
+                    <HoardMap key={c.id} content={content} map={map} settlements={settlements} name={c.name} hoard={hoard} held={held} plot={plot} />
+                  ))}
+                </div>
+              ) : (
+                <p class="book-sub">
+                  You hold no treasure maps. Take a famous pirate and ask about his hoard, pick up his men when he sinks, or look for the shady stranger in the taverns.
+                </p>
+              )}
+            </div>
+          )}
         </div>
-        {page === "goals" ? (
-          <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} level={difficultyOf(content, state.difficulty)} />
-        ) : page === "career" ? (
-          <CareerCard content={content} state={state} />
-        ) : page === "top" ? (
-          <TopTen content={content} state={state} settlements={settlements} />
-        ) : maps.length ? (
-          <div class="log-maps">
-            {maps.map(({ c, hoard, held }) => (
-              <HoardMap key={c.id} content={content} map={map} settlements={settlements} name={c.name} hoard={hoard} held={held} plot={plot} />
-            ))}
-          </div>
-        ) : (
-          <p class="tavern-quiet">
-            You hold no treasure maps. Take a famous pirate and ask about his
-            hoard, pick up his men when he sinks, or look for the shady stranger
-            in the taverns.
-          </p>
-        )}
+        <nav class="log-tabs">
+          {BOOKMARKS.map(([id, name]) => (
+            <button key={id} class={`log-mark${page === id ? ' active' : ''}`} onClick={() => setPage(id)}>
+              {name}
+              {id === 'maps' && maps.length ? ` (${maps.length})` : ''}
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   );

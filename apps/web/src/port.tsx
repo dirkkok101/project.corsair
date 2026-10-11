@@ -3,7 +3,6 @@ import type { Contract, WorldState } from '@corsair/core';
 import { shipStats, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import {
-  shipRepairCost,
   strangerOffer,
   bountiesOwed,
   cargoUsed,
@@ -44,7 +43,6 @@ import {
   wagesOwed,
   sellsGuns,
   sellsUpgrade,
-  shipValue,
   townOf,
   tradeLean,
   tradePreview,
@@ -79,6 +77,8 @@ export interface PortProps {
   map: TileMap;
   /** Plot a course to a place (tile coordinates), sailed when she sets sail. */
   plot?: (x: number, y: number) => void;
+  /** Opens the captain's log (L), in port too. */
+  openLog?: () => void;
 }
 
 export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
@@ -365,7 +365,7 @@ function arrivalNews(content: ContentPack, state: WorldState, town: PlacedSettle
 }
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
-export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date, map, plot }: PortProps) {
+export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date, map, plot, openLog }: PortProps) {
   // The harbour first (the painting is the menu, storyboard 2.1); a building opens its service, Esc comes back.
   const [open, setOpen] = useState<Service | undefined>(undefined);
   // Retiring asks first, with the score as it stands.
@@ -499,6 +499,11 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             <Stat icon="ui.icon.morale" value={moraleWord(content, morale)} title="The crew's morale" low={morale < 40} />
           </div>
           <span class="harbour-date">{date}</span>
+          {openLog ? (
+            <button class="k-btn" onClick={openLog}>
+              Log <Key k="L" />
+            </button>
+          ) : null}
           <button class="k-btn primary" onClick={() => send({ type: 'Undock', shipId })}>
             Set sail <Key k="E" />
           </button>
@@ -657,78 +662,6 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
 }
 
 /**
- * The fleet at the shipwright (PRD section 7), the flagship first: each ship's condition and what mending her costs,
- * a repair for each one on her own; making a ship the flagship, or selling her for her class's price by her
- * condition. A sale that would leave too little hold for the cargo, or too few berths for the crew, says so instead.
- */
-function FleetList({ content, state, shipId, send, cut }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; cut: number }) {
-  const ship = state.ships[shipId]!;
-  const fleet = fleetOf(state);
-  const hold = fleetHold(content, state, ship);
-  const berths = fleetBerths(content, state, ship);
-  const cargo = cargoUsed(ship);
-  const crew = crewOf(content, ship);
-  const gold = state.captain?.gold ?? 0;
-  const condition = (f: { classId: string; hull?: number; sailCondition?: number; upgrades?: string[]; guns?: number }) => {
-    const stats = shipStats(content, f);
-    return (
-      <>
-        hull {Math.round(f.hull ?? stats.hullMax)} / {stats.hullMax} · sails {Math.round(f.sailCondition ?? 100)}%
-      </>
-    );
-  };
-  const mend = (id: string, f: Parameters<typeof shipRepairCost>[1]) => {
-    const cost = shipRepairCost(content, f, cut);
-    if (cost <= 0) return <span class="trend export">sound</span>;
-    return (
-      <button class="k-btn small" title={gold < cost ? `She needs ${cost} gold to be made sound; you have ${gold}: as far as the purse reaches.` : undefined} disabled={gold <= 0} onClick={() => send({ type: 'Repair', shipId, only: id })}>
-        Repair · {cost.toLocaleString()} gold
-      </button>
-    );
-  };
-  return (
-    <table class="fleet-list">
-      <tbody>
-        <tr class="flagship">
-          <td>
-            <Art id={shipIcon(content, ship.classId)} class="fleet-ship" /> {ship.name ?? 'Your flagship'} <span class="port-sub">({shipKind(ship.classId)}, flagship)</span>
-          </td>
-          <td class="port-sub">{condition(ship)}</td>
-          <td class="actions">{mend(ship.id, ship)}</td>
-        </tr>
-        {fleet.map((f) => {
-          const cls = content.ships[f.classId]!;
-          const stats = shipStats(content, f);
-          const why =
-            hold - cls.cargo < cargo
-              ? `Her hold is needed: the rest of the fleet can't carry the ${cargo} tons aboard.`
-              : berths - stats.maxCrew < crew
-                ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
-                : undefined;
-          return (
-            <tr key={f.id}>
-              <td>
-                <Art id={shipIcon(content, f.classId)} class="fleet-ship" /> {f.name} <span class="port-sub">({shipKind(f.classId)})</span>
-              </td>
-              <td class="port-sub">
-                {condition(f)} · hold {cls.cargo} · speed {stats.speed}
-              </td>
-              <td class="actions">
-                {mend(f.id, f)}
-                <button class="k-btn small" onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>Make flagship</button>
-                <button class="k-btn small" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
-                  Sell · {shipValue(content, f).toLocaleString()} gold
-                </button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-/**
  * The yard's new ships (PRD section 7), each with what she carries, mounts, needs and makes, and her price; buying
  * one adds her to the fleet. A ship the captain can't take yet says why. The great ships are never for sale.
  */
@@ -813,7 +746,7 @@ function compared(a: ContentPack['ships'][string], b: ContentPack['ships'][strin
 }
 
 /** Ships of the player's retaken from pirates and laid up here: take her back into the fleet, salvage paid. */
-function LaidUp({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
+export function LaidUp({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
   const ship = state.ships[shipId]!;
   const here = (state.captain?.laidUp ?? []).filter((l) => l.settlementId === ship.docked);
   if (!here.length) return null;
@@ -1158,8 +1091,7 @@ function RepairYard({
         </span>
       </div>
       <Careen content={content} state={state} shipId={shipId} send={send} hamlet={hamlet} />
-      <FleetList content={content} state={state} shipId={shipId} send={send} cut={cut} />
-      {!fleet.length ? <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</div> : null}
+      <div class="k-sub">Each ship's state, mending one ship alone, and making a ship your flagship or selling her: the log's Fleet page (L).</div>
     </>
   );
 }
