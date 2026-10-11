@@ -1,0 +1,11 @@
+id: loading.dawn
+tool: Grok Imagine
+model: ""
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, at sea off a Caribbean coast in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no film grain, no bloom. A limited palette of about 40 colours: pale dawn golds and pinks, misty greens, deep navy and teal sea, weathered wood browns, warm canvas cream. Calm, adventurous mood. No text, no logos, no watermark, no frame, no people in close-up. A lone two-masted brig under full sail at dawn, seen from low on the water, a misty green coast with a small fort on a headland behind, pale gold sky, a long calm swell, gulls. Wide empty sky in the upper half.
+seed: ""
+kept: [v1, v2]
+hand_changes: "No hand pixel pass."

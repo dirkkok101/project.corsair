@@ -1,0 +1,11 @@
+id: moment.hoard
+tool: Grok Imagine
+model: ""
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, a Caribbean beach in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no film grain, no bloom. A limited palette of about 40 colours: sunset golds and oranges, sand and ochre, palm greens, deep teal sea, iron greys. Painterly detail, readable at small size, the lower third calm and simple. No text, no logos, no watermark, no frame, no people. An open iron-bound chest half dug out of a beach at sunset, gold coins and jewels spilling onto the sand, a shovel stuck upright beside it, palms and a calm sea behind.
+seed: ""
+kept: [v1, v2]
+hand_changes: "No hand pixel pass."

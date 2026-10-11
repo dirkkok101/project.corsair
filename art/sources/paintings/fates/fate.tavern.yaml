@@ -1,0 +1,11 @@
+id: fate.tavern
+tool: Grok Imagine
+model: ""
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art vignette, 4:3, a simple scene in a 1660s Caribbean port. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no film grain. One clear subject and few details. No people, no text, no letters, no signs with writing, no logos, no watermark, no frame. A tavern doorway on a waterfront, a hanging sign with no writing, a bench and a rum barrel, lantern light.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass."

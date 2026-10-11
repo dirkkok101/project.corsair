@@ -23,9 +23,13 @@ const GROUPS: Record<string, string> = {
   dance: 'dance',
   fate: 'fates',
   outcome: 'outcomes',
+  // The storyboard's moments, the loading painting and the difficulty cards (docs/design/storyboard.md).
+  moment: 'moments',
+  loading: 'title',
+  difficulty: 'title',
 };
-/** 4:3 cards (a battle's outcome, a retirement fate) rather than 16:9 scenes: snapped to this size. */
-const CARD: Record<string, [number, number]> = { fates: [320, 240], outcomes: [320, 240] };
+/** 4:3 cards (a battle's outcome, a retirement fate, a difficulty) rather than 16:9 scenes, by id prefix: snapped to this size. */
+const CARD: Record<string, [number, number]> = { fate: [320, 240], outcome: [320, 240], difficulty: [320, 240] };
 
 const args = process.argv.slice(2);
 const reviewDir = args.includes('--review') ? args[args.indexOf('--review') + 1] : undefined;
@@ -80,7 +84,7 @@ function writeShimmer(id: string, base: Uint8Array): number {
 mkdirSync(OUT, { recursive: true });
 if (reviewDir) mkdirSync(reviewDir, { recursive: true });
 
-const records = Object.values(GROUPS).flatMap((g) =>
+const records = [...new Set(Object.values(GROUPS))].flatMap((g) =>
   existsSync(join(SOURCES, g)) ? readdirSync(join(SOURCES, g)).filter((f) => f.endsWith('.yaml')).map((f) => join(g, f)) : [],
 );
 for (const file of records.sort()) {
@@ -93,7 +97,7 @@ for (const file of records.sort()) {
   const raw = join(SOURCES, group, `${id}.${kept}.png`);
   if (!existsSync(raw)) throw new Error(`${file}: ${raw} is missing`);
   // Interiors sit behind the service panels, which cover the middle: calm the centre so the panel reads.
-  const [w, h] = CARD[group] ?? [SCENE_W, SCENE_H];
+  const [w, h] = CARD[id.split('.')[0]!] ?? [SCENE_W, SCENE_H];
   const rgba = snap(raw, group === 'interiors' ? { ...DEFAULT_SNAP, calmCentre: 0.45 } : DEFAULT_SNAP, w, h);
   writeScene(join(OUT, `${id}.png`), rgba, w, h);
   const layout = harbours[id];

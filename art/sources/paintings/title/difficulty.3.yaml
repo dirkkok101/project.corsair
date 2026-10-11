@@ -1,0 +1,11 @@
+id: difficulty.3
+tool: Grok Imagine
+model: ""
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art game painting, 4:3, at sea in the Caribbean in the 1660s. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no film grain. A limited palette of about 40 colours: sea blues and teals, sky colours, weathered wood browns, canvas cream. A small two-masted brig under sail in the middle distance. No text, no logos, no watermark, no frame, no people in close-up. A fresh breeze, whitecaps, scattered clouds.
+seed: ""
+kept: [v1]
+hand_changes: "No hand pixel pass."

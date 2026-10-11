@@ -1,0 +1,11 @@
+id: moment.promotion
+tool: Grok Imagine
+model: ""
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art game background, 16:9, a still life in the 1660s Caribbean. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no film grain, no bloom. A limited palette of about 40 colours: deep reds, warm wood browns, brass and gold, cream parchment, candle-lit amber. Painterly detail, readable at small size, the lower third calm and simple. No text, no letters, no writing on the paper, no logos, no watermark, no frame. A gentleman's sword laid across a folded parchment commission with a large red wax seal, on red velvet over a dark wooden desk, warm candle light from the left, a brass candlestick.
+seed: ""
+kept: [v1, v2]
+hand_changes: "No hand pixel pass."

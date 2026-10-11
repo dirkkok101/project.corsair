@@ -29,6 +29,26 @@ const SIZES: [prefix: string, w: number, h: number][] = [
   // The people who speak to the captain (docs/design/storyboard.md), head and shoulders.
   ['bust.', 192, 224],
 ];
+/** Sheets of icons painted together, cut into a grid (left to right, top to bottom) into these ids. */
+const SHEETS: Record<string, { cols: number; ids: string[] }> = {
+  'ui.icons.fits': {
+    cols: 3,
+    ids: ['copper', 'cotton_sails', 'scantlings', 'bronze_cannon', 'powder', 'hammocks', 'swivel_guns', 'nettings', 'sweeps'].map((u) => `ui.icon.fit.${u}`),
+  },
+};
+
+/** One cell of a sheet's grid, as an image of its own. */
+function cell(png: ReturnType<typeof decode>, col: number, row: number, cols: number, rows: number): ReturnType<typeof decode> {
+  const cw = Math.floor(png.width / cols);
+  const chh = Math.floor(png.height / rows);
+  const data = new Uint8Array(cw * chh * png.channels);
+  for (let y = 0; y < chh; y++) {
+    const from = ((row * chh + y) * png.width + col * cw) * png.channels;
+    data.set(png.data.subarray(from, from + cw * png.channels) as Uint8Array, y * cw * png.channels);
+  }
+  return { ...png, width: cw, height: chh, data };
+}
+
 /** Corner patches the key colour is read from, in source pixels. */
 const CORNER = 24;
 /** Added to the corners' own spread, so the key takes the whole field but not the object's edge. */
@@ -47,9 +67,16 @@ for (const file of readdirSync(SOURCES).filter((f) => f.endsWith('.yaml')).sort(
   const text = readFileSync(join(SOURCES, file), 'utf8');
   const id = /^id:\s*(\S+)/m.exec(text)?.[1];
   const kept = /^kept:\s*\[\s*([^\],\s]+)/m.exec(text)?.[1];
-  const size = SIZES.find(([p]) => id?.startsWith(p));
-  if (!id || !kept || !size) throw new Error(`${file}: needs an id with a known prefix and a kept version`);
-  const png = decode(readFileSync(join(SOURCES, `${id}.${kept}.png`)));
+  if (!id || !kept) throw new Error(`${file}: needs an id and a kept version`);
+  const whole = decode(readFileSync(join(SOURCES, `${id}.${kept}.png`)));
+  // A sheet of icons (SHEETS) is cut into its grid first; each cell is then keyed like a single image.
+  const sheet = SHEETS[id];
+  const jobs = sheet
+    ? sheet.ids.map((cellId, k) => ({ id: cellId, png: cell(whole, k % sheet.cols, Math.floor(k / sheet.cols), sheet.cols, Math.ceil(sheet.ids.length / sheet.cols)) }))
+    : [{ id, png: whole }];
+  for (const { id, png } of jobs) {
+  const size = SIZES.find(([p]) => id.startsWith(p));
+  if (!size) throw new Error(`${file}: ${id} needs an id with a known prefix`);
   const { width: w, height: h, channels: ch, data } = png;
   const px = (x: number, y: number) => {
     const i = (y * w + x) * ch;
@@ -58,10 +85,18 @@ for (const file of readdirSync(SOURCES).filter((f) => f.endsWith('.yaml')).sort(
 
   // The key: the median corner colour, and how far the corners stray from it.
   const samples: (readonly [number, number, number])[] = [];
-  // A bust runs off the bottom edge (cut at the chest), so only its top corners are background.
-  const corners = id.startsWith('bust.') ? [[0, 0], [w - CORNER, 0]] : [[0, 0], [w - CORNER, 0], [0, h - CORNER], [w - CORNER, h - CORNER]];
+  // A bust runs off the bottom edge (cut at the chest), so only its top corners are background; a sheet's cell may
+  // have its icon in a corner, so the key comes from the whole sheet's corners.
+  const from = sheet ? whole : png;
+  const fw = from.width;
+  const fh = from.height;
+  const fpx = (x: number, y: number) => {
+    const i = (y * fw + x) * from.channels;
+    return [from.data[i]!, from.data[i + 1]!, from.data[i + 2]!] as const;
+  };
+  const corners = id.startsWith('bust.') ? [[0, 0], [fw - CORNER, 0]] : [[0, 0], [fw - CORNER, 0], [0, fh - CORNER], [fw - CORNER, fh - CORNER]];
   for (const [cx, cy] of corners as [number, number][]) {
-    for (let y = cy; y < cy + CORNER; y++) for (let x = cx; x < cx + CORNER; x++) samples.push(px(x, y));
+    for (let y = cy; y < cy + CORNER; y++) for (let x = cx; x < cx + CORNER; x++) samples.push(fpx(x, y));
   }
   const median = (k: 0 | 1 | 2) => samples.map((s) => s[k]).sort((a, b) => a - b)[samples.length >> 1]!;
   const key = [median(0), median(1), median(2)] as const;
@@ -129,5 +164,6 @@ for (const file of readdirSync(SOURCES).filter((f) => f.endsWith('.yaml')).sort(
   }
   writeFileSync(join(OUT, `${id}.png`), encode({ width: ow, height: oh, data: out, channels: 4 }));
   console.log(`${id} <- ${kept}: key ${key.join(',')} ±${tolerance}, ${ow}x${oh}`);
+  }
 }
 }

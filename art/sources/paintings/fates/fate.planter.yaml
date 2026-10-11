@@ -1,0 +1,11 @@
+id: fate.planter
+tool: Grok Imagine
+model: ""
+plan: ""
+date: 2026-10-11
+reference: ""
+prompt: |
+  Pixel art vignette, 4:3, a simple scene in a 1660s Caribbean port. Crisp hard-edged pixels, flat colour areas with a little hand-placed dithering, no anti-aliasing, no blur, no film grain. One clear subject and few details. No people, no text, no letters, no signs with writing, no logos, no watermark, no frame. A great plantation house with a deep veranda, palms and green fields of cane, a road of red earth.
+seed: ""
+kept: [v1, v2]
+hand_changes: "No hand pixel pass."
