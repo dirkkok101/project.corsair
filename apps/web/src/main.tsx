@@ -32,6 +32,7 @@ import { COUNTRY, Ending } from './career';
 import { chooseCareer } from './start';
 import { crewLook, Hail, shipTitle } from './hail';
 import { HoardMap, Log } from './log';
+import { bandOf } from './ui/kit';
 import { createShipLabels } from './shiplabels';
 import { bindMouse } from './mouse';
 import { ShipPanel } from './panel';
@@ -148,6 +149,8 @@ const HOLD_COAST_TILES = 3;
 const HOLD_PORT_TILES = 5;
 /** A ship this near (tiles) is called out ("Sail ho!") and holds time at 1x. */
 const SAIL_HO_TILES = 15;
+/** The HUD's strip fades after this long with nothing on it changing. */
+const STRIP_REST_MS = 6000;
 const SAIL_HO_MS = 3500;
 
 async function main() {
@@ -612,6 +615,11 @@ async function main() {
     }
     // L: the captain's log (the Top Ten and the treasure maps), at sea; Escape closes it too.
     if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen && !player().docked;
+    // F1: every key, grouped (the HUD shows only the one that applies now).
+    if (e.key === 'F1' && !e.repeat) {
+      e.preventDefault();
+      helpOpen = !helpOpen;
+    }
     if (e.key === 'Escape') logOpen = false;
     // Ctrl+S (Cmd+S on a Mac) saves the career instead of the browser's "save page".
     if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
@@ -651,6 +659,11 @@ async function main() {
   // holding it re-aims; a right-click hails the ship or enters the port under it, or else drops the course.
   // In battle a left-click (or hold) steers to the point and the right button fires.
   let courseNote: { text: string; until: number } | undefined;
+  /** F1's key help is open. */
+  let helpOpen = false;
+  /** The HUD's strip fades while nothing on it changes: what it last showed, and when that changed. */
+  let stripSeen = '';
+  let stripChanged = 0;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: string | undefined;
   /** A map piece just bought: its parchment, shown over the port until closed. */
@@ -1078,8 +1091,10 @@ async function main() {
     }
     stage.classList.remove('in-battle');
     render(null, battleRoot);
-    {
-      // The ship card at sea and in port (in battle the battle HUD has its own).
+    if (!player().docked) render(null, panelRoot);
+    else {
+      // The ship card in port, until the harbour is redone (docs/design/ui-conversion.md, S3); at sea the HUD's
+      // strip and controls replace it, and in battle the battle HUD has its own.
       const me = player();
       const stats = shipStats(content, me);
       const each = Math.floor(stats.guns / 2);
@@ -1432,6 +1447,29 @@ async function main() {
       const following = ship.assist?.mode === 'course' && ship.assist.portId === destination.id;
       course = { name: destination.name, distanceKm: tiles * kmPerTile, bearingDeg, following };
     }
+    const stats = shipStats(content, ship);
+    const morale = moraleOf(content, sim.state);
+    const hullShare = (ship.hull ?? stats.hullMax) / stats.hullMax;
+    const strip = {
+      gold: sim.state.captain?.gold ?? 0,
+      chest: Math.round(sim.state.captain?.chest ?? 0),
+      crew: crewOf(content, ship),
+      berths: fleetBerths(content, sim.state, ship),
+      foodDays: foodDays(content, ship),
+      morale: moraleWord(content, morale),
+      moraleLow: morale < 40,
+      hull: bandOf(hullShare, [[0, 'Sinking'], [0.3, 'Badly hurt'], [0.6, 'Holed'], [0.9, 'Sound']]),
+      hullLow: hullShare < 0.6,
+      foul: ship.fouling,
+      hold: cargoUsed(ship),
+      capacity: fleetHold(content, sim.state, ship),
+    };
+    // Any change on the strip brings it back; at rest it fades.
+    const shown = JSON.stringify({ ...strip, foodDays: Math.floor(strip.foodDays) });
+    if (shown !== stripSeen) {
+      stripSeen = shown;
+      stripChanged = now;
+    }
     render(
       <Hud
         state={sim.state}
@@ -1461,10 +1499,6 @@ async function main() {
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
-            : digNote && now < digNote.until
-              ? digNote.text
-            : goalNote && now < goalNote.until
-              ? goalNote.text
               : reach
               ? `Enter ${reach.name} · E`
               : near
@@ -1476,9 +1510,7 @@ async function main() {
                     ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`
                     : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name} · sail in and H to take a hand`
                   : sailHo && now < sailHo.until
-                  ? `${sailHo.text} · I intercept`
-                  : courseNote && now < courseNote.until
-                    ? courseNote.text
+                  ? `Intercept her · I`
                     : crewWarning
                       ? crewWarning
                       : intercepting?.ai
@@ -1489,6 +1521,25 @@ async function main() {
         }
         timeScale={cruise.held ? cruise.held : speedNow > 1 ? speedNow : undefined}
         saved={now - savedAt < 2000}
+        banner={sailHo && now < sailHo.until ? sailHo.text : undefined}
+        toasts={[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n.text] : []))}
+        goal={(() => {
+          const g = goals.find((x) => !x.done);
+          return g && { title: g.title, have: g.have, of: g.of, unit: g.unit };
+        })()}
+        strip={strip}
+        faded={now - stripChanged > STRIP_REST_MS}
+        setSails={(sails) => sim.send({ type: 'SetSails', shipId: ship.id, sails })}
+        cruise={{ speed: wantedSpeed, choose: (n) => (wantedSpeed = n), course: Boolean(ship.assist), stop: () => sim.send({ type: 'SetAssist', shipId: ship.id, assist: 'off' }) }}
+        help={helpOpen}
+        closeHelp={() => (helpOpen = false)}
+        fleetPace={(() => {
+          const fleet = fleetOf(sim.state);
+          if (!fleet.length || ship.fleetSpeed === undefined || ship.fleetSpeed >= shipStats(content, { ...ship, fleetSpeed: undefined }).speed) return undefined;
+          const slowest = [...fleet].sort((a, b) => fleetShipPace(content, a) - fleetShipPace(content, b))[0]!;
+          const damaged = fleetShipPace(content, slowest) < shipStats(content, slowest).speed;
+          return `Fleet of ${fleet.length + 1}, held to ${ship.fleetSpeed} by the ${shipKind(slowest.classId)}${damaged ? "'s damage: mend her at a shipwright" : ''}`;
+        })()}
       />,
       hudRoot,
     );

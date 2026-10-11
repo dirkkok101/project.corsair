@@ -1,7 +1,8 @@
 import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
-import { angleOffWind, pointOfSail, polarAt, speedPoints, targetSpeed, toSpeedPoints } from '@corsair/systems-navigation';
+import { angleOffWind, pointOfSail, polarAt } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
+import { Key, Stat } from './ui/kit';
 
 const ROSE = { size: 168, ring: 62, inner: 10, outer: 54 };
 const GILT = '#e6bf6a';
@@ -191,8 +192,12 @@ export interface HudProps {
   destination?: { name: string; distanceKm: number; bearingDeg: number; following: boolean };
   /** Sound status hint, shown until sound is running (or while muted). */
   sound?: string;
-  /** "Enter Port Royal · E" when a port is in reach. */
+  /** The one thing to do now ("Enter Port Royal · E"): a trailing " · K" shows as a key cap. */
   prompt?: string;
+  /** "Sail ho!": a ship just come into sight, called out across the top. */
+  banner?: string;
+  /** Notes that come and go (a goal done, a dig's result, rent paid), newest last. */
+  toasts?: string[];
   /** Time acceleration in force (2 or 4), or why cruising is held at 1x ("near land", "sail in sight", "storm"). */
   timeScale?: number | string;
   /** True for a moment after the career is saved. */
@@ -201,82 +206,156 @@ export interface HudProps {
   knotsPerTilePerSecond: number;
   /** The view's turn (degrees clockwise): the 3D camera from astern turns with her, and the compass with it. */
   viewDeg?: number;
+  /** The career's next goal, shown in a pill (opens the log). */
+  goal?: { title: string; have: number; of: number; unit: string };
+  /** The strip: gold, the chest, men, food, morale, hull, hold; faded while nothing changes. */
+  strip: { gold: number; chest: number; crew: number; berths: number; foodDays: number; morale: string; moraleLow: boolean; hull: string; hullLow: boolean; foul?: number; hold: number; capacity: number };
+  faded: boolean;
+  /** Sails and cruise speed, by the compass. */
+  setSails: (sails: Ship['sails']) => void;
+  cruise: { speed: number; choose: (speed: number) => void; course: boolean; stop: () => void };
+  /** F1: every key, grouped, and closing it. */
+  help: boolean;
+  closeHelp: () => void;
+  /** The fleet held to its slowest ship's pace: why, in a few words (until the log's Fleet page, slice S8). */
+  fleetPace?: string;
 }
 
-export function Hud({
-  state,
-  content,
-  wind,
-  date,
-  seaArea,
-  inStorm,
-  breeze,
-  destination,
-  sound,
-  prompt,
-  timeScale,
-  saved,
-  knotsPerTilePerSecond,
-  viewDeg,
-}: HudProps) {
+/** "Enter Port Royal · E" as text and a key cap. */
+function Prompt({ text }: { text: string }) {
+  const m = /^(.*) · ([A-Z0-9]{1,5}|[A-Z] [a-z]+(?: [a-z]+)?)$/.exec(text);
+  if (!m) return <div class="hud-prompt">{text}</div>;
+  // A trailing "· I intercept" names its key and what it does.
+  const [k, ...rest] = m[2]!.split(' ');
+  return (
+    <div class="hud-prompt">
+      <Key k={k!} />
+      <span>
+        {m[1]}
+        {rest.length ? ` · ${rest.join(' ')}` : ''}
+      </span>
+    </div>
+  );
+}
+
+const KEYS: { group: string; keys: [string, string][] }[] = [
+  { group: 'Sailing', keys: [['A D', 'steer'], ['W S', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern']] },
+  { group: 'Course and chart', keys: [['M', 'the chart: pick a port'], ['F', 'follow the route'], ['I', 'intercept a ship'], ['Click', 'sail there, or dock']] },
+  { group: 'Ships and shore', keys: [['H', 'hail a ship'], ['E', 'enter port, set sail'], ['G', 'go ashore and dig'], ['K', 'careen on a beach']] },
+  { group: 'Battle', keys: [['Space', 'fire whichever side bears'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
+  { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['Esc', 'close, or leave port']] },
+];
+
+/** F1: every key, grouped as the storyboard's help (artboard 4.5). */
+function Help({ close }: { close: () => void }) {
+  return (
+    <div class="hud-help">
+      <div class="hud-help-head">
+        <span class="k-title">Every key</span>
+        <span class="k-sub">At sea only the key you need right now shows · F1 closes this</span>
+        <button class="k-btn small" onClick={close}>
+          Close · F1
+        </button>
+      </div>
+      <div class="hud-help-groups">
+        {KEYS.map((g) => (
+          <div key={g.group} class="k-wood hud-help-group">
+            <div class="k-who">{g.group}</div>
+            {g.keys.map(([k, does]) => (
+              <div key={k} class="hud-help-row">
+                <Key k={k} />
+                <span>{does}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function Hud(p: HudProps) {
+  const { state, content, wind } = p;
   const ship = state.ships.player;
   if (!ship) return null;
-  const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
+  const s = p.strip;
+  const food = Math.floor(s.foodDays);
   return (
-    <>
-      <div class="hud">
-        <div class="hud-date">
-          {date}
-
-          {typeof timeScale === 'string' ? ` · 1×, ${timeScale}` : timeScale ? ` · ${timeScale}×` : ''}
-        </div>
-        <div class="hud-date">{inStorm ? <span class="hud-storm">Storm!</span> : seaArea}</div>
-        <div>Wind</div>
-        <div>
-          {wind.strength} from {Math.round(wind.fromDeg)}°
-        </div>
-        <div />
-        <div>
-          {pointOfSail(content, offWind).name} · {Math.round(offWind)}° off the wind
-        </div>
-        {breeze ? (
-          <>
-            <div />
-            <div class="hud-note">{breeze}</div>
-          </>
+    <div class="hud">
+      <div class="hud-top">
+        {p.goal ? (
+          <div class="hud-pill hud-goal" title="Your next goal: the log (L) shows them all">
+            <span class="k-who">Goal</span> {p.goal.title}
+            {p.goal.unit ? ` · ${p.goal.have.toLocaleString()} of ${p.goal.of.toLocaleString()}` : ''}
+          </div>
         ) : null}
-        {ship.assist ? (
-          <>
-            <div>Course</div>
-            <div class="hud-note">
-              {ship.assist.mode === 'course' ? 'Plotted course' : ship.assist.mode === 'intercept' ? 'Intercept' : 'Beating'} · {ship.assist.tack} tack
-            </div>
-          </>
-        ) : null}
-        {destination ? (
-          <>
-            <div>To</div>
-            <div>
-              {destination.name} · {Math.round(destination.distanceKm)} km · bear {Math.round(destination.bearingDeg)}°
-              {destination.following ? ' · following' : ' · F to follow'}
-            </div>
-          </>
-        ) : null}
-        <div>Sails</div>
-        <div>{ship.sails}</div>
-        <div>Heading</div>
-        <div>{Math.round(ship.headingDeg)}°</div>
-        <div>Speed</div>
-        <div>
-          {speedPoints(content, ship).toFixed(1)} → {toSpeedPoints(content, targetSpeed(content, ship, wind)).toFixed(1)}
-          {ship.blocked ? ' · aground' : ''}
+        <div class="hud-pill hud-sea">
+          {p.inStorm ? <span class="hud-storm">Storm!</span> : p.seaArea}
+          {p.breeze ? <span class="hud-note"> · {p.breeze}</span> : null}
         </div>
+        {p.destination ? (
+          <div class="hud-pill hud-course">
+            To {p.destination.name} · {Math.round(p.destination.distanceKm)} km · bear {Math.round(p.destination.bearingDeg)}°
+            {p.destination.following ? ' · following' : ' · F to follow'}
+          </div>
+        ) : ship.assist ? (
+          <div class="hud-pill hud-course">
+            {ship.assist.mode === 'course' ? 'Plotted course' : ship.assist.mode === 'intercept' ? 'Intercept' : 'Beating'} · {ship.assist.tack} tack
+          </div>
+        ) : null}
+        {p.fleetPace ? <div class="hud-pill hud-fleet">{p.fleetPace}</div> : null}
       </div>
-      <Compass {...compassProps(content, ship, wind, ship.speed * knotsPerTilePerSecond)} viewDeg={viewDeg} />
-      {sound ? <div class="hud-sound">{sound}</div> : null}
-      {prompt ? <div class="hud-prompt">{prompt}</div> : null}
-      {saved ? <div class="hud-saved">Saved</div> : null}
-      <div class="hud-keys">A/D or ←/→ steer · W/S or ↑/↓ sails · T tack · B beat · I intercept · H hail · M chart (pick a port) · F follow route · E port · L log · G dig · K careen · =/- cruise · Ctrl+S save · V sound · N music · [ ] turn wind · 1–5 wind strength</div>
-    </>
+      <div class="hud-date">
+        {p.date}
+        {typeof p.timeScale === 'string' ? ` · 1×, ${p.timeScale}` : p.timeScale ? ` · ${p.timeScale}×` : ''}
+      </div>
+      {p.banner ? <div class="hud-banner">{p.banner}</div> : null}
+      {p.toasts?.length ? (
+        <div class="hud-toasts">
+          {p.toasts.map((t) => (
+            <div key={t} class="hud-toast">
+              {t}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {p.prompt ? <Prompt text={p.prompt} /> : null}
+      <div class={`hud-strip${p.faded ? ' faded' : ''}`}>
+        <Stat icon="ui.icon.gold" value={s.gold.toLocaleString()} title="Gold in your purse" />
+        {s.chest ? <Stat icon="ui.icon.chest" value={s.chest.toLocaleString()} title="The plunder chest the crew sails for: divide it in a tavern" /> : null}
+        <Stat icon="ui.icon.crew" value={`${s.crew} men`} title={`Crew ${s.crew} of ${s.berths} berths`} low={s.crew < s.berths / 3} />
+        <Stat icon="ui.icon.food" value={`${food} ${food === 1 ? 'day' : 'days'}`} title="Food aboard, in days for this crew" low={s.foodDays <= 3} />
+        <Stat icon="ui.icon.morale" value={s.morale} title="The crew's morale" low={s.moraleLow} />
+        <Stat
+          icon="ui.icon.hull"
+          value={s.foul !== undefined && s.foul >= 0.05 ? `${s.hull} · foul` : s.hull}
+          title={s.foul !== undefined && s.foul >= 0.05 ? `Her bottom is foul: ${Math.round(s.foul * 100)}% off her speed. Careen her at a shipwright, or on a beach (K)` : 'Her hull'}
+          low={s.hullLow}
+        />
+        <Stat icon="ui.icon.good.food" value={`${s.hold} / ${s.capacity}`} title="Her hold: cargo aboard of what she carries" />
+      </div>
+      <div class="hud-controls">
+        {(['full', 'half'] as const).map((sail) => (
+          <button key={sail} class={`k-btn small${ship.sails === sail ? ' active' : ''}`} title={sail === 'full' ? 'Full sail (W)' : 'Half sail, tighter turns (S)'} onClick={() => p.setSails(sail)}>
+            {sail === 'full' ? 'Full sail' : 'Half sail'}
+          </button>
+        ))}
+        {[1, 2, 4].map((n) => (
+          <button key={n} class={`k-btn small${p.cruise.speed === n ? ' active' : ''}`} title="Cruise speed on open sea (= and -)" onClick={() => p.cruise.choose(n)}>
+            {n}×
+          </button>
+        ))}
+        <button class="k-btn small" disabled={!p.cruise.course} title="Drop the course and take the helm (right-click)" onClick={p.cruise.stop}>
+          Stop
+        </button>
+      </div>
+      <Compass {...compassProps(content, ship, wind, ship.speed * p.knotsPerTilePerSecond)} viewDeg={p.viewDeg} />
+      {p.sound ? <div class="hud-sound">{p.sound}</div> : null}
+      {p.saved ? <div class="hud-saved">Saved</div> : null}
+      <div class="hud-help-hint">
+        <Key k="F1" /> keys
+      </div>
+      {p.help ? <Help close={p.closeHelp} /> : null}
+    </div>
   );
 }

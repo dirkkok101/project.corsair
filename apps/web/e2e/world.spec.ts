@@ -461,10 +461,10 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
     return h;
   });
   // A goal just done shows first, for 7 seconds; the dig prompt follows.
-  await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig · G', { timeout: 10_000 });
+  await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig', { timeout: 10_000 });
   const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
   await page.keyboard.press('g');
-  await expect(page.locator('.hud-prompt')).toContainText('You dig up');
+  await expect(page.locator('.hud-toasts')).toContainText('You dig up');
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { chest?: number }).chest)).toBe(hoard.value);
   // Half a day went by.
   expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThanOrEqual(tick + Math.round(771 / 2));
@@ -784,7 +784,7 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
     }
     return at.id;
   });
-  await expect(page.locator('.hud-prompt')).toContainText('Sail ho!');
+  await expect(page.locator('.hud-banner')).toContainText('Sail ho!');
   // Cruising holds at 1x (here the coast may hold it too: either reason drops it).
   await expect(page.locator('.hud-date').first()).toContainText('1×,');
   await page.keyboard.press('i');
@@ -847,7 +847,7 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   const errors = await boot(page, '/?seed=3');
   const food = () => page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).food ?? 0);
   const before = await food();
-  await expect(page.locator('.ship-panel')).toContainText('days of food');
+  await expect(page.locator('.hud-strip')).toContainText('days');
   // Three days hove to off Port Royal, under its guns where pirates don't come (the clock stops in port).
   await page.evaluate(() => {
     const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
@@ -973,8 +973,8 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(1);
-  // The card shows her and the pace she holds the fleet to.
-  await expect(page.locator('.panel-fleet')).toContainText('held to');
+  // The HUD says the pace she holds the fleet to.
+  await expect(page.locator('.hud-fleet')).toContainText('held to');
   await page.evaluate(() => window.__corsair.sim.step(60));
   await page.screenshot({ path: 'test-results/fleet-at-sea.png' });
 
