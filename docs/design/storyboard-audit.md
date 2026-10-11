@@ -1,5 +1,9 @@
 # Storyboard audit: what the game has against the mockups
 
+**Built 2026-10-11:** every row below is in the game (slices S1 to S13). Two storyboard ideas the audit never
+covered remain for later, as new features rather than restyles: the new career's nation and name steps (storyboard
+2.3, steps 1 and 2: every career still starts as England in Port Royal) and the storm moment's darkening sky.
+
 Audited 2026-10-11 against the 30 artboards of the
 [Corsair UI Storyboard](https://claude.ai/artifact/YAbWGj2B2zQ9xKvUVxdnCg) and the code at `ab7e957`. The goal: every
 storyboard element built and matching. Each row is one element: **Have** (works today, only its look changes),

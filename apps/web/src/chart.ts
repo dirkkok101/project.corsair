@@ -499,7 +499,9 @@ export function createCharts(
       const html = list
         .map(
           (g) =>
-            `<div class="chart-ring" title="${g.label}" style="left:${(g.x / map.width) * 100}%;top:${(g.y / map.height) * 100}%;width:${((2 * g.r) / map.width) * 100}%"></div>`,
+            `<div class="chart-ring" title="${g.label}" style="left:${(g.x / map.width) * 100}%;top:${(g.y / map.height) * 100}%;width:${((2 * g.r) / map.width) * 100}%"></div>` +
+            // Its label in red ink above the ring: whose hoard, search here.
+            `<div class="chart-ring-label" style="left:${(g.x / map.width) * 100}%;top:${((g.y - g.r) / map.height) * 100}%">${g.label.split(':')[0]}: search here</div>`,
         )
         .join('');
       if (html !== ringsDrawn) ringsLayer.innerHTML = ringsDrawn = html;

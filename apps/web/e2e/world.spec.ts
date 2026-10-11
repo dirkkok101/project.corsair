@@ -30,6 +30,8 @@ async function boot(page: Page, url = '/', { inPort = false } = {}) {
   await page.goto(url);
   await setSail(page, url);
   await page.waitForFunction(() => Boolean(window.__corsair));
+  // The loading screen has faded once the first frames are drawn.
+  await expect(page.locator('.loading')).toHaveCount(0);
   // Freeze the clock so every check below steps the sim explicitly.
   await page.evaluate(() => window.__corsair.sim.pause());
   if (!inPort) {
@@ -1256,11 +1258,15 @@ test('retiring in port scores the career, ends it, and the start screen says how
   await page.locator('.port-docks').click();
   await page.getByRole('button', { name: 'Retire…' }).click();
   await expect(page.locator('.career-score')).toContainText('Trade fame');
+  await expect(page.locator('.career-total')).toContainText('the next fate at');
+  await page.screenshot({ path: 'test-results/retire-confirm.png' });
   await page.getByRole('button', { name: 'Not yet' }).click();
   await expect(page.locator('.career-score')).toHaveCount(0);
   await page.getByRole('button', { name: 'Retire…' }).click();
   await page.getByRole('button', { name: 'Retire now' }).click();
-  await expect(page.locator('.ending')).toContainText('You retired with a score of');
+  // The fate's painting, what became of him, and the score.
+  await expect(page.locator('.ending .moment-title')).toHaveText('A beggar on the quays of Port Royal');
+  await expect(page.locator('.ending-number')).toHaveText(/^\d+$/);
   await page.screenshot({ path: 'test-results/retired.png' });
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { retired?: unknown }).retired)).toBeTruthy();
   await expect(page.locator('.hud-saved')).toBeVisible();
