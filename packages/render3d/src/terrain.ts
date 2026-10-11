@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { TileMap } from '@corsair/data';
+import { isLand } from '@corsair/data';
+import type { Tile, TileMap } from '@corsair/data';
 
 // The land (art direction: Pirates! 2004, docs/reference/pirates-3d-style.md): lush rounded green islands with
 // soft beaches, patches of bare tan rock on the heights, palms along the shore and jungle inland. Heights come
@@ -29,6 +30,9 @@ function groundOf(tile: number, band: number): number {
       return 2.4 + 0.8 * band; // mountain
   }
 }
+
+/** The least height of a land tile's centre after smoothing (tiles): a low beach. */
+const COAST = 0.2;
 
 /** Box blur, rows then columns, `passes` times (three passes come close to a Gaussian). */
 function blur(src: Float32Array, w: number, h: number, r: number, passes: number): Float32Array {
@@ -119,11 +123,15 @@ export interface Clearing {
   r: number;
 }
 
-export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
+/** The ground's shape, without drawing it: each tile's smoothed height, and the height anywhere with detail. */
+export function groundShape(map: TileMap): { base: Float32Array; heightAt: (x: number, y: number) => number } {
   const { width: w, height: h } = map;
   const raw = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) raw[i] = groundOf(map.tiles[i] ?? 3, map.elevation[i] ?? 0);
   const base = blur(raw, w, h, 1, 3);
+  // The blur pulls every coast toward the sea floor; land keeps at least a beach's height, so the shore (and the
+  // towns along it) stays where the map has it and small islands don't drown.
+  for (let i = 0; i < w * h; i++) if (isLand(map.tiles[i] as Tile)) base[i] = Math.max(base[i]!, COAST);
   const baseAt = (x: number, y: number) => {
     // Bilinear between tile centres, so a fine mesh is smooth rather than terraced.
     const fx = Math.min(w - 1.001, Math.max(0, x - 0.5));
@@ -148,6 +156,12 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
     const ridge = (1 - Math.abs(fbm(x * 0.18 + 17, y * 0.18 + 5, 4) * 2 - 1)) * THREE.MathUtils.smoothstep(g, 1.8, 4) * 2.2;
     return g + inland * (rolling + ridge);
   };
+  return { base, heightAt };
+}
+
+export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
+  const { width: w, height: h } = map;
+  const { base, heightAt } = groundShape(map);
 
   // The sea floor, one texel a tile: red, the floor's height (-2.2 deep .. 0 at the shoreline, as 0 .. 1);
   // green, a wide soft halo of nearness to land, for the bright apron of shallows round every island.

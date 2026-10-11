@@ -31,7 +31,7 @@ import { loadStoredSave, storeSave } from './save';
 import { COUNTRY, Ending } from './career';
 import { chooseCareer } from './start';
 import { crewLook, Hail, shipTitle } from './hail';
-import { Log } from './log';
+import { HoardMap, Log } from './log';
 import { createShipLabels } from './shiplabels';
 import { bindMouse } from './mouse';
 import { ShipPanel } from './panel';
@@ -653,6 +653,17 @@ async function main() {
   let courseNote: { text: string; until: number } | undefined;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: string | undefined;
+  /** A map piece just bought: its parchment, shown over the port until closed. */
+  let mapReveal: string | undefined;
+  /** What a refused order in port means, in words (the rest say so on their own button). */
+  const REFUSED: Record<string, string> = {
+    'not-enough-gold': 'Not enough gold for that.',
+    'not-sold-here': 'Not to be had in this port.',
+    'map-whole': 'You already hold the whole of that map.',
+    'no-offer': 'The stranger has gone.',
+    standing: 'The yard builds her only for a captain in better standing here.',
+    rank: 'The yard builds her only for a captain of higher rank here.',
+  };
   let lastReplanTick = -Infinity;
   const setCourse = (x: number, y: number, held: boolean) => {
     const me = player();
@@ -1155,6 +1166,15 @@ async function main() {
         const port = portInReach();
         if (port?.id === ev.payload.portId) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
       }
+      // An order refused in port: say why, rather than nothing happening.
+      if (ev.type === 'TradeRefused' && player().docked && REFUSED[ev.payload.reason as string]) portNotice = REFUSED[ev.payload.reason as string];
+      if (ev.type === 'MapPieceBought') {
+        const p = ev.payload as { pirateId: string; pieces: number };
+        const name = content.pirates.captains.find((c) => c.id === p.pirateId)?.name ?? p.pirateId;
+        portNotice = `The sailor slips you a torn piece of ${name}'s map: ${p.pieces} of ${content.pirates.rules.mapPieces}. Your maps are in the log (L) at sea.`;
+        mapReveal = p.pirateId;
+      }
+      if (ev.type === 'Undocked') mapReveal = undefined;
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
         courseNote = { text: `Plague at ${name}: the port is shut to shipping`, until: now + 4000 };
@@ -1331,6 +1351,25 @@ async function main() {
     render(
       sim.state.captain?.retired ? (
         <Ending content={content} state={sim.state} again={() => location.reload()} />
+      ) : town && mapReveal && sim.state.famous?.[mapReveal]?.hoard ? (
+        <div class="log">
+          <div class="log-panel">
+            <div class="log-head">
+              <span class="port-name">A piece of {content.pirates.captains.find((c) => c.id === mapReveal)?.name}'s map</span>
+              <button class="leave" onClick={() => (mapReveal = undefined)}>
+                Close
+              </button>
+            </div>
+            <HoardMap
+              content={content}
+              map={map}
+              settlements={settlements}
+              name={content.pirates.captains.find((c) => c.id === mapReveal)?.name ?? ''}
+              hoard={sim.state.famous[mapReveal]!.hoard!}
+              held={sim.state.captain?.mapPieces?.[mapReveal] ?? 0}
+            />
+          </div>
+        </div>
       ) : town ? (
         <Port
           state={sim.state}

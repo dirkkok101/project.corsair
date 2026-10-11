@@ -409,7 +409,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           <div>
             <div class="port-name">{town.name}</div>
             <div class="port-sub">
-              {NATION[town.nation]} {town.type === 'haven' ? 'pirate haven' : town.type === 'capital' ? 'capital' : town.size} ·{' '}
+              {town.type === 'haven' ? 'Pirate haven' : `${NATION[town.nation]} ${town.type === 'capital' ? 'capital' : town.size}`} ·{' '}
               {townLine(content, state, town)}
             </div>
             <div class="port-lean">
@@ -892,7 +892,7 @@ function Shipwright({
         ))}
       </div>
       {yard === 'repair' ? (
-        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} />
+        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} hamlet={town.size === 'hamlet'} />
       ) : yard === 'buy' ? (
         <>
           <LaidUp content={content} state={state} shipId={shipId} send={send} />
@@ -906,7 +906,23 @@ function Shipwright({
 }
 
 /** Mending: every ship's condition and her own repair, and the whole fleet at once. */
-function RepairYard({ content, state, shipId, send, cost, cut }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; cost: number; cut: number }) {
+function RepairYard({
+  content,
+  state,
+  shipId,
+  send,
+  cost,
+  cut,
+  hamlet,
+}: {
+  content: ContentPack;
+  state: WorldState;
+  shipId: string;
+  send: PortProps['send'];
+  cost: number;
+  cut: number;
+  hamlet: boolean;
+}) {
   const fleet = fleetOf(state);
   return (
     <>
@@ -922,7 +938,7 @@ function RepairYard({ content, state, shipId, send, cost, cut }: { content: Cont
           Hull then sails, the flagship first, as far as the purse reaches.{cut < 1 ? ` Your rank here: ${Math.round((1 - cut) * 100)}% off.` : ''}
         </span>
       </div>
-      <Careen content={content} state={state} shipId={shipId} send={send} />
+      <Careen content={content} state={state} shipId={shipId} send={send} hamlet={hamlet} />
       <FleetList content={content} state={state} shipId={shipId} send={send} cut={cut} />
       {!fleet.length ? <div class="port-sub fleet-none">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</div> : null}
     </>
@@ -930,22 +946,28 @@ function RepairYard({ content, state, shipId, send, cost, cut }: { content: Cont
 }
 
 /** Her bottom: how foul it is, what that costs her in speed, and careening it clean (a copper bottom never fouls). */
-function Careen({ content, state, shipId, send }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send'] }) {
+function Careen({ content, state, shipId, send, hamlet }: { content: ContentPack; state: WorldState; shipId: string; send: PortProps['send']; hamlet: boolean }) {
   const ship = state.ships[shipId]!;
   const fouling = ship.fouling ?? 0;
   if (shipStats(content, ship).cleanBottom) return <div class="shipwright-row port-sub">Copper-sheathed: her bottom stays clean.</div>;
   const gold = Math.ceil(shipStats(content, ship).hullMax * content.economy.fouling.careenGoldPerHull);
+  const foul = fouling >= 0.01;
+  const purse = state.captain?.gold ?? 0;
   return (
     <div class="shipwright-row">
-      {fouling >= 0.01 ? (
-        <button disabled={(state.captain?.gold ?? 0) < gold} onClick={() => send({ type: 'Careen', shipId })}>
+      {foul && !hamlet ? (
+        <button disabled={purse < gold} onClick={() => send({ type: 'Careen', shipId })}>
           Careen her · {gold.toLocaleString()} gold
         </button>
       ) : null}
       <span class="port-sub">
-        {fouling >= 0.01
-          ? `Her bottom is foul with weed and worm: ${Math.round(fouling * 100)}% off her speed. Careened, she sails clean again.`
-          : 'Her bottom is clean.'}
+        {!foul
+          ? 'Her bottom is clean.'
+          : hamlet
+            ? `Her bottom is foul: ${Math.round(fouling * 100)}% off her speed. No yard here can careen her: a town's or city's can, or heave her down on a beach yourself (K at sea, ${content.economy.fouling.beachDays} days, free).`
+            : purse < gold
+              ? `Her bottom is foul: ${Math.round(fouling * 100)}% off her speed. Careening costs ${gold.toLocaleString()} gold; you have ${purse.toLocaleString()}. Or heave her down on a beach (K at sea, free).`
+              : `Her bottom is foul with weed and worm: ${Math.round(fouling * 100)}% off her speed. Careened, she sails clean again.`}
       </span>
     </div>
   );

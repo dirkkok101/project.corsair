@@ -259,7 +259,7 @@ export async function createSeaRenderer(
   scene.add(worldShips);
   // The course to the destination: a gold line on the water from her bow along the route, over the waves.
   // A fat line (pixels wide at any zoom, which plain WebGL lines can't be), drawn over the waves.
-  const guideMaterial = new LineMaterial({ color: '#e8c170', linewidth: 3, dashed: true, dashSize: 0.8, gapSize: 0.5, transparent: true, opacity: 0.9, depthTest: false });
+  const guideMaterial = new LineMaterial({ color: '#e8c170', linewidth: 1.5, dashed: true, dashSize: 0.8, gapSize: 0.5, transparent: true, opacity: 0.9, depthTest: false });
   const guideLine = new Line2(new LineGeometry(), guideMaterial);
   guideLine.renderOrder = 10;
   guideLine.frustumCulled = false;

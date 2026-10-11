@@ -167,6 +167,80 @@ function Goals({
 }
 
 /** The captain's log (L): the Top Ten, and the treasure maps she holds pieces of. */
+/** One hoard's map: the parchment as far as the pieces held show it, what it says, and where to dig. */
+export function HoardMap({
+  content,
+  map,
+  settlements,
+  name,
+  hoard,
+  held,
+  plot,
+}: {
+  content: ContentPack;
+  map: TileMap;
+  settlements: PlacedSettlement[];
+  name: string;
+  hoard: Hoard;
+  held: number;
+  plot?: (x: number, y: number) => void;
+}) {
+  const ring = hoardRing(content, hoard, held);
+  const whole = content.pirates.rules.mapPieces;
+  const near = settlements.find((s) => s.id === hoard.near)?.name ?? hoard.near;
+  return (
+    <div class="log-map">
+                  <Parchment
+                    content={content}
+                    map={map}
+                    hoard={hoard}
+                    pieces={held}
+                  />
+                  <div>
+                    <div class="log-map-title">{name}'s hoard</div>
+                    <div class="port-sub">
+                      {held} of {whole} pieces ·{" "}
+                      {hoard.found
+                        ? `${hoard.value.toLocaleString()} gold dug up`
+                        : `about ${hoard.value.toLocaleString()} gold buried`}{" "}
+                      · on the coast near {near}
+                    </div>
+                    {hoard.found ? (
+                      <p class="plunder-note">Dug up: the gold is yours.</p>
+                    ) : (
+                      <>
+                        <p class="plunder-note">
+                          {held >= 2 ? `The map marks ${hoard.landmark}. ` : ""}
+                          The chart rings the search: about{" "}
+                          {Math.round(ring.r * 2)} tiles across
+                          {held < whole
+                            ? ", narrowing with each piece you find"
+                            : ""}
+                          .
+                          {held < X_AT_PIECES
+                            ? " The hoard lies on the coast this piece shows; a third piece marks the X."
+                            : ""}
+                        </p>
+                        <p class="plunder-note">
+                          Close the shore inside the ring and press G to go
+                          ashore and dig: half a day each time.
+                        </p>
+                        {plot ? (
+                          <button
+                            onClick={() =>
+                              plot(...waterNear(map, ring.x, ring.y))
+                            }
+                          >
+                            Plot a course to the search ring
+                          </button>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                </div>
+  );
+}
+
 export function Log({
   content,
   state,
@@ -182,8 +256,6 @@ export function Log({
     return pieces[c.id] && hoard ? [{ c, hoard, held: pieces[c.id]! }] : [];
   });
   const [page, setPage] = useState<"goals" | "career" | "top" | "maps">("goals");
-  const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
-  const whole = content.pirates.rules.mapPieces;
   return (
     <div class="log">
       <div class="log-panel">
@@ -227,58 +299,9 @@ export function Log({
           <TopTen content={content} state={state} settlements={settlements} />
         ) : maps.length ? (
           <div class="log-maps">
-            {maps.map(({ c, hoard, held }) => {
-              const ring = hoardRing(content, hoard, held);
-              return (
-                <div key={c.id} class="log-map">
-                  <Parchment
-                    content={content}
-                    map={map}
-                    hoard={hoard}
-                    pieces={held}
-                  />
-                  <div>
-                    <div class="log-map-title">{c.name}'s hoard</div>
-                    <div class="port-sub">
-                      {held} of {whole} pieces ·{" "}
-                      {hoard.found
-                        ? `${hoard.value.toLocaleString()} gold dug up`
-                        : `about ${hoard.value.toLocaleString()} gold buried`}{" "}
-                      · on the coast near {name(hoard.near)}
-                    </div>
-                    {hoard.found ? (
-                      <p class="plunder-note">Dug up: the gold is yours.</p>
-                    ) : (
-                      <>
-                        <p class="plunder-note">
-                          {held >= 2 ? `The map marks ${hoard.landmark}. ` : ""}
-                          The chart rings the search: about{" "}
-                          {Math.round(ring.r * 2)} tiles across
-                          {held < whole
-                            ? ", narrowing with each piece you find"
-                            : ""}
-                          .
-                          {held < X_AT_PIECES
-                            ? " The hoard lies on the coast this piece shows; a third piece marks the X."
-                            : ""}
-                        </p>
-                        <p class="plunder-note">
-                          Close the shore inside the ring and press G to go
-                          ashore and dig: half a day each time.
-                        </p>
-                        <button
-                          onClick={() =>
-                            plot(...waterNear(map, ring.x, ring.y))
-                          }
-                        >
-                          Plot a course to the search ring
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {maps.map(({ c, hoard, held }) => (
+              <HoardMap key={c.id} content={content} map={map} settlements={settlements} name={c.name} hoard={hoard} held={held} plot={plot} />
+            ))}
           </div>
         ) : (
           <p class="tavern-quiet">
