@@ -671,21 +671,21 @@ body {
 }
 
 /* The merchant (storyboard 2.2): his wood panel on the left, the parchment ledger on the right, over his shop. */
-.port-panel:has(.merchant, .tavern-room, .governor) {
+.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) {
   max-height: 86vh;
   background: transparent;
   border-color: transparent;
 }
 
 /* With no panel behind it, the header gets its own band so it reads over the painting. */
-.port-panel:has(.merchant, .tavern-room, .governor) > .port-head,
-.port-panel:has(.merchant, .tavern-room, .governor) > .port-tabs {
+.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) > .port-head,
+.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) > .port-tabs {
   padding: 6px 12px;
   background: rgb(21 29 40 / 0.85);
   border-bottom: none;
 }
 
-.port-panel:has(.merchant, .tavern-room, .governor) > .port-tabs {
+.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) > .port-tabs {
   margin: 0 0 12px;
   border-top: 1px solid #394a50;
 }
@@ -2275,8 +2275,7 @@ body {
   border-color: #a53030;
 }
 
-.battle-report button,
-.shipwright button {
+.battle-report button {
   padding: 2px 10px;
   font: inherit;
   color: #ebede9;
@@ -2301,26 +2300,16 @@ body {
   margin: 4px 0 8px;
 }
 
+/* The shipwright (storyboard 2.9): his speech, three choices, and the ships and fits as cards. */
 .shipwright {
-  min-height: 120px;
+  width: min(1100px, 100%);
+  padding: 16px;
 }
 
-/* The shipwright's three yards: repair, buy, upgrade. */
 .shipwright-tabs {
   display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.shipwright .shipwright-tabs button {
-  color: #a4dddb;
-  background: transparent;
-  border-color: #394a50;
-}
-
-.shipwright .shipwright-tabs button.active {
-  color: #e8c170;
-  border-color: #e8c170;
+  gap: 8px;
+  margin: 14px 0 12px;
 }
 
 .shipwright-row {
@@ -2334,22 +2323,127 @@ body {
   min-width: 190px;
 }
 
-.upgrades {
-  border-collapse: collapse;
+.ship-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.ship-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.ship-card.locked .ship-card-art {
+  filter: grayscale(0.7) brightness(0.85);
+}
+
+.ship-card-art {
+  align-self: center;
+  width: 144px;
+  height: 96px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.ship-card-name {
+  font-family: var(--k-display);
+  font-size: 22px;
+  text-transform: capitalize;
+}
+
+.ship-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-content: start;
+  gap: 4px 12px;
+}
+
+.ship-card .k-stat,
+.fit-card .k-stat {
+  color: var(--k-ink);
+  font-size: 15px;
+}
+
+.ship-card-compare {
+  font-size: 14px;
+  font-style: italic;
+}
+
+.ship-card-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ship-card-why {
   font-size: 13px;
+  color: #8a2a1e;
 }
 
-.upgrades td {
-  padding: 1px 12px 1px 0;
+.ship-card .k-btn {
+  margin-top: auto;
 }
 
-.upgrades button:disabled,
-.shipwright-row button:disabled,
-.fleet-list button:disabled {
-  color: #577277;
-  background: transparent;
-  border-color: #394a50;
-  cursor: default;
+.fit-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.fit-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 12px;
+  padding: 10px 12px;
+}
+
+.fit-card > .k-btn,
+.fit-card > .k-tag,
+.fit-card > .fit-price {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.fit-card-icon {
+  grid-row: span 2;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.fit-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.fit-card-body b {
+  font-size: 16px;
+}
+
+.fit-up {
+  color: #2f5d1a;
+}
+
+.fit-down {
+  color: #8a2a1e;
+}
+
+.fit-price {
+  font-size: 12px;
+  color: #6b5236;
+}
+
+.fit-card.installed {
+  opacity: 0.8;
 }
 
 /* The governor (storyboard 2.8): his speech, then the bounties, the rank ribbon and one offer. */

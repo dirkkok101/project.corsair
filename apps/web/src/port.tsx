@@ -681,7 +681,7 @@ function FleetList({ content, state, shipId, send, cut }: { content: ContentPack
     const cost = shipRepairCost(content, f, cut);
     if (cost <= 0) return <span class="trend export">sound</span>;
     return (
-      <button title={gold < cost ? `She needs ${cost} gold to be made sound; you have ${gold}: as far as the purse reaches.` : undefined} disabled={gold <= 0} onClick={() => send({ type: 'Repair', shipId, only: id })}>
+      <button class="k-btn small" title={gold < cost ? `She needs ${cost} gold to be made sound; you have ${gold}: as far as the purse reaches.` : undefined} disabled={gold <= 0} onClick={() => send({ type: 'Repair', shipId, only: id })}>
         Repair · {cost.toLocaleString()} gold
       </button>
     );
@@ -715,8 +715,8 @@ function FleetList({ content, state, shipId, send, cut }: { content: ContentPack
               </td>
               <td class="actions">
                 {mend(f.id, f)}
-                <button onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>Make flagship</button>
-                <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
+                <button class="k-btn small" onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>Make flagship</button>
+                <button class="k-btn small" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
                   Sell · {shipValue(content, f).toLocaleString()} gold
                 </button>
               </td>
@@ -734,64 +734,82 @@ function FleetList({ content, state, shipId, send, cut }: { content: ContentPack
  */
 function ShipsForSale({ content, state, town, shipId, send }: { content: ContentPack; state: WorldState; town: PlacedSettlement; shipId: string; send: PortProps['send'] }) {
   const forSale = shipsForSale(content, town);
-  if (!forSale.length) return <div class="port-sub ships-for-sale-none">No shipyard in a hamlet: new ships are built in towns and cities.</div>;
+  if (!forSale.length) return <div class="k-sub ships-for-sale-none">No shipyard in a hamlet: new ships are built in towns and cities.</div>;
   const ship = state.ships[shipId]!;
   const fleet = fleetOf(state);
   const crew = crewOf(content, ship);
   const gold = state.captain?.gold ?? 0;
   const max = content.combat.fleet.maxShips;
+  const mine = content.ships[ship.classId]!;
   return (
     <>
-      <div class="port-sub ships-for-sale-head">
-        New ships from the yard. Each joins your fleet at once (her hold and berths count); make her your flagship to fight in her. The great ships (galleons, the ship of the line) are
-        built in Europe, and the guarda costa's half-galleys are Spain's: take one.
+      <div class="k-sub ships-for-sale-head">
+        Each joins your fleet at once: make her your flagship to fight in her. The great ships are built in Europe, and the half-galleys are Spain's: take one.
       </div>
-      <table class="fleet-list ships-for-sale">
-        <tbody>
-          {forSale.map((id) => {
-            const cls = content.ships[id]!;
-            const need = fleetMinCrew(content, [...fleet, { classId: id }], ship);
-            const standing = shipStandingNeeded(content, town, id);
-            const mine = state.captain?.standing?.[town.nation] ?? 0;
-            const rankNeed = shipRankNeeded(content, id);
-            const rankShort = rankOf(content, state.captain, town.nation) < rankNeed;
-            const rankName = content.politics.ranks.ladder[rankNeed]?.name;
-            const why = rankShort
-              ? `The yard builds her only for a ${rankName} of ${COUNTRY[town.nation] ?? town.nation}: collect bounties at its governors to rise.`
-              : mine < standing
-                ? `The yard builds her only for a captain in good standing here: ${standing} needed, yours is ${Math.round(mine)}.`
-                : fleet.length + 2 > max
+      <div class="ship-cards ships-for-sale">
+        {forSale.map((id) => {
+          const cls = content.ships[id]!;
+          const need = fleetMinCrew(content, [...fleet, { classId: id }], ship);
+          const standing = shipStandingNeeded(content, town, id);
+          const yours = state.captain?.standing?.[town.nation] ?? 0;
+          const rankNeed = shipRankNeeded(content, id);
+          const rankShort = rankOf(content, state.captain, town.nation) < rankNeed;
+          const rankName = content.politics.ranks.ladder[rankNeed]?.name;
+          const why = rankShort
+            ? `The yard builds her only for a ${rankName} of ${COUNTRY[town.nation] ?? town.nation}: collect bounties at its governors to rise.`
+            : yours < standing
+              ? `The yard builds her only for a captain in good standing here: ${standing} needed, yours is ${Math.round(yours)}.`
+              : fleet.length + 2 > max
                 ? `Your fleet is full (${max} ships): sell one first.`
                 : crew < need
                   ? `Too few men to sail her too: the fleet would need ${need}, you have ${crew}. Sign on more at the tavern.`
                   : gold < cls.price
                     ? `Not enough gold: she costs ${cls.price.toLocaleString()}.`
                     : undefined;
-            const guns = Math.floor(cls.guns * content.combat.shipyard.gunsShare);
-            return (
-              <tr key={id}>
-                <td>
-                  <Art id={shipIcon(content, id)} class="fleet-ship" /> {shipKind(id)}
-                </td>
-                <td class="port-sub">
-                  hold {cls.cargo} · {guns} of {cls.guns} guns · crew {cls.minCrew} to {cls.maxCrew} · speed {cls.speed} · hull {cls.hull}
-                  {cls.swivels ? ` · ${cls.swivels} swivels` : ''}
-                  {cls.oars ? ' · rows in a calm' : ''}
-                  {mine < standing ? ` · standing ${standing} needed (yours ${Math.round(mine)})` : ''}
-                  {rankShort ? ` · for a ${rankName} of ${COUNTRY[town.nation] ?? town.nation}` : ''}
-                </td>
-                <td class="actions">
-                  <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'BuyShip', shipId, classId: id })}>
-                    Buy · {cls.price.toLocaleString()} gold
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+          const guns = Math.floor(cls.guns * content.combat.shipyard.gunsShare);
+          return (
+            <div key={id} class={`ship-card k-paper${why ? ' locked' : ''}`}>
+              <Art id={shipIcon(content, id)} class="ship-card-art" />
+              <div class="ship-card-name">{shipKind(id)}</div>
+              <div class="ship-card-stats">
+                <Stat icon="ui.icon.full_sail" value={String(cls.speed)} title={`Speed ${cls.speed}`} />
+                <Stat icon="ui.icon.cannon_loaded" value={String(cls.guns)} title={`Mounts ${cls.guns} guns; comes with ${guns}`} />
+                <Stat icon="ui.icon.anchor" value={String(cls.cargo)} title={`Holds ${cls.cargo} tons`} />
+                <Stat icon="ui.icon.crew" value={String(cls.maxCrew)} title={`Sails with ${cls.minCrew} men, berths ${cls.maxCrew}`} />
+              </div>
+              <div class="ship-card-compare">{id === ship.classId ? 'Like yours' : `Against your ${shipKind(ship.classId)}: ${compared(cls, mine)}`}</div>
+              {cls.swivels || cls.oars ? (
+                <div class="ship-card-extras">
+                  {cls.swivels ? <span class="k-tag">{cls.swivels} swivels</span> : null}
+                  {cls.oars ? <span class="k-tag">rows in a calm</span> : null}
+                </div>
+              ) : null}
+              {why ? <div class="ship-card-why">{why}</div> : null}
+              <button class="k-btn small primary" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'BuyShip', shipId, classId: id })}>
+                Buy · {cls.price.toLocaleString()} gold
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
+}
+
+/** How a class compares with yours, in a few words: "faster, 4 fewer guns, twice the hold". */
+function compared(a: ContentPack['ships'][string], b: ContentPack['ships'][string]): string {
+  const parts: string[] = [];
+  if (a.speed !== b.speed) parts.push(a.speed > b.speed ? 'faster' : 'slower');
+  const guns = a.guns - b.guns;
+  if (guns) parts.push(`${Math.abs(guns)} ${guns > 0 ? 'more' : 'fewer'} guns`);
+  const hold = a.cargo / b.cargo;
+  if (hold >= 1.8) parts.push(`${hold >= 2.8 ? 'three times' : 'twice'} the hold`);
+  else if (hold >= 1.2) parts.push('a bigger hold');
+  else if (hold <= 0.8) parts.push('a smaller hold');
+  const hull = a.hull / b.hull;
+  if (hull >= 1.2) parts.push('stouter');
+  else if (hull <= 0.8) parts.push('lighter-built');
+  return parts.join(', ') || 'much like her';
 }
 
 /** Ships of the player's retaken from pirates and laid up here: take her back into the fleet, salvage paid. */
@@ -824,7 +842,7 @@ function LaidUp({ content, state, shipId, send }: { content: ContentPack; state:
                 hull {Math.round(l.hull)} · sails {Math.round(l.sailCondition)}%
               </td>
               <td class="actions">
-                <button disabled={Boolean(why)} title={why} onClick={() => send({ type: 'ReclaimShip', shipId, laidUpId: l.id })}>
+                <button class="k-btn small" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'ReclaimShip', shipId, laidUpId: l.id })}>
                   Take her back{l.fee ? ` · ${l.fee.toLocaleString()} gold salvage` : ''}
                 </button>
               </td>
@@ -1015,9 +1033,13 @@ function bountyLabel(content: ContentPack, pay: { captive?: string }[]) {
   return parts.join(', ').replace(/^./, (c) => c.toUpperCase());
 }
 
-/** The shipwright's three yards: mending the fleet, buying ships, fitting a ship out. */
+/** The shipwright's three choices: mending the fleet, buying ships, fitting a ship out. */
 type Yard = 'repair' | 'buy' | 'upgrade';
 
+/**
+ * The shipwright (storyboard 2.9): his bust says the one thing that matters now (she's hurt, her bottom is foul, her
+ * gun deck has room) with its button; then three choices, Mend, Ships and Fit out, the ships and fits as cards.
+ */
 function Shipwright({
   content,
   state,
@@ -1036,24 +1058,60 @@ function Shipwright({
   // A major of this nation has his repairs here cheaper.
   const cut = perkPrice(content, state.captain, town.nation, 'repair');
   const cost = repairCost(content, ship, fleet, cut);
-  // Straight to the repairs when anything needs mending, else to the ships for sale.
+  const stats = shipStats(content, ship);
+  const gold = state.captain?.gold ?? 0;
+  const hamlet = town.size === 'hamlet';
+  const careen = Math.ceil(stats.hullMax * content.economy.fouling.careenGoldPerHull);
+  const fouling = stats.cleanBottom ? 0 : (ship.fouling ?? 0);
+  const room = stats.maxGuns - stats.guns;
+  const gunGold = content.combat.port.gunGold;
+  // Straight to the mending when anything needs it, else to the ships for sale.
   const [yard, setYard] = useState<Yard>(cost > 0 ? 'repair' : 'buy');
-  const tabs: [Yard, string][] = [
-    ['repair', cost > 0 ? `Repair · ${cost.toLocaleString()} gold` : 'Repair'],
-    ['buy', 'Buy ships'],
-    ['upgrade', 'Upgrade'],
+  const hullShare = Math.round(((ship.hull ?? stats.hullMax) / stats.hullMax) * 100);
+  const [line, act] =
+    cost > 0
+      ? [
+          fleet.length ? `"Your ships have taken a beating. I'll make them sound for ${cost.toLocaleString()}."` : `"She's taken a beating: hull ${hullShare}%. Mend her for ${cost.toLocaleString()}?"`,
+          <button class="k-btn small primary" disabled={gold <= 0} onClick={() => send({ type: 'Repair', shipId })}>
+            Repair · {cost.toLocaleString()} gold
+          </button>,
+        ]
+      : fouling >= 0.05 && !hamlet
+        ? [
+            `"Her bottom's foul with weed and worm: ${Math.round(fouling * 100)}% off her speed. Careen her for ${careen.toLocaleString()}?"`,
+            <button class="k-btn small primary" disabled={gold < careen} onClick={() => send({ type: 'Careen', shipId })}>
+              Careen her · {careen.toLocaleString()} gold
+            </button>,
+          ]
+        : room > 0 && sellsGuns(town)
+          ? [
+              `"She's sound. There's room on her deck for ${room} more ${room === 1 ? 'gun' : 'guns'}, ${gunGold} gold apiece."`,
+              yard === 'upgrade' ? null : (
+                <button class="k-btn small primary" onClick={() => setYard('upgrade')}>
+                  See the guns
+                </button>
+              ),
+            ]
+          : [`"She's sound and clean, captain. Looking for a new ship, or something to make her better?"`, null];
+  const choices: [Yard, string][] = [
+    ['repair', 'Mend'],
+    ['buy', 'Ships'],
+    ['upgrade', 'Fit out'],
   ];
   return (
-    <div class="shipwright">
+    <div class="shipwright k-wood">
+      <Speech bust="bust.shipwright" who="The shipwright" line={line}>
+        <div class="tavern-replies">{act}</div>
+      </Speech>
       <div class="shipwright-tabs">
-        {tabs.map(([id, label]) => (
-          <button key={id} class={yard === id ? 'active' : ''} onClick={() => setYard(id)}>
+        {choices.map(([id, label]) => (
+          <button key={id} class={`k-btn small${yard === id ? ' active' : ''}`} onClick={() => setYard(id)}>
             {label}
           </button>
         ))}
       </div>
       {yard === 'repair' ? (
-        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} hamlet={town.size === 'hamlet'} />
+        <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} hamlet={hamlet} />
       ) : yard === 'buy' ? (
         <>
           <LaidUp content={content} state={state} shipId={shipId} send={send} />
@@ -1089,7 +1147,7 @@ function RepairYard({
     <>
       <div class="shipwright-row">
         {cost > 0 ? (
-          <button onClick={() => send({ type: 'Repair', shipId })}>
+          <button class="k-btn small primary" onClick={() => send({ type: 'Repair', shipId })}>
             Repair {fleet.length ? 'the whole fleet' : 'her'} · {cost.toLocaleString()} gold
           </button>
         ) : (
@@ -1117,7 +1175,7 @@ function Careen({ content, state, shipId, send, hamlet }: { content: ContentPack
   return (
     <div class="shipwright-row">
       {foul && !hamlet ? (
-        <button disabled={purse < gold} onClick={() => send({ type: 'Careen', shipId })}>
+        <button class="k-btn small" disabled={purse < gold} onClick={() => send({ type: 'Careen', shipId })}>
           Careen her · {gold.toLocaleString()} gold
         </button>
       ) : null}
@@ -1153,13 +1211,13 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
         </span>
         {sellsGuns(town) ? (
           <>
-            <button disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: 1 })}>
+            <button class="k-btn small" disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: 1 })}>
               Buy 1 · {p.gunGold} gold
             </button>
-            <button disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: room })}>
+            <button class="k-btn small primary" disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: room })}>
               Fill the gun deck · {Math.min(room, Math.floor(gold / Math.max(1, p.gunGold))) * p.gunGold} gold
             </button>
-            <button disabled={stats.guns <= 0} onClick={() => send({ type: 'SellGuns', shipId, count: 1 })}>
+            <button class="k-btn small" disabled={stats.guns <= 0} onClick={() => send({ type: 'SellGuns', shipId, count: 1 })}>
               Sell 1 · {p.gunSellGold} gold
             </button>
           </>
@@ -1167,35 +1225,38 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
           <span class="port-sub">No cannon for sale in a hamlet.</span>
         )}
       </div>
-      <table class="upgrades">
-        <tbody>
-          {Object.values(content.upgrades).map((u) => {
-            // Priced by the work on her class: her guns, her hull or her berths.
-            const base = upgradePrice(content, ship.classId, u.id);
-            const cost = { ...base, price: Math.round(base.price * cut) };
-            return (
-            <tr key={u.id}>
-              <td>{u.name}</td>
-              <td class="port-sub">
-                {u.effect} · {Math.round(cost.each)} gold a {cost.per === 'hull' ? 'hull point' : cost.per} × her {cost.units}
-                {cut < 1 ? ` · your rank here: ${Math.round((1 - cut) * 100)}% off` : ''}
-              </td>
-              <td>
-                {installed.has(u.id) ? (
-                  <span class="trend export">installed</span>
-                ) : sellsUpgrade(content, town, u.id, best) ? (
-                  <button disabled={gold < cost.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
-                    Buy · {cost.price.toLocaleString()} gold
-                  </button>
-                ) : (
-                  <span class="port-sub">not sold here</span>
-                )}
-              </td>
-            </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div class="fit-cards upgrades">
+        {Object.values(content.upgrades).map((u) => {
+          // Priced by the work on her class: her guns, her hull or her berths.
+          const base = upgradePrice(content, ship.classId, u.id);
+          const cost = { ...base, price: Math.round(base.price * cut) };
+          // The effect says the upside, then the downside: "+20% hull · -0.5 speed".
+          const [up, down] = u.effect.split(' · ');
+          return (
+            <div key={u.id} class={`fit-card k-paper${installed.has(u.id) ? ' installed' : ''}`}>
+              <Art id={`ui.icon.fit.${u.id}`} class="fit-card-icon" />
+              <div class="fit-card-body">
+                <b>{u.name}</b>
+                <div class="fit-up">{up}</div>
+                {down ? <div class="fit-down">{down}</div> : null}
+                <div class="fit-price">
+                  {Math.round(cost.each)} gold a {cost.per === 'hull' ? 'hull point' : cost.per} × her {cost.units}
+                  {cut < 1 ? ` · your rank here: ${Math.round((1 - cut) * 100)}% off` : ''}
+                </div>
+              </div>
+              {installed.has(u.id) ? (
+                <span class="k-tag peace">installed</span>
+              ) : sellsUpgrade(content, town, u.id, best) ? (
+                <button class="k-btn small primary" disabled={gold < cost.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
+                  Buy · {cost.price.toLocaleString()} gold
+                </button>
+              ) : (
+                <span class="fit-price">not sold here</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
