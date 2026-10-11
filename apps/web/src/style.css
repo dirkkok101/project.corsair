@@ -3109,3 +3109,165 @@ body {
   flex-basis: 100%;
   color: var(--k-cream-dim);
 }
+
+/* Moments (storyboard 2.13): full-screen beats over everything, a painting behind or a letter over the game. */
+.moment {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  padding: 24px;
+  color: var(--k-cream);
+  background: #0c1118 center / cover no-repeat;
+  image-rendering: pixelated;
+}
+
+.moment-dim {
+  background: rgb(8 10 16 / 0.6);
+}
+
+.moment-letter {
+  width: min(640px, 92vw);
+  padding: 30px 44px 28px;
+  text-align: center;
+  transform: rotate(0.5deg);
+}
+
+.moment-dateline {
+  font: italic 16px var(--k-voice);
+  color: #6b5233;
+}
+
+.moment-headline {
+  font-family: var(--k-display);
+  font-size: 52px;
+  line-height: 1;
+}
+
+.moment-news {
+  margin-top: 6px;
+  font: 24px/1.3 var(--k-voice);
+}
+
+.moment-means {
+  margin-top: 18px;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 15px;
+  background: #f7ecd2;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px #b99a64;
+}
+
+.moment-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.moment-actions.flush {
+  justify-content: flex-start;
+}
+
+.moment-head {
+  text-align: center;
+}
+
+.moment-head.left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(560px, 84vw);
+  margin-right: auto;
+  margin-left: 6%;
+  text-align: left;
+}
+
+.moment-kicker {
+  color: var(--k-gold);
+  font: 700 14px var(--k-body);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.moment-title {
+  margin: 0;
+  font-family: var(--k-display);
+  font-size: clamp(48px, 7vw, 84px);
+  font-weight: normal;
+  line-height: 1;
+  text-shadow:
+    2px 0 0 #1d1210, -2px 0 0 #1d1210, 0 2px 0 #1d1210, 0 -2px 0 #1d1210,
+    3px 4px 0 #6b2133;
+}
+
+.moment-sub {
+  font: italic 24px var(--k-voice);
+}
+
+.moment-line {
+  font-size: 18px;
+}
+
+.moment-card {
+  width: min(720px, 92vw);
+  padding: 22px;
+}
+
+.moment-gold {
+  margin-top: 6px;
+  color: var(--k-gold);
+}
+
+.moment-map {
+  flex-direction: row;
+  gap: 56px;
+  background: radial-gradient(ellipse at 50% 40%, #3a2818 0%, #1a110c 70%);
+}
+
+.moment-map .moment-head.left {
+  margin: 0;
+}
+
+.moment-map-sheet {
+  position: relative;
+}
+
+.moment-quarters {
+  position: absolute;
+  inset: 2px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.moment-quarters .missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px;
+  border: 2px dashed rgb(232 193 112 / 0.5);
+  border-radius: 3px;
+  background: #241812;
+}
+
+.moment-quarters span {
+  font: italic 18px var(--k-voice);
+  color: #c9b993;
+}
+
+.moment-map-sheet .parchment {
+  width: min(440px, 40vw);
+  height: auto;
+  aspect-ratio: 1;
+  box-shadow: 0 14px 30px rgb(0 0 0 / 0.6);
+}
+
+.book-rule.light {
+  background: rgb(240 220 180 / 0.18);
+}

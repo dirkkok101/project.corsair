@@ -24,14 +24,16 @@ import { compassProps, Hud } from './hud';
 import { shipIcon, shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, createLogbookSystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, createLogbookSystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import { bindInput } from './input';
 import { loadStoredSave, storeSave } from './save';
-import { COUNTRY, Ending } from './career';
+import { Ending } from './career';
 import { chooseCareer } from './start';
 import { crewLook, Hail, shipTitle } from './hail';
-import { HoardMap, Log } from './log';
+import { Log } from './log';
+import { letterMeans, MomentView } from './ui/moment';
+import type { Moment } from './ui/moment';
 import { bandOf } from './ui/kit';
 import { createShipLabels } from './shiplabels';
 import { bindMouse } from './mouse';
@@ -275,6 +277,12 @@ async function main() {
   const portRoot = stage.appendChild(document.createElement('div'));
   const hailRoot = stage.appendChild(document.createElement('div'));
   const logRoot = stage.appendChild(document.createElement('div'));
+  // Moments (storyboard 2.13): a letter, a promotion, a famous pirate's first sighting, a hoard, a map piece; one
+  // at a time, over everything, the world waiting.
+  const momentRoot = stage.appendChild(document.createElement('div'));
+  const moments: Moment[] = [];
+  /** News already shown as a letter this session. */
+  const lettered = new Set<string>();
   // The captain's log (L) is open: the world waits, as with the chart.
   let logOpen = false;
   // The ship being spoken and the news she brought; the clock stops while the captains talk.
@@ -553,6 +561,12 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
     if (e.key.toLowerCase() === 'n' && !e.repeat) audio.toggleMusic();
+    // A moment takes the keys while it shows: Enter or Escape closes it, and nothing else reaches the game.
+    if (moments.length && !fight) {
+      if ((e.key === 'Enter' || e.key === 'Escape') && !e.repeat) moments.shift();
+      e.stopImmediatePropagation();
+      return;
+    }
     // In battle: Space fires whichever broadside bears (held, it fires each one as she comes into its arc),
     // Tab cycles the shot and 1 to 3 pick it; Q and E still fire a side by hand. When it is over, Enter (or
     // Space) carries on. Steering keys go to the battle through bindInput.
@@ -668,8 +682,6 @@ async function main() {
   let stripChanged = 0;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: string | undefined;
-  /** A map piece just bought: its parchment, shown over the port until closed. */
-  let mapReveal: string | undefined;
   /** What a refused order in port means, in words (the rest say so on their own button). */
   const REFUSED: Record<string, string> = {
     'not-enough-gold': 'Not enough gold for that.',
@@ -861,10 +873,7 @@ async function main() {
     sim.step(Math.round((content.calendar.ticksPerDay * content.treasure.dig.hours) / 24));
     if (ev.type === 'HoardFound') {
       const p = ev.payload as { name: string; gold: number; fame: number; revenge: boolean };
-      digNote = {
-        text: `You dig up ${p.name}'s hoard! ${p.gold.toLocaleString()} gold to the plunder chest, +${p.fame} fame.${p.revenge ? ` ${p.name} will hear of it: he swears revenge, and will hunt you.` : ''}`,
-        until: now + 10000,
-      };
+      moments.push({ kind: 'hoard', ...p });
       return;
     }
     const hint = ev.payload.hint as { landmark: string; bearingDeg: number; tiles: number } | null;
@@ -1095,7 +1104,7 @@ async function main() {
     render(null, battleRoot);
     // The HUD's strip (at sea) and the harbour's (in port) replace the old ship card; the battle HUD has its own.
     render(null, panelRoot);
-    if (player().docked || hailing || charts.open || logOpen) {
+    if (player().docked || hailing || charts.open || logOpen || moments.length) {
       // World time stops in port (PRD section 2), while hailing, and while the chart is open; commands
       // still apply at once.
       sim.applyCommands();
@@ -1129,10 +1138,38 @@ async function main() {
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
       if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
       if (ev.type === 'Undocked') portNotice = undefined;
-      // A promotion from the governor; a title brings land.
+      // A promotion from the governor, as his commission; a title brings land.
       if (ev.type === 'Promoted') {
         const p = ev.payload as { nation: string; rank: string; acres: number };
-        portNotice = `The governor promotes you: ${p.rank} of ${COUNTRY[p.nation] ?? p.nation}.${p.acres ? ` Your land: ${p.acres} acres, paying rent each month.` : ''}`;
+        moments.push({ kind: 'promotion', ...p, town: settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '' });
+      }
+      // A famous pirate in sight for the first time.
+      if (ev.type === 'FamousSighted') moments.push({ kind: 'famous', pirateId: ev.payload.pirateId as string });
+      // Pieces of a treasure map from a beaten pirate's men, or from her in irons.
+      const piece = (ev.type === 'BattleOver' && (ev.payload.famous as { piece?: number; name: string } | null)?.piece) || 0;
+      if (piece) {
+        const name = (ev.payload.famous as { name: string }).name;
+        const id = content.pirates.captains.find((c) => c.name === name)?.id;
+        if (id) moments.push({ kind: 'map', pirateId: id, line: `Her men give up a piece of ${name}'s map for their lives, captain.` });
+      }
+      const captive = ev.type === 'PlunderTaken' ? (ev.payload.captive as { id: string; choice: string } | null) : null;
+      if (captive?.choice === 'hoard') moments.push({ kind: 'map', pirateId: captive.id, line: "That's all you'll have from me, captain. Much good may it do you." });
+      // News that matters waiting in the port she makes: war and peace, as a letter.
+      if (ev.type === 'Docked' && ev.entityIds[0] === player().id) {
+        const town = settlements.find((s) => s.id === ev.entityIds[1]);
+        const heard = new Set(sim.state.captain?.heard ?? []);
+        for (const n of town ? newsAt(content, sim.state, settlements, town.id) : []) {
+          if ((n.kind !== 'war' && n.kind !== 'peace') || heard.has(n.id) || lettered.has(n.id)) continue;
+          lettered.add(n.id);
+          moments.push({
+            kind: 'letter',
+            at: town!.name,
+            date: formatDate(dateOf(def.startDate, Math.floor(n.tick / content.calendar.ticksPerDay))),
+            headline: n.kind === 'war' ? 'War!' : 'Peace',
+            text: newsText(content, n, town!.name),
+            means: letterMeans(n.kind, n.nation!, n.other!, sim.state.captain?.marques ?? []),
+          });
+        }
       }
       if (ev.type === 'RentPaid') courseNote = { text: `Rent from your land: +${(ev.payload.gold as number).toLocaleString()} gold`, until: now + 4000 };
       // Retired: the career is over; keep it, so the start screen shows how it ended.
@@ -1146,13 +1183,7 @@ async function main() {
       }
       // An order refused in port: say why, rather than nothing happening.
       if (ev.type === 'TradeRefused' && player().docked && REFUSED[ev.payload.reason as string]) portNotice = REFUSED[ev.payload.reason as string];
-      if (ev.type === 'MapPieceBought') {
-        const p = ev.payload as { pirateId: string; pieces: number };
-        const name = content.pirates.captains.find((c) => c.id === p.pirateId)?.name ?? p.pirateId;
-        portNotice = `The sailor slips you a torn piece of ${name}'s map: ${p.pieces} of ${content.pirates.rules.mapPieces}. Your maps are in the log (L) at sea.`;
-        mapReveal = p.pirateId;
-      }
-      if (ev.type === 'Undocked') mapReveal = undefined;
+      if (ev.type === 'MapPieceBought') moments.push({ kind: 'map', pirateId: ev.payload.pirateId as string, line: "That's all I know, captain. The rest is with men who'd sooner cut your throat." });
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
         courseNote = { text: `Plague at ${name}: the port is shut to shipping`, until: now + 4000 };
@@ -1328,6 +1359,21 @@ async function main() {
       ) : null,
       logRoot,
     );
+    render(
+      moments[0] && !fight ? (
+        <MomentView
+          moment={moments[0]}
+          content={content}
+          state={sim.state}
+          map={map}
+          settlements={settlements}
+          scene={sceneUrl}
+          close={() => moments.shift()}
+          plot={(x, y) => setCourse(x, y, false)}
+        />
+      ) : null,
+      momentRoot,
+    );
     const town = ship.docked ? settlements.find((s) => s.id === ship.docked) : undefined;
     const harbour = town && harbourScene(town);
     void renderer.harbour.show(town && ((service && interior(town, service)) || harbour?.scene));
@@ -1335,25 +1381,6 @@ async function main() {
     render(
       sim.state.captain?.retired ? (
         <Ending content={content} state={sim.state} again={() => location.reload()} />
-      ) : town && mapReveal && sim.state.famous?.[mapReveal]?.hoard ? (
-        <div class="log">
-          <div class="log-panel">
-            <div class="log-head">
-              <span class="port-name">A piece of {content.pirates.captains.find((c) => c.id === mapReveal)?.name}'s map</span>
-              <button class="leave" onClick={() => (mapReveal = undefined)}>
-                Close
-              </button>
-            </div>
-            <HoardMap
-              content={content}
-              map={map}
-              settlements={settlements}
-              name={content.pirates.captains.find((c) => c.id === mapReveal)?.name ?? ''}
-              hoard={sim.state.famous[mapReveal]!.hoard!}
-              held={sim.state.captain?.mapPieces?.[mapReveal] ?? 0}
-            />
-          </div>
-        </div>
       ) : town ? (
         <Port
           state={sim.state}

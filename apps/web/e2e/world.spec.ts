@@ -452,6 +452,14 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
   await expect(page.locator('.stranger')).toBeVisible();
   await page.screenshot({ path: 'test-results/tavern-stranger.png' });
   await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
+  // The map moment: the parchment as far as the piece shows it, the stranger's line, and where to search.
+  const moment = page.locator('.moment-map');
+  await expect(moment).toContainText("That's all I know, captain");
+  await expect(moment).toContainText('1 of 4 pieces');
+  await expect(moment.locator('.parchment')).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/map-moment.png' });
+  await moment.getByRole('button', { name: 'Later' }).click();
+  await expect(page.locator('.moment')).toHaveCount(0);
   await expect(page.locator('.stranger')).toHaveCount(0);
   const pieces = await page.evaluate(() => (window.__corsair.state.get('captain') as { mapPieces?: Record<string, number> }).mapPieces);
   expect(Object.values(pieces ?? {})).toEqual([1]);
@@ -484,6 +492,9 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
   }
   await stranger.click();
   await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
+  await expect(page.locator('.moment-map')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.moment')).toHaveCount(0);
   await page.keyboard.press('e');
   // Off the hoard's own beach (the test knows where it is; the captain only has the ring).
   const hoard = await page.evaluate(() => {
@@ -497,7 +508,11 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
   await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig', { timeout: 10_000 });
   const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
   await page.keyboard.press('g');
-  await expect(page.locator('.hud-toasts')).toContainText('You dig up');
+  // The hoard moment, over everything; Enter puts the gold in the chest.
+  await expect(page.locator('.moment')).toContainText('gold to the plunder chest');
+  await page.screenshot({ path: 'test-results/hoard-moment.png' });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.moment')).toHaveCount(0);
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { chest?: number }).chest)).toBe(hoard.value);
   // Half a day went by.
   expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThanOrEqual(tick + Math.round(771 / 2));
@@ -534,6 +549,53 @@ test('the tavern: news from another port shows where it is on a small chart, and
     mode: 'course',
     portId: 'town.santiago_de_cuba',
   });
+  expect(errors).toEqual([]);
+});
+
+test('moments: war comes as a letter in port, and a famous pirate seen the first time stops the world', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // England declares war on France; Port Royal hears of it at once, and the captain when she makes port.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SetRelation', a: 'england', b: 'france', war: true });
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  const letter = page.locator('.moment-letter');
+  await expect(letter).toContainText('War!');
+  await expect(letter).toContainText('England and France are at war');
+  await expect(letter.locator('.moment-means')).toContainText("England's governors will grant a letter of marque against France");
+  await page.screenshot({ path: 'test-results/moment-letter.png' });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.moment')).toHaveCount(0);
+
+  // Out to sea, and alongside a famous pirate under way: the world waits on her moment.
+  await page.keyboard.press('e');
+  const famous = await page.evaluate(() => {
+    type S = { id: string; x: number; y: number; ai?: { famous?: string; waitUntil?: number; route: unknown[] } };
+    const atSea = () => Object.values(window.__corsair.state.get('ships') as Record<string, S>).find((s) => s.ai?.famous && !(s.ai.waitUntil !== undefined && !s.ai.route.length));
+    for (let d = 0; d < 30 && !atSea(); d++) {
+      const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+      window.__corsair.sim.step(771);
+    }
+    const her = atSea()!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: her.x + 1.5, y: her.y });
+    window.__corsair.sim.step(1);
+    return her.ai!.famous!;
+  });
+  const moment = page.locator('.moment');
+  await expect(moment).toContainText('A famous pirate');
+  await expect(moment).toContainText('on the Top Ten');
+  await page.screenshot({ path: 'test-results/moment-famous.png' });
+  const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBe(tick);
+  await page.keyboard.press('Enter');
+  await expect(moment).toHaveCount(0);
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { famousSeen: string[] }).famousSeen)).toContain(famous);
   expect(errors).toEqual([]);
 });
 

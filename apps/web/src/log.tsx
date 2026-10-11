@@ -19,7 +19,7 @@ const X_AT_PIECES = 3;
  * the coast to read (the X itself only from the third piece), then its neighbours, the far side last (quarters: 0
  * top left, 1 top right, 2 bottom left, 3 bottom right of the widest search ring).
  */
-function quartersHeld(hoard: Hoard, pieces: number): number[] {
+export function quartersHeld(hoard: Hoard, pieces: number): number[] {
   const xq = (hoard.dx <= 0 ? 1 : 0) + (hoard.dy <= 0 ? 2 : 0);
   return [xq, xq ^ 1, xq ^ 2, 3 - xq].slice(0, pieces);
 }
@@ -28,7 +28,7 @@ function quartersHeld(hoard: Hoard, pieces: number): number[] {
  * A hoard's map drawn as a parchment from the real coast about the widest search ring: land, water and the shore
  * between; the quarters not yet held torn away; the X from the third piece.
  */
-function Parchment({
+export function Parchment({
   content,
   map,
   hoard,
@@ -92,7 +92,7 @@ function Parchment({
 }
 
 /** The water nearest a spot, ring by ring outward: a course goes to the search ring, never straight to the X. */
-function waterNear(map: TileMap, x: number, y: number): [number, number] {
+export function waterNear(map: TileMap, x: number, y: number): [number, number] {
   for (let d = 0; d < 40; d++) {
     for (let k = 0; k < Math.max(1, d * 8); k++) {
       const a = (k / Math.max(1, d * 8)) * Math.PI * 2;
