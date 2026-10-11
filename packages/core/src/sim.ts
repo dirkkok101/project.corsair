@@ -15,6 +15,11 @@ export interface System {
   /** Returns a result when this system owns the command, undefined otherwise. */
   command?(state: WorldState, command: Command): SystemResult | undefined;
   tick(state: WorldState, dt: number): SystemResult;
+  /**
+   * Sees what every system just did: the events of a tick (or of a command applied in port), after they happen.
+   * For bookkeeping that follows the others, like the captain's logbook; it may change the state, not emit.
+   */
+  observe?(state: WorldState, events: readonly GameEvent[]): WorldState;
 }
 
 export interface InputRecord {
@@ -50,6 +55,12 @@ export function createSim(initial: WorldState, systems: System[]): Sim {
     for (const e of events) log.push({ ...e, tick, system });
     if (log.length > EVENT_LOG_SIZE) log.splice(0, log.length - EVENT_LOG_SIZE);
   };
+  /** The observers see everything recorded since `from` in the log. */
+  const observe = (from: number) => {
+    const events = log.slice(from);
+    if (!events.length) return;
+    for (const system of systems) if (system.observe) state = system.observe(state, events);
+  };
 
   const dispatch = (tick: number, command: Command) => {
     for (const system of systems) {
@@ -70,14 +81,17 @@ export function createSim(initial: WorldState, systems: System[]): Sim {
       queue.push(command);
     },
     applyCommands() {
+      const from = log.length;
       for (const command of queue.splice(0)) {
         inputs.push({ tick: state.tick, command, immediate: true });
         dispatch(state.tick, command);
       }
+      observe(from);
     },
     step(ticks = 1) {
       for (let i = 0; i < ticks; i++) {
         const tick = state.tick + 1;
+        const from = log.length;
         // Commands apply at the start of the tick, before any system runs, so replays line up.
         for (const command of queue.splice(0)) {
           inputs.push({ tick, command });
@@ -89,6 +103,7 @@ export function createSim(initial: WorldState, systems: System[]): Sim {
           record(tick, system.name, result.events);
         }
         state = { ...state, tick };
+        observe(from);
       }
     },
     hash: () => hashState(state),

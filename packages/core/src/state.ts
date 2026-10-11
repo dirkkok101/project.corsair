@@ -277,6 +277,8 @@ export interface Captain {
   heard?: string[];
   /** The tick of his last call on each town's governor (by settlement id), so the governor says what happened since. */
   calledOn?: Record<string, number>;
+  /** The captain's log (storyboard 6.1): his deeds and the news he has heard, oldest first, the last 200. */
+  logbook?: LogEntry[];
   /** Where each AI ship was last seen from the player's deck, for the chart's fading markers. */
   sightings?: Record<string, Sighting>;
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
@@ -315,6 +317,17 @@ export interface Captain {
   fleet?: FleetShip[];
   /** Ships of the player's freed from pirates, waiting in port to be taken back. */
   laidUp?: LaidUpShip[];
+}
+
+/** One line in the captain's log: a deed of his (a loss among them), or news heard, with where it was. */
+export interface LogEntry {
+  tick: number;
+  kind: 'deed' | 'loss' | 'news';
+  text: string;
+  /** The settlement it happened at or is about. */
+  place?: string;
+  /** A sale: what was sold, so lots of one good sold in one port on one day add up to one line. */
+  sale?: { good: string; quantity: number; gold: number; profit?: number };
 }
 
 /** A ship the player sank or took, waiting for a governor's bounty. */

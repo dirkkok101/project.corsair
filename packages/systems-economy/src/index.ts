@@ -9,6 +9,7 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { careerScore, hasPerk, landOf, perkPrice, rankOf, tradeEdge } from './career';
 
 export * from './career';
+export * from './logbook';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
 // price = base * (T / max(S, 1)) ^ elasticity, and every unit traded moves S, so a glut in one port
@@ -1386,7 +1387,12 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           ships: { ...state.ships, [ship.id]: { ...ship, cargo, paid, ...(ship.plunder ? { plunder } : {}) } },
         };
         const events: EmittedEvent[] = [
-          { type: command.type === 'Buy' ? 'Bought' : 'Sold', entityIds: [ship.id, s.id], payload: { good: command.good, quantity: done, gold: total } },
+          {
+            type: command.type === 'Buy' ? 'Bought' : 'Sold',
+            entityIds: [ship.id, s.id],
+            // A sale says what the units sold had cost, for the profit (plunder cost nothing).
+            payload: { good: command.good, quantity: done, gold: total, ...(command.type === 'Sell' ? { paid: Math.round(before - cost) } : {}) },
+          },
         ];
         // A contract here for this good: what she sells counts toward it, and the last unit in earns the
         // reward and ends the shortage (the town is supplied).

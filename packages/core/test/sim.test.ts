@@ -12,6 +12,22 @@ describe('createSim', () => {
     expect(sim.state.tick).toBe(5);
   });
 
+  it("lets observers see each tick's events, from every system, after they happen", () => {
+    const loud: System = { name: 'loud', tick: (state) => ({ state, events: [{ type: 'Bang', entityIds: [], payload: {} }] }) };
+    const seen: string[] = [];
+    const observer: System = {
+      name: 'observer',
+      tick: (state) => ({ state, events: [] }),
+      observe(state, events) {
+        seen.push(...events.map((e) => `${e.tick}:${e.type}`));
+        return state;
+      },
+    };
+    const sim = createSim(world, [loud, observer]);
+    sim.step(2);
+    expect(seen).toEqual(['1:Bang', '2:Bang']);
+  });
+
   it('rejects a command no system owns, and still records it as input', () => {
     const sim = createSim(world, [idle]);
     sim.send({ type: 'SetHelm', shipId: 'nobody', helm: 1 });
