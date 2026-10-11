@@ -13,6 +13,7 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from './battleView';
 
 export type { BattleViewPlace, BattleViewShip, BattleViewState } from './battleView';
+export { renderShipCard } from './card';
 import { sailAnim } from './sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
 import { CLOUD_SPEED, createOcean } from './sea/ocean';

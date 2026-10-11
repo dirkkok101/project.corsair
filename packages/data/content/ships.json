@@ -130,7 +130,7 @@
     "polar": "polar.square",
     "price": 10000,
     "eras": ["1640", "1660", "1680"],
-    "sprites": { "world": "ship.frigate.world", "icon": "ui.ship.frigate" }
+    "sprites": { "world": "ship.frigate.world" }
   },
   {
     "id": "ship.war_sloop",
@@ -374,7 +374,7 @@
     "polar": "polar.lug",
     "price": 2000,
     "eras": ["1560", "1600", "1620", "1640", "1660", "1680"],
-    "sprites": { "world": "ship.sloop.world", "icon": "ui.ship.sloop" }
+    "sprites": { "world": "ship.sloop.world" }
   },
   {
     "id": "ship.periagua",
@@ -396,7 +396,7 @@
     "polar": "polar.lug",
     "price": 300,
     "eras": ["1560", "1600", "1620", "1640", "1660", "1680"],
-    "sprites": { "world": "ship.sloop.world", "icon": "ui.ship.sloop" }
+    "sprites": { "world": "ship.sloop.world" }
   },
   {
     "id": "ship.half_galley",
@@ -419,7 +419,7 @@
     "polar": "polar.lug",
     "price": 1500,
     "eras": ["1660", "1680"],
-    "sprites": { "world": "ship.war_sloop.world", "icon": "ui.ship.war_sloop" }
+    "sprites": { "world": "ship.war_sloop.world" }
   },
   {
     "id": "ship.galley_frigate",
@@ -441,7 +441,7 @@
     "polar": "polar.square",
     "price": 15000,
     "eras": ["1680"],
-    "sprites": { "world": "ship.frigate.world", "icon": "ui.ship.frigate" }
+    "sprites": { "world": "ship.frigate.world" }
   },
   {
     "id": "ship.ketch",
@@ -461,7 +461,7 @@
     "polar": "polar.square",
     "price": 2500,
     "eras": ["1620", "1640", "1660", "1680"],
-    "sprites": { "world": "ship.barque.world", "icon": "ui.ship.barque" }
+    "sprites": { "world": "ship.barque.world" }
   },
   {
     "id": "ship.pink",
@@ -481,6 +481,6 @@
     "polar": "polar.square",
     "price": 3500,
     "eras": ["1620", "1640", "1660", "1680"],
-    "sprites": { "world": "ship.fluyt.world", "icon": "ui.ship.fluyt" }
+    "sprites": { "world": "ship.fluyt.world" }
   }
 ]

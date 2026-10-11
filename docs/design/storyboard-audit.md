@@ -16,7 +16,7 @@ storyboard element built and matching. Each row is one element: **Have** (works 
 | `loading.dawn`, `difficulty.1-5` | In the game |
 | `fate.tavern`, `.planter`, `.council`, `.legend` | In the game (all eight fates now imported) |
 | `ui.icons.fits` | In the game, as nine `ui.icon.fit.*` icons |
-| Ship card art for the six new classes | Not made (rendered by a tool, slice S7) |
+| Ship card art for the seven newer classes | In the game, rendered from their 3D models (`tools/art/render_ship_cards.ts`) |
 
 Every screen shows a labelled placeholder until its painting arrives, so no slice waits on art.
 

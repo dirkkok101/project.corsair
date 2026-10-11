@@ -1,0 +1,8 @@
+id: ui.ship.galley_frigate
+tool: tools/art/render_ship_cards.ts
+date: 2026-10-11
+prompt: |
+  Rendered, not painted: the ship.galley_frigate's 3D model (packages/render3d/src/rigs.ts) in side view
+  facing right, sails set full, no colours flying, on flat magenta (apps/web/shipcard.html).
+kept: [v1]
+hand_changes: "None."

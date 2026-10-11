@@ -423,6 +423,13 @@ The storyboard ([docs/design/storyboard.md](../../../docs/design/storyboard.md),
 on screen. Until each painting is imported the game shows a labelled silhouette, so they can come in any order;
 the plan's slice order is the most useful one.
 
+### Ship cards rendered, not painted
+
+Seven classes added after the ship cards were painted (light frigate, pinnace, periagua, half-galley, galley
+frigate, ketch, pink) have cards rendered from their 3D models: `node tools/art/render_ship_cards.ts` saves a v1
+and a record for every class without one, and `node tools/art/import_ui.ts` imports them like the paintings. A
+painting made later replaces a render: save it as the next version and put it first in `kept:`.
+
 ### People (busts): group `people`
 
 Head and shoulders, three-quarter view, looking toward the viewer. Use the **UI style block** above (the flat

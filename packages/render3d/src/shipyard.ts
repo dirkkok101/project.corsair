@@ -1902,11 +1902,14 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
   staff.position.set(0, stern.h, h.length / 2 - 0.02);
   root.add(staff);
   const ensign = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26, 10, 4).translate(0.21, 0, 0), flagMat);
+  // Named, so a ship card (apps/web/shipcard.html) can show her without colours, as the painted cards do.
+  ensign.name = 'ensign';
   ensign.rotation.y = -Math.PI / 2;
   ensign.position.set(0, stern.h + 0.32, h.length / 2 + 0.0);
   root.add(ensign);
   const main = plan.masts.reduce((a, b) => (b.height > a.height ? b : a));
   const pennant = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.08, 12, 1).translate(0.3, 0, 0), flagMat);
+  pennant.name = 'pennant';
   pennant.rotation.y = -Math.PI / 2;
   pennant.position.set(0, main.height + 0.02, -main.at);
   frames[plan.masts.indexOf(main)]!.add(pennant);
