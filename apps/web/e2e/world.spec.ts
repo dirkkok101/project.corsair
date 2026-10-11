@@ -748,9 +748,11 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await openService(page, 'Governor');
-  // 1660: Spain is at war with England beyond the line, so the governor sells a letter of marque.
+  // 1660: Spain is at war with England beyond the line, so the governor offers a letter of marque, saying what it means.
   await expect(page.locator('.governor')).toContainText('at war with Spain');
-  await page.locator('.governor').getByRole('button', { name: /Letter of marque/ }).click();
+  await expect(page.locator('.governor .k-say').first()).toContainText("So you're the captain they talk of");
+  await expect(page.locator('.governor-offer')).toContainText('Their ships become lawful prizes');
+  await page.locator('.governor-offer').getByRole('button', { name: /^Take the letter/ }).click();
   await expect(page.locator('.governor')).toContainText('You hold an English letter of marque');
   await page.screenshot({ path: 'test-results/governor.png' });
   await page.keyboard.press('e');
@@ -800,6 +802,9 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
     await page.keyboard.press('e');
     await page.evaluate(() => window.__corsair.sim.step(1));
     await openService(page, 'Governor');
+    // Since the last call: the governor names what you did for him.
+    await expect(page.locator('.governor .k-say').first()).toContainText('Spanish ship');
+    await page.screenshot({ path: 'test-results/governor-bounty.png' });
     await page.locator('.governor').getByRole('button', { name: /Collect bounties/ }).click();
     await expect(page.locator('.governor')).toContainText('No bounty owed here');
   }

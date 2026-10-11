@@ -671,21 +671,21 @@ body {
 }
 
 /* The merchant (storyboard 2.2): his wood panel on the left, the parchment ledger on the right, over his shop. */
-.port-panel:has(.merchant, .tavern-room) {
+.port-panel:has(.merchant, .tavern-room, .governor) {
   max-height: 86vh;
   background: transparent;
   border-color: transparent;
 }
 
 /* With no panel behind it, the header gets its own band so it reads over the painting. */
-.port-panel:has(.merchant, .tavern-room) > .port-head,
-.port-panel:has(.merchant, .tavern-room) > .port-tabs {
+.port-panel:has(.merchant, .tavern-room, .governor) > .port-head,
+.port-panel:has(.merchant, .tavern-room, .governor) > .port-tabs {
   padding: 6px 12px;
   background: rgb(21 29 40 / 0.85);
   border-bottom: none;
 }
 
-.port-panel:has(.merchant, .tavern-room) > .port-tabs {
+.port-panel:has(.merchant, .tavern-room, .governor) > .port-tabs {
   margin: 0 0 12px;
   border-top: 1px solid #394a50;
 }
@@ -2352,25 +2352,60 @@ body {
   cursor: default;
 }
 
+/* The governor (storyboard 2.8): his speech, then the bounties, the rank ribbon and one offer. */
 .governor {
-  min-height: 120px;
-}
-
-.governor .trend {
-  margin-left: 0;
+  width: min(860px, 100%);
+  padding: 16px;
 }
 
 .governor-row {
-  margin: 8px 0;
+  margin: 12px 0 0;
 }
 
-.governor-row button {
-  padding: 2px 10px;
-  font: inherit;
-  color: #ebede9;
-  background: #253a5e;
-  border: 1px solid #4f8fba;
-  cursor: pointer;
+.governor-bounty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.governor-bounty b {
+  margin-left: auto;
+  color: var(--k-gold);
+}
+
+.rank-ribbon {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.rank-ribbon b {
+  font-family: var(--k-display);
+  font-size: 20px;
+  font-weight: normal;
+  color: var(--k-gold);
+}
+
+.governor-offer {
+  margin-top: 14px;
+  padding: 14px 16px;
+}
+
+.governor-offer-means {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.k-tag.war {
+  background: #a53030;
+  color: #fbeee0;
+}
+
+.k-tag.peace {
+  background: #75a743;
+  color: #10170b;
 }
 
 /* The ships lying in port, under the tavern's recruiting line. */
@@ -2659,9 +2694,10 @@ body {
 }
 
 .governor-rank {
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 4px;
 }
 
 .career-actions button {

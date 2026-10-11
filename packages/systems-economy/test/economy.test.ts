@@ -344,6 +344,19 @@ describe('market shocks and news', () => {
     expect(sim.state.captain!.heard).toEqual([item.id]);
   });
 
+  it("calling on a governor remembers when, for what has happened since", () => {
+    const sim = moored(portRoyal, 11);
+    sim.send({ type: 'CallOnGovernor', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.calledOn).toBeUndefined();
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    sim.step(day);
+    sim.send({ type: 'CallOnGovernor', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.calledOn).toEqual({ [portRoyal.id]: sim.state.tick });
+  });
+
   it('a year of shocks comes and goes within bounds, and replays exactly', () => {
     const run = () => {
       const sim = moored(portRoyal, 11);

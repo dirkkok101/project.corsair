@@ -49,7 +49,7 @@ import {
   tradeLean,
   tradePreview,
 } from '@corsair/systems-economy';
-import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
+import { enemiesOf, legalTarget } from '@corsair/systems-politics';
 import { topTen } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
 import { Bust, Key, Speech, Stat } from './ui/kit';
@@ -839,9 +839,20 @@ function LaidUp({ content, state, shipId, send }: { content: ContentPack; state:
 /** The shipwright: hull and sails made good, as far as the purse reaches. */
 const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands', pirate: 'the pirates' };
 
+/** How each governor speaks of the power he serves. */
+const CROWN: Record<string, string> = { spain: 'His Catholic Majesty', england: 'His Majesty', france: 'His Most Christian Majesty', netherlands: 'The States General' };
+
+/** The deeds a governor pays for, as he'd say them: "two Spanish ships and a pirate". */
+function deedsSaid(pay: { nation: string; captive?: string }[]) {
+  const counts = new Map<string, number>();
+  for (const d of pay) if (!d.captive) counts.set(d.nation, (counts.get(d.nation) ?? 0) + 1);
+  return [...counts].map(([n, k]) => `${k === 1 ? 'a' : k} ${n === 'pirate' ? 'pirate' : NATION[n as PlacedSettlement['nation']]} ${k === 1 ? 'ship' : 'ships'}`).join(' and ');
+}
+
 /**
- * The governor (PRD section 12): his nation's wars and peace, how hard pirates press its trade, a letter
- * of marque against its enemies, and bounties for the captain's deeds.
+ * The governor (storyboard 2.8, PRD section 12): his bust says what has happened since your last call (the bounties
+ * you've earned, a war or a peace); then the bounties to collect, your rank as a ribbon toward the next, and one
+ * offer at a time with what taking it means.
  */
 function Governor({
   content,
@@ -856,67 +867,109 @@ function Governor({
   shipId: string;
   send: PortProps['send'];
 }) {
+  // His last call here, read before this one is recorded, so the summary covers the time between.
+  const [last] = useState(() => state.captain?.calledOn?.[town.id]);
+  useEffect(() => send({ type: 'CallOnGovernor', shipId }), []);
+  const [declined, decline] = useState(false);
   if (!hasGovernor(town)) {
-    return <p class="tavern-quiet">There is no governor here: only towns and cities have one.</p>;
+    return <p class="port-sub">There is no governor here: only towns and cities have one.</p>;
   }
   const nation = town.nation;
   const enemies = enemiesOf(content, state, nation).filter((n) => n !== 'pirate');
-  const friends = NATIONS.filter((n) => n !== nation && !enemies.includes(n));
   const piracy = Math.round(state.politics?.piracy[nation] ?? 0);
   const held = (state.captain?.marques ?? []).includes(nation);
   const price = marquePrice(content, state, nation);
   const owed = bountiesOwed(content, state, nation);
   const standing = state.captain?.standing?.[nation] ?? 0;
-  const list = (ns: readonly string[]) => ns.map((n) => COUNTRY[n]).join(', ');
+  const list = (ns: readonly string[]) => ns.map((n) => COUNTRY[n]).join(' and ');
+  // Wars and peace made by his nation since the last call.
+  const since = (state.news ?? []).filter((n) => (n.kind === 'war' || n.kind === 'peace') && (n.nation === nation || n.other === nation) && n.tick > (last ?? state.tick));
+  const captives = owed.pay.flatMap((d) => (d.captive ? [content.pirates.captains.find((c) => c.id === d.captive)?.name ?? d.captive] : []));
+  const ships = deedsSaid(owed.pay);
+  const days = last === undefined ? 0 : Math.floor((state.tick - last) / content.calendar.ticksPerDay);
+  const line = owed.pay.length
+    ? `"${captives.length ? `${captives.join(' and ')} in irons! ` : ''}${ships ? `You've seen to ${ships} for us. ` : ''}${CROWN[nation]} is pleased."`
+    : since.length
+      ? `"Since you were last here: ${newsText(content, since[since.length - 1]!, town.name)}"`
+      : last === undefined
+        ? `"So you're the captain they talk of. ${COUNTRY[nation]} has need of men like you."`
+        : days < 1
+          ? `"Back so soon, captain?"`
+          : `"Nothing has changed since you were last here, ${days} ${days === 1 ? 'day' : 'days'} ago."`;
+  const offer = !held && enemies.length && price !== undefined && !declined;
   return (
-    <div class="governor">
-      <p>
-        {enemies.length ? <span class="trend scarce">at war</span> : <span class="trend export">at peace</span>}{' '}
-        {enemies.length ? `${COUNTRY[nation]} is at war with ${list(enemies)}.` : `${COUNTRY[nation]} is at peace with every nation.`}
-        {friends.length && enemies.length ? ` At peace with ${list(friends)}.` : ''}
-      </p>
-      <p class="port-sub">
-        {piracy >= content.politics.piracy.plague
-          ? `Pirates are plaguing our trade (pressure ${piracy}). Every pirate you take is worth more here.`
-          : piracy > 0
-            ? `Pirates trouble our shipping (pressure ${piracy}).`
-            : 'Our trade is quiet; few pirates trouble it.'}{' '}
-        Your standing with {COUNTRY[nation]}: {standing}.
-      </p>
-      <div class="governor-row">
-        {held ? (
-          <span>
-            You hold {/^[AEIOU]/.test(NATION[nation]) ? 'an' : 'a'} {NATION[nation]} letter of marque. It covers:{' '}
-            {enemies.length ? list(enemies) : 'no one while we are at peace'}.
+    <div class="governor k-wood">
+      <Speech bust={`bust.governor.${nation}`} who={`The governor of ${town.name}`} line={line}>
+        <div class="tavern-tags">
+          {enemies.length ? <span class="k-tag war">at war with {list(enemies)}</span> : <span class="k-tag peace">at peace</span>}
+          <span class="k-tag" title={`Standing ${standing}, from -100 to 100`}>
+            {COUNTRY[nation]}: {standingWord(standing)} ({standing})
           </span>
-        ) : !enemies.length ? (
-          <span class="port-sub">We are at peace: there are no letters of marque to be had.</span>
-        ) : price === undefined ? (
-          <span class="port-sub">The governor will not grant a letter to an enemy of {COUNTRY[nation]}.</span>
-        ) : (
-          <button onClick={() => send({ type: 'BuyMarque', shipId })}>
-            Letter of marque against {list(enemies)} · {price ? `${price} gold` : 'granted freely'}
-          </button>
-        )}
-      </div>
-      <Rank content={content} state={state} nation={nation} />
-      <div class="governor-row">
+        </div>
+        <div class="k-sub">
+          {piracy >= content.politics.piracy.plague
+            ? `Pirates are plaguing our trade: every pirate you take is worth more here.`
+            : piracy > 0
+              ? 'Pirates trouble our shipping.'
+              : 'Our trade is quiet; few pirates trouble it.'}
+        </div>
+      </Speech>
+      <div class="governor-row governor-bounty">
         {owed.pay.length ? (
-          <button onClick={() => send({ type: 'CollectBounties', shipId })}>
-            {bountyLabel(content, owed.pay)} · {owed.total.toLocaleString()} gold
-          </button>
+          <>
+            <span>Bounties owed</span>
+            <b>{owed.total.toLocaleString()} gold</b>
+            <button class="k-btn small primary" onClick={() => send({ type: 'CollectBounties', shipId })}>
+              {bountyLabel(content, owed.pay)}
+            </button>
+          </>
         ) : (
-          <span class="port-sub">
+          <span class="k-sub">
             No bounty owed here.{' '}
             {(state.captain?.deeds ?? []).length ? `${state.captain!.deeds!.length} of your deeds wait for a governor at war with those nations.` : ''}
           </span>
         )}
       </div>
+      <Rank content={content} state={state} nation={nation} />
+      {held ? (
+        <div class="governor-row k-sub">
+          You hold {/^[AEIOU]/.test(NATION[nation]) ? 'an' : 'a'} {NATION[nation]} letter of marque. It covers:{' '}
+          {enemies.length ? list(enemies) : 'no one while we are at peace'}.
+        </div>
+      ) : !enemies.length ? (
+        <div class="governor-row k-sub">We are at peace: there are no letters of marque to be had.</div>
+      ) : price === undefined ? (
+        <div class="governor-row k-sub">The governor will not grant a letter to an enemy of {COUNTRY[nation]}.</div>
+      ) : offer ? (
+        <div class="k-paper governor-offer">
+          <div class="k-say">
+            "{list(enemies)} {enemies.length === 1 ? 'is' : 'are'} our enemy. A letter of marque, {price ? `${price.toLocaleString()} gold` : 'freely given'}?"
+          </div>
+          <div class="governor-offer-means">
+            Their ships become lawful prizes: each one you take raises your standing with {COUNTRY[nation]} and earns a bounty here.{' '}
+            {list(enemies)} will think the worse of you for it.
+          </div>
+          <div class="tavern-replies">
+            <button class="k-btn small primary" onClick={() => send({ type: 'BuyMarque', shipId })}>
+              Take the letter · {price ? `${price.toLocaleString()} gold` : 'free'}
+            </button>
+            <button class="k-btn small paper" onClick={() => decline(true)}>
+              Not now
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div class="governor-row k-sub">
+          <button class="k-btn small" onClick={() => decline(false)}>
+            Ask about a letter of marque
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-/** His rank with the governor's nation: where he stands, what the next rung asks and brings, and his land. */
+/** His rank with the governor's nation, as a ribbon toward the next rung: what that asks and brings, and his land. */
 function Rank({ content, state, nation }: { content: ContentPack; state: WorldState; nation: PlacedSettlement['nation'] }) {
   const ladder = content.politics.ranks.ladder;
   const r = rankOf(content, state.captain, nation);
@@ -925,7 +978,7 @@ function Rank({ content, state, nation }: { content: ContentPack; state: WorldSt
   const acres = landOf(content, state.captain, nation);
   if (r < 0)
     return (
-      <div class="governor-row port-sub">
+      <div class="governor-row governor-rank k-sub">
         A letter of marque is your first rank with {COUNTRY[nation]}; then every bounty collected here raises you ({ladder
           .slice(1, 4)
           .map((l) => l.name)
@@ -933,16 +986,22 @@ function Rank({ content, state, nation }: { content: ContentPack; state: WorldSt
         , and on to a title and land).
       </div>
     );
+  const from = ladder[r]!.merit;
+  const share = next ? Math.max(0, Math.min(1, (merit - from) / (next.merit - from))) : 1;
   return (
     <div class="governor-row governor-rank">
-      <span>
-        Your rank with {COUNTRY[nation]}: <b>{ladder[r]!.name}</b>
-        {acres ? ` · ${acres} acres, ${Math.round(acres * content.politics.ranks.rentPerAcre)} gold a month in rent` : ''}.
-      </span>
-      <span class="port-sub">
+      <div class="rank-ribbon">
+        <b>{ladder[r]!.name}</b>
+        <div class="k-bar">
+          <span style={{ width: `${share * 100}%` }} />
+        </div>
+        <span>{next ? next.name : 'the top'}</span>
+      </div>
+      <span class="k-sub">
         {next
-          ? `Merit ${merit} (a point a bounty, more for a famous pirate): ${next.merit - merit} more to ${next.name}, which brings ${rungBrings(content, r + 1).join(', ') || 'a higher rank'}.`
+          ? `${next.merit - merit} more merit (a point a bounty, more for a famous pirate) to ${next.name}: ${rungBrings(content, r + 1).join(', ') || 'a higher rank'}.`
           : `Merit ${merit}: the highest rank there is. Each bounty adds to your land.`}
+        {acres ? ` Your ${acres} acres pay ${Math.round(acres * content.politics.ranks.rentPerAcre)} gold a month in rent.` : ''}
       </span>
     </div>
   );

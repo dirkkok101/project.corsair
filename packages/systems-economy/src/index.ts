@@ -1299,6 +1299,11 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           events: [{ type: 'NewsHeard', entityIds: [ship.docked], payload: { ids: fresh.map((n) => n.id) } }],
         };
       }
+      if (command.type === 'CallOnGovernor') {
+        const ship = state.ships[command.shipId];
+        if (!ship?.docked) return ship ? refuse(state, ship, 'not-docked') : undefined;
+        return { state: { ...state, captain: { ...state.captain, calledOn: { ...state.captain.calledOn, [ship.docked]: state.tick } } }, events: [] };
+      }
       if (command.type === 'SpawnShock') {
         const s = byId.get(command.settlementId);
         if (!s || !content.economy.shocks.kinds[command.kind] || !content.goods.some((g) => g.id === command.good)) return undefined;

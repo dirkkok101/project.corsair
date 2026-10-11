@@ -275,6 +275,8 @@ export interface Captain {
   knownPrices: Record<string, KnownPrices>;
   /** Ids of news items the captain has heard (in a tavern), oldest first. */
   heard?: string[];
+  /** The tick of his last call on each town's governor (by settlement id), so the governor says what happened since. */
+  calledOn?: Record<string, number>;
   /** Where each AI ship was last seen from the player's deck, for the chart's fading markers. */
   sightings?: Record<string, Sighting>;
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
@@ -550,6 +552,7 @@ export type Command =
   | { type: 'SpawnShip'; role: AiCaptain['role']; from: string; to: string }
   /** The captain listens in the tavern of the port the ship is docked at. */
   | { type: 'HearNews'; shipId: string }
+  | { type: 'CallOnGovernor'; shipId: string }
   /** Debug: start a market shock now. */
   | { type: 'SpawnShock'; settlementId: string; good: string; kind: string }
   | { type: 'SpawnPlague'; settlementId: string };
