@@ -21,7 +21,7 @@ import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
 import { compassProps, Hud } from './hud';
-import { shipIcon, shipKind } from './ui-art';
+import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
 import { cargoUsed, createEconomySystem, createLogbookSystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
@@ -1012,8 +1012,10 @@ async function main() {
           content={content}
           enemyName={fight.name}
           enemyTitle={fight.title}
+          enemyNation={fight.nation}
           wavering={fight.battle.wavering()}
-          demand={fight.battle.demands() ? fight.name : undefined}
+          demand={fight.battle.demands() ? { name: fight.name, chest: Math.round(sim.state.captain?.chest ?? 0) } : undefined}
+          onStrike={() => fight?.battle.send({ type: 'Strike' })}
           report={fight.report}
           attacked={fight.attacked}
           offer={
@@ -1070,26 +1072,14 @@ async function main() {
           onPlunder={takePlunder}
           reloadSeconds={gunnery.reloadSeconds}
           aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}
-          panel={(() => {
-            const p = bs.ships.player;
-            const each = Math.floor(p.guns / 2);
-            const loaded = (side: 'port' | 'starboard') => (p.reload[side] <= 0 ? each : Math.floor(each * (1 - p.reload[side] / gunnery.reloadSeconds)));
-            return {
-              name: 'Your ship',
-              classId: me.classId,
-              icon: shipIcon(content, me.classId),
-              hull: p.hull,
-              hullMax: p.hullMax,
-              sails: p.sailCondition,
-              crew: p.crew,
-              morale: { value: p.morale, word: moraleWord(content, p.morale) },
-              berths: shipStats(content, me).maxCrew,
-              sailSetting: p.sails,
-              guns: { port: { loaded: loaded('port'), of: each }, starboard: { loaded: loaded('starboard'), of: each } },
-              shot: { loaded: p.ammo, choose: (ammo: Ammo) => fight?.battle.send({ type: 'SetAmmo', ammo }) },
-              setSails: (sails) => fight?.battle.send({ type: 'SetSails', shipId: 'player', sails }),
-            };
-          })()}
+          you={{
+            name: me.name ?? 'Your ship',
+            what: [`${shipKind(me.classId)} · ${bs.ships.player.guns} guns`, ...(me.upgrades ?? []).map((u) => content.upgrades[u]?.name.toLowerCase() ?? u)].join(' · '),
+            sails: bs.ships.player.sails,
+            setSails: (sails) => fight?.battle.send({ type: 'SetSails', shipId: 'player', sails }),
+            shot: bs.ships.player.ammo,
+            chooseShot: (ammo) => fight?.battle.send({ type: 'SetAmmo', ammo }),
+          }}
           onContinue={endBattle}
         />,
         battleRoot,

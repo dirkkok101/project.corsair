@@ -1,7 +1,9 @@
+import type { ComponentChildren } from 'preact';
 import type { Ship, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import { newsText } from '@corsair/systems-economy';
-import { shipKind } from './ui-art';
+import { Key, Speech } from './ui/kit';
+import { Art, shipKind } from './ui-art';
 
 export const NATION_ADJECTIVE: Record<string, string> = {
   spain: 'Spanish',
@@ -40,21 +42,35 @@ export interface HailProps {
   room: number;
 }
 
-/** Speaking a ship at sea (PRD section 4): who she is, a hint of what she carries, and her news. */
+/** Who speaks for a ship hailed: her captain's bust by her role. */
+const BUST: Record<string, string> = { merchant: 'bust.captain.merchant', patrol: 'bust.captain.navy', pirate: 'bust.captain.pirate' };
+const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' };
+
+/**
+ * Speaking a ship at sea (storyboard 4.3, PRD section 4): her captain on a speech card, with her flag, class and crew
+ * as tags; what she carries and where she is bound; food from her stores; attacking her, with what it means; her news.
+ */
 export function Hail({ state, content, settlements, ship, news, close, attack, lawful, buyFood, room }: HailProps) {
   const ai = ship.ai!;
   const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const goods = Object.keys(ship.cargo).map((g) => content.goods.find((x) => x.id === g)?.name.toLowerCase() ?? g);
-  const errand =
+  const wealth = ai.famous ? (state.famous?.[ai.famous]?.wealth ?? content.pirates.captains.find((c) => c.id === ai.famous)?.wealth ?? 0) : 0;
+  // What her captain says, and what the eye and the talk add.
+  const line =
     ai.role === 'merchant'
-      ? `${goods.length ? `Laden with ${goods.join(' and ')}` : 'Sailing light, in ballast'}, bound for ${name(ai.to)}.`
+      ? `"We're bound for ${name(ai.to)}${goods.length ? ` with ${goods.join(' and ')}` : ', sailing light'}, Captain. Fair winds to you."`
       : ai.role === 'patrol'
-        ? `A man-of-war on patrol, bound for ${name(ai.to)}. Her gunports are closed.`
+        ? `"On patrol for ${COUNTRY[ai.nation] ?? 'the Crown'}, bound for ${name(ai.to)}. Mind how you go, Captain."`
         : ai.famous
-          ? `${ai.name} himself, in a ${shipKind(ship.classId)} with ${crewLook(ship) || 'a crew of his own'}${
-              ship.upgrades?.length ? `, fitted with ${ship.upgrades.map((u) => content.upgrades[u]?.name.toLowerCase() ?? u).join(', ')}` : ''
-            }: worth about ${(state.famous?.[ai.famous]?.wealth ?? content.pirates.captains.find((c) => c.id === ai.famous)?.wealth ?? 0).toLocaleString()} gold, by the talk in the taverns. Beat him and half of it is yours.`
-          : `A ${shipKind(ship.classId)} with a hard-looking crew. She keeps a wary distance and answers short.`;
+          ? `"You know who I am, Captain. Most do."`
+          : `"What's your business? Keep your distance."`;
+  const errand = ai.famous
+    ? `${ai.name} himself: worth about ${wealth.toLocaleString()} gold, by the talk in the taverns. Beat him and half of it is yours.`
+    : ai.role === 'pirate'
+      ? 'A hard-looking crew. She keeps a wary distance and answers short.'
+      : ai.role === 'patrol'
+        ? 'Her gunports are closed.'
+        : '';
   const prizes = ai.prizes ?? [];
   const mine = prizes.filter((p) => p.takenFrom === 'player');
   const kind = (classId: string) => classId.replace(/^ship\./, '').replace(/_/g, ' ');
@@ -64,42 +80,58 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
       }. Take her and ${prizes.length === 1 ? 'she is' : 'they are'} free.`
     : '';
   const items = news.map((id) => state.news?.find((n) => n.id === id)).filter((n) => n !== undefined);
+  const consequence =
+    ai.nation === 'pirate'
+      ? 'a pirate: fair game, and any governor pays a bounty for her'
+      : lawful
+        ? `lawful under your ${NATION_ADJECTIVE[lawful]} letter of marque: a bounty from its governors`
+        : `angers the ${NATION_ADJECTIVE[ai.nation]}: no letter of marque covers her`;
   return (
     <div class="hail">
-      <div class="hail-panel">
-        <div class="hail-head">
-          <span class="port-name">{ai.name}</span>
-          <span class="port-sub">
-            {shipTitle(ship)}
-            {crewLook(ship) ? ` · ${crewLook(ship)}` : ''}
+      <div class="k-wood hail-card">
+        <div class="hail-tags">
+          <span class={`k-tag${ai.nation === 'pirate' ? '' : ' war'}`}>{NATION_ADJECTIVE[ai.nation] ?? ai.nation}</span>
+          <span class="k-tag">
+            {shipKind(ship.classId)} · {ai.famous ? 'famous pirate' : ai.role === 'patrol' ? 'man-of-war' : ai.role}
           </span>
+          {crewLook(ship) ? <span class="k-tag">{crewLook(ship)}</span> : null}
+          {(ship.upgrades ?? []).map((u) => (
+            <span key={u} class="k-tag">
+              {content.upgrades[u]?.name.toLowerCase() ?? u}
+            </span>
+          ))}
+          <span class="hail-near k-sub">within hailing distance</span>
         </div>
-        <p>{errand}</p>
-        {towing ? <p class={mine.length ? 'hail-yours' : undefined}>{towing}</p> : null}
-        <div class="hail-news">
-          {items.length ? (
-            items.map((n) => (
-              <div key={n.id}>
-                <span class="trend want">news</span> {newsText(content, n, name(n.settlementId))}
-              </div>
-            ))
-          ) : (
-            <div class="port-sub">No news you haven't heard.</div>
-          )}
-        </div>
-        <Provisions content={content} state={state} ship={ship} buyFood={buyFood} room={room} />
-        <div class="hail-actions">
-          <button class="attack" onClick={attack} title={ai.nation === 'pirate' ? 'A pirate: fair game' : `Costs standing with the ${NATION_ADJECTIVE[ai.nation]}`}>
-            Attack
-            {ai.nation === 'pirate'
-              ? ''
-              : lawful
-                ? ` · lawful under your ${NATION_ADJECTIVE[lawful]} letter`
-                : ` · angers the ${NATION_ADJECTIVE[ai.nation]}`}
-          </button>
-          <button class="leave" onClick={close}>
-            Part ways · H
-          </button>
+        <Speech bust={BUST[ai.role] ?? 'bust.captain.merchant'} who={ai.name} line={line}>
+          {errand ? <div class="k-sub">{errand}</div> : null}
+          {towing ? <div class={`k-sub${mine.length ? ' hail-yours' : ''}`}>{towing}</div> : null}
+        </Speech>
+        <div class="book-rule light" />
+        <div class="hail-rows">
+          <Provisions content={content} state={state} ship={ship} buyFood={buyFood} room={room} />
+          <div class="hail-row hail-attack">
+            <Art id="ui.icon.round_shot" class="inline-icon" />
+            <div class="hail-what">
+              Attack her · <span class="k-sub">{consequence}</span>
+            </div>
+            <button class="k-btn primary attack" onClick={attack}>
+              Attack
+            </button>
+          </div>
+          {items.map((n) => (
+            <div key={n.id} class="hail-row hail-news">
+              <span class="k-tag news">news</span>
+              <div class="hail-what">{newsText(content, n, name(n.settlementId))}</div>
+            </div>
+          ))}
+          <div class="hail-row">
+            <span class="hail-what k-sub">
+              {items.length ? `${items.length === 1 ? 'Her news goes' : `${items.length} pieces of news go`} to your log.` : "She has no news you haven't heard."}
+            </span>
+            <button class="k-btn" onClick={close}>
+              Sail on <Key k="H" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -115,22 +147,25 @@ function Provisions({ content, state, ship, buyFood, room }: { content: ContentP
   const sp = content.economy.seaProvisions;
   const ai = ship.ai!;
   const standing = state.captain?.standing?.[ai.nation as keyof NonNullable<NonNullable<WorldState['captain']>['standing']>] ?? 0;
-  if (ai.nation === 'pirate') return <div class="hail-food port-sub">She has no food to sell you: pirates keep what they have.</div>;
-  if (standing <= sp.refuseBelow) return <div class="hail-food port-sub">Her captain won't trade with you: the {NATION_ADJECTIVE[ai.nation]} want you hanged.</div>;
+  const row = (text: string, button?: ComponentChildren) => (
+    <div class="hail-row hail-food">
+      <Art id="ui.icon.food" class="inline-icon" />
+      <div class="hail-what">{text}</div>
+      {button}
+    </div>
+  );
+  if (ai.nation === 'pirate') return row('She has no food to sell you: pirates keep what they have.');
+  if (standing <= sp.refuseBelow) return row(`Her captain won't trade with you: the ${NATION_ADJECTIVE[ai.nation]} want you hanged.`);
   const price = Math.ceil((content.goods.find((g) => g.id === 'food')?.basePrice ?? 2) * sp.markup);
   const left = sp.spare - (state.captain?.provisionsFrom?.[ship.id] ?? 0);
-  if (left <= 0) return <div class="hail-food port-sub">She has no more food to spare.</div>;
+  if (left <= 0) return row('She has no more food to spare.');
   const gold = state.captain?.gold ?? 0;
   const can = Math.min(left, room, Math.floor(gold / price));
   const why = room <= 0 ? 'Your hold is full.' : gold < price ? 'Not enough gold.' : undefined;
-  return (
-    <div class="hail-food">
-      <span>
-        She can spare {left} food at {price} gold each (dear: far from market).
-      </span>
-      <button disabled={can <= 0} title={why} onClick={() => buyFood(can)}>
-        Buy {Math.max(0, can)} food · {Math.max(0, can) * price} gold
-      </button>
-    </div>
+  return row(
+    `Buy food from her stores: up to ${left}, at ${price} gold each (dear: far from market).`,
+    <button class="k-btn" disabled={can <= 0} title={why} onClick={() => buyFood(can)}>
+      Buy {Math.max(0, can)} food · {Math.max(0, can) * price} gold
+    </button>,
   );
 }

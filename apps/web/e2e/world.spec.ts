@@ -707,7 +707,9 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
   await page.keyboard.press('h');
   await expect(page.locator('.hail')).toContainText('bound for Cartagena');
   // Firing on a nation's ship is allowed, with a warning of what it costs.
-  await expect(page.locator('.hail').getByRole('button', { name: /Attack/ })).toContainText('angers the English');
+  await expect(page.locator('.hail-attack')).toContainText('angers the English');
+  // Her captain speaks on a card, his bust beside it.
+  await expect(page.locator('.hail .k-bust')).toBeVisible();
   await page.screenshot({ path: 'test-results/hail.png' });
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'Hailed' }).length)).toBe(1);
   await page.keyboard.press('h');
@@ -745,17 +747,17 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.evaluate(() => window.__corsair.battle.step(1));
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('chain');
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.reload)).toEqual({ port: 0, starboard: 0 });
-  await expect(page.locator('.ship-panel .panel-modes .active').first()).toContainText('Chain');
+  await expect(page.locator('.battle-ammo .active')).toContainText('Chain');
   for (let i = 0; i < 2; i++) {
     await page.keyboard.press('Tab');
     await page.evaluate(() => window.__corsair.battle.step(1));
   }
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('round');
-  // The ship panel's shot buttons load it too.
-  await page.locator('.ship-panel').getByRole('button', { name: /Grape/ }).click();
+  // The gun bar's shot buttons load it too.
+  await page.locator('.battle-ammo').getByRole('button', { name: /Grape/ }).click();
   await page.evaluate(() => window.__corsair.battle.step(1));
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.ammo)).toBe('grape');
-  await page.locator('.ship-panel').getByRole('button', { name: /Round/ }).click();
+  await page.locator('.battle-ammo').getByRole('button', { name: /Round/ }).click();
   await page.evaluate(() => window.__corsair.battle.step(1));
   const bearing = await page.evaluate(() => window.__corsair.battle.state()!.ships.player.reload);
   await page.keyboard.press(' ');
@@ -802,14 +804,18 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await expect(page.locator('.battle-report')).toBeVisible();
   await expect(page.locator('.battle-standing')).toContainText('England (for the attack) -20');
   await expect(page.locator('.battle-report-picture')).toBeVisible();
+  // The hull, sails and men say how they are in words.
+  await expect(page.locator('.battle-report-title')).not.toHaveText('');
+  await page.screenshot({ path: 'test-results/battle-report.png' });
   if (outcome === 'struck' || outcome === 'boarded') {
-    // One button does the sensible thing: a merchant is let go by default, and it says what that means.
+    // The report leads to her hold: one button does the sensible thing, a merchant let go by default, saying what that means.
+    await page.keyboard.press('Enter');
     await expect(page.locator('.plunder-go')).toContainText(/let her go · Enter/i);
     await expect(page.locator('.plunder')).toContainText('thinks a little better of you');
     expect(await page.evaluate(() => window.__corsair.state.get('prize'))).toBeDefined();
+    await page.screenshot({ path: 'test-results/plunder.png' });
   }
-  await page.screenshot({ path: 'test-results/battle-report.png' });
-  // Enter takes the best of her hold and sinks her, or with no prize carries on.
+  // Enter takes the best of her hold and lets her go, or with no prize carries on.
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'BattleOver' }).length)).toBe(1);
@@ -851,7 +857,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
     }
   });
   await page.keyboard.press('h');
-  await expect(page.locator('.hail').getByRole('button', { name: /Attack/ })).toContainText('lawful under your English letter');
+  await expect(page.locator('.hail-attack')).toContainText('lawful under your English letter');
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   const outcome = await page.evaluate(() => {
@@ -1103,6 +1109,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
     return window.__corsair.battle.result()?.outcome;
   });
   test.skip(outcome !== 'boarded' && outcome !== 'struck', `no prize this run (${outcome})`);
+  await page.getByRole('button', { name: /^To her hold/ }).click();
   await page.locator('.plunder-fate').getByRole('button', { name: 'Keep her' }).click();
   await expect(page.locator('.plunder')).toContainText('joins your fleet');
   await page.keyboard.press('Enter');

@@ -2058,441 +2058,6 @@ body {
   border-color: #ebede9;
 }
 
-.hail {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: end center;
-  padding-bottom: 12px;
-  pointer-events: none;
-}
-
-.hail-panel {
-  width: min(560px, 94vw);
-  padding: 12px 18px;
-  color: #ebede9;
-  background: rgb(21 29 40 / 0.9);
-  border: 2px solid #c09473;
-  pointer-events: auto;
-}
-
-.hail-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.hail-news > div {
-  margin: 4px 0;
-}
-
-.hail-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.hail-actions button {
-  padding: 2px 10px;
-  font: inherit;
-  color: #ebede9;
-  background: #253a5e;
-  border: 1px solid #4f8fba;
-  cursor: pointer;
-}
-
-.hail-actions button:disabled {
-  color: #577277;
-  background: transparent;
-  border-color: #394a50;
-  cursor: default;
-}
-
-/* Sea battle HUD (scenes doc S3). */
-.battle {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  color: #ebede9;
-}
-
-.battle-card {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  width: 210px;
-  padding: 8px 10px;
-  background: rgb(9 10 20 / 0.75);
-  border: 1px solid #394a50;
-}
-
-.battle-enemy {
-  left: auto;
-  right: 12px;
-  width: auto;
-  padding: 0;
-  border: none;
-  background: none;
-}
-
-.battle-enemy .battle-card {
-  position: static;
-}
-
-.battle-name {
-  font-family: 'Pirata One', serif;
-  font-size: 20px;
-  color: #e8c170;
-}
-
-.battle-title {
-  font-size: 12px;
-  color: #a8b5b2;
-  text-transform: capitalize;
-}
-
-.battle-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.battle-bar-label {
-  width: 36px;
-  color: #a8b5b2;
-}
-
-.battle-bar-track {
-  flex: 1;
-  height: 6px;
-  min-width: 60px;
-  background: #202e37;
-}
-
-.battle-bar-fill {
-  display: block;
-  height: 100%;
-  background: #75a743;
-}
-
-.battle-bar-fill.low {
-  background: #cf573c;
-}
-
-.battle-bar-fill.ready {
-  background: #e8c170;
-}
-
-.battle-bar-value {
-  width: 34px;
-  text-align: right;
-}
-
-.battle-bottom {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: rgb(9 10 20 / 0.75);
-  border: 1px solid #394a50;
-  white-space: nowrap;
-}
-
-.battle-guns {
-  display: flex;
-  gap: 12px;
-}
-
-.battle-gun {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.battle-gun .battle-bar-track {
-  width: 90px;
-}
-
-.battle-parting {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  font-size: 13px;
-  white-space: nowrap;
-  background: rgb(9 10 20 / 0.75);
-  border: 1px solid #a53030;
-}
-
-.battle-parting .battle-bar-track {
-  width: 90px;
-}
-
-.battle-keys {
-  font-size: 12px;
-  color: #819796;
-}
-
-.battle-report {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(860px, 94vw);
-  max-height: 92vh;
-  overflow: auto;
-  padding: 16px 20px;
-  text-align: left;
-  background: rgb(21 29 40 / 0.94);
-  border: 2px solid #c09473;
-  pointer-events: auto;
-}
-
-.battle-report-head {
-  display: flex;
-  gap: 18px;
-  align-items: flex-start;
-}
-
-/* The ending's painted picture: 320x240, drawn pixel for pixel. */
-.battle-report-picture {
-  flex: none;
-  width: 320px;
-  height: 240px;
-  image-rendering: pixelated;
-  border: 2px solid #4d2b32;
-}
-
-.battle-report-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.battle-report-text p {
-  margin: 4px 0 8px;
-}
-
-.battle-ledger li.good {
-  color: #a8ca58;
-}
-
-.battle-ledger li.bad {
-  color: #df84a5;
-}
-
-.battle-standing {
-  margin: 6px 0;
-  line-height: 1.9;
-}
-
-.chip {
-  margin-right: 6px;
-  padding: 1px 6px;
-  border: 1px solid currentColor;
-  white-space: nowrap;
-}
-
-.chip.good {
-  color: #a8ca58;
-}
-
-.chip.bad {
-  color: #df84a5;
-}
-
-.battle-advice {
-  color: #e8c170;
-}
-
-.plunder-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  margin: 8px 0;
-}
-
-.plunder-icon {
-  flex: none;
-  width: 24px;
-  height: 24px;
-}
-
-.plunder-note {
-  color: #a8b5b2;
-  font-size: 12px;
-}
-
-.plunder-fate {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-
-.plunder-fate button.active {
-  color: #090a14;
-  background: #e8c170;
-  border-color: #e8c170;
-}
-
-.plunder-toggle {
-  margin: 4px 0;
-  padding: 0;
-  color: #73bed3;
-  background: none !important;
-  border: none !important;
-  cursor: pointer;
-}
-
-.plunder-go {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 6px 10px;
-  font-size: 15px;
-}
-
-/* The wind on the battle water: where it blows from, and her point of sail in it. */
-/* In battle the compass sits top-left (the enemy's card has the top-right). */
-.hud-rose.battle-compass {
-  right: auto;
-  left: 8px;
-}
-
-.battle-board {
-  top: 132px;
-  border-color: #a8ca58;
-  color: #a8ca58;
-}
-
-.battle-ledger {
-  margin: 6px 0;
-  padding: 0;
-  list-style: none;
-  text-align: left;
-}
-
-.battle-ledger li {
-  margin: 2px 0;
-}
-
-.plunder {
-  margin-top: 8px;
-  text-align: left;
-}
-
-.plunder table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.plunder td {
-  padding: 1px 4px;
-}
-
-.plunder-throw td {
-  color: #c7cfcc;
-}
-
-.plunder-n {
-  display: inline-block;
-  min-width: 108px;
-  text-align: center;
-}
-
-.plunder-hold {
-  margin-bottom: 4px;
-  color: #e8c170;
-}
-
-.plunder-volunteers {
-  display: block;
-  margin: 6px 0;
-}
-
-.plunder-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 6px;
-}
-
-.battle-waver {
-  top: 92px;
-  color: #e8c170;
-  border-color: #e8c170;
-}
-
-/* A famous pirate calls on the player to strike: under the wavering line, in red. */
-.battle-demand {
-  top: 132px;
-  color: #ebede9;
-  border-color: #a53030;
-  white-space: normal;
-  max-width: min(720px, 90vw);
-}
-
-.battle-mast {
-  top: 176px;
-  color: #ebede9;
-  border-color: #cf573c;
-}
-
-.battle-wreck {
-  max-width: 90vw;
-  white-space: normal;
-  border-color: #4f8fba;
-}
-
-.hail-food {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 6px 0;
-}
-
-.hail-food button {
-  padding: 2px 10px;
-  font: inherit;
-  color: #ebede9;
-  background: #253a5e;
-  border: 1px solid #4f8fba;
-  cursor: pointer;
-}
-
-.hail-food button:disabled {
-  color: #577277;
-  background: transparent;
-  border-color: #394a50;
-  cursor: default;
-}
-
-.hail-actions button.attack {
-  color: #ebede9;
-  background: #752438;
-  border-color: #a53030;
-}
-
-.battle-report button {
-  padding: 2px 10px;
-  font: inherit;
-  color: #ebede9;
-  background: #253a5e;
-  border: 1px solid #4f8fba;
-  cursor: pointer;
-}
-
 .port-notice {
   margin: 4px 0;
   color: #cf573c;
@@ -2720,53 +2285,8 @@ body {
   font-size: 13px;
 }
 
-.battle-aim {
-  width: 84px;
-  font-size: 12px;
-  color: #819796;
-}
-
-.battle-aim.ready {
-  color: #e8c170;
-}
-
-/* Grappled: below the drawing-apart warning's place, in the same style. */
-.battle-grapple {
-  top: 52px;
-  border-color: #e8c170;
-}
-
-/* The ship panel: bottom left, at sea and in battle. Its buttons take clicks; the sea around it doesn't. */
-.ship-panel {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  width: 232px;
-  padding: 2px 4px;
-  color: #ebede9;
-  font-size: 12px;
-  /* The painted frame (its source is set from the UI kit): 9-sliced, its navy middle as the background. */
-  border: 12px solid transparent;
-  border-image-slice: 12 fill;
-  border-image-width: 12px;
-  border-image-repeat: stretch;
-  image-rendering: pixelated;
-  pointer-events: auto;
-}
-
 .ui-art {
   image-rendering: pixelated;
-}
-
-.panel-ship {
-  width: 96px;
-  height: auto;
-}
-
-.panel-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
 }
 
 /* A kit icon in a line of text: a good, the purse, the chest, the crew's mood and food. */
@@ -2775,33 +2295,6 @@ body {
   height: 16px;
   object-fit: contain;
   vertical-align: -3px;
-}
-
-/* The rest of the fleet on the ship card: a small portrait each, and what holds her pace back. */
-.panel-fleet {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 4px;
-  margin: 2px 0;
-  font-size: 11px;
-  color: #a8b5b2;
-}
-
-.panel-fleet-ship {
-  width: 30px;
-  height: 20px;
-  object-fit: contain;
-}
-
-/* A ship of the fleet that needs a shipwright. */
-.panel-fleet-ship.damaged {
-  filter: sepia(1) saturate(4) hue-rotate(-30deg);
-}
-
-.panel-fleet-pace {
-  flex-basis: 100%;
-  color: #e8c170;
 }
 
 .fleet-list {
@@ -2820,98 +2313,6 @@ body {
   height: 24px;
   object-fit: contain;
   vertical-align: middle;
-}
-
-.panel-bar .low {
-  color: #cf573c;
-}
-
-.panel-purse span {
-  margin-right: 8px;
-}
-
-.panel-sub {
-  font: 11px/1.4 ui-monospace, Menlo, monospace;
-  color: #a8b5b2;
-}
-
-.panel-top {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.panel-name {
-  font-family: 'Pirata One', serif;
-  font-size: 18px;
-  color: #e8c170;
-}
-
-.panel-bar,
-.panel-battery {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 2px 0;
-}
-
-.panel-bar-label {
-  min-width: 36px;
-  color: #a8b5b2;
-}
-
-.panel-bar-value {
-  width: 52px;
-  text-align: right;
-}
-
-.panel-bar-value.low {
-  color: #cf573c;
-}
-
-.panel-gun {
-  width: 16px;
-  height: 12px;
-  object-fit: contain;
-  margin-right: -2px;
-}
-
-.panel-modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.panel-modes button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  font: inherit;
-  color: #a8b5b2;
-  background: transparent;
-  border: 1px solid #394a50;
-  cursor: pointer;
-}
-
-.panel-modes button.active {
-  color: #090a14;
-  background: #e8c170;
-  border-color: #e8c170;
-}
-
-/* A big battery: each gun icon stands for this many guns. */
-.panel-gun-per {
-  margin-left: 2px;
-  font-size: 10px;
-  color: #a8b5b2;
-}
-
-.panel-modes button:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 /* Hovering a ship at sea: who she is. */
@@ -2940,11 +2341,6 @@ body {
   padding: 6px 8px;
   border-left: 3px solid #75a743;
   background: #151d28;
-}
-
-/* A pirate with a ship of the player's in tow: worth chasing. */
-.hail .hail-yours {
-  color: #e8c170;
 }
 
 /* The career (slice 8): the score by part, the total and the fate, and retiring. */
@@ -3270,4 +2666,462 @@ body {
 
 .book-rule.light {
   background: rgb(240 220 180 / 0.18);
+}
+
+/* The sea battle (storyboard 5.1-5.4): ship cards with named bands, call-outs as toasts, the gun bar below. */
+.battle {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--k-cream);
+}
+
+.battle button,
+.battle label,
+.battle input {
+  pointer-events: auto;
+}
+
+.battle-cards {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.battle-card {
+  width: min(340px, 44vw);
+  padding: 12px 14px;
+}
+
+.battle-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.battle-name {
+  flex: 1;
+  font-size: 17px;
+}
+
+.battle-title {
+  margin: 2px 0 8px;
+  color: var(--k-cream-dim);
+  font-size: 13px;
+}
+
+.battle-bar {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 13px;
+}
+
+.battle-bar-word {
+  text-align: right;
+}
+
+.k-bar > span.low {
+  background: #ff9a7a;
+}
+
+.k-bar > span.men {
+  background: #9cc3e6;
+}
+
+.battle-calls {
+  position: absolute;
+  top: 150px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.battle-toasts {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(720px, 92vw);
+}
+
+.battle-call {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: rgb(20 14 10 / 0.85);
+  border: 1px solid rgb(232 193 112 / 0.6);
+  font-size: 16px;
+}
+
+.battle-call .k-bar {
+  flex: 0 0 120px;
+}
+
+.battle-mast {
+  font-family: var(--k-display);
+  font-size: 24px;
+  color: var(--k-gold);
+  border-color: var(--k-gold);
+}
+
+.battle-waver {
+  border-color: var(--k-gold);
+}
+
+.battle-parting,
+.battle-grapple {
+  border-color: #ff9a7a;
+}
+
+.battle-demand {
+  position: absolute;
+  top: 210px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 92vw);
+  padding: 20px;
+  border-color: #ff9a7a;
+  pointer-events: auto;
+}
+
+.battle-demand-title {
+  margin: 0 0 6px;
+  font-family: var(--k-display);
+  font-size: 30px;
+  font-weight: normal;
+  color: #ff9a7a;
+}
+
+.battle-demand-ifs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 14px 0;
+  padding-top: 14px;
+  border-top: 1px solid rgb(240 220 180 / 0.18);
+}
+
+.battle-guns {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 18px;
+  padding: 10px 14px;
+  max-width: calc(100vw - 340px);
+}
+
+.battle-gun {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 96px;
+}
+
+.battle-gun b.ready {
+  color: #ffd27a;
+}
+
+.battle-ammo,
+.battle-sails {
+  display: flex;
+  gap: 6px;
+}
+
+.battle-keys {
+  flex-basis: 100%;
+  text-align: center;
+  color: var(--k-cream-dim);
+  font-size: 12px;
+}
+
+/* The report and the plunder screen: over the battle, dimmed. */
+.battle-report-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  background: rgb(8 10 16 / 0.7);
+  pointer-events: auto;
+}
+
+.battle-report {
+  display: flex;
+  gap: 24px;
+  width: min(980px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 22px;
+}
+
+.battle-report-picture {
+  flex: none;
+  width: 400px;
+  height: 300px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  border: 2px solid var(--k-brass);
+  border-radius: 4px;
+}
+
+.battle-report-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.battle-report-title {
+  margin: 0;
+  font-family: var(--k-display);
+  font-size: 44px;
+  font-weight: normal;
+  line-height: 1;
+  color: var(--k-gold);
+}
+
+.battle-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.battle-ledger li.good {
+  color: #ffd27a;
+}
+
+.battle-ledger li.bad {
+  color: #ff9a7a;
+}
+
+.battle-standing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.battle-report-go {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.battle-advice {
+  color: #e9dcbc;
+}
+
+.plunder {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+  width: min(1200px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.plunder-hold {
+  flex: 0 1 700px;
+  padding: 20px;
+}
+
+.plunder-title {
+  margin: 0;
+  font-family: var(--k-display);
+  font-size: 30px;
+  font-weight: normal;
+  color: var(--k-gold);
+}
+
+.k-paper .plunder-title {
+  color: var(--k-ink);
+}
+
+.plunder-goods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 12px 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgb(240 220 180 / 0.18);
+}
+
+.plunder-good {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 92px;
+  opacity: 0.6;
+}
+
+.plunder-good.taking {
+  opacity: 1;
+}
+
+.plunder-good .ui-art {
+  width: 36px;
+  height: 30px;
+}
+
+.plunder-go {
+  justify-content: space-between;
+  width: 100%;
+  min-height: 58px;
+  font-size: 19px;
+}
+
+.plunder-go-what {
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.plunder-note {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--k-cream-dim);
+}
+
+.plunder-checks {
+  margin-top: 12px;
+}
+
+.plunder-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.plunder-fate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.plunder-hand {
+  margin-top: 14px;
+}
+
+.plunder-hand td {
+  padding: 3px 10px 3px 0;
+}
+
+.plunder-n {
+  display: inline-block;
+  min-width: 9em;
+  text-align: center;
+}
+
+.plunder-captive {
+  flex: 0 1 440px;
+  padding: 18px;
+}
+
+.plunder-captive .moment-kicker {
+  color: #7a4a00;
+}
+
+.plunder-captive-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.plunder-captive-choices .k-btn {
+  justify-content: space-between;
+}
+
+.k-btn.paper.active {
+  background: var(--k-ink);
+  color: #f4e3bd;
+}
+
+.plunder-captive-note {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #6b5233;
+}
+
+/* Hailing a ship (storyboard 4.3): her captain on a speech card, what you can do beneath. */
+.hail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 60px;
+  background: rgb(8 10 16 / 0.35);
+  pointer-events: none;
+}
+
+.hail-card {
+  width: min(760px, 94vw);
+  padding: 20px;
+  pointer-events: auto;
+}
+
+.hail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.hail-near {
+  margin-left: auto;
+}
+
+.hail-yours {
+  color: var(--k-gold);
+}
+
+.hail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hail-what {
+  flex: 1;
+  min-width: 0;
+}
+
+.hail-news .hail-what {
+  font-size: 14px;
 }

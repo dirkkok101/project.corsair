@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { BattleResult, Command } from '@corsair/core';
+import type { BattleResult, Command, SailSetting } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
 import { Compass } from './hud';
 import type { CompassProps } from './hud';
-import { ShipPanel } from './panel';
+import { bandOf, Key } from './ui/kit';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
-import type { ShipPanelProps } from './panel';
 
-// The sea battle HUD (scenes doc S3): both ships' hull, sails and crew, the ammo loaded, each
-// broadside's reload, a marker on the screen edge pointing to an enemy out of sight, the warning as
-// the ships draw apart, and the report when the fight is over.
+// The sea battle HUD (storyboard 5.1-5.4): both ships' hull, sails and men as named bands, each broadside's state and
+// the shot loaded, the call-outs (raked, a mast gone, wavering, close to board, drawing apart), a famous pirate's
+// demand with both consequences, then the report and the plunder screen.
 
 const OUTCOME: Record<BattleResult['outcome'], string> = {
   sunk: 'She goes down by the head, and her cargo with her.',
@@ -198,11 +197,11 @@ function fateText(content: ContentPack, offer: PlunderOffer, release: boolean, k
 }
 
 /**
- * The plunder screen (Pirates! 2004), made easy: one button takes the best of her hold, signs on her
- * volunteers and settles her fate (Enter); each choice says what it means; picking goods by hand, or
- * throwing your own over to make room, is there for whoever wants it.
+ * The plunder screen (storyboard 5.4, after Pirates! 2004), made easy: her hold as icons, one big button that takes
+ * the best of it, signs on her volunteers and settles her fate (Enter); the other fates and picking the goods by hand
+ * beneath; a famous prisoner's fate on a card of its own.
  */
-function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: PlunderOffer; onPlunder: (choice: PlunderChoice) => void }) {
+function Plunder({ content, offer, name, onPlunder }: { content: ContentPack; offer: PlunderOffer; name: string; onPlunder: (choice: PlunderChoice) => void }) {
   const used = Object.values(offer.mine).reduce((a, b) => a + b, 0);
   const [take, setTake] = useState(() => bestTake(content, offer.theirs, offer.capacity - used));
   const [jettison, setJettison] = useState<Record<string, number>>({});
@@ -231,171 +230,178 @@ function Plunder({ content, offer, onPlunder }: { content: ContentPack; offer: P
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
-  const name = (g: string) => content.goods.find((x) => x.id === g)?.name ?? g;
+  const goodLabel = (g: string) => content.goods.find((x) => x.id === g)?.name ?? g;
   const step = (n: number) => Math.max(1, Math.ceil(n / 4));
+  const taken = keep ? offer.theirs : take;
+  const go = keep ? 'Take her into the fleet' : `${herUnits ? 'Take the best and ' : ''}${release ? 'let her go' : 'sink her'}`;
   return (
     <div class="plunder">
-      <div class="plunder-row">
-        <Art id="ui.icon.good.luxuries" class="plunder-icon" />
-        <div>
+      <div class="k-wood plunder-hold">
+        <h2 class="plunder-title">{name}'s hold</h2>
+        {herUnits ? (
+          <div class="plunder-goods">
+            {Object.entries(offer.theirs)
+              .filter(([, n]) => n > 0)
+              .map(([g, n]) => (
+                <div key={g} class={`plunder-good${taken[g] ? ' taking' : ''}`}>
+                  <GoodIcon id={g} />
+                  <b>{n}</b>
+                  <span class="k-sub">{goodLabel(g).toLowerCase()}</span>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div class="k-sub">Her hold is empty: her purse was all she carried.</div>
+        )}
+        <button class="k-btn primary plunder-go" onClick={choose}>
+          <span>
+            {go.replace(/^./, (c) => c.toUpperCase())} · Enter
+          </span>
+          <span class="plunder-go-what">
+            {taking && !keep ? `${goodsText(content, take)}, about ${worth(content, take).toLocaleString()} gold` : keep ? `+${offer.keep.hold} tons of hold` : ''}
+          </span>
+        </button>
+        {herUnits > taking && !keep ? <div class="plunder-note">{herUnits - taking} left in her hold: no room in yours. Choose the goods yourself to make room.</div> : null}
+        <div class="plunder-checks">
+          {offer.volunteers > 0 ? (
+            <label class="plunder-check">
+              <input type="checkbox" checked={volunteers} onChange={() => setVolunteers(!volunteers)} />
+              <span>
+                Sign on {offer.volunteers} of her men:{' '}
+                {volunteers
+                  ? `stronger boarders and faster reloads${
+                      Math.floor(offer.foodWith) < Math.floor(offer.foodNow) ? `; food lasts ${Math.floor(offer.foodWith)} days instead of ${Math.floor(offer.foodNow)}` : ''
+                    }, and the plunder split more ways`
+                  : 'they are put ashore'}
+              </span>
+            </label>
+          ) : null}
+          <div class="plunder-note plunder-fate-note">{offer.keep.whyNot && keep ? offer.keep.whyNot : fateText(content, offer, release, keep)}</div>
+        </div>
+        <div class="plunder-fate">
+          <button class={`k-btn small${release && !keep ? ' active' : ''}`} onClick={() => (setRelease(true), setKeep(false))}>
+            Let her go
+          </button>
+          <button class={`k-btn small${!release && !keep ? ' active' : ''}`} onClick={() => (setRelease(false), setKeep(false))}>
+            Sink her
+          </button>
+          <button class={`k-btn small${keep ? ' active' : ''}`} disabled={Boolean(offer.keep.whyNot)} title={offer.keep.whyNot} onClick={() => setKeep(true)}>
+            Keep her
+          </button>
           {herUnits ? (
-            <>
-              <div>
-                Taking {goodsText(content, take) || 'nothing'}
-                {taking ? ` (worth about ${worth(content, take).toLocaleString()} gold)` : ''}
-              </div>
-              {herUnits > taking ? <div class="plunder-note">{herUnits - taking} left in her hold: no room in yours. Choose the goods yourself to make room.</div> : null}
-            </>
-          ) : (
-            <div>Her hold is empty: her purse was all she carried.</div>
-          )}
+            <button class="k-btn small plunder-toggle" onClick={() => setByHand(!byHand)}>
+              {byHand ? 'Hide the goods' : 'Choose the goods myself'}
+            </button>
+          ) : null}
         </div>
-      </div>
-      {offer.volunteers > 0 ? (
-        <label class="plunder-row">
-          <Art id="ui.icon.crew" class="plunder-icon" />
-          <div>
-            <div>
-              <input type="checkbox" checked={volunteers} onChange={() => setVolunteers(!volunteers)} /> Sign on {offer.volunteers} of her men
+        {offer.keep.whyNot ? <div class="plunder-note">Keep her: {offer.keep.whyNot}</div> : null}
+        {byHand ? (
+          <div class="plunder-hand">
+            <div class="plunder-room">
+              Your hold {used - thrown + taking} / {offer.capacity}
             </div>
-            <div class="plunder-note">
-              {volunteers
-                ? `Stronger boarders and faster reloads${
-                    Math.floor(offer.foodWith) < Math.floor(offer.foodNow) ? `; food lasts ${Math.floor(offer.foodWith)} days instead of ${Math.floor(offer.foodNow)}` : ''
-                  }, and the plunder is split more ways.`
-                : 'They are put ashore.'}
-            </div>
+            <table>
+              <tbody>
+                {Object.entries(offer.theirs).map(([g, n]) => (
+                  <tr key={g} class="plunder-take">
+                    <td>
+                      <GoodIcon id={g} /> {goodLabel(g)}
+                    </td>
+                    <td>hers {n}</td>
+                    <td>
+                      <button class="k-btn small" onClick={() => setTake({ ...take, [g]: Math.max(0, (take[g] ?? 0) - step(n)) })}>
+                        −
+                      </button>
+                      <span class="plunder-n">take {take[g] ?? 0}</span>
+                      <button class="k-btn small" onClick={() => setTake({ ...take, [g]: Math.min(n, (take[g] ?? 0) + Math.min(step(n), room)) })}>
+                        +
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {Object.entries(offer.mine).map(([g, n]) => (
+                  <tr key={`mine-${g}`} class="plunder-throw">
+                    <td>
+                      <GoodIcon id={g} /> {goodLabel(g)}
+                    </td>
+                    <td>yours {n}</td>
+                    <td>
+                      <button class="k-btn small" onClick={() => setJettison({ ...jettison, [g]: Math.max(0, (jettison[g] ?? 0) - step(n)) })}>
+                        −
+                      </button>
+                      <span class="plunder-n">over the side {jettison[g] ?? 0}</span>
+                      <button class="k-btn small" onClick={() => setJettison({ ...jettison, [g]: Math.min(n, (jettison[g] ?? 0) + step(n)) })}>
+                        +
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </label>
-      ) : null}
-      <div class="plunder-row">
-        <Art id="ui.icon.anchor" class="plunder-icon" />
-        <div>
-          <div class="plunder-fate">
-            <button class={release && !keep ? 'active' : ''} onClick={() => (setRelease(true), setKeep(false))}>
-              Let her go
-            </button>
-            <button class={!release && !keep ? 'active' : ''} onClick={() => (setRelease(false), setKeep(false))}>
-              Sink her
-            </button>
-            <button class={keep ? 'active' : ''} disabled={Boolean(offer.keep.whyNot)} title={offer.keep.whyNot} onClick={() => setKeep(true)}>
-              Keep her
-            </button>
-          </div>
-          <div class="plunder-note">{offer.keep.whyNot && keep ? offer.keep.whyNot : fateText(content, offer, release, keep)}</div>
-          {offer.keep.whyNot ? <div class="plunder-note">Keep her: {offer.keep.whyNot}</div> : null}
-        </div>
+        ) : null}
       </div>
       {offer.captive ? (
-        <div class="plunder-row plunder-captive">
-          <Art id="ui.icon.crew" class="plunder-icon" />
-          <div>
-            <div>{offer.captive.name} is your prisoner.</div>
-            <div class="plunder-fate">
-              <button
-                class={captive === 'hoard' ? 'active' : ''}
-                disabled={offer.captive.held >= offer.captive.pieces}
-                title={offer.captive.held >= offer.captive.pieces ? 'You hold his whole map already.' : undefined}
-                onClick={() => setCaptive('hoard')}
-              >
-                Ask about his hoard
-              </button>
-              <button class={captive === 'bounty' ? 'active' : ''} onClick={() => setCaptive('bounty')}>
-                Hold him for a bounty
-              </button>
-              <button class={captive === 'free' ? 'active' : ''} onClick={() => setCaptive('free')}>
-                Set him free
-              </button>
-            </div>
-            <div class="plunder-note">{captiveText(offer.captive, captive)}</div>
+        <div class="k-paper plunder-captive">
+          <div class="moment-kicker">A famous pirate taken</div>
+          <h3 class="plunder-title">{offer.captive.name}, in irons</h3>
+          <div class="k-say">"What will you do with me, Captain?"</div>
+          <div class="plunder-captive-choices">
+            <button
+              class={`k-btn paper${captive === 'hoard' ? ' active' : ''}`}
+              disabled={offer.captive.held >= offer.captive.pieces}
+              title={offer.captive.held >= offer.captive.pieces ? 'You hold his whole map already.' : undefined}
+              onClick={() => setCaptive('hoard')}
+            >
+              <span>Ask about his hoard</span>
+              <span class="plunder-go-what">a map piece</span>
+            </button>
+            <button class={`k-btn paper${captive === 'bounty' ? ' active' : ''}`} onClick={() => setCaptive('bounty')}>
+              <span>Hold him for a governor</span>
+              <span class="plunder-go-what">{offer.captive.bounty.toLocaleString()} bounty</span>
+            </button>
+            <button class={`k-btn paper${captive === 'free' ? ' active' : ''}`} onClick={() => setCaptive('free')}>
+              <span>Set him free</span>
+              <span class="plunder-go-what">morale +{offer.captive.morale}</span>
+            </button>
           </div>
+          <div class="plunder-captive-note">{captiveText(offer.captive, captive)}</div>
         </div>
       ) : null}
-      {herUnits ? (
-        <button class="plunder-toggle" onClick={() => setByHand(!byHand)}>
-          {byHand ? '▾' : '▸'} Choose the goods myself
-        </button>
-      ) : null}
-      {byHand ? (
-        <div class="plunder-hand">
-          <div class="plunder-hold">
-            Your hold {used - thrown + taking} / {offer.capacity}
-          </div>
-          <table>
-            <tbody>
-              {Object.entries(offer.theirs).map(([g, n]) => (
-                <tr key={g} class="plunder-take">
-                  <td>
-                    <GoodIcon id={g} /> {name(g)}
-                  </td>
-                  <td>hers {n}</td>
-                  <td>
-                    <button onClick={() => setTake({ ...take, [g]: Math.max(0, (take[g] ?? 0) - step(n)) })}>−</button>
-                    <span class="plunder-n">take {take[g] ?? 0}</span>
-                    <button onClick={() => setTake({ ...take, [g]: Math.min(n, (take[g] ?? 0) + Math.min(step(n), room)) })}>+</button>
-                  </td>
-                </tr>
-              ))}
-              {Object.entries(offer.mine).map(([g, n]) => (
-                <tr key={`mine-${g}`} class="plunder-throw">
-                  <td>
-                    <GoodIcon id={g} /> {name(g)}
-                  </td>
-                  <td>yours {n}</td>
-                  <td>
-                    <button onClick={() => setJettison({ ...jettison, [g]: Math.max(0, (jettison[g] ?? 0) - step(n)) })}>−</button>
-                    <span class="plunder-n">over the side {jettison[g] ?? 0}</span>
-                    <button onClick={() => setJettison({ ...jettison, [g]: Math.min(n, (jettison[g] ?? 0) + step(n)) })}>+</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-      <button class="leave plunder-go" onClick={choose}>
-        {keep ? 'Take her into the fleet' : (
-          <>
-            {herUnits ? 'Take it and ' : ''}
-            {release ? (herUnits ? 'let her go' : 'Let her go') : herUnits ? 'sink her' : 'Sink her'}
-          </>
-        )}{' '}
-        · Enter
-      </button>
     </div>
   );
 }
 
 const AIM: Record<Aim, string> = {
-  ready: 'fire!',
-  loading: 'loading',
-  'no-target': 'not bearing',
-  'out-of-range': 'out of range',
-  'no-guns': 'no guns',
+  ready: 'Ready',
+  loading: 'Loading',
+  'no-target': 'Not bearing',
+  'out-of-range': 'Out of range',
+  'no-guns': 'No guns',
 };
 
 const TITLE: Record<BattleResult['outcome'], string> = {
-  sunk: 'Victory',
-  struck: 'Victory',
-  boarded: 'Victory',
+  sunk: 'She went down!',
+  struck: 'She struck!',
+  boarded: 'Carried her deck!',
   escaped: 'She got away',
   fled: 'You broke off',
   lost: 'Defeat',
   yielded: 'You struck',
 };
 
-function Bar({ label, value, max, unit = '' }: { label: string; value: number; max: number; unit?: string }) {
-  const share = Math.max(0, Math.min(1, value / max));
+const NATION_TAG: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'Dutch', pirate: 'Pirate' };
+
+/** A bar with what it means in a word ("Holed"), red once it runs low. */
+function Bar({ label, share, word, men }: { label: string; share: number; word: string; men?: boolean }) {
+  const s = Math.max(0, Math.min(1, share));
   return (
     <div class="battle-bar">
       <span class="battle-bar-label">{label}</span>
-      <span class="battle-bar-track">
-        <span class={`battle-bar-fill${share < 0.3 ? ' low' : ''}`} style={{ width: `${Math.round(share * 100)}%` }} />
+      <span class="k-bar">
+        <span class={s < 0.3 ? 'low' : men ? 'men' : ''} style={{ width: `${Math.round(s * 100)}%` }} />
       </span>
-      <span class="battle-bar-value">
-        {Math.max(0, Math.round(value))}
-        {unit}
-      </span>
+      <span class="battle-bar-word">{word}</span>
     </div>
   );
 }
@@ -403,20 +409,45 @@ function Bar({ label, value, max, unit = '' }: { label: string; value: number; m
 /** A ship's masts by name, fore to aft. */
 const MAST_NAMES: Record<number, string[]> = { 1: ['mast'], 2: ['foremast', 'mainmast'], 3: ['foremast', 'mainmast', 'mizzen'] };
 
-function ShipCard({ ship, title, name }: { ship: BattleShip; title: string; name: string }) {
+/** A ship's card (storyboard 5.1): her flag, name, what she is, and hull, sails and men as named bands. */
+function ShipCard({ ship, tag, gold, name, what, wavering }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; wavering?: boolean }) {
   const up = ship.masts.filter((m) => m > 0).length;
+  const hull = ship.hull / ship.hullMax;
+  const sails = ship.sailCondition / 100;
+  const men = ship.crew / Math.max(ship.crewStart, 1);
   return (
-    <div class="battle-card">
-      <div class="battle-name">{name}</div>
-      <div class="battle-title">{title}</div>
-      <Bar label="Hull" value={ship.hull} max={ship.hullMax} />
-      <Bar label="Sails" value={ship.sailCondition} max={100} unit="%" />
-      <Bar label="Crew" value={ship.crew} max={Math.max(ship.crewStart, 1)} />
-      <div class="battle-title">
-        {ship.guns} guns{up < ship.masts.length ? ` · ${up} of ${ship.masts.length} masts standing` : ''}
+    <div class="k-wood battle-card">
+      <div class="battle-card-head">
+        <span class={`k-tag${gold ? ' gold' : ''}`}>{tag}</span>
+        <b class="battle-name">{name}</b>
+        {wavering ? <span class="k-tag gold">wavering</span> : null}
       </div>
+      <div class="battle-title">
+        {what}
+        {up < ship.masts.length ? ` · ${up} of ${ship.masts.length} masts standing` : ''}
+      </div>
+      <Bar label="Hull" share={hull} word={bandOf(hull, [[0, 'Sinking'], [0.25, 'Badly hurt'], [0.6, 'Holed'], [0.9, 'Sound']])} />
+      <Bar label="Sails" share={sails} word={bandOf(sails, [[0, 'In rags'], [0.3, 'Torn'], [0.6, 'Holed'], [0.9, 'Whole']])} />
+      <Bar label="Men" share={men} men word={bandOf(men, [[0, 'A handful'], [0.3, 'Shaken'], [0.6, 'Steady'], [0.9, 'Eager']])} />
     </div>
   );
+}
+
+export type Shot = 'round' | 'chain' | 'grape';
+const SHOTS: { id: Shot; name: string; icon: string }[] = [
+  { id: 'round', name: 'Round', icon: 'ui.icon.round_shot' },
+  { id: 'chain', name: 'Chain', icon: 'ui.icon.chain_shot' },
+  { id: 'grape', name: 'Grape', icon: 'ui.icon.grape_shot' },
+];
+
+/** The player's own ship in battle: her name, what she is, and her sails and shot to set. */
+export interface YourShip {
+  name: string;
+  what: string;
+  sails: SailSetting;
+  setSails: (sails: SailSetting) => void;
+  shot: Shot;
+  chooseShot: (shot: Shot) => void;
 }
 
 export interface BattleHudProps {
@@ -424,15 +455,17 @@ export interface BattleHudProps {
   content: ContentPack;
   enemyName: string;
   enemyTitle: string;
+  enemyNation?: string;
   reloadSeconds: number;
   /** Each broadside: ready, or why it can't fire. */
   aim: Record<Broadside, Aim>;
-  /** The player's ship panel, with its mode buttons. */
-  panel: ShipPanelProps;
+  you: YourShip;
   /** She may strike any moment now. */
   wavering: boolean;
-  /** A famous pirate calls on her to strike: who, and the key that yields. */
-  demand?: string;
+  /** A famous pirate calls on her to strike: who, and the plunder chest she'd give up. */
+  demand?: { name: string; chest: number };
+  /** Strike your colours to a famous pirate's demand (Y). */
+  onStrike: () => void;
   /** The after-action report, once the fight's result has reached the world. */
   report?: BattleReport;
   /** The player started the fight (an attack on a nation's ship costs standing with it). */
@@ -449,11 +482,22 @@ export interface BattleHudProps {
   onContinue: () => void;
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds, aim, panel, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
-  const reload = (side: 'port' | 'starboard') => 1 - Math.min(1, me.reload[side] / reloadSeconds);
+  // The report first; with a prize, Enter (or its button) goes on to her hold.
+  const [atHold, setAtHold] = useState(false);
+  const [fightOn, setFightOn] = useState(false);
+  const toHold = useRef(() => setAtHold(true));
+  useEffect(() => {
+    if (!state.result || !offer || atHold) return;
+    const key = (e: KeyboardEvent) => {
+      if (!e.repeat && e.key === 'Enter') toHold.current();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [Boolean(state.result), Boolean(offer), atHold]);
   // A mast going by the board, called out for a few seconds (the sim's own record of it lasts a moment).
   const mastCall = useRef<{ text: string; until: number; seen: number }>({ text: '', until: -1, seen: -1 });
   const now = state.tick / 30;
@@ -469,75 +513,126 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
     if (!e.place?.rake || e.at <= mastCall.current.seen || !e.ship) continue;
     mastCall.current = { text: e.ship === 'enemy' ? 'Raked her, bow to stern!' : 'She rakes you!', until: e.at + 1.5, seen: e.at };
   }
+  const gun = (side: Broadside) => {
+    const left = me.reload[side];
+    return aim[side] === 'ready' ? 'Ready' : left > 0 ? `Loading ${Math.ceil(left)} s` : AIM[aim[side]];
+  };
+  const enemy = state.ships.enemy;
   return (
     <div class="battle">
-      <ShipPanel {...panel} />
-      <div class="battle-card battle-enemy">
-        <ShipCard ship={state.ships.enemy} title={enemyTitle} name={enemyName} />
+      <div class="battle-cards">
+        <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} />
+        <ShipCard ship={enemy} tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'} name={enemyName} what={`${enemyTitle} · ${enemy.guns} guns`} wavering={wavering && !state.result} />
       </div>
       {state.result ? null : <Compass {...compass} className="battle-compass" />}
-      {!state.result && !state.wreck && state.grappling === 0 && (board.active || (apart <= 12 && board.odds >= 0.5)) ? (
-        <div class="battle-parting battle-board">
-          {board.active
-            ? `Closing to board: your boarders would carry her about ${Math.round(board.odds * 100)}% of the time · G or the helm to stop`
-            : `Board her · G: your boarders would carry her about ${Math.round(board.odds * 100)}% of the time`}
-        </div>
-      ) : null}
-      {wavering ? <div class="battle-parting battle-waver">She's wavering: keep at her and she'll strike</div> : null}
-      {demand && !report ? (
-        <div class="battle-parting battle-demand">
-          {demand} calls on you to strike · Y strikes your colours: he takes the plunder chest and your hold, you keep your ship and your men
-        </div>
-      ) : null}
-      {!state.result && now < mastCall.current.until ? <div class="battle-parting battle-mast">{mastCall.current.text}</div> : null}
-      {state.wreck && !state.result ? (
-        <div class="battle-parting battle-wreck">
-          <span>
-            She's gone down. Sail over the barrels and the men in the water ({state.wreck.gold} gold, {state.wreck.men} men so far) · Enter to leave the
-            wreck
-          </span>
-          <span class="battle-bar-track">
-            <span class="battle-bar-fill" style={{ width: `${Math.round(Math.max(0, (state.wreck.until - state.tick / 30) / content.combat.salvage.seconds) * 100)}%` }} />
-          </span>
-        </div>
-      ) : null}
-      {!state.result && !state.wreck && apart > b.warnTiles ? (
-        <div class="battle-parting">
-          <span>{apart > b.escapeTiles ? 'Drawing apart: close in or she is gone' : 'Drawing apart'}</span>
-          <span class="battle-bar-track">
-            <span class="battle-bar-fill low" style={{ width: `${Math.round(Math.min(1, state.parting / b.escapeSeconds) * 100)}%` }} />
-          </span>
-        </div>
-      ) : null}
-      {!state.result && state.grappling > 0 ? (
-        <div class="battle-parting battle-grapple">
-          <span>Grappled! Sail clear to cut free, or stand by to repel boarders</span>
-          <span class="battle-bar-track">
-            <span class="battle-bar-fill low" style={{ width: `${Math.round(Math.min(1, state.grappling / b.grappleSeconds) * 100)}%` }} />
-          </span>
-        </div>
-      ) : null}
-      <div class="battle-bottom">
-        <div class="battle-guns">
-          {(['port', 'starboard'] as const).map((side) => (
-            <span key={side} class="battle-gun">
-              {side === 'port' ? 'Port' : 'Starboard'}
-              <span class="battle-bar-track">
-                <span class={`battle-bar-fill${reload(side) >= 1 ? ' ready' : ''}`} style={{ width: `${Math.round(reload(side) * 100)}%` }} />
-              </span>
-              <span class={`battle-aim${aim[side] === 'ready' ? ' ready' : ''}`}>{AIM[aim[side]]}</span>
-            </span>
-          ))}
-        </div>
-        <div class="battle-keys">Space fire (hold to fire as she bears) · Tab or 1 to 3 shot · A/D steer · W/S sails · G close to board</div>
+      <div class="battle-calls">
+        {!state.result && now < mastCall.current.until ? <div class="battle-call battle-mast">{mastCall.current.text}</div> : null}
+        {wavering && !state.result ? <div class="battle-call battle-waver">She's wavering: her hull is low and her men shaken. Keep at her and she'll strike.</div> : null}
       </div>
-      {state.result ? (
-        <div class="battle-report">
-          <div class="battle-report-head">
+      {demand && !report && !fightOn ? (
+        <div class="k-wood battle-demand">
+          <h2 class="battle-demand-title">{demand.name} calls on you to strike!</h2>
+          <div class="k-say">"Strike your colours and keep your ship and your men, Captain."</div>
+          <div class="battle-demand-ifs">
+            <div>
+              <b>If you strike</b>
+              <div class="k-sub">You keep the ship and every man. He takes the plunder chest ({demand.chest.toLocaleString()} gold) and your hold.</div>
+            </div>
+            <div>
+              <b>If you fight on</b>
+              <div class="k-sub">Your boarders would carry his deck about {Math.round(board.odds * 100)}% of the time. Lose, and he takes the ship too.</div>
+            </div>
+          </div>
+          <div class="moment-actions flush">
+            <button class="k-btn primary" onClick={onStrike}>
+              Strike your colours <Key k="Y" />
+            </button>
+            <button class="k-btn" onClick={() => setFightOn(true)}>
+              Fight on
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div class="battle-toasts">
+        {!state.result && !state.wreck && state.grappling === 0 && (board.active || (apart <= 12 && board.odds >= 0.5)) ? (
+          <div class="battle-call battle-board">
+            <Key k="G" />
+            {board.active ? (
+              <span>
+                closing to board: your boarders carry her <b>{Math.round(board.odds * 100)}%</b> of the time · G or the helm to stop
+              </span>
+            ) : (
+              <span>
+                close to board: your boarders carry her <b>{Math.round(board.odds * 100)}%</b> of the time
+              </span>
+            )}
+          </div>
+        ) : null}
+        {state.wreck && !state.result ? (
+          <div class="battle-call battle-wreck">
+            <span>
+              She's gone down. Sail over the barrels and the men in the water ({state.wreck.gold} gold, {state.wreck.men} men so far) · Enter to leave the wreck
+            </span>
+            <span class="k-bar">
+              <span style={{ width: `${Math.round(Math.max(0, (state.wreck.until - state.tick / 30) / content.combat.salvage.seconds) * 100)}%` }} />
+            </span>
+          </div>
+        ) : null}
+        {!state.result && !state.wreck && apart > b.warnTiles ? (
+          <div class="battle-call battle-parting">
+            <span>
+              {apart > b.escapeTiles ? 'Drawing apart: close in or she is gone' : 'Drawing apart'}: <b>{Math.round(apart)} tiles</b>. Past {b.escapeTiles} she gets away.
+            </span>
+            <span class="k-bar">
+              <span class="low" style={{ width: `${Math.round(Math.min(1, state.parting / b.escapeSeconds) * 100)}%` }} />
+            </span>
+          </div>
+        ) : null}
+        {!state.result && state.grappling > 0 ? (
+          <div class="battle-call battle-grapple">
+            <span>Grappled! Sail clear to cut free, or stand by to repel boarders</span>
+            <span class="k-bar">
+              <span class="low" style={{ width: `${Math.round(Math.min(1, state.grappling / b.grappleSeconds) * 100)}%` }} />
+            </span>
+          </div>
+        ) : null}
+      </div>
+      {state.result ? null : (
+        <div class="k-wood battle-guns">
+          <div class="battle-gun">
+            <span class="k-sub">Port</span>
+            <b class={aim.port === 'ready' ? 'ready' : ''}>{gun('port')}</b>
+          </div>
+          <div class="battle-ammo">
+            {SHOTS.map((s) => (
+              <button key={s.id} class={`k-btn small${you.shot === s.id ? ' active' : ''}`} onClick={() => you.chooseShot(s.id)}>
+                <Art id={s.icon} class="inline-icon" /> {s.name}
+              </button>
+            ))}
+          </div>
+          <div class="battle-gun">
+            <span class="k-sub">Starboard</span>
+            <b class={aim.starboard === 'ready' ? 'ready' : ''}>{gun('starboard')}</b>
+          </div>
+          <div class="battle-sails">
+            <button class={`k-btn small${you.sails === 'full' ? ' active' : ''}`} onClick={() => you.setSails('full')}>
+              Full sail
+            </button>
+            <button class={`k-btn small${you.sails === 'half' ? ' active' : ''}`} onClick={() => you.setSails('half')}>
+              Half sail
+            </button>
+          </div>
+          <div class="battle-keys">Space fire · Tab shot · A/D steer · W/S sails · G board</div>
+        </div>
+      )}
+      {state.result && !(offer && atHold) ? (
+        <div class="battle-report-screen">
+          <div class="k-wood battle-report">
             {PICTURES[PICTURE[state.result.outcome]] ? <img class="battle-report-picture" src={PICTURES[PICTURE[state.result.outcome]]} alt="" /> : null}
             <div class="battle-report-text">
-              <div class="port-name">{TITLE[state.result.outcome]}</div>
-              <p>{OUTCOME[state.result.outcome]}</p>
+              <h2 class="battle-report-title">{TITLE[state.result.outcome]}</h2>
+              <div class="k-sub">{OUTCOME[state.result.outcome]}</div>
+              <div class="book-rule light" />
               {report ? (
                 <ul class="battle-ledger">
                   {reportRows(content, report).map((row) => (
@@ -549,27 +644,35 @@ export function BattleHud({ state, content, enemyName, enemyTitle, reloadSeconds
               ) : null}
               {report && standingChips(content, report, attacked).length ? (
                 <div class="battle-standing">
-                  Standing:{' '}
                   {standingChips(content, report, attacked).map((c) => (
-                    <span key={c.name} class={`chip ${c.d > 0 ? 'good' : 'bad'}`}>
+                    <span key={c.name} class={`k-tag ${c.d > 0 ? 'gold' : 'war'}`}>
                       {c.name} {signed(c.d)}
                     </span>
                   ))}
                 </div>
               ) : null}
-              <p class="port-sub">
+              <div class="k-sub">
                 Your ship: {state.result.player.crew} men · hull {state.result.player.hull} · sails {state.result.player.sailCondition}%
-              </p>
-              {advice ? <p class="battle-advice">{advice}</p> : null}
+              </div>
+              <div class="battle-report-go">
+                {offer ? (
+                  <button class="k-btn primary" onClick={() => setAtHold(true)}>
+                    To her hold <Key k="Enter" />
+                  </button>
+                ) : (
+                  <button class="k-btn primary" onClick={onContinue}>
+                    Continue <Key k="Enter" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-          {offer ? (
-            <Plunder content={content} offer={offer} onPlunder={onPlunder} />
-          ) : (
-            <button class="leave" onClick={onContinue}>
-              Continue · Enter
-            </button>
-          )}
+          {advice ? <div class="battle-advice">{advice}</div> : null}
+        </div>
+      ) : null}
+      {state.result && offer && atHold ? (
+        <div class="battle-report-screen">
+          <Plunder content={content} offer={offer} name={enemyName} onPlunder={onPlunder} />
         </div>
       ) : null}
     </div>
