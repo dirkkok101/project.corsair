@@ -1216,90 +1216,6 @@ body {
     6px 8px 0 #752438;
 }
 
-.start-panel {
-  width: min(480px, 92vw);
-  padding: 20px 28px;
-  background: rgb(21 29 40 / 0.9);
-  border: 2px solid #c09473;
-  text-align: center;
-}
-
-.start-career {
-  margin-bottom: 18px;
-  font-size: 17px;
-}
-
-.start-sub,
-.start-note {
-  color: #a8b5b2;
-  font-size: 14px;
-}
-
-.start-warn {
-  margin-top: 8px;
-  color: #de9e41;
-  font-size: 14px;
-}
-
-.start-actions,
-.start-files {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.start button {
-  padding: 6px 16px;
-  font: inherit;
-  color: #ebede9;
-  background: #253a5e;
-  border: 1px solid #4f8fba;
-  cursor: pointer;
-}
-
-.start button:disabled {
-  color: #577277;
-  background: transparent;
-  border-color: #394a50;
-  cursor: default;
-}
-
-.start button.primary:not(:disabled) {
-  color: #090a14;
-  background: #e8c170;
-  border-color: #e8c170;
-}
-
-.start-files button {
-  font-size: 14px;
-  background: transparent;
-}
-
-.start-levels {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.start-levels button {
-  padding: 5px 10px;
-  font-size: 14px;
-}
-
-.start-levels button.picked {
-  color: #090a14;
-  background: #e8c170;
-  border-color: #e8c170;
-}
-
-.start-about {
-  min-height: 3.6em;
-  margin-bottom: 14px;
-}
-
 .chart-prices {
   position: absolute;
   z-index: 2;
@@ -3124,4 +3040,271 @@ body {
 
 .hail-news .hail-what {
   font-size: 14px;
+}
+
+/* The loading screen (storyboard 1.1): the painting, a line of the period, the rope paying out. */
+.loading {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 64px 24px;
+  background: #0c1118 center / cover no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+
+.loading.leaving {
+  opacity: 0;
+}
+
+.loading-title {
+  margin: 0;
+  font-family: var(--k-display);
+  font-size: clamp(56px, 8vw, 96px);
+  font-weight: normal;
+  line-height: 1;
+  color: #f4ead6;
+  text-shadow:
+    2px 0 0 #1d1210, -2px 0 0 #1d1210, 0 2px 0 #1d1210, 0 -2px 0 #1d1210,
+    3px 4px 0 #6b2133;
+}
+
+.loading-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.loading-line {
+  margin: 0;
+  font: italic 26px var(--k-voice);
+  color: #f4ead6;
+  text-shadow: 0 2px 8px #000;
+  text-align: center;
+}
+
+.loading-rope {
+  width: min(640px, 80vw);
+  height: 16px;
+  border-radius: 8px;
+  background: rgb(20 14 10 / 0.7);
+  border: 1px solid var(--k-brass);
+  overflow: hidden;
+}
+
+.loading-rope span {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(115deg, #d9b26a 0 10px, #b88d48 10px 20px);
+  transition: width 0.3s;
+}
+
+.loading-what {
+  color: #e9dcbc;
+  font-size: 14px;
+  text-shadow: 0 1px 3px #000;
+}
+
+/* The title (storyboard 1.2): two big buttons on the painting's sea, the saves small beneath. */
+.start-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(440px, 92vw);
+}
+
+.start-continue,
+.start-new {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 64px;
+}
+
+.start-continue {
+  min-height: 76px;
+}
+
+.start-big {
+  font-family: var(--k-display);
+  font-size: 30px;
+  font-weight: normal;
+}
+
+.start-small {
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.start-files {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.start-warn {
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: rgb(20 14 10 / 0.85);
+  color: #ff9a7a;
+  font-size: 14px;
+}
+
+.start-note {
+  color: #e9dcbc;
+  font-size: 14px;
+  text-shadow: 0 1px 3px #000;
+}
+
+.start-corner {
+  position: absolute;
+  right: 24px;
+  bottom: 16px;
+}
+
+/* The new career's seas (storyboard 1.3): five painted cards, the one picked glowing. */
+.start-pick {
+  background-color: #090a14;
+  box-shadow: inset 0 0 0 100vmax rgb(8 10 16 / 0.62);
+}
+
+.start-head {
+  text-align: center;
+}
+
+.start-h2 {
+  margin: 8px 0 0;
+  font-family: var(--k-display);
+  font-size: 44px;
+  font-weight: normal;
+  color: #f4ead6;
+}
+
+.level-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
+  width: min(1280px, 100%);
+}
+
+.level-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  font: inherit;
+  overflow: hidden;
+  text-align: left;
+  color: var(--k-cream);
+  cursor: pointer;
+  border-color: #6b4d2c;
+}
+
+.level-card.picked {
+  border-color: #f2d58f;
+  box-shadow: 0 0 0 3px var(--k-gold), 0 12px 30px rgb(0 0 0 / 0.5);
+}
+
+.level-art {
+  height: 150px;
+  background: #1a2230 center / cover no-repeat;
+  image-rendering: pixelated;
+}
+
+.level-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+}
+
+.level-name {
+  font-family: var(--k-display);
+  font-size: 22px;
+  color: #f4ead6;
+}
+
+.level-about {
+  font-size: 15px;
+  color: #e3d5b4;
+}
+
+.level-score {
+  margin-top: auto;
+}
+
+.start-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.start-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.start-go {
+  min-width: 220px;
+  font-size: 20px;
+}
+
+/* A new career's opening letter (storyboard 1.4): sealed, signed, and the first goal at its foot. */
+.moment-opening {
+  position: relative;
+  width: min(660px, 92vw);
+  padding: 40px 54px 34px;
+  text-align: left;
+  transform: rotate(-0.6deg);
+}
+
+.moment-seal {
+  position: absolute;
+  top: 26px;
+  right: 38px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #c2453a, #7d1f18 70%);
+  box-shadow: 0 3px 6px rgb(0 0 0 / 0.35);
+}
+
+.moment-body {
+  margin-top: 18px;
+  font: 22px/1.45 var(--k-voice);
+}
+
+.moment-body p {
+  margin: 0 0 12px;
+}
+
+.moment-signed {
+  text-align: right;
+  font: italic 20px var(--k-voice);
+}
+
+.moment-signed::before {
+  content: '— ';
+}
+
+.moment-goal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.moment-goal .moment-kicker {
+  color: #7a4a00;
+}
+
+.moment-goal-title {
+  font-family: var(--k-display);
+  font-size: 22px;
 }

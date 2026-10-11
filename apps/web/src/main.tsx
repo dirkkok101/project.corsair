@@ -33,6 +33,7 @@ import { chooseCareer } from './start';
 import { crewLook, Hail, shipTitle } from './hail';
 import { Log } from './log';
 import { letterMeans, MomentView } from './ui/moment';
+import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf } from './ui/kit';
 import { createShipLabels } from './shiplabels';
@@ -42,7 +43,7 @@ import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
 import { careerGoals, createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
-import { atWar, createPoliticsSystem, legalTarget, NATIONS } from '@corsair/systems-politics';
+import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
 const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
@@ -160,20 +161,25 @@ async function main() {
   // screen. (Chrome reports a pinch as a wheel with Ctrl held; Safari as its own gesture events.)
   window.addEventListener('wheel', (e) => e.ctrlKey && e.preventDefault(), { passive: false });
   for (const type of ['gesturestart', 'gesturechange']) document.addEventListener(type, (e) => e.preventDefault());
+  const stage = document.getElementById('stage')!;
+  // The loading screen at once, while the map loads and decodes (storyboard 1.1).
+  let loading = showLoading(stage, sceneUrl('loading.dawn'));
   const content = loadContent();
   const def = content.maps.caribbean;
-  const layer = async (name: string) => {
+  const layer = async (name: string, share: number) => {
     const url = Object.entries(mapFiles).find(([path]) => path.endsWith(`/${name}`))?.[1];
     if (!url) throw new Error(`map layer ${name} not found`);
-    return new Uint8Array(await (await fetch(url)).arrayBuffer());
+    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+    loading.progress(share, 'Charting the Main');
+    return bytes;
   };
   const map = decodeRasterMap(def, {
-    terrain: await layer(def.layers.terrain),
-    elevation: await layer(def.layers.elevation),
-    zones: await layer(def.layers.zones),
+    terrain: await layer(def.layers.terrain, 0.2),
+    elevation: await layer(def.layers.elevation, 0.35),
+    zones: await layer(def.layers.zones, 0.5),
   });
   const settlements = placeSettlements(def, map, content.settlements);
-  const stage = document.getElementById('stage')!;
+  loading.progress(0.6, 'Placing the ports');
   // The start screen: continue a stored career, or pick a new one's difficulty.
   // Only gameplay content counts: new music or sprite framing shouldn't flag every old save.
   const fingerprint = contentFingerprint(gameplayContent(content));
@@ -184,8 +190,10 @@ async function main() {
   // career, at `?difficulty=` or the default.
   const params = new URLSearchParams(location.search);
   const asked = Number(params.get('seed') ?? NaN);
-  const choice =
-    stored || !Number.isInteger(asked)
+  // The title takes over from the loading screen; once a career is chosen, it comes back while the world is made.
+  const titled = Boolean(stored) || !Number.isInteger(asked);
+  if (titled) loading.done();
+  const choice = titled
       ? await chooseCareer(stage, {
           raw: stored || undefined,
           fingerprint,
@@ -196,6 +204,8 @@ async function main() {
           defaultLevel: content.combat.difficulty.default,
         })
       : { difficulty: difficultyOf(content, params.get('difficulty') ?? undefined).id };
+  if (titled) loading = showLoading(stage, sceneUrl('loading.dawn'));
+  loading.progress(0.7, 'Raising the wind');
   const resumed = 'save' in choice ? choice.save : undefined;
   const seed = resumed?.seed ?? (Number.isInteger(asked) ? asked >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!);
   const windAt = createWindField(content, def, map);
@@ -259,6 +269,7 @@ async function main() {
           },
         });
   viewport.appendChild(sea3d.canvas);
+  loading.progress(0.9, 'Setting sail');
   const shipLabels = createShipLabels(viewport);
   // For review and tests: the 3D renderer's showcase and sky controls.
   (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
@@ -281,6 +292,24 @@ async function main() {
   // at a time, over everything, the world waiting.
   const momentRoot = stage.appendChild(document.createElement('div'));
   const moments: Moment[] = [];
+  // A career begun from the start screen opens with the governor's letter and the first goal (a ?seed= run, for
+  // tests and replays, goes straight in).
+  if (!resumed && titled && def.start.port) {
+    const me = sim.state.ships[def.start.shipId]!;
+    const town = settlements.find((s) => s.id === def.start.port)!;
+    const at = enemiesOf(content, sim.state, town.nation).filter((n) => n !== 'pirate');
+    const goal = careerGoals(content, sim.state, settlements).find((g) => !g.done);
+    moments.push({
+      kind: 'opening',
+      town: town.name,
+      date: formatDate(dateOf(def.startDate, Math.floor(sim.state.tick / content.calendar.ticksPerDay))),
+      ship: shipKind(me.classId),
+      guns: shipStats(content, me).guns,
+      men: crewOf(content, me),
+      enemies: at.length ? `the ${at.map((n) => ({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' })[n] ?? n).join(' and the ')} are` : '',
+      ...(goal ? { goal: { title: goal.title, have: goal.unit ? `${goal.have.toLocaleString()} of ${goal.of.toLocaleString()} ${goal.unit}` : 'not yet', why: goal.why } } : {}),
+    });
+  }
   /** News already shown as a letter this session. */
   const lettered = new Set<string>();
   // The captain's log (L) is open: the world waits, as with the chart.
@@ -1535,6 +1564,8 @@ async function main() {
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+  // The first frame warms the 3D up; the loading screen goes once it has been drawn.
+  requestAnimationFrame(() => requestAnimationFrame(() => loading.done()));
 }
 
 void main();

@@ -18,7 +18,9 @@ export type Moment =
   /** A hoard dug up. */
   | { kind: 'hoard'; name: string; gold: number; fame: number; revenge: boolean }
   /** A piece of a treasure map: whose, the line that came with it. */
-  | { kind: 'map'; pirateId: string; line: string };
+  | { kind: 'map'; pirateId: string; line: string }
+  /** A new career's opening letter (storyboard 1.4): her ship, the war, and the first goal. */
+  | { kind: 'opening'; town: string; date: string; ship: string; guns: number; men: number; enemies: string; goal?: { title: string; have: string; why: string } };
 
 const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' };
 const ADJECTIVE: Record<string, string> = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' };
@@ -65,6 +67,44 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
           <div class="moment-actions">
             <button class="k-btn primary" onClick={close}>
               Into the log <Key k="Enter" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+
+  if (moment.kind === 'opening')
+    return (
+      <div class="moment moment-dim">
+        <div class="k-paper moment-letter moment-opening">
+          <div class="moment-seal" aria-hidden="true" />
+          <div class="moment-dateline">
+            {moment.town}, {moment.date}
+          </div>
+          <div class="moment-body">
+            <p>Captain,</p>
+            <p>
+              Your uncle's {moment.ship} is yours, with {moment.guns} guns and {moment.men} men. The Main is rich
+              {moment.enemies ? `, and ${moment.enemies} at war with us` : ''}.
+            </p>
+            <p>Fill her battery and her crew, and come and see me.</p>
+          </div>
+          <div class="moment-signed">the Governor of {moment.town}</div>
+          <div class="book-rule" />
+          <div class="moment-goal">
+            {moment.goal ? (
+              <div>
+                <div class="moment-kicker">Your first goal</div>
+                <div class="moment-goal-title">{moment.goal.title}</div>
+                <div class="book-sub">
+                  {moment.goal.have} · {moment.goal.why}
+                </div>
+              </div>
+            ) : (
+              <span />
+            )}
+            <button class="k-btn primary" onClick={close}>
+              To the harbour <Key k="Enter" />
             </button>
           </div>
         </div>

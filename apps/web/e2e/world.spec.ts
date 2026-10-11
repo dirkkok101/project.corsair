@@ -13,9 +13,13 @@ async function openService(page: Page, name: string) {
   await page.locator('.port-spot', { hasText: new RegExp(`^${name}`) }).click();
 }
 
-/** Without a seed a new career opens on the difficulty pick: take the default. */
+/** Without a seed a new career opens on the difficulty pick: take the default, and read the governor's letter. */
 async function setSail(page: Page, url: string) {
-  if (!url.includes('seed=')) await page.getByRole('button', { name: 'Set sail' }).click();
+  if (url.includes('seed=')) return;
+  await page.getByRole('button', { name: 'Set sail' }).click();
+  await page.locator('.moment-opening').waitFor();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.moment')).toHaveCount(0);
 }
 
 /** Start a new career. It begins docked in port; most checks set sail first (`inPort` keeps her there). */
@@ -31,6 +35,8 @@ async function boot(page: Page, url = '/', { inPort = false } = {}) {
   if (!inPort) {
     await page.keyboard.press('e');
     await page.evaluate(() => window.__corsair.sim.step(1));
+    // A frame has seen her at sea (making port again autosaves only after one has).
+    await expect(page.locator('.port')).toHaveCount(0);
   }
   return errors;
 }
@@ -138,11 +144,13 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
 
 test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
   await page.goto('/');
-  await setSail(page, '/');
-  await page.waitForFunction(() => Boolean(window.__corsair));
+  await page.getByRole('button', { name: 'Set sail' }).click();
+  await page.locator('.moment-opening').waitFor();
+  // Nothing pressed in the game yet: the sound waits.
   expect(await page.evaluate(() => window.__corsair.audio.levels().state)).toBe('locked');
   await expect(page.locator('.hud-sound')).toContainText('Press any key');
-  await page.keyboard.press('Shift');
+  // The first key (Enter, to the harbour from the governor's letter) starts it.
+  await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__corsair.audio.levels().rms > 0.001);
   await expect(page.locator('.hud-sound')).toHaveCount(0);
   await page.keyboard.press('v');
@@ -275,7 +283,7 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   const before = await page.evaluate(() => ({ hash: window.__corsair.state.hash(), seed: window.__corsair.seed }));
 
   await page.reload();
-  await expect(page.locator('.start')).toContainText('In port at Port Royal');
+  await expect(page.locator('.start')).toContainText(/in port at Port Royal/i);
   await page.screenshot({ path: 'test-results/start.png' });
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForFunction(() => Boolean(window.__corsair));
@@ -287,10 +295,20 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   await page.getByRole('button', { name: 'New career' }).click();
   // A new career picks its difficulty, each level saying what it changes.
   await page.getByRole('button', { name: 'Rogue' }).click();
-  await expect(page.locator('.start-about')).toContainText('the wind shifts in battle');
+  await expect(page.locator('.level-card.picked')).toContainText('the wind shifts in battle');
   await page.screenshot({ path: 'test-results/start-difficulty.png' });
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.waitForFunction(() => Boolean(window.__corsair));
+  // The governor's letter opens the career, with its first goal.
+  const letter = page.locator('.moment-opening');
+  await expect(letter).toContainText("Your uncle's brig is yours, with 10 guns and 75 men");
+  await expect(letter).toContainText('the Spanish are at war with us');
+  await expect(letter.locator('.moment-goal')).toContainText('Mount a full battery');
+  // The loading screen has faded from over it.
+  await expect(page.locator('.loading')).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/opening-letter.png' });
+  await letter.getByRole('button', { name: /To the harbour/ }).click();
+  await expect(page.locator('.moment')).toHaveCount(0);
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(1000);
   expect(await page.evaluate(() => window.__corsair.state.get('difficulty'))).toBe('rogue');
   expect(errors).toEqual([]);

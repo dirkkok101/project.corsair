@@ -10,6 +10,11 @@ const titleArt = Object.values(
   import.meta.glob<string>('../../../art/game/scenes/title.main.png', { eager: true, query: '?url', import: 'default' }),
 )[0];
 
+// The five seas a career can choose (difficulty.1 the calmest), by the levels' order.
+const SEAS = Object.entries(import.meta.glob<string>('../../../art/game/scenes/difficulty.*.png', { eager: true, query: '?url', import: 'default' }))
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([, url]) => url);
+
 export interface StartOptions {
   /** What the browser holds for the career slot, before any checks; undefined when nothing is stored. */
   raw: unknown;
@@ -73,23 +78,33 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, 
   const picked = levels.find((l) => l.id === level) ?? levels[0]!;
   if (picking)
     return (
-      <div class="start" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
-        <h1 class="start-title">Project Corsair</h1>
-        <div class="start-panel">
-          <div class="start-career">A new career: how hard a sea?</div>
-          <div class="start-levels">
-            {levels.map((l) => (
-              <button key={l.id} class={l.id === level ? 'picked' : undefined} onClick={() => setLevel(l.id)}>
-                {l.name}
-              </button>
-            ))}
-          </div>
-          <div class="start-sub start-about">{picked.about}</div>
+      <div class="start start-pick" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
+        <div class="start-head">
+          <div class="moment-kicker">A new career</div>
+          <h2 class="start-h2">How hard a sea?</h2>
+        </div>
+        <div class="level-cards">
+          {levels.map((l, i) => (
+            <button key={l.id} class={`k-wood level-card${l.id === level ? ' picked' : ''}`} onClick={() => setLevel(l.id)}>
+              <span class="level-art" style={SEAS[i] ? { backgroundImage: `url(${SEAS[i]})` } : undefined} />
+              <span class="level-body">
+                <span class="level-name">{l.name}</span>
+                <span class="level-about">{l.about}</span>
+                <span class="k-sub level-score">Score × {l.score}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div class="start-foot">
           <div class="start-actions">
-            <button class="primary" onClick={() => done({ difficulty: picked.id })}>
+            {raw !== undefined ? (
+              <button class="k-btn" onClick={() => setPicking(false)}>
+                Back
+              </button>
+            ) : null}
+            <button class="k-btn primary start-go" onClick={() => done({ difficulty: picked.id })}>
               Set sail
             </button>
-            {raw !== undefined ? <button onClick={() => setPicking(false)}>Back</button> : null}
           </div>
           <div class="start-note">Your own ship sails the same at every level: only your opponents and the battle change.</div>
         </div>
@@ -98,43 +113,41 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, 
 
   return (
     <div class="start" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
-      {/* The painting leaves its top third open sky for the title; the career panel sits on the sea. */}
+      {/* The painting leaves its top third open sky for the title; the two big buttons sit on the sea. */}
       <h1 class="start-title">Project Corsair</h1>
-      <div class="start-panel">
-        <div class="start-career">
+      <div class="start-menu">
+        <button class="k-btn primary start-continue" disabled={!save} onClick={() => save && done({ save })}>
+          <span class="start-big">Continue</span>
           {save ? (
-            <>
-              <div>{date}</div>
-              <div class="start-sub">
-                {save.state.captain?.retired
-                  ? `Retired: ${save.state.captain.retired.fate} · score ${save.state.captain.retired.score}`
-                  : `${where ? `In port at ${where}` : 'At sea'} · ${(save.state.captain?.gold ?? 0).toLocaleString()} gold`}
-              </div>
-              {save.content !== fingerprint ? (
-                <div class="start-warn">This save was made with different game rules; it may not play the same.</div>
-              ) : null}
-            </>
+            <span class="start-small">
+              {save.state.captain?.retired
+                ? `${date} · Retired: ${save.state.captain.retired.fate}, score ${save.state.captain.retired.score}`
+                : `${date} · ${where ? `in port at ${where}` : 'at sea'} · ${(save.state.captain?.gold ?? 0).toLocaleString()} gold`}
+            </span>
           ) : (
-            <>
-              <div>Your saved career can't be opened by this version.</div>
-              <div class="start-warn">{'reason' in career ? career.reason : ''}</div>
-              <div class="start-sub">Save it to a file before starting over, so it isn't lost.</div>
-            </>
+            <span class="start-small">Your saved career can't be opened by this version.</span>
           )}
-        </div>
-        <div class="start-actions">
-          <button class="primary" disabled={!save} onClick={() => save && done({ save })}>
-            Continue
-          </button>
-          <button onClick={() => setPicking(true)}>New career</button>
-        </div>
+        </button>
+        {save && save.content !== fingerprint ? <div class="start-warn">This save was made with different game rules; it may not play the same.</div> : null}
+        {!save ? (
+          <div class="start-warn">
+            {'reason' in career ? career.reason : ''} Save it to a file before starting over, so it isn't lost.
+          </div>
+        ) : null}
+        <button class="k-btn start-new" onClick={() => setPicking(true)}>
+          <span class="start-big">New career</span>
+        </button>
         <div class="start-files">
-          <button onClick={() => exportSave(career.raw, fileName)}>Save to file</button>
-          <button onClick={load}>Load from file</button>
+          <button class="k-btn small" onClick={() => exportSave(career.raw, fileName)}>
+            Save to file
+          </button>
+          <button class="k-btn small" onClick={load}>
+            Load from file
+          </button>
         </div>
         {error ? <div class="start-warn">{error}</div> : null}
-        <div class="start-note">A new career replaces this one the first time you save (dock, or Ctrl+S).</div>
       </div>
+      <div class="start-note start-corner">A new career replaces this one the first time you save (dock, or Ctrl+S).</div>
     </div>
   );
 }
