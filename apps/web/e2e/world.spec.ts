@@ -407,9 +407,12 @@ test("the captain's goals: L opens the log at the next three, with progress and 
   expect(errors).toEqual([]);
 });
 
-test('the Top Ten: the tavern ranks the famous pirates by wealth, and the captain below them to start', async ({ page }) => {
+test('the Top Ten: the log ranks the famous pirates by wealth, and the captain below them to start', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
-  await openService(page, 'Tavern');
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('l');
+  await page.locator('.log-tabs').getByRole('button', { name: /^Top Ten/ }).click();
   const list = page.locator('.top-ten li');
   await expect(list).toHaveCount(10);
   await expect(list.first()).toContainText('Henry Morgan');
@@ -425,11 +428,14 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await openService(page, 'Tavern');
   // He sits in the corner some weeks: wait them out in port.
-  for (let w = 0; w < 16 && !(await page.locator('.stranger').count()); w++) {
+  const stranger = page.locator('.tavern-person', { hasText: 'Stranger' });
+  for (let w = 0; w < 16 && !(await stranger.count()); w++) {
     await page.evaluate(() => window.__corsair.sim.step(7 * 771));
     await page.waitForTimeout(50);
   }
+  await stranger.click();
   await expect(page.locator('.stranger')).toBeVisible();
+  await page.screenshot({ path: 'test-results/tavern-stranger.png' });
   await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
   await expect(page.locator('.stranger')).toHaveCount(0);
   const pieces = await page.evaluate(() => (window.__corsair.state.get('captain') as { mapPieces?: Record<string, number> }).mapPieces);
@@ -456,10 +462,12 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
   test.setTimeout(120_000);
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await openService(page, 'Tavern');
-  for (let w = 0; w < 16 && !(await page.locator('.stranger').count()); w++) {
+  const stranger = page.locator('.tavern-person', { hasText: 'Stranger' });
+  for (let w = 0; w < 16 && !(await stranger.count()); w++) {
     await page.evaluate(() => window.__corsair.sim.step(7 * 771));
     await page.waitForTimeout(50);
   }
+  await stranger.click();
   await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
   await page.keyboard.press('e');
   // Off the hoard's own beach (the test knows where it is; the captain only has the ring).
@@ -485,6 +493,35 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
   expect(errors).toEqual([]);
 });
 
+test('the tavern: news from another port shows where it is on a small chart, and plots a course there', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  // A shortage at Santiago de Cuba, and the days for word of it to cross to Port Royal.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShock', settlementId: 'town.santiago_de_cuba', good: 'cloth', kind: 'shortage' });
+    window.__corsair.sim.step(771 * 6);
+  });
+  await openService(page, 'Tavern');
+  await page.locator('.tavern-person', { hasText: 'Old salt' }).click();
+  const card = page.locator('.tavern-card');
+  for (let k = 0; k < 12 && !(await card.locator('.k-say', { hasText: 'Santiago de Cuba' }).count()); k++) {
+    await card.getByRole('button', { name: /Anything else|From the start/ }).click();
+  }
+  await expect(card.locator('.k-say')).toContainText('Santiago de Cuba');
+  await card.getByRole('button', { name: 'See it on the chart' }).click();
+  await expect(card.locator('.chart-inset')).toBeVisible();
+  await page.screenshot({ path: 'test-results/tavern-chart.png' });
+  await card.getByRole('button', { name: 'Plot a course to Santiago de Cuba' }).click();
+  await expect(card.locator('.tavern-plotted')).toContainText('Course set for Santiago de Cuba');
+  // She sails it when she sets sail.
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await page.evaluate(() => (window.__corsair.state.get('ships.player') as { assist?: { mode: string; portId?: string } }).assist)).toMatchObject({
+    mode: 'course',
+    portId: 'town.santiago_de_cuba',
+  });
+  expect(errors).toEqual([]);
+});
+
 test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // News is known at once where it happens, so a shock in the port we're at needs no waiting.
@@ -498,13 +535,16 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   const tab = page.locator('.port-spot', { hasText: /^Tavern/ });
   await expect(tab.locator('.spot-badge')).toHaveText('1');
   await tab.click();
-  const rumours = page.locator('.tavern:not(.contracts)');
-  await expect(rumours.locator('li')).toHaveCount(1);
-  await expect(rumours).toContainText('Port Royal has run short of sugar');
-  await expect(rumours.locator('.trend')).toHaveText('new');
-  // The shortage is also the governor's contract: heard here, and shown on the merchant's counter.
-  await expect(page.locator('.tavern.contracts')).toContainText('The governor of Port Royal pays');
-  await expect(page.locator('.tavern.contracts')).toContainText('sugar landed there');
+  // Market news is the old salt's: he has something new, so he speaks first, the governor's contract before the talk.
+  await expect(page.locator('.tavern-person.active')).toContainText('Old salt');
+  await expect(page.locator('.tavern-person.active .spot-badge')).toHaveText('1');
+  const card = page.locator('.tavern-card');
+  await expect(card.locator('.tavern-telling.contract')).toContainText('The governor of Port Royal pays');
+  await expect(card).toContainText('sugar landed there');
+  await expect(card).toContainText('1 of 2');
+  await card.getByRole('button', { name: 'Anything else?' }).click();
+  await expect(card).toContainText('Port Royal has run short of sugar');
+  await expect(card.locator('.k-tag.new')).toHaveText('new');
   await page.screenshot({ path: 'test-results/tavern.png' });
   // Heard now: the badge goes, and the rumour is in the captain's memory.
   await page.keyboard.press('Escape');
@@ -874,6 +914,7 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await openService(page, 'Tavern');
+  await page.locator('.tavern-person', { hasText: 'Sailors' }).click();
   // Nothing taken yet: the chest is empty, but three days' wages are owed.
   await expect(page.locator('.crew-pay').getByRole('button', { name: /Divide the plunder/ })).toBeDisabled();
   const pay = page.locator('.crew-pay').getByRole('button', { name: /Pay wages/ });

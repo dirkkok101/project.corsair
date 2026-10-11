@@ -610,31 +610,6 @@ body {
   cursor: pointer;
 }
 
-.tavern {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  min-height: 120px;
-}
-
-.tavern li {
-  padding: 8px 0;
-  border-bottom: 1px solid #202e37;
-}
-
-.tavern .trend {
-  margin-left: 0;
-}
-
-.tavern .age,
-.tavern-quiet {
-  color: #819796;
-}
-
-.tavern-quiet {
-  min-height: 120px;
-}
-
 /* The Top Ten: rank, name, wealth, and where each one is. */
 .top-ten {
   margin-bottom: 10px;
@@ -696,21 +671,21 @@ body {
 }
 
 /* The merchant (storyboard 2.2): his wood panel on the left, the parchment ledger on the right, over his shop. */
-.port-panel:has(.merchant) {
+.port-panel:has(.merchant, .tavern-room) {
   max-height: 86vh;
   background: transparent;
   border-color: transparent;
 }
 
 /* With no panel behind it, the header gets its own band so it reads over the painting. */
-.port-panel:has(.merchant) > .port-head,
-.port-panel:has(.merchant) > .port-tabs {
+.port-panel:has(.merchant, .tavern-room) > .port-head,
+.port-panel:has(.merchant, .tavern-room) > .port-tabs {
   padding: 6px 12px;
   background: rgb(21 29 40 / 0.85);
   border-bottom: none;
 }
 
-.port-panel:has(.merchant) > .port-tabs {
+.port-panel:has(.merchant, .tavern-room) > .port-tabs {
   margin: 0 0 12px;
   border-top: 1px solid #394a50;
 }
@@ -1735,12 +1710,6 @@ body {
   border: 2px solid #6b4a24;
 }
 
-/* The tavern's shady stranger and the map piece he sells. */
-.stranger {
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-
 .chart-waters {
   position: absolute;
   aspect-ratio: 1;
@@ -2307,7 +2276,6 @@ body {
 }
 
 .battle-report button,
-.recruit button,
 .shipwright button {
   padding: 2px 10px;
   font: inherit;
@@ -2315,13 +2283,6 @@ body {
   background: #253a5e;
   border: 1px solid #4f8fba;
   cursor: pointer;
-}
-
-.recruit button:disabled {
-  color: #577277;
-  background: transparent;
-  border-color: #394a50;
-  cursor: default;
 }
 
 .port-notice {
@@ -2643,11 +2604,6 @@ body {
   background: #151d28;
 }
 
-.tavern.contracts {
-  min-height: 0;
-  margin-bottom: 8px;
-}
-
 /* A pirate with a ship of the player's in tow: worth chasing. */
 .hail .hail-yours {
   color: #e8c170;
@@ -2715,4 +2671,102 @@ body {
   background: #253a5e;
   border: 1px solid #4f8fba;
   cursor: pointer;
+}
+
+/* The tavern (storyboard 2.7): the people standing in the room, and the one you talk to. */
+.tavern-room {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tavern-people {
+  display: flex;
+  gap: 12px;
+}
+
+.tavern-person {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: rgb(21 29 40 / 0.6);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--k-cream);
+  font: 700 15px var(--k-body);
+}
+
+.tavern-person .k-bust {
+  width: 84px;
+  height: 98px;
+}
+
+.tavern-person:hover,
+.tavern-person.active {
+  background: rgb(58 40 24 / 0.92);
+  border-color: var(--k-gold);
+}
+
+.tavern-person-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tavern-card {
+  width: min(860px, 100%);
+  padding: 16px;
+}
+
+.tavern-telling {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.tavern-tags,
+.tavern-replies {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tavern-replies {
+  margin-top: 6px;
+}
+
+.k-tag.new {
+  background: var(--k-gold);
+  color: #1d1410;
+}
+
+.k-tag.contract {
+  background: #75a743;
+  color: #10170b;
+}
+
+.tavern-plotted {
+  color: var(--k-gold);
+}
+
+.chart-inset {
+  flex: 0 0 auto;
+  border: 2px solid #6b4a24;
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.5);
+}
+
+.tavern-card .recruit {
+  flex-wrap: wrap;
+  margin: 8px 0 0;
+}
+
+.tavern-card .recruit .port-sub {
+  flex-basis: 100%;
+  color: var(--k-cream-dim);
 }

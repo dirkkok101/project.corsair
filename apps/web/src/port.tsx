@@ -1,13 +1,14 @@
 import { inPort } from '@corsair/core';
 import type { Contract, WorldState } from '@corsair/core';
 import { shipStats, upgradePrice } from '@corsair/data';
-import type { ContentPack, PlacedSettlement } from '@corsair/data';
+import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import {
   shipRepairCost,
   strangerOffer,
   bountiesOwed,
   cargoUsed,
   crewOf,
+  crewMood,
   hasGovernor,
   marquePrice,
   newsAt,
@@ -51,7 +52,8 @@ import {
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 import { topTen } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
-import { Key, Speech, Stat } from './ui/kit';
+import { Bust, Key, Speech, Stat } from './ui/kit';
+import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
@@ -73,6 +75,10 @@ export interface PortProps {
   notice?: string;
   /** Today's date: the clock stands still in port. */
   date: string;
+  /** The sea, for the tavern's chart of where news is from. */
+  map: TileMap;
+  /** Plot a course to a place (tile coordinates), sailed when she sets sail. */
+  plot?: (x: number, y: number) => void;
 }
 
 export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
@@ -359,7 +365,7 @@ function arrivalNews(content: ContentPack, state: WorldState, town: PlacedSettle
 }
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
-export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date }: PortProps) {
+export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date, map, plot }: PortProps) {
   // The harbour first (the painting is the menu, storyboard 2.1); a building opens its service, Esc comes back.
   const [open, setOpen] = useState<Service | undefined>(undefined);
   // Retiring asks first, with the score as it stands.
@@ -556,6 +562,8 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             hear={() => send({ type: 'HearNews', shipId })}
             shipId={shipId}
             send={send}
+            map={map}
+            plot={plot}
           />
         ) : (
           <Merchant content={content} state={state} town={town} ship={ship} bestSale={bestSale} trade={trade} />
@@ -581,6 +589,8 @@ interface TavernProps {
   hear: () => void;
   shipId: string;
   send: PortProps['send'];
+  map: TileMap;
+  plot?: (x: number, y: number) => void;
 }
 
 /** Hands for the ship: men sign on at the tavern for a bounty each, up to her berths. */
@@ -599,10 +609,10 @@ function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'co
         Crew {crew} / {berths}
         {crew < cls.minCrew ? <span class="trend scarce">short-handed</span> : null}
       </span>
-      <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: 10 })}>
+      <button class="k-btn small" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: 10 })}>
         Sign on 10 · {Math.round(10 * price)} gold
       </button>
-      <button disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
+      <button class="k-btn small primary" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
         Fill the berths · {Math.round(room * price)} gold
       </button>
       {cut < 1 ? <span class="port-sub">Your rank here: men sign on for {Math.round((1 - cut) * 100)}% less.</span> : null}
@@ -627,16 +637,19 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
   const share = plunderShares(content, state, ship);
   const owed = wagesOwed(content, state, ship);
   const days = daysUnpaid(content, state);
+  // Morale heads day by day toward the crew's mood: say which way it is going.
+  const drift = crewMood(content, state, ship) - morale;
   return (
     <div class="recruit crew-pay">
       <span>
-        <Art id="ui.icon.morale" class="inline-icon" /> {moraleWord(content, morale)} ({Math.round(morale)}) ·{' '}
+        <Art id="ui.icon.morale" class="inline-icon" /> {moraleWord(content, morale)}
+        {Math.abs(drift) > 2 ? `, ${drift > 0 ? 'rising' : 'falling'}` : ''} ·{' '}
         <Art id="ui.icon.chest" class="inline-icon" /> chest {Math.round(share.chest)} · unpaid {days} days
       </span>
-      <button disabled={share.chest <= 0} onClick={() => send({ type: 'DividePlunder', shipId })}>
+      <button class="k-btn small" disabled={share.chest <= 0} onClick={() => send({ type: 'DividePlunder', shipId })}>
         Divide the plunder{share.chest > 0 ? ` · you take ${share.captain}, each man ${Math.round(share.perHead)}` : ''}
       </button>
-      <button disabled={owed <= 0 || (state.captain?.gold ?? 0) < owed} onClick={() => send({ type: 'PayWages', shipId })}>
+      <button class="k-btn small" disabled={owed <= 0 || (state.captain?.gold ?? 0) < owed} onClick={() => send({ type: 'PayWages', shipId })}>
         Pay wages · {owed} gold
       </button>
     </div>
@@ -1210,9 +1223,8 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
  * The shady stranger (treasure.json): some weeks a sailor in the corner sells a piece of a famous pirate's map,
  * for a share of what the hoard holds. He says whose, what it is worth, and how much of that map the captain holds.
  */
-function Stranger({ content, state, settlements, town, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'settlements' | 'town' | 'shipId' | 'send'>) {
-  const here = settlements.find((s) => s.id === town);
-  const offer = here && strangerOffer(content, state, here, settlements);
+function Stranger({ content, state, here, settlements, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'settlements' | 'shipId' | 'send'> & { here: PlacedSettlement }) {
+  const offer = strangerOffer(content, state, here, settlements);
   if (!offer) return null;
   const c = content.pirates.captains.find((x) => x.id === offer.pirateId)!;
   const f = state.famous?.[c.id];
@@ -1221,72 +1233,211 @@ function Stranger({ content, state, settlements, town, shipId, send }: Pick<Tave
   const gold = state.captain?.gold ?? 0;
   return (
     <div class="stranger">
-      <span class="trend want">stranger</span> A sailor in the corner leans close: "A piece of {c.name}'s map, captain. They say his hoard holds{' '}
-      {worth.toLocaleString()} gold." <span class="port-sub">You hold {held} of {content.pirates.rules.mapPieces} pieces of it.</span>{' '}
-      <button
-        disabled={gold < offer.price}
-        title={gold < offer.price ? `You have ${gold} gold.` : 'The first piece shows where on the coast it lies; each one more narrows the search.'}
-        onClick={() => send({ type: 'BuyMapPiece', shipId, pirateId: c.id })}
-      >
-        Buy the piece · {offer.price.toLocaleString()} gold
-      </button>
+      <Speech bust="bust.stranger" who="The stranger" line={`"A piece of ${c.name}'s map, captain. They say the hoard holds ${worth.toLocaleString()} gold."`}>
+        <div class="k-sub">
+          You hold {held} of {content.pirates.rules.mapPieces} pieces of it. The first shows the coast it lies on; each one more narrows the search.
+        </div>
+        <div class="tavern-replies">
+          <button class="k-btn small primary" disabled={gold < offer.price} title={gold < offer.price ? `You have ${gold} gold.` : undefined} onClick={() => send({ type: 'BuyMapPiece', shipId, pirateId: c.id })}>
+            Buy the piece · {offer.price.toLocaleString()} gold
+          </button>
+        </div>
+      </Speech>
     </div>
   );
 }
 
-/** The tavern: talk of the docks, newest first. Listening marks it heard. */
-function Tavern({ content, state, settlements, town, rumours, hear, shipId, send }: TavernProps) {
+/** One thing a person in the tavern has to tell: news, or a governor's contract, about a place. */
+interface Telling {
+  id: string;
+  line: string;
+  place: string;
+  /** "today", "3 days ago"; a contract has none. */
+  age?: string;
+  fresh: boolean;
+  contract?: boolean;
+}
+
+/**
+ * A teller's speech card: one thing at a time, in their voice, with where it happened on a small chart and a course
+ * there; "Anything else?" moves on to the next.
+ */
+function Teller({
+  bust,
+  who,
+  quiet,
+  tellings,
+  here,
+  settlements,
+  map,
+  plot,
+}: {
+  bust: string;
+  who: string;
+  quiet: string;
+  tellings: Telling[];
+  here: PlacedSettlement;
+  settlements: PlacedSettlement[];
+  map: TileMap;
+  plot?: (x: number, y: number) => void;
+}) {
+  const [k, setK] = useState(0);
+  const [chart, setChart] = useState(false);
+  const [plotted, setPlotted] = useState<string>();
+  const t = tellings[Math.min(k, tellings.length - 1)];
+  if (!t) return <Speech bust={bust} who={who} line={quiet} />;
+  const place = settlements.find((s) => s.id === t.place);
+  const away = place && place.id !== here.id ? place : undefined;
+  return (
+    <div class={`tavern-telling${t.contract ? ' contract' : ''}`}>
+      <Speech bust={bust} who={who} line={`"${t.line}"`}>
+        <div class="tavern-tags">
+          {t.fresh ? <span class="k-tag new">new</span> : null}
+          {t.contract ? <span class="k-tag contract">contract</span> : null}
+          {t.age ? <span class="k-sub">{t.age}</span> : null}
+          {tellings.length > 1 ? (
+            <span class="k-sub">
+              {Math.min(k, tellings.length - 1) + 1} of {tellings.length}
+            </span>
+          ) : null}
+        </div>
+        <div class="tavern-replies">
+          {away ? (
+            <button class={`k-btn small${chart ? ' active' : ''}`} onClick={() => setChart(!chart)}>
+              See it on the chart
+            </button>
+          ) : null}
+          {away && plot ? (
+            <button
+              class="k-btn small"
+              onClick={() => {
+                plot(away.x, away.y);
+                setPlotted(away.name);
+              }}
+            >
+              Plot a course to {away.name}
+            </button>
+          ) : null}
+          {tellings.length > 1 ? (
+            <button class="k-btn small" onClick={() => setK((k + 1) % tellings.length)}>
+              {k + 1 < tellings.length ? 'Anything else?' : 'From the start'}
+            </button>
+          ) : null}
+        </div>
+        {plotted ? <div class="k-sub tavern-plotted">Course set for {plotted}: she sails it when you set sail.</div> : null}
+      </Speech>
+      {away && chart ? <ChartInset map={map} here={here} there={away} /> : null}
+    </div>
+  );
+}
+
+/** The sailors by the fire: men to sign on, and the crew's pay. */
+function Sailors({ content, state, here, shipId, send }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'> & { here: PlacedSettlement }) {
+  const ship = state.ships[shipId]!;
+  const crew = crewOf(content, ship);
+  const room = fleetBerths(content, state, ship) - crew;
+  const price = Math.round(content.combat.port.recruitGold * perkPrice(content, state.captain, here.nation, 'recruit'));
+  const line = room > 0 ? `"${room} of us would sign on, captain, ${price} gold a man."` : `"Your berths are full, captain. Come back when you've room."`;
+  return (
+    <Speech bust="bust.sailors" who="The sailors" line={line}>
+      <Recruit content={content} state={state} shipId={shipId} send={send} nation={here.nation} />
+      <CrewPay content={content} state={state} shipId={shipId} send={send} />
+    </Speech>
+  );
+}
+
+type Person = 'barmaid' | 'oldsalt' | 'stranger' | 'sailors';
+
+/** News of ships and pirates is the barmaid's; prices, wars and plague are the old salt's. */
+const barmaidTells = (n: import('@corsair/core').NewsItem) => Boolean(n.ship || n.captain || n.vessel);
+
+/**
+ * The tavern (storyboard 2.7): people, not lists. The barmaid, the old salt, the stranger (some weeks) and the
+ * sailors stand in the room; one opens their speech card. Listening marks the news heard.
+ */
+function Tavern({ content, state, settlements, town, rumours, hear, shipId, send, map, plot }: TavernProps) {
   // What was new when the captain walked in stays marked for this visit.
   const [fresh] = useState(() => new Set(rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).map((n) => n.id)));
   // Once per visit: the port screen renders every frame, so this must not run from render.
   useEffect(hear, []);
+  const here = settlements.find((s) => s.id === town)!;
   const today = Math.floor(state.tick / content.calendar.ticksPerDay);
-  const recruit = (
-    <>
-      <Recruit content={content} state={state} shipId={shipId} send={send} nation={settlements.find((s) => s.id === town)?.nation ?? 'pirate'} />
-      <CrewPay content={content} state={state} shipId={shipId} send={send} />
-      <Harbour content={content} state={state} town={town} />
-    </>
-  );
-  // The governors' contracts whose news has reached this port, here or across the sea.
-  const deals = contractsAt(content, state, settlements, town);
-  const offers = deals.length ? (
-    <ul class="tavern contracts">
-      {deals.map((c) => (
-        <li key={c.id}>
-          <span class="trend export">contract</span> {contractLine(content, state, c, settlements.find((s) => s.id === c.settlementId)?.name ?? c.settlementId)}
-        </li>
-      ))}
-    </ul>
-  ) : null;
-  if (!rumours.length)
-    return (
-      <>
-        {recruit}
-        {offers}
-        <Stranger content={content} state={state} settlements={settlements} town={town} shipId={shipId} send={send} />
-        <TopTen content={content} state={state} settlements={settlements} />
-        <p class="tavern-quiet">The tavern is quiet. Nobody has news worth the price of a drink.</p>
-      </>
-    );
+  const told = (n: import('@corsair/core').NewsItem): Telling => {
+    const age = today - Math.floor(n.tick / content.calendar.ticksPerDay);
+    return {
+      id: n.id,
+      line: newsText(content, n, settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId),
+      place: n.settlementId,
+      age: age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`,
+      fresh: fresh.has(n.id),
+    };
+  };
+  const gossip = rumours.filter(barmaidTells).map(told);
+  // The governors' contracts whose news has reached this port come first: they are offers, the rest is talk.
+  const talk = [
+    ...contractsAt(content, state, settlements, town).map((c) => ({
+      id: c.id,
+      line: contractLine(content, state, c, settlements.find((s) => s.id === c.settlementId)?.name ?? c.settlementId),
+      place: c.settlementId,
+      fresh: false,
+      contract: true,
+    })),
+    ...rumours.filter((n) => !barmaidTells(n)).map(told),
+  ];
+  const stranger = Boolean(strangerOffer(content, state, here, settlements));
+  const people: { id: Person; name: string; bust: string; badge: number }[] = [
+    { id: 'barmaid', name: 'Barmaid', bust: 'bust.barmaid', badge: gossip.filter((t) => t.fresh).length },
+    { id: 'oldsalt', name: 'Old salt', bust: 'bust.oldsalt', badge: talk.filter((t) => t.fresh).length },
+    ...(stranger ? [{ id: 'stranger' as const, name: 'Stranger', bust: 'bust.stranger', badge: 0 }] : []),
+    { id: 'sailors', name: 'Sailors', bust: 'bust.sailors', badge: 0 },
+  ];
+  // Whoever has something new speaks first.
+  const [chosen, choose] = useState<Person>(() => people.find((p) => p.badge)?.id ?? 'barmaid');
+  const who = people.some((p) => p.id === chosen) ? chosen : 'barmaid';
   return (
-    <>
-      {recruit}
-      {offers}
-      <Stranger content={content} state={state} settlements={settlements} town={town} shipId={shipId} send={send} />
-      <TopTen content={content} state={state} settlements={settlements} />
-      <ul class="tavern">
-        {rumours.map((n) => {
-          const town = settlements.find((s) => s.id === n.settlementId)?.name ?? n.settlementId;
-          const age = today - Math.floor(n.tick / content.calendar.ticksPerDay);
-          return (
-            <li key={n.id}>
-              {fresh.has(n.id) ? <span class="trend want">new</span> : null} {newsText(content, n, town)}
-              <span class="age"> {age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </>
+    <div class="tavern-room">
+      <div class="tavern-people">
+        {people.map((p) => (
+          <button key={p.id} class={`tavern-person${p.id === who ? ' active' : ''}`} onClick={() => choose(p.id)}>
+            <Bust id={p.bust} label={p.name} />
+            <span class="tavern-person-name">
+              {p.name}
+              {p.badge ? <span class="spot-badge">{p.badge}</span> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div class="k-wood tavern-card">
+        {who === 'barmaid' ? (
+          <Teller
+            key="barmaid"
+            bust="bust.barmaid"
+            who="The barmaid"
+            quiet={`"Quiet tonight, captain. Nobody's seen a prize or a pirate worth the price of a drink."`}
+            tellings={gossip}
+            here={here}
+            settlements={settlements}
+            map={map}
+            plot={plot}
+          />
+        ) : who === 'oldsalt' ? (
+          <Teller
+            key="oldsalt"
+            bust="bust.oldsalt"
+            who="The old salt"
+            quiet={`"Nothing from the other ports, captain. Ask me again in a week."`}
+            tellings={talk}
+            here={here}
+            settlements={settlements}
+            map={map}
+            plot={plot}
+          />
+        ) : who === 'stranger' ? (
+          <Stranger content={content} state={state} here={here} settlements={settlements} shipId={shipId} send={send} />
+        ) : (
+          <Sailors content={content} state={state} here={here} shipId={shipId} send={send} />
+        )}
+      </div>
+    </div>
   );
 }

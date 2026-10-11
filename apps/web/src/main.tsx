@@ -1357,6 +1357,8 @@ async function main() {
           onOpen={(s) => (service = s)}
           notice={portNotice}
           date={formatDate(dateOf(def.startDate, Math.floor(sim.state.tick / content.calendar.ticksPerDay)))}
+          map={map}
+          plot={(x, y) => setCourse(x, y, false)}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();
