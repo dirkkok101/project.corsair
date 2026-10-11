@@ -594,6 +594,10 @@ test('moments: war comes as a letter in port, and a famous pirate seen the first
   await page.screenshot({ path: 'test-results/moment-letter.png' });
   await page.keyboard.press('Enter');
   await expect(page.locator('.moment')).toHaveCount(0);
+  // Read, the news is heard and written in the log: it isn't a letter again.
+  const captain = await page.evaluate(() => window.__corsair.state.get('captain') as { heard: string[]; logbook: { kind: string; text: string }[] });
+  expect(captain.heard).toHaveLength(1);
+  expect(captain.logbook.at(-1)).toMatchObject({ kind: 'news', text: expect.stringContaining('England and France are at war') });
 
   // Out to sea, and alongside a famous pirate under way: the world waits on her moment.
   await page.keyboard.press('e');

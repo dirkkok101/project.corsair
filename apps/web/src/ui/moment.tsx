@@ -10,7 +10,7 @@ import { Bust, Key } from './kit';
 
 export type Moment =
   /** News that matters (war, peace): a dated letter, its headline and what it means for you. */
-  | { kind: 'letter'; at: string; date: string; headline: string; text: string; means: string }
+  | { kind: 'letter'; newsId: string; at: string; date: string; headline: string; text: string; means: string }
   /** A governor's commission: the new rank, what it brings, and the next. */
   | { kind: 'promotion'; nation: string; rank: string; acres: number; town: string }
   /** A famous pirate seen for the first time. */

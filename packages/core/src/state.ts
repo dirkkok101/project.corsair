@@ -566,7 +566,8 @@ export type Command =
   /** Debug: start an AI ship of a role at a port, bound for another. */
   | { type: 'SpawnShip'; role: AiCaptain['role']; from: string; to: string }
   /** The captain listens in the tavern of the port the ship is docked at. */
-  | { type: 'HearNews'; shipId: string }
+  /** Hear the news this port has (in its tavern), or only the one item `id` (read in a letter). */
+  | { type: 'HearNews'; shipId: string; id?: string }
   | { type: 'CallOnGovernor'; shipId: string }
   /** Debug: start a market shock now. */
   | { type: 'SpawnShock'; settlementId: string; good: string; kind: string }

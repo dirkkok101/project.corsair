@@ -1293,7 +1293,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const ship = state.ships[command.shipId];
         if (!ship?.docked) return ship ? refuse(state, ship, 'not-docked') : undefined;
         const heard = state.captain.heard ?? [];
-        const fresh = newsAt(content, state, settlements, ship.docked).filter((n) => !heard.includes(n.id));
+        const fresh = newsAt(content, state, settlements, ship.docked).filter((n) => !heard.includes(n.id) && (command.id === undefined || n.id === command.id));
         if (!fresh.length) return { state, events: [] };
         return {
           state: { ...state, captain: { ...state.captain, heard: [...heard, ...fresh.map((n) => n.id).reverse()] } },

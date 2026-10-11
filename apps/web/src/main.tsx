@@ -314,8 +314,16 @@ async function main() {
       ...(goal ? { goal: { title: goal.title, have: goal.unit ? `${goal.have.toLocaleString()} of ${goal.of.toLocaleString()} ${goal.unit}` : 'not yet', why: goal.why } } : {}),
     });
   }
-  /** News already shown as a letter this session. */
+  /** News already shown as a letter this session (closing it hears it, so it is not shown again). */
   const lettered = new Set<string>();
+  /** Closes the moment at the head of the queue; a letter's news is heard then, and goes into the log. */
+  const closeMoment = () => {
+    const done = moments.shift();
+    if (done?.kind === 'letter' && player().docked) {
+      sim.send({ type: 'HearNews', shipId: player().id, id: done.newsId });
+      sim.applyCommands();
+    }
+  };
   // The captain's log (L) is open: the world waits, as with the chart.
   let logOpen = false;
   // The ship being spoken and the news she brought; the clock stops while the captains talk.
@@ -634,15 +642,21 @@ async function main() {
   const unlock = () => audio.unlock();
   window.addEventListener('keydown', unlock);
   window.addEventListener('pointerdown', unlock);
+  // A moment takes the keys while it shows, caught before the chart's or the game's own: Enter or Escape closes it,
+  // and nothing else gets through (it still counts as the key that starts the sound).
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (!moments.length || fight) return;
+      audio.unlock();
+      if ((e.key === 'Enter' || e.key === 'Escape') && !e.repeat) closeMoment();
+      e.stopImmediatePropagation();
+    },
+    true,
+  );
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'v' && !e.repeat) audio.toggleMute();
     if (e.key.toLowerCase() === 'n' && !e.repeat) audio.toggleMusic();
-    // A moment takes the keys while it shows: Enter or Escape closes it, and nothing else reaches the game.
-    if (moments.length && !fight) {
-      if ((e.key === 'Enter' || e.key === 'Escape') && !e.repeat) moments.shift();
-      e.stopImmediatePropagation();
-      return;
-    }
     // In battle: Space fires whichever broadside bears (held, it fires each one as she comes into its arc),
     // Tab cycles the shot and 1 to 3 pick it; Q and E still fire a side by hand. When it is over, Enter (or
     // Space) carries on. Steering keys go to the battle through bindInput.
@@ -1229,6 +1243,7 @@ async function main() {
           lettered.add(n.id);
           moments.push({
             kind: 'letter',
+            newsId: n.id,
             at: town!.name,
             date: formatDate(dateOf(def.startDate, Math.floor(n.tick / content.calendar.ticksPerDay))),
             headline: n.kind === 'war' ? 'War!' : 'Peace',
@@ -1435,7 +1450,7 @@ async function main() {
           map={map}
           settlements={settlements}
           scene={sceneUrl}
-          close={() => moments.shift()}
+          close={closeMoment}
           plot={(x, y) => setCourse(x, y, false)}
         />
       ) : null,

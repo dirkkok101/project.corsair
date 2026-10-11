@@ -344,6 +344,19 @@ describe('market shocks and news', () => {
     expect(sim.state.captain!.heard).toEqual([item.id]);
   });
 
+  it('hears one piece of news alone when asked for it by id, leaving the rest unheard', () => {
+    const sim = moored(portRoyal, 11);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.send({ type: 'SpawnShock', settlementId: portRoyal.id, good: 'sugar', kind: 'shortage' });
+    sim.send({ type: 'SpawnShock', settlementId: portRoyal.id, good: 'cloth', kind: 'shortage' });
+    sim.applyCommands();
+    const second = sim.state.news![1]!;
+    sim.send({ type: 'HearNews', shipId: 'player', id: second.id });
+    sim.applyCommands();
+    expect(sim.state.captain!.heard).toEqual([second.id]);
+    expect(sim.events().at(-1)).toMatchObject({ type: 'NewsHeard', payload: { ids: [second.id] } });
+  });
+
   it("calling on a governor remembers when, for what has happened since", () => {
     const sim = moored(portRoyal, 11);
     sim.send({ type: 'CallOnGovernor', shipId: 'player' });
