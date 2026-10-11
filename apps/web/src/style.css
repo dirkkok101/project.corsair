@@ -4,7 +4,8 @@ body {
   height: 100%;
   background: #090a14;
   color: #ebede9;
-  font: 13px/1.4 ui-monospace, Menlo, monospace;
+  /* The storyboard's body face (Alegreya Sans, art/game/fonts), a touch larger than the old monospace. */
+  font: 15px/1.4 'Alegreya Sans', 'Gill Sans', sans-serif;
 }
 
 #stage {
@@ -534,10 +535,9 @@ body {
   position: absolute;
   inset: 0;
   display: grid;
-  /* The panel lies along the bottom like a ledger on the counter, leaving the scene above it clear, and
-     takes the width to the right of the ship card (12px in, 256px wide) so the card never covers it. */
+  /* The panel lies along the bottom like a ledger on the counter, leaving the scene above it clear. */
   place-items: end center;
-  padding: 0 12px 12px 280px;
+  padding: 0 12px 12px;
 }
 
 .port-panel {
@@ -1269,21 +1269,138 @@ body {
   cursor: pointer;
 }
 
+/* Each building's label (storyboard 2.1): a pill over it, gold-edged, with a badge for what waits there. */
 .port-spot span {
   position: absolute;
   left: 50%;
   top: -4px;
   transform: translate(-50%, -100%);
-  padding: 1px 6px;
-  font: inherit;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-family: var(--k-display);
+  font-size: 22px;
   white-space: nowrap;
-  color: #ebede9;
-  background: rgb(9 10 20 / 0.75);
+  color: #fff4dc;
+  background: rgb(20 14 10 / 0.82);
+  border: 2px solid var(--k-gold);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.5);
 }
 
-.port-spot:hover {
-  border-color: #e8c170;
+.port-spot:hover span {
+  background: rgb(58 40 24 / 0.95);
+}
+
+.spot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  background: var(--k-gold);
+  color: #1d1410;
+  font: 800 13px var(--k-body);
+}
+
+/* The docks sit on the water at the anchorage: their label in the middle of the spot. */
+.port-docks span {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.harbour-head {
+  position: absolute;
+  top: 18px;
+  left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.harbour-name {
+  margin: 0;
+  font-family: var(--k-display);
+  font-weight: normal;
+  font-size: 56px;
+  line-height: 1;
+  color: #f4ead6;
+  text-shadow: 2px 0 0 #1d1210, -2px 0 0 #1d1210, 0 2px 0 #1d1210, 0 -2px 0 #1d1210, 3px 4px 0 #6b2133;
+}
+
+.harbour-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.k-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font: 700 12px var(--k-body);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: #3b2a1c;
+  color: #f4e3bd;
+}
+
+.k-tag.gold {
+  background: var(--k-gold);
+  color: #1d1410;
+}
+
+.k-tag.red {
+  background: #7d2a1e;
+  color: #ffe7da;
+}
+
+.harbour-news {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  max-width: 520px;
+  font-size: 17px;
+}
+
+.harbour-docks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, 90vw);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.harbour-docks-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.harbour-foot {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.harbour-foot .hud-strip {
+  position: static;
+}
+
+.harbour-date {
+  flex: 1;
+  color: var(--k-cream);
+  text-shadow: 0 1px 3px #000;
 }
 
 .port-spot.soon {
@@ -1292,22 +1409,6 @@ body {
 
 .port-spot.soon span {
   color: #819796;
-}
-
-/* In the sky, clear of the town, the quay and the ship at anchor. */
-.port-bar {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  white-space: nowrap;
-  padding: 8px 14px;
-  color: #ebede9;
-  background: rgb(21 29 40 / 0.92);
-  border: 2px solid #c09473;
 }
 
 /* In port (and in battle) the sailing instruments and the sea's labels make way; "Saved" and the sound note stay. */

@@ -51,6 +51,7 @@ import {
 import { enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 import { topTen } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
+import { Key, Stat } from './ui/kit';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
@@ -64,7 +65,8 @@ export interface PortProps {
   shipId: string;
   send: (command: import('@corsair/core').Command) => void;
   /** Where each building stands on screen, in CSS pixels within the stage. */
-  hotspots: Partial<Record<Service, { left: number; top: number; width: number; height: number }>>;
+  /** The buildings to click, and the docks (at the anchorage), in CSS pixels within the stage. */
+  hotspots: Partial<Record<Service | 'docks', { left: number; top: number; width: number; height: number }>>;
   /** Told which service is open (undefined for the harbour view), so its interior can be shown. */
   onOpen: (service: Service | undefined) => void;
   /** Said once on arrival: men who deserted as she made port. */
@@ -307,15 +309,46 @@ function Merchant({
   );
 }
 
+/** Standing with a nation as a word (the number on hover). */
+function standingWord(n: number): string {
+  return n >= 50 ? 'honoured' : n >= 20 ? 'friendly' : n > -20 ? 'neutral' : n > -50 ? 'unwelcome' : 'hunted';
+}
+
+/**
+ * The one line said on arrival (storyboard 2.1): a notice first (men deserted, a promotion), then the best price
+ * here for something in the hold, then news the captain hasn't heard, then what the town makes cheap.
+ */
+function arrivalNews(content: ContentPack, state: WorldState, town: PlacedSettlement, settlements: PlacedSettlement[], ship: import('@corsair/core').Ship, notice?: string): string | undefined {
+  if (notice) return notice;
+  const market = state.markets?.[town.id] ?? {};
+  const name = (id: string) => content.goods.find((g) => g.id === id)?.name.toLowerCase() ?? id;
+  const held = Object.entries(ship.cargo).filter(([g, n]) => n > 0 && g !== 'food');
+  const dear = held
+    .map(([g]) => ({ g, story: priceStory(content, state, town, g), q: quote(content, town, g, market[g] ?? 0) }))
+    .filter((x) => x.story.level === 'dear')
+    .sort((a, b) => b.q.sell - a.q.sell)[0];
+  if (dear) return `Your ${name(dear.g)} sells well here: ${dear.q.sell} each.`;
+  const fresh = newsAt(content, state, settlements, town.id).find((n) => !(state.captain?.heard ?? []).includes(n.id));
+  if (fresh) return `News in the tavern: ${newsText(content, fresh, settlements.find((x) => x.id === fresh.settlementId)?.name ?? town.name)}`;
+  const made = portTrade(content, town).exports[0];
+  return made ? `${town.name} makes ${name(made)}: it is cheap here at ${quote(content, town, made, market[made] ?? 0).buy}.` : undefined;
+}
+
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
 export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date }: PortProps) {
-  // The market opens on arrival; closing it leaves the harbour to look at.
-  const [open, setOpen] = useState<Service | undefined>('merchant');
+  // The harbour first (the painting is the menu, storyboard 2.1); a building opens its service, Esc comes back.
+  const [open, setOpen] = useState<Service | undefined>(undefined);
   // Retiring asks first, with the score as it stands.
   const [retiring, setRetiring] = useState(false);
+  // The docks: the ships in harbour, and retiring.
+  const [docks, setDocks] = useState(false);
   useEffect(() => onOpen(open), [open]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(undefined);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(undefined);
+      setDocks(false);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -348,7 +381,11 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   // Rumours this port has heard that the captain hasn't, for the tavern's badge.
   const rumours = newsAt(content, state, settlements, town.id);
   const unheard = rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).length;
-  const label = (s: { id: Service; name: string }) => (s.id === 'tavern' && unheard ? `${s.name} (${unheard})` : s.name);
+  // What waits at each building, as a badge: news unheard, bounties owed, mending to do.
+  const owed = hasGovernor(town) ? bountiesOwed(content, state, town.nation).pay.length : 0;
+  const mending = repairCost(content, ship, fleetOf(state)) > 0 ? 1 : 0;
+  const badge: Partial<Record<Service, number>> = { tavern: unheard, governor: owed, shipwright: mending };
+  const label = (s: { id: Service; name: string }) => (badge[s.id] ? `${s.name} (${badge[s.id]})` : s.name);
 
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
     const r = hotspots[s.id]!;
@@ -363,10 +400,13 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           width: `${r.width}px`,
           height: `${r.height}px`,
         }}
-        title={ready ? s.name : `${s.name}: coming soon`}
+        title={s.name}
         onClick={() => ready && setOpen(s.id)}
       >
-        <span>{ready ? label(s) : `${s.name} · soon`}</span>
+        <span>
+          {s.name}
+          {badge[s.id] ? <b class="spot-badge">{badge[s.id]}</b> : null}
+        </span>
       </button>
     );
   });
@@ -379,23 +419,58 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     );
 
   if (!open) {
+    const standing = state.captain?.standing?.[town.nation] ?? 0;
+    const crew = crewOf(content, ship);
+    const berths = fleetBerths(content, state, ship);
+    const food = Math.floor(foodDays(content, ship));
+    const morale = moraleOf(content, state);
+    const news = arrivalNews(content, state, town, settlements, ship, notice);
+    const dockSpot = hotspots.docks;
     return (
       <div class="port port-scene">
         {spots}
-        <div class="port-bar">
-          <span class="port-name">{town.name}</span>
-          <span class="port-sub">{date}</span>
-          <button class="leave" onClick={() => setOpen('merchant')}>
-            Merchant
+        {dockSpot ? (
+          <button class="port-spot port-docks" style={{ left: `${dockSpot.left}px`, top: `${dockSpot.top}px`, width: `${dockSpot.width}px`, height: `${dockSpot.height}px` }} onClick={() => setDocks(true)}>
+            <span>Docks</span>
           </button>
-          <button class="leave" onClick={() => setOpen('tavern')}>
-            {label({ id: 'tavern', name: 'Tavern' })}
-          </button>
-          <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
-            Set sail · E
-          </button>
-          <button class="leave" onClick={() => setRetiring(true)} title="End the career here and see its score">
-            Retire…
+        ) : null}
+        <div class="harbour-head">
+          <h1 class="harbour-name port-name">{town.name}</h1>
+          <div class="harbour-tags">
+            <span class="k-tag">{town.type === 'haven' ? 'Pirate haven' : `${NATION[town.nation]} ${town.type === 'capital' ? 'capital' : town.size}`}</span>
+            <span class="k-tag">{townOf(content, state, town).people.toLocaleString()} people</span>
+            {town.nation !== 'pirate' ? (
+              <span class="k-tag gold" title={`Standing with the ${NATION[town.nation]}: ${standing}`}>
+                Standing: {standingWord(standing)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {news ? <div class="hud-toast harbour-news">{news}</div> : null}
+        {docks ? (
+          <div class="k-wood harbour-docks">
+            <div class="k-who">The docks</div>
+            <Harbour content={content} state={state} town={town.id} />
+            <div class="harbour-docks-actions">
+              <button class="k-btn small" onClick={() => setRetiring(true)} title="End the career here and see its score">
+                Retire…
+              </button>
+              <button class="k-btn small" onClick={() => setDocks(false)}>
+                Close · Esc
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <div class="harbour-foot">
+          <div class="hud-strip">
+            <Stat icon="ui.icon.gold" value={gold.toLocaleString()} title="Gold in your purse" />
+            <Stat icon="ui.icon.crew" value={`${crew} men`} title={`Crew ${crew} of ${berths} berths`} low={crew < berths / 3} />
+            <Stat icon="ui.icon.food" value={`${food} ${food === 1 ? 'day' : 'days'}`} title="Food aboard, in days for this crew" low={food <= 3} />
+            <Stat icon="ui.icon.morale" value={moraleWord(content, morale)} title="The crew's morale" low={morale < 40} />
+          </div>
+          <span class="harbour-date">{date}</span>
+          <button class="k-btn primary" onClick={() => send({ type: 'Undock', shipId })}>
+            Set sail <Key k="E" />
           </button>
         </div>
       </div>
@@ -437,18 +512,8 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         {notice ? <div class="port-notice">{notice}</div> : null}
 
         <nav class="port-tabs">
-          {SERVICES.map((s) =>
-            READY.includes(s.id) ? (
-              <button key={s.id} class={`port-tab${s.id === open ? ' active' : ''}`} onClick={() => setOpen(s.id)}>
-                {label(s)}
-              </button>
-            ) : (
-              <span key={s.id} class="soon" title="Coming soon">
-                {s.name}
-              </span>
-            ),
-          )}
-          <button class="port-close" onClick={() => setOpen(undefined)} title="See the harbour (Esc)">
+          <span class="k-who">{SERVICES.find((s) => s.id === open)?.name}</span>
+          <button class="port-close" onClick={() => setOpen(undefined)} title="Back to the harbour (Esc)">
             Harbour · Esc
           </button>
         </nav>

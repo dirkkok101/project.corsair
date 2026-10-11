@@ -35,7 +35,6 @@ import { HoardMap, Log } from './log';
 import { bandOf } from './ui/kit';
 import { createShipLabels } from './shiplabels';
 import { bindMouse } from './mouse';
-import { ShipPanel } from './panel';
 import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
@@ -97,7 +96,7 @@ function interiorFor(s: PlacedSettlement, service: Service): HarbourScene | unde
 }
 
 /** The scene for a settlement: havens have their own; other towns go by nation and size. */
-function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots'] } | undefined {
+function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots']; anchor: [number, number] } | undefined {
   const defs = (Object.values(harbourDefs)[0] ?? {}) as Record<string, HarbourDef>;
   const tier = { hamlet: 'small', town: 'medium', city: 'large' }[s.size];
   const id = s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${tier}`;
@@ -115,6 +114,7 @@ function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: Harbo
       nation: s.nation,
     },
     hotspots: def.hotspots,
+    anchor: def.anchor,
   };
 }
 
@@ -898,13 +898,13 @@ async function main() {
     return harbourScenes.get(s.id);
   };
   /** Scene-pixel hotspot rectangles to CSS pixels within the stage, for the clickable buildings. */
-  const hotspotsOnScreen = (spots: HarbourDef['hotspots']) => {
+  const hotspotsOnScreen = (spots: Partial<Record<Service | 'docks', [number, number, number, number]>>) => {
     const t = renderer.harbour.transform();
     const canvas = renderer.canvas.getBoundingClientRect();
     const box = stage.getBoundingClientRect();
     const px = scale * t.scale;
-    const out: Partial<Record<Service, { left: number; top: number; width: number; height: number }>> = {};
-    for (const [id, [x, y, w, h]] of Object.entries(spots) as [Service, number[]][]) {
+    const out: Partial<Record<Service | 'docks', { left: number; top: number; width: number; height: number }>> = {};
+    for (const [id, [x, y, w, h]] of Object.entries(spots) as [Service | 'docks', number[]][]) {
       out[id] = { left: canvas.left - box.left + (t.x * scale) + x! * px, top: canvas.top - box.top + t.y * scale + y! * px, width: w! * px, height: h! * px };
     }
     return out;
@@ -1091,47 +1091,8 @@ async function main() {
     }
     stage.classList.remove('in-battle');
     render(null, battleRoot);
-    if (!player().docked) render(null, panelRoot);
-    else {
-      // The ship card in port, until the harbour is redone (docs/design/ui-conversion.md, S3); at sea the HUD's
-      // strip and controls replace it, and in battle the battle HUD has its own.
-      const me = player();
-      const stats = shipStats(content, me);
-      const each = Math.floor(stats.guns / 2);
-      render(
-        <ShipPanel
-            name={shipKind(me.classId).replace(/^./, (c) => c.toUpperCase())}
-            icon={shipIcon(content, me.classId)}
-            classId={me.classId}
-            hull={me.hull ?? stats.hullMax}
-            hullMax={stats.hullMax}
-            sails={me.sailCondition ?? 100}
-            crew={crewOf(content, me)}
-            berths={fleetBerths(content, sim.state, me)}
-            sailSetting={me.sails}
-            guns={{ port: { loaded: each, of: each }, starboard: { loaded: each, of: each } }}
-            morale={{ value: moraleOf(content, sim.state), word: moraleWord(content, moraleOf(content, sim.state)) }}
-            foodDays={foodDays(content, me)}
-            fouling={me.fouling}
-            purse={{ gold: sim.state.captain?.gold ?? 0, chest: Math.round(sim.state.captain?.chest ?? 0), hold: cargoUsed(me), capacity: fleetHold(content, sim.state, me) }}
-            fleet={fleetOf(sim.state).map((f) => ({ name: f.name, classId: f.classId, icon: shipIcon(content, f.classId), speed: fleetShipPace(content, f), damaged: fleetShipPace(content, f) < shipStats(content, f).speed }))}
-            pace={me.fleetSpeed !== undefined && me.fleetSpeed < shipStats(content, { ...me, fleetSpeed: undefined }).speed ? me.fleetSpeed : undefined}
-            mounted={{ guns: stats.guns, of: stats.maxGuns }}
-            setSails={me.docked ? undefined : (sails) => sim.send({ type: 'SetSails', shipId: me.id, sails })}
-            cruise={
-              me.docked
-                ? undefined
-                : {
-                    speed: wantedSpeed,
-                    choose: (n) => (wantedSpeed = n),
-                    course: Boolean(me.assist),
-                    stop: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }),
-                  }
-            }
-          />,
-        panelRoot,
-      );
-    }
+    // The HUD's strip (at sea) and the harbour's (in port) replace the old ship card; the battle HUD has its own.
+    render(null, panelRoot);
     if (player().docked || hailing || charts.open || logOpen) {
       // World time stops in port (PRD section 2), while hailing, and while the chart is open; commands
       // still apply at once.
@@ -1392,7 +1353,7 @@ async function main() {
           town={town}
           settlements={settlements}
           shipId={ship.id}
-          hotspots={harbour ? hotspotsOnScreen(harbour.hotspots) : {}}
+          hotspots={harbour ? hotspotsOnScreen({ ...harbour.hotspots, docks: [harbour.anchor[0] - 60, harbour.anchor[1] - 22, 120, 44] }) : {}}
           onOpen={(s) => (service = s)}
           notice={portNotice}
           date={formatDate(dateOf(def.startDate, Math.floor(sim.state.tick / content.calendar.ticksPerDay)))}

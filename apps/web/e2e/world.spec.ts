@@ -7,6 +7,12 @@ const musicTitles = music.tunes.map((t) => t.title);
 // Drives the real game through window.__corsair (PRD section 16): the debug API confirms behaviour,
 // screenshots confirm rendering.
 
+/** In port: back to the harbour (Esc), then the building's hotspot (storyboard 2.1: the painting is the menu). */
+async function openService(page: Page, name: string) {
+  await page.keyboard.press('Escape');
+  await page.locator('.port-spot', { hasText: new RegExp(`^${name}`) }).click();
+}
+
 /** Without a seed a new career opens on the difficulty pick: take the default. */
 async function setSail(page: Page, url: string) {
   if (!url.includes('seed=')) await page.getByRole('button', { name: 'Set sail' }).click();
@@ -35,7 +41,7 @@ const player = (page: Page) =>
 test('a new career starts docked in port, under-gunned, and the shipwright outfits her', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
-  await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await openService(page, 'Shipwright');
   await page.locator('.shipwright-tabs').getByRole('button', { name: 'Upgrade' }).click();
   await expect(page.locator('.shipwright')).toContainText('Guns 10 / 18');
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
@@ -198,6 +204,7 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
     await page.keyboard.press('e');
     await page.evaluate(() => window.__corsair.sim.step(1));
     await expect(page.locator('.port-name')).toHaveText(name);
+    await openService(page, 'Merchant');
   };
   const gold = () => page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
 
@@ -246,6 +253,7 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   // Docking autosaved; let that flash pass so the next one is the Ctrl+S save landing.
   await expect(page.locator('.hud-saved')).toBeVisible();
   await expect(page.locator('.hud-saved')).toHaveCount(0);
+  await openService(page, 'Merchant');
   await page.locator('tr', { hasText: 'Food' }).getByRole('button', { name: '10' }).click();
   await page.keyboard.press('Control+s');
   await expect(page.locator('.hud-saved')).toBeVisible();
@@ -322,8 +330,8 @@ test('harbour scenes: a pirate haven has its own scene, and night falls on it to
   await page.evaluate(() => window.__corsair.sim.step(771 * (14 / 24)));
   await expect(page.locator('.port-name')).toHaveText('Tortuga');
   await page.keyboard.press('Escape');
-  // A haven has no governor.
-  await expect(page.locator('.port-spot')).toHaveCount(3);
+  // A haven has no governor: merchant, tavern and shipwright, and the docks.
+  await expect(page.locator('.port-spot')).toHaveCount(4);
   await page.screenshot({ path: 'test-results/haven-night.png' });
   expect(errors).toEqual([]);
 });
@@ -367,7 +375,8 @@ test('ships lying in port are listed in the tavern with when each sails', async 
   });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  // The ships in harbour are at the docks.
+  await page.locator('.port-docks').click();
   await expect(page.locator('.harbour-ships > div:not(.age)')).toHaveCount(port.moored);
   await expect(page.locator('.harbour-ships')).toContainText('sails');
   await page.screenshot({ path: 'test-results/harbour-ships.png' });
@@ -399,7 +408,7 @@ test("the captain's goals: L opens the log at the next three, with progress and 
 
 test('the Top Ten: the tavern ranks the famous pirates by wealth, and the captain below them to start', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
-  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  await openService(page, 'Tavern');
   const list = page.locator('.top-ten li');
   await expect(list).toHaveCount(10);
   await expect(list.first()).toContainText('Henry Morgan');
@@ -413,7 +422,7 @@ test('the Top Ten: the tavern ranks the famous pirates by wealth, and the captai
 test("treasure maps: the tavern stranger sells a piece, the log draws the map, and the chart rings the search", async ({ page }) => {
   test.setTimeout(120_000);
   const errors = await boot(page, '/?seed=3', { inPort: true });
-  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  await openService(page, 'Tavern');
   // He sits in the corner some weeks: wait them out in port.
   for (let w = 0; w < 16 && !(await page.locator('.stranger').count()); w++) {
     await page.evaluate(() => window.__corsair.sim.step(7 * 771));
@@ -445,7 +454,7 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
 test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes up', async ({ page }) => {
   test.setTimeout(120_000);
   const errors = await boot(page, '/?seed=3', { inPort: true });
-  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  await openService(page, 'Tavern');
   for (let w = 0; w < 16 && !(await page.locator('.stranger').count()); w++) {
     await page.evaluate(() => window.__corsair.sim.step(7 * 771));
     await page.waitForTimeout(50);
@@ -484,8 +493,9 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  const tab = page.locator('.port-tabs').getByRole('button', { name: 'Tavern (1)' });
-  await expect(tab).toBeVisible();
+  // The tavern's badge says one piece of news waits there.
+  const tab = page.locator('.port-spot', { hasText: /^Tavern/ });
+  await expect(tab.locator('.spot-badge')).toHaveText('1');
   await tab.click();
   const rumours = page.locator('.tavern:not(.contracts)');
   await expect(rumours.locator('li')).toHaveCount(1);
@@ -496,7 +506,8 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await expect(page.locator('.tavern.contracts')).toContainText('sugar landed there');
   await page.screenshot({ path: 'test-results/tavern.png' });
   // Heard now: the badge goes, and the rumour is in the captain's memory.
-  await expect(page.locator('.port-tabs').getByRole('button', { name: 'Tavern', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.port-spot', { hasText: /^Tavern/ }).locator('.spot-badge')).toHaveCount(0);
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { heard: string[] }).heard)).toHaveLength(1);
 
   await page.keyboard.press('e');
@@ -695,7 +706,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await page.locator('.port-tabs').getByRole('button', { name: 'Governor' }).click();
+  await openService(page, 'Governor');
   // 1660: Spain is at war with England beyond the line, so the governor sells a letter of marque.
   await expect(page.locator('.governor')).toContainText('at war with Spain');
   await page.locator('.governor').getByRole('button', { name: /Letter of marque/ }).click();
@@ -747,7 +758,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
     });
     await page.keyboard.press('e');
     await page.evaluate(() => window.__corsair.sim.step(1));
-    await page.locator('.port-tabs').getByRole('button', { name: 'Governor' }).click();
+    await openService(page, 'Governor');
     await page.locator('.governor').getByRole('button', { name: /Collect bounties/ }).click();
     await expect(page.locator('.governor')).toContainText('No bounty owed here');
   }
@@ -861,7 +872,7 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   expect(await food()).toBeLessThan(before);
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await page.locator('.port-tabs').getByRole('button', { name: /^Tavern/ }).click();
+  await openService(page, 'Tavern');
   // Nothing taken yet: the chest is empty, but three days' wages are owed.
   await expect(page.locator('.crew-pay').getByRole('button', { name: /Divide the plunder/ })).toBeDisabled();
   const pay = page.locator('.crew-pay').getByRole('button', { name: /Pay wages/ });
@@ -986,7 +997,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await openService(page, 'Shipwright');
   await page.locator('.shipwright-tabs').getByRole('button', { name: /^Repair/ }).click();
   await expect(page.locator('.fleet-list:not(.ships-for-sale):not(.laid-up)')).toContainText('fluyt');
   await page.screenshot({ path: 'test-results/fleet-shipwright.png' });
@@ -1065,7 +1076,7 @@ test('the shipyard: new ships for sale, and why one can\'t be bought yet', async
   // A new career starts in Port Royal's harbour, a city: its yard builds most classes.
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await page.locator('.port-tabs').getByRole('button', { name: 'Shipwright' }).click();
+  await openService(page, 'Shipwright');
   await page.locator('.shipwright-tabs').getByRole('button', { name: 'Buy ships' }).click();
   const yard = page.locator('.ships-for-sale');
   await expect(yard).toContainText('war sloop');
@@ -1082,8 +1093,8 @@ test('the shipyard: new ships for sale, and why one can\'t be bought yet', async
 
 test('retiring in port scores the career, ends it, and the start screen says how it ended', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
-  // From the harbour (Esc closes the merchant's page).
-  await page.keyboard.press('Escape');
+  // Retiring is at the docks.
+  await page.locator('.port-docks').click();
   await page.getByRole('button', { name: 'Retire…' }).click();
   await expect(page.locator('.career-score')).toContainText('Trade fame');
   await page.getByRole('button', { name: 'Not yet' }).click();

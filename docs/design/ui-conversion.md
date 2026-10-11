@@ -1,6 +1,6 @@
 # Plan: converting the game to the storyboard
 
-Planned 2026-10-11; S1 (UI kit) and S2 (sea HUD) built. How the game's screens become the ones in the storyboard mockups
+Planned 2026-10-11; S1 (UI kit), S2 (sea HUD) and S3 (harbour) built. How the game's screens become the ones in the storyboard mockups
 ([Corsair UI Storyboard](https://claude.ai/artifact/YAbWGj2B2zQ9xKvUVxdnCg), 30 artboards) and
 [storyboard.md](storyboard.md): the art to make, the shared UI pieces, and the order of the slices. The principles
 are those of [../reference/game-ui.md](../reference/game-ui.md) section 7.
