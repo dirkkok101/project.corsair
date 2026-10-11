@@ -695,60 +695,197 @@ body {
   white-space: nowrap;
 }
 
-/* The merchant: a big ledger, a row per good, every number explained on hover. */
+/* The merchant (storyboard 2.2): his wood panel on the left, the parchment ledger on the right, over his shop. */
 .port-panel:has(.merchant) {
-  max-height: 80vh;
+  max-height: 86vh;
+  background: transparent;
+  border-color: transparent;
 }
 
-.merchant .market td {
-  padding: 5px 8px 5px 0;
-  font-size: 14px;
+/* With no panel behind it, the header gets its own band so it reads over the painting. */
+.port-panel:has(.merchant) > .port-head,
+.port-panel:has(.merchant) > .port-tabs {
+  padding: 6px 12px;
+  background: rgb(21 29 40 / 0.85);
+  border-bottom: none;
 }
 
-.merchant .market .ui-art.inline-icon {
-  width: 24px;
-  height: 24px;
-  vertical-align: -7px;
+.port-panel:has(.merchant) > .port-tabs {
+  margin: 0 0 12px;
+  border-top: 1px solid #394a50;
 }
 
-.level {
-  margin-left: 4px;
-  padding: 0 4px;
-  font-size: 11px;
-  border: 1px solid currentColor;
+.merchant {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
 }
 
-.level.cheap {
-  color: #a8ca58;
+.merchant-side {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.level.dear {
-  color: #df84a5;
+.merchant-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.level.usual {
-  color: #819796;
+.merchant-figure {
+  display: flex;
+  justify-content: space-between;
+  color: var(--k-cream-dim);
 }
 
-.merchant-purse {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #a8b5b2;
+.merchant-figure b {
+  color: var(--k-cream);
+}
+
+.k-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.12);
+  overflow: hidden;
+}
+
+.k-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--k-gold);
+}
+
+.merchant-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.merchant-actions .k-btn {
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 40px;
+  padding: 6px 14px;
 }
 
 .merchant-preview {
-  min-height: 2.8em;
-  margin-top: 8px;
-  padding: 6px 10px;
-  color: #e8c170;
-  background: rgb(9 10 20 / 0.5);
-  border-left: 3px solid #e8c170;
+  min-height: 3.4em;
+  padding: 8px 10px;
+  color: var(--k-gold);
+  background: rgb(9 10 20 / 0.35);
+  border-radius: 4px;
+  font-size: 14px;
 }
 
-/* A number explained in the preview line when pointed at. */
-.explain {
-  cursor: help;
-  border-bottom: 1px dotted #819796;
+.merchant-ledger {
+  padding: 14px 18px;
+  max-height: 78vh;
+  overflow: auto;
+}
+
+.ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgb(92 64 36 / 0.35);
+}
+
+.k-who.ink {
+  color: var(--k-ink);
+  font-size: 28px;
+}
+
+.k-sub.ink {
+  color: var(--k-ink-dim);
+}
+
+.merchant .market td {
+  padding: 7px 8px 7px 0;
+  border-bottom: 1px solid rgb(92 64 36 / 0.18);
+  color: var(--k-ink);
+  vertical-align: middle;
+}
+
+.merchant .market tr {
+  cursor: pointer;
+}
+
+.merchant .market tr.held td {
+  background: rgb(122 74 0 / 0.08);
+}
+
+.merchant .market tr.open td {
+  background: rgb(122 74 0 / 0.16);
+}
+
+.merchant .market .ui-art.inline-icon {
+  width: 36px;
+  height: 30px;
+  vertical-align: middle;
+}
+
+.ledger-icon {
+  width: 44px;
+}
+
+.ledger-good b {
+  font-size: 17px;
+}
+
+.verdict {
+  margin-left: 6px;
+  font-weight: 700;
+  color: var(--k-ink-dim);
+}
+
+.verdict.good {
+  color: #7a4a00;
+}
+
+.verdict.bad {
+  color: #8e2414;
+}
+
+.ledger-hint {
+  font-size: 13px;
+  color: var(--k-ink-dim);
+}
+
+.ledger-price {
+  font: 700 19px var(--k-body);
+  white-space: nowrap;
+}
+
+.merchant .market .k-btn {
+  margin-left: 4px;
+}
+
+.k-btn.paper {
+  background: #f5e8c8;
+  color: var(--k-ink);
+  border-color: #8a6a40;
+}
+
+.k-btn.paper:disabled {
+  opacity: 0.4;
+}
+
+.ledger-why {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: #f7ecd2;
+  box-shadow: inset 0 0 0 1px #b99a64;
+  font-size: 14px;
+}
+
+.merchant .contract {
+  color: var(--k-ink);
 }
 
 /* A good's name and its badges, and what's in the hold, each stay on one line (the headings may wrap). */
@@ -814,13 +951,7 @@ body {
   margin-left: 0;
 }
 
-.market .gain {
-  color: #a8ca58;
-}
 
-.market .loss {
-  color: #cf573c;
-}
 
 .market .paid,
 .market .age {
@@ -1709,14 +1840,8 @@ body {
   white-space: normal;
 }
 
-.takes {
-  color: #819796;
-}
 
 /* A small market: a full hold sold there crashes the price. */
-.takes.shallow {
-  color: #de9e41;
-}
 
 .chart-ships {
   position: absolute;

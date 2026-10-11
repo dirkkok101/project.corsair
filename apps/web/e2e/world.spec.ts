@@ -216,10 +216,12 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await expect(sugar).toContainText('made here');
   // Food is a staple: never worth carrying, so it gets no trade tag. Every good shows how much its market takes.
   await expect(page.locator('tr', { hasText: 'Food' }).locator('.trend')).toHaveCount(0);
-  // This port's own depth comes first; a remembered best sale elsewhere shows its depth too.
-  await expect(sugar.locator('.takes').first()).toHaveText(/^~\d+$/);
-  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Max' }).click();
-  await expect(sugar.locator('.paid')).toContainText('paid');
+  // A good's row says one verdict; clicking it says why, how much the market takes included.
+  await expect(sugar.locator('.verdict')).not.toHaveText('');
+  await sugar.click();
+  await expect(page.locator('.ledger-why')).toContainText('He takes about');
+  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Buy max' }).click();
+  await expect(sugar.locator('.ledger-hint')).toContainText('you paid');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);
   await page.screenshot({ path: 'test-results/port.png' });
@@ -235,12 +237,11 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await goTo('Port Royal');
   const sugarHere = page.locator('.port .market tr', { hasText: 'Sugar' });
   await expect(sugarHere).toContainText('needed here');
-  // Selling above what the hold cost shows as a gain; Bridgetown is now a remembered price.
-  await expect(sugarHere.locator('.hold .gain')).toContainText('each now');
-  await expect(sugarHere.locator('.best')).toContainText('Bridgetown');
-  await expect(sugarHere.locator('.best .takes')).toHaveText(/^~\d+$/);
+  // Selling above what the hold cost: it sells well here, and the hint says what each unit makes.
+  await expect(sugarHere.locator('.verdict')).toHaveText('sells well here');
+  await expect(sugarHere.locator('.ledger-hint')).toContainText('a unit now');
   await page.screenshot({ path: 'test-results/port-trade.png' });
-  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'All' }).click();
+  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Sell all' }).click();
   expect(await gold()).toBeGreaterThan(startGold);
   expect(errors).toEqual([]);
 });
@@ -254,7 +255,7 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   await expect(page.locator('.hud-saved')).toBeVisible();
   await expect(page.locator('.hud-saved')).toHaveCount(0);
   await openService(page, 'Merchant');
-  await page.locator('tr', { hasText: 'Food' }).getByRole('button', { name: '10' }).click();
+  await page.locator('tr', { hasText: 'Food' }).getByRole('button', { name: 'Buy 10' }).click();
   await page.keyboard.press('Control+s');
   await expect(page.locator('.hud-saved')).toBeVisible();
   const before = await page.evaluate(() => ({ hash: window.__corsair.state.hash(), seed: window.__corsair.seed }));
