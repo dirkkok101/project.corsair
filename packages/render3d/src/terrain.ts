@@ -132,9 +132,10 @@ export function groundShape(map: TileMap): { base: Float32Array; heightAt: (x: n
   const raw = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) raw[i] = groundOf(map.tiles[i] ?? 3, map.elevation[i] ?? 0);
   const base = blur(raw, w, h, 1, 3);
-  // The blur pulls every coast toward the sea floor; land keeps at least a beach's height, so the shore (and the
-  // towns along it) stays where the map has it and small islands don't drown.
-  for (let i = 0; i < w * h; i++) if (isLand(map.tiles[i] as Tile)) base[i] = Math.max(base[i]!, COAST);
+  // The blur pulls every coast toward the sea floor and spills high ground into the water beside it; land keeps
+  // at least a beach's height and water stays below the waterline, so the shore (and the towns along it) stays
+  // where the map has it: small islands don't drown, and no ship sails over drawn land.
+  for (let i = 0; i < w * h; i++) base[i] = isLand(map.tiles[i] as Tile) ? Math.max(base[i]!, COAST) : Math.min(base[i]!, -COAST);
   const baseAt = (x: number, y: number) => {
     // Bilinear between tile centres, so a fine mesh is smooth rather than terraced.
     const fx = Math.min(w - 1.001, Math.max(0, x - 0.5));
@@ -426,7 +427,9 @@ float gWet;`,
         'vec4 diffuseColor = vec4( diffuse, opacity );',
         `float gh = vGround.y;
 float slope = 1.0 - clamp(vGroundNormal.y, 0.0, 1.0);
-float var = gFbm(vGround.xz * 0.6);
+// Bands and patches sized with the relief (RELIEF), so islands colour as they did at the old map scale.
+float R = ${RELIEF.toFixed(2)};
+float var = gFbm(vGround.xz * 0.6 / R);
 float fine = gFbm(vGround.xz * 5.0);
 float grain = gFbm(vGround.xz * 23.0);
 // Natural colours: coral sand, olive grass, a dark jungle floor, grey-brown limestone.
@@ -437,12 +440,12 @@ vec3 earth = vec3(0.42, 0.33, 0.22) * (0.85 + 0.3 * grain);
 vec3 rock = mix(vec3(0.46, 0.42, 0.36), vec3(0.66, 0.6, 0.5), fine) * (0.85 + 0.3 * grain);
 // Beach at the waterline (wider where the ground is flat), jungle above, grass on the heights.
 float beach = 1.0 - smoothstep(0.18, 0.42 + 0.15 * var, gh + slope * 0.6);
-vec3 col = mix(jungle, grass, smoothstep(1.6, 3.4, gh + var * 0.8));
+vec3 col = mix(jungle, grass, smoothstep(1.6 * R, 3.4 * R, gh + var * 0.8 * R));
 // Bare earth where the green thins, between beach and jungle and in worn patches.
 col = mix(col, earth, smoothstep(0.55, 0.85, fine) * 0.35 + (1.0 - smoothstep(0.35, 0.7, gh)) * 0.4 * (1.0 - beach));
 col = mix(col, sand, beach);
 // Rock where it's steep or high, broken up.
-float rocky = clamp(smoothstep(0.4, 0.66, slope + var * 0.25) + smoothstep(4.0, 6.0, gh + var), 0.0, 1.0) * (1.0 - beach);
+float rocky = clamp(smoothstep(0.4, 0.66, slope + var * 0.25) + smoothstep(4.0 * R, 6.0 * R, gh + var * R), 0.0, 1.0) * (1.0 - beach);
 col = mix(col, rock, rocky);
 // Wet sand just above the waterline: darker, a little browner.
 float wet = 1.0 - smoothstep(0.02, 0.16, gh);

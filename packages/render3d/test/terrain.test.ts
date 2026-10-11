@@ -11,11 +11,20 @@ const dir = fileURLToPath(new URL('../../data/content/maps/caribbean/', import.m
 const map = decodeRasterMap(def, { terrain: readFileSync(dir + def.layers.terrain), elevation: readFileSync(dir + def.layers.elevation), zones: readFileSync(dir + def.layers.zones) });
 
 describe('the 3D ground', () => {
-  it('keeps the coast where the map has it: every land tile and every town stands above the sea', () => {
+  it('keeps the coast where the map has it: every land tile and town above the sea, every water tile below it', () => {
     const { heightAt } = groundShape(map);
     let drowned = 0;
-    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (isLand(map.tiles[y * map.width + x] as Tile) && heightAt(x + 0.5, y + 0.5) <= 0) drowned++;
+    let raised = 0;
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++) {
+        const land = isLand(map.tiles[y * map.width + x] as Tile);
+        const h = heightAt(x + 0.5, y + 0.5);
+        if (land && h <= 0) drowned++;
+        if (!land && h > 0) raised++;
+      }
     expect(drowned).toBe(0);
+    // Water drawn as land would show ships sailing over it.
+    expect(raised).toBe(0);
     const wet = placeSettlements(def, map, content.settlements).filter((s) => heightAt(s.x, s.y) <= 0);
     expect(wet.map((s) => s.name)).toEqual([]);
   });
