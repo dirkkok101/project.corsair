@@ -98,6 +98,49 @@ function paintOverview(map: TileMap): HTMLCanvasElement {
   return canvas;
 }
 
+/** The chart's inks on parchment (storyboard 4.4): pale sea, shallows a shade darker, tan land darkening uphill, an ink coast. */
+const PAPER = { sea: [230, 211, 168], shallow: [219, 196, 150], land: [190, 152, 98], hills: [172, 135, 84], mountain: [146, 113, 70], coast: [94, 64, 36] } as const;
+
+/** The map drawn as an old chart: parchment with a grain, the land washed in, the coast inked. */
+function paintParchment(map: TileMap): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = map.width;
+  canvas.height = map.height;
+  const ctx = canvas.getContext('2d')!;
+  const image = ctx.createImageData(map.width, map.height);
+  const land = (x: number, y: number) => {
+    const t = map.tiles[y * map.width + x] as Tile;
+    return x >= 0 && y >= 0 && x < map.width && y < map.height && t !== Tile.Deep && t !== Tile.Shallow;
+  };
+  const h = (x: number, y: number) => (x < 0 || y < 0 || x >= map.width || y >= map.height ? 0 : (map.elevation[y * map.width + x] ?? 0));
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const i = y * map.width + x;
+      const t = map.tiles[i]! as Tile;
+      const here = land(x, y);
+      const coast = here && (!land(x + 1, y) || !land(x - 1, y) || !land(x, y + 1) || !land(x, y - 1));
+      const ink =
+        coast ? PAPER.coast : !here ? (t === Tile.Shallow ? PAPER.shallow : PAPER.sea) : t === Tile.Mountain ? PAPER.mountain : t === Tile.Hills ? PAPER.hills : PAPER.land;
+      // The paper's grain (a fixed hash, so it never shimmers) and, on land, the hills lit from the north-west.
+      const grain = (((x * 73856093) ^ (y * 19349663)) & 15) - 7;
+      const shade = here && !coast ? (h(x + 1, y + 1) - h(x - 1, y - 1)) * 8 : 0;
+      image.data[i * 4] = ink[0] + grain + shade;
+      image.data[i * 4 + 1] = ink[1] + grain + shade;
+      image.data[i * 4 + 2] = ink[2] + grain * 0.8 + shade;
+      image.data[i * 4 + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas;
+}
+
+/** One line on a port's card: what it means for you, good or bad, and how old the knowing is. */
+export interface CardLine {
+  text: string;
+  tone?: 'good' | 'bad';
+  age?: string;
+}
+
 /** What the captain knows of each port's market. */
 export interface ChartMarket {
   goods: { id: string; name: string; staple?: boolean }[];
@@ -117,6 +160,12 @@ export interface ChartMarket {
   people: (settlementId: string) => string;
   /** The voyages worth sailing from where the captain is: trades priced from what she has seen, and leads. */
   plan: () => VoyagePlan;
+  /** A port's card: its harbour painting, about how many days' sail, and what it means for you, a line each. */
+  card: (settlementId: string) => { painting?: string; days?: number; lines: CardLine[] };
+  /** The one thing a port has for you, shown by its name (plague, a good price for your hold), if any. */
+  mark: (settlementId: string) => string | undefined;
+  /** The wind now at a spot on the map: where it blows from, in degrees, and how hard. */
+  wind: (x: number, y: number) => { fromDeg: number; strength: string };
 }
 
 /** A trade from what the captain has seen: buy at `from`, sell at `to`. */
@@ -182,7 +231,17 @@ export function createCharts(
   const sheet = chart.appendChild(document.createElement('div'));
   sheet.className = 'chart-sheet';
   sheet.style.aspectRatio = `${map.width} / ${map.height}`;
-  sheet.appendChild(overview);
+  sheet.appendChild(paintParchment(map));
+  // The course (dashed, in red ink) and the wind's arrows, drawn over the parchment.
+  const ink = sheet.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg'));
+  ink.setAttribute('class', 'chart-ink');
+  ink.setAttribute('viewBox', `0 0 ${map.width} ${map.height}`);
+  ink.setAttribute('preserveAspectRatio', 'none');
+  const winds = ink.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'g'));
+  winds.setAttribute('class', 'chart-winds');
+  const course = ink.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'polyline'));
+  course.setAttribute('class', 'chart-course');
+  let courseDrawn = '';
   // Pirate waters: a faint red about each haven, fading out where pirates' interest has halved (in a
   // layer of their own, clipped to the sheet).
   const watersLayer = sheet.appendChild(document.createElement('div'));
@@ -209,53 +268,80 @@ export function createCharts(
       el.style.left = `${(s.x / map.width) * 100}%`;
       el.style.top = `${(s.y / map.height) * 100}%`;
     }
-    const choose = () => {
-      selected = selected?.id === s.id ? undefined : s;
-      for (const p of pins) p.label.classList.toggle('selected', p.s.id === selected?.id);
-      onSelect(selected);
-    };
-    dot.addEventListener('click', choose);
-    label.addEventListener('click', choose);
-    for (const el of [dot, label]) {
-      el.addEventListener('pointerenter', () => showPrices(s));
-      el.addEventListener('pointerleave', () => (prices.hidden = true));
-    }
+    // A click opens the port's card; its Set course makes it the destination.
+    dot.addEventListener('click', () => showCard(s));
+    label.addEventListener('click', () => showCard(s));
     return { s, dot, label };
   });
-  // Hovering a port shows what its merchant charged when the captain last called (PRD section 6).
-  const prices = sheet.appendChild(document.createElement('div'));
-  prices.className = 'chart-prices';
-  prices.hidden = true;
-  const showPrices = (s: PlacedSettlement) => {
+  // A port's card (storyboard 4.4): its harbour in miniature, how far, what it means for you in a few lines with
+  // their age, the talk about it, every price seen there folded away, and Set course.
+  const card = sheet.appendChild(document.createElement('div'));
+  card.className = 'chart-card k-wood';
+  card.hidden = true;
+  // A click on the bare chart puts the card away.
+  sheet.addEventListener('click', (e) => {
+    if (e.target === sheet || (e.target as Element).tagName === 'CANVAS') card.hidden = true;
+  });
+  const showCard = (s: PlacedSettlement) => {
     const known = market.known(s.id);
     const age = known && market.today() - known.day;
     const when = age === undefined ? '' : age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`;
-    const kind = s.nation === 'pirate' ? 'pirate haven' : `${NATION_NAME[s.nation]} ${s.type === 'capital' ? 'capital' : s.size}`;
-    const makes = market.goods.filter((g) => market.lean(s.id, g.id) === 'exports').map((g) => g.name);
-    const needs = market.goods.filter((g) => market.lean(s.id, g.id) === 'wants').map((g) => g.name);
+    const kind = s.nation === 'pirate' ? 'Pirate haven' : `${NATION_NAME[s.nation]} ${s.type === 'capital' ? 'capital' : s.size}`;
+    const about = market.card(s.id);
+    const far = about.days === undefined ? '' : about.days < 0.5 ? ' · here' : ` · ${about.days < 1.5 ? 'a day' : `${Math.round(about.days)} days`} by the lanes`;
     const welcome = market.welcome(s.id);
-    const head =
-      `<div class="chart-prices-name">${s.name}</div><div class="chart-prices-age">${kind} · ${market.people(s.id)}</div>` +
-      (makes.length ? `<div class="chart-prices-trade"><span class="lean-exports">▲ makes</span> ${makes.join(', ')}</div>` : '') +
-      (needs.length ? `<div class="chart-prices-trade"><span class="lean-wants">▼ needs</span> ${needs.join(', ')}</div>` : '') +
-      (welcome ? `<div class="chart-prices-warn">${welcome}</div>` : '');
-    prices.innerHTML = known
-      ? `${head}<div class="chart-prices-age">Prices seen ${when}</div><table><tr><th></th><th>Buy</th><th>Sell</th><th title="Units it took before its sell price fell a quarter">Takes</th></tr>${market.goods
-          .map((g) => {
-            const p = known.prices[g.id];
-            const depth = p?.depth === undefined ? '' : `<span class="takes${p.depth < 15 ? ' shallow' : ''}">${p.depth >= 999 ? '999+' : `~${p.depth}`}</span>`;
-            return `<tr><td>${g.name}</td><td>${p?.buy ?? ''}</td><td>${p?.sell ?? ''}</td><td>${depth}</td></tr>`;
-          })
-          .join('')}</table>`
-      : `${head}<div class="chart-prices-age">Prices unknown: call here to learn them</div>`;
-    // Rumours heard about this port, so news can be acted on from the chart.
+    const lines = [...about.lines, ...(welcome ? [{ text: welcome, tone: 'bad' as const }] : [])];
     const rumours = market.rumours(s.id);
-    if (rumours.length) prices.innerHTML += rumours.map((r) => `<div class="chart-rumour">${r}</div>`).join('');
-    prices.style.left = `${(s.x / map.width) * 100}%`;
-    prices.style.top = `${(s.y / map.height) * 100}%`;
+    card.innerHTML =
+      `<div class="chart-card-head">${about.painting ? `<img class="chart-card-art" src="${about.painting}" alt="">` : ''}<div><div class="chart-card-name">${s.name}</div><div class="k-sub">${kind} · ${market.people(s.id)}${far}</div></div></div>` +
+      `<div class="chart-card-lines">${lines.map((l) => `<div class="${l.tone ?? ''}">${l.text}${l.age ? ` <span class="k-sub">(${l.age})</span>` : ''}</div>`).join('')}</div>` +
+      rumours.map((r) => `<div class="chart-rumour">${r}</div>`).join('') +
+      (known
+        ? `<details class="chart-card-prices"><summary>All prices, seen ${when}</summary><table><tr><th></th><th>Buy</th><th>Sell</th><th title="Units it took before its sell price fell a quarter">Takes</th></tr>${market.goods
+            .map((g) => {
+              const p = known.prices[g.id];
+              const depth = p?.depth === undefined ? '' : `<span class="takes${p.depth < 15 ? ' shallow' : ''}">${p.depth >= 999 ? '999+' : `~${p.depth}`}</span>`;
+              return `<tr><td>${g.name}</td><td>${p?.buy ?? ''}</td><td>${p?.sell ?? ''}</td><td>${depth}</td></tr>`;
+            })
+            .join('')}</table></details>`
+        : '<div class="k-sub">Prices unknown: call here to learn them</div>') +
+      `<div class="chart-card-actions"><button class="k-btn small primary" data-go>${selected?.id === s.id ? 'Course set' : 'Set course'}</button><button class="k-btn small" data-close>Close</button></div>`;
+    card.querySelector('[data-go]')!.addEventListener('click', () => {
+      choosePort(s.id);
+      card.hidden = true;
+    });
+    card.querySelector('[data-close]')!.addEventListener('click', () => (card.hidden = true));
+    card.style.left = `${(s.x / map.width) * 100}%`;
+    card.style.top = `${(s.y / map.height) * 100}%`;
     // Open towards the middle of the chart so the card never runs off an edge.
-    prices.dataset.side = `${s.x > map.width / 2 ? 'left' : 'right'} ${s.y > map.height / 2 ? 'up' : 'down'}`;
-    prices.hidden = false;
+    card.dataset.side = `${s.x > map.width / 2 ? 'left' : 'right'} ${s.y > map.height / 2 ? 'up' : 'down'}`;
+    card.hidden = false;
+  };
+  /** The wind's arrows over open water, in faint ink: which way it blows now, longer the harder. */
+  const drawWinds = () => {
+    const step = Math.round(map.width / 9);
+    const length: Record<string, number> = { calm: 0, light: 0.45, fresh: 0.65, strong: 0.85, gale: 1 };
+    let html = '';
+    for (let y = step / 2; y < map.height; y += step) {
+      for (let x = step / 2; x < map.width; x += step) {
+        const t = map.tiles[Math.floor(y) * map.width + Math.floor(x)] as Tile;
+        if (t !== Tile.Deep && t !== Tile.Shallow) continue;
+        const w = market.wind(x, y);
+        const l = (length[w.strength] ?? 0.6) * step * 0.4;
+        if (!l) continue;
+        // It blows toward the opposite of where it comes from (0 north, 90 east; y grows southward).
+        const to = ((w.fromDeg + 180) * Math.PI) / 180;
+        const dx = Math.sin(to);
+        const dy = -Math.cos(to);
+        const [x0, y0, x1, y1] = [x - dx * l, y - dy * l, x + dx * l, y + dy * l];
+        const head = l * 0.35;
+        const back = (a: number) => [x1 - (dx * Math.cos(a) - dy * Math.sin(a)) * head, y1 - (dy * Math.cos(a) + dx * Math.sin(a)) * head];
+        const [lx, ly] = back(0.5);
+        const [rx, ry] = back(-0.5);
+        html += `<path d="M${x0.toFixed(1)} ${y0.toFixed(1)} L${x1.toFixed(1)} ${y1.toFixed(1)} M${lx!.toFixed(1)} ${ly!.toFixed(1)} L${x1.toFixed(1)} ${y1.toFixed(1)} L${rx!.toFixed(1)} ${ry!.toFixed(1)}"/>`;
+      }
+    }
+    winds.innerHTML = html;
   };
   // Ships the lookouts have seen, fading as the sighting ages (PRD section 3: last-known markers).
   const sighted = sheet.appendChild(document.createElement('div'));
@@ -276,7 +362,7 @@ export function createCharts(
   rose.alt = '';
   const hint = chart.appendChild(document.createElement('div'));
   hint.className = 'chart-hint';
-  hint.textContent = 'Sea chart · time stands still while you study it · click a port to set your destination · M to close';
+  hint.innerHTML = '<span class="chart-hint-title">The Caribbean</span> time stands still while you study it · click a port for its card · <kbd class="k-key">M</kbd> close';
   // The key: what every mark on the chart means, and who is at war (it decides who trades with you and who hunts you).
   const key = chart.appendChild(document.createElement('div'));
   key.className = 'chart-key';
@@ -338,6 +424,7 @@ export function createCharts(
       '<span class="chart-key-item"><span class="chart-key-dot label-pirate"></span>pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>' +
       `<span class="chart-key-item">${keyMark('ui.chart.you')}you</span>` +
       '<span class="chart-key-item"><span class="chart-key-ship"></span>a ship seen (fades over days)</span>' +
+      '<span class="chart-key-item"><span class="chart-key-wind"></span>the wind now</span>' +
       `<div class="chart-key-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a} and ${b}`).join(' · ')}` : 'All nations at peace'} · pirates are at war with everyone</div>`;
   };
 
@@ -370,6 +457,12 @@ export function createCharts(
       const price = seen && (lean === 'exports' ? seen.buy : seen.sell);
       const mark = lean === 'exports' ? '▲ ' : lean === 'wants' ? '▼ ' : '';
       label.textContent = `${mark}${s.name}${price !== undefined ? ` ${price}` : ''}`;
+      const has = good ? undefined : market.mark(s.id);
+      if (has) {
+        const tag = label.appendChild(document.createElement('span'));
+        tag.className = 'chart-mark';
+        tag.textContent = has;
+      }
       label.classList.toggle('lean-exports', lean === 'exports');
       label.classList.toggle('lean-wants', lean === 'wants');
       label.classList.toggle('faded', Boolean(good) && !lean);
@@ -380,16 +473,20 @@ export function createCharts(
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') {
       chart.hidden = !chart.hidden;
-      // A card left from the last look would show stale prices until the pointer moved.
-      prices.hidden = true;
-      // Prices may have been learned since the chart was last open.
+      // A card left from the last look would show stale prices.
+      card.hidden = true;
+      // Prices may have been learned since the chart was last open, and the wind has moved.
       if (!chart.hidden) {
         showGood();
         showKey();
         showPlan();
+        drawWinds();
       }
     }
-    if (e.key === 'Escape') chart.hidden = true;
+    if (e.key === 'Escape') {
+      if (!card.hidden) card.hidden = true;
+      else chart.hidden = true;
+    }
   });
 
   return {
@@ -417,6 +514,8 @@ export function createCharts(
       player: Ship | undefined,
       view: { x: number; y: number; w: number; h: number },
       seen?: { sightings: Record<string, Sighting>; tick: number; ticksPerDay: number },
+      /** The course plotted, by the lanes, from her to the destination. */
+      route?: [number, number][],
     ) {
       if (!player) return;
       // Minimap: a window on the overview centred on the ship, clamped to the map.
@@ -448,6 +547,8 @@ export function createCharts(
       mctx.globalAlpha = 1;
 
       if (!chart.hidden) {
+        const line = route?.length ? [[player.x, player.y], ...route].map(([x, y]) => `${x!.toFixed(1)},${y!.toFixed(1)}`).join(' ') : '';
+        if (line !== courseDrawn) course.setAttribute('points', (courseDrawn = line));
         marker.style.left = `${(player.x / map.width) * 100}%`;
         marker.style.top = `${(player.y / map.height) * 100}%`;
         marker.style.transform = `translate(-50%, -50%) rotate(${player.headingDeg}deg)`;

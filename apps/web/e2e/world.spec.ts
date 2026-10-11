@@ -135,6 +135,7 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
 
   await page.keyboard.press('m');
   await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
+  await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await expect(page.locator('.hud')).toContainText('To');
@@ -314,28 +315,31 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   expect(errors).toEqual([]);
 });
 
-test('sea chart: hovering a port shows the prices last seen there, or that none are known', async ({ page }) => {
+test("sea chart: a port's card says what it means for you, with the prices last seen there, or that none are known", async ({ page }) => {
   await boot(page);
   await page.keyboard.press('m');
   // The career began in Port Royal, so its prices are known; a port never visited shows none.
-  // A crowded name may be hidden; the port's mark always shows, and hovering it does the same.
-  await page.locator('.chart-dot[title="Tortuga"]').hover();
-  await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
+  // A crowded name may be hidden; the port's pin always shows, and clicking it does the same.
+  await page.locator('.chart-dot[title="Tortuga"]').click();
+  await expect(page.locator('.chart-card')).toContainText('Prices unknown');
 
   await page.keyboard.press('m');
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(771 * 2));
-  await page.mouse.move(0, 0);
   await page.keyboard.press('m');
-  await expect(page.locator('.chart-prices')).toBeHidden();
-  await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
-  await expect(page.locator('.chart-prices')).toContainText('Prices seen 2 days ago');
-  await expect(page.locator('.chart-prices')).toContainText('Sugar');
+  await expect(page.locator('.chart-card')).toBeHidden();
+  await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
+  // What it makes cheap, with the age of the price; every price folded away beneath.
+  await expect(page.locator('.chart-card')).toContainText('Rum is cheap');
+  await expect(page.locator('.chart-card')).toContainText('All prices, seen 2 days ago');
+  await expect(page.locator('.chart-card')).toContainText('Sugar');
   await page.screenshot({ path: 'test-results/chart-prices.png' });
-  await page.locator('.chart-port', { hasText: 'Havana' }).hover();
-  await expect(page.locator('.chart-prices')).toContainText('Prices unknown');
+  await page.locator('.chart-card').getByRole('button', { name: 'Close' }).click();
+  await page.locator('.chart-port', { hasText: 'Havana' }).click();
+  await expect(page.locator('.chart-card')).toContainText('Prices unknown');
+  await page.locator('.chart-card').getByRole('button', { name: 'Close' }).click();
 
   // The goods filter marks makers and buyers everywhere, with prices only where the captain has been.
   await page.locator('.chart-goods').getByRole('button', { name: 'Sugar' }).click();
@@ -649,7 +653,7 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.keyboard.press('m');
-  await page.locator('.chart-port', { hasText: 'Port Royal' }).hover();
+  await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
   await expect(page.locator('.chart-rumour')).toContainText('run short of sugar');
   // The planner lists the contract she has heard of.
   await expect(page.locator('.chart-plan')).toContainText('Contracts you have heard of');
@@ -961,6 +965,7 @@ test('course line: a port picked on the chart gets a route by sea, the HUD measu
   });
   await page.keyboard.press('m');
   await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
+  await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
   // The route is re-plotted about once a second; the HUD reads its length and the next leg's bearing.
   await expect(page.locator('.hud')).toContainText(/Cartagena · \d+ km · bear \d+°/);
@@ -1082,6 +1087,7 @@ test('a course to a port takes her in when she comes within reach, without press
   });
   await page.keyboard.press('m');
   await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
+  await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
   await page.keyboard.press('f');
   // A couple of ticks a frame, as in play: the game docks her on the frame after she arrives.

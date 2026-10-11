@@ -26,6 +26,7 @@ import { Port } from './port';
 import type { Service } from './port';
 import { cargoUsed, createEconomySystem, createLogbookSystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
+import type { CardLine } from './chart';
 import { bindInput } from './input';
 import { loadStoredSave, storeSave } from './save';
 import { Ending } from './career';
@@ -98,11 +99,14 @@ function interiorFor(s: PlacedSettlement, service: Service): HarbourScene | unde
   return url ? { layers: [[url]], nation: s.nation } : undefined;
 }
 
+/** Which harbour scene a settlement has: havens their own; other towns by nation and size. */
+const harbourId = (s: PlacedSettlement) =>
+  s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${{ hamlet: 'small', town: 'medium', city: 'large' }[s.size]}`;
+
 /** The scene for a settlement: havens have their own; other towns go by nation and size. */
 function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots']; anchor: [number, number] } | undefined {
   const defs = (Object.values(harbourDefs)[0] ?? {}) as Record<string, HarbourDef>;
-  const tier = { hamlet: 'small', town: 'medium', city: 'large' }[s.size];
-  const id = s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${tier}`;
+  const id = harbourId(s);
   const def = defs[id];
   if (!def) return undefined;
   const url = (file: string) => Object.entries(harbourFiles).find(([p]) => p.endsWith(`/${file.split('/').pop()}`))![1];
@@ -556,6 +560,49 @@ async function main() {
           .join('')
       }`;
     },
+    card: (id) => {
+      const s = settlements.find((x) => x.id === id)!;
+      const me = player();
+      const known = sim.state.captain?.knownPrices[id];
+      const ago = known && Math.floor(sim.state.tick / content.calendar.ticksPerDay) - known.day;
+      const age = ago === undefined ? undefined : ago === 0 ? 'seen today' : ago === 1 ? 'seen yesterday' : `seen ${ago} days ago`;
+      const goodName = (g: string) => content.goods.find((x) => x.id === g)?.name ?? g;
+      const lines: CardLine[] = [];
+      // What she carries that sells well there (or is needed, before its price is known)...
+      for (const [g, n] of Object.entries(me.cargo)) {
+        if (g === 'food' || !n) continue;
+        const sell = known?.prices[g]?.sell;
+        if (sell !== undefined && sell > ((me.paid?.[g] ?? 0) / n) * 1.1) lines.push({ text: `<b>${goodName(g)} sells well:</b> ${sell}`, tone: 'good', age });
+        else if (sell === undefined && tradeLean(content, { id }, g) === 'wants') lines.push({ text: `<b>${goodName(g)} is needed here</b>`, tone: 'good' });
+      }
+      // ...what it makes cheap, and what else it needs.
+      for (const g of content.goods.filter((x) => !x.staple && tradeLean(content, { id }, x.id) === 'exports')) {
+        const buy = known?.prices[g.id]?.buy;
+        lines.push(buy !== undefined ? { text: `<b>${g.name} is cheap:</b> ${buy}`, tone: 'good', age } : { text: `Makes ${g.name.toLowerCase()}` });
+      }
+      const needs = content.goods.filter((g) => !g.staple && !me.cargo[g.id] && tradeLean(content, { id }, g.id) === 'wants').map((g) => g.name.toLowerCase());
+      if (needs.length) lines.push({ text: `Needs ${needs.join(', ')}` });
+      // Close to a pirate haven: their waters.
+      const haven = Math.min(...settlements.filter((h) => h.nation === 'pirate').map((h) => Math.hypot(h.x - s.x, h.y - s.y)));
+      if (s.nation !== 'pirate' && haven < content.traffic.pirateRangeTiles * 0.5) lines.push({ text: '<b>Pirate waters</b>: their ships hunt close by', tone: 'bad' });
+      // Days by the lanes, at a fair average of her best speed (as the voyage planner reckons them).
+      const perDay = content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
+      const days = me.docked === id ? 0 : (Math.hypot(s.x - me.x, s.y - me.y) * 1.3) / perDay;
+      return { painting: sceneUrl(harbourId(s)), days, lines: lines.slice(0, 4) };
+    },
+    mark: (id) => {
+      if (plagued(sim.state, id)) return 'plague';
+      const me = player();
+      const known = sim.state.captain?.knownPrices[id];
+      // The best price there for something in her hold, above what it cost.
+      const best = Object.entries(me.cargo)
+        .filter(([g, n]) => g !== 'food' && n > 0)
+        .map(([g, n]) => ({ g, sell: known?.prices[g]?.sell ?? 0, paid: (me.paid?.[g] ?? 0) / n }))
+        .filter((x) => x.sell > x.paid * 1.1)
+        .sort((a, b) => b.sell - b.paid - (a.sell - a.paid))[0];
+      return best ? `${(content.goods.find((x) => x.id === best.g)?.name ?? best.g).toLowerCase()} ${best.sell}` : undefined;
+    },
+    wind: (x, y) => windAt(sim.state, x, y),
   });
   // 1 next to a town, falling to 0 about 18 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {
@@ -1248,6 +1295,7 @@ async function main() {
       sim.state.ships[def.start.shipId],
       sea3d.viewBox(),
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
+      guide,
     );
     charts.rings(
       content.pirates.captains.flatMap((c) => {
