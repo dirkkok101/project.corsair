@@ -73,8 +73,16 @@ export function createPoliticsSystem(content: ContentPack, startDate: string, se
       const politics = state.politics ?? initialPolitics(content);
       const key = pairKey(command.a, command.b);
       const tension = command.war ? p.monthly.warTension : p.monthly.peaceBelow;
+      // A change is news from the first nation's capital at once, as a real declaration is (without its delay).
+      const changed = (politics.relations[key]?.war ?? false) !== command.war;
+      const n = state.nextNewsId ?? 0;
+      const item: NewsItem = { id: `news.${n}`, tick: state.tick, settlementId: capital(command.a).id, kind: command.war ? 'war' : 'peace', good: '', delayDays: 0, nation: command.a, other: command.b };
       return {
-        state: { ...state, politics: { ...politics, relations: { ...politics.relations, [key]: { war: command.war, tension } } } },
+        state: {
+          ...state,
+          politics: { ...politics, relations: { ...politics.relations, [key]: { war: command.war, tension } } },
+          ...(changed ? { news: [...(state.news ?? []), item], nextNewsId: n + 1 } : {}),
+        },
         events: [{ type: command.war ? 'WarDeclared' : 'PeaceSigned', entityIds: [command.a, command.b], payload: { debug: true } }],
       };
     },

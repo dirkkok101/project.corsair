@@ -281,6 +281,8 @@ export interface Captain {
   logbook?: LogEntry[];
   /** Where each AI ship was last seen from the player's deck, for the chart's fading markers. */
   sightings?: Record<string, Sighting>;
+  /** The famous pirates (pirates.json ids) the captain has ever had in sight, first seen first. */
+  famousSeen?: string[];
   /** Standing with each nation, -100 to 100 (0 when absent): attacking its ships lowers it. */
   standing?: Partial<Record<Nation, number>>;
   /** Merit with each nation: a point for each deed its governors paid a bounty for (more for a famous pirate); it raises his rank there. */

@@ -1560,11 +1560,17 @@ export function createTrafficSystem(
         const sightings: Record<string, Sighting> = {};
         // A ship that has gone into port is out of sight until she sails again.
         for (const [id, seen] of Object.entries(captain.sightings ?? {})) if (ships[id] && !inPort(ships[id])) sightings[id] = seen;
+        // A famous pirate in sight for the first time is a moment (storyboard 2.13).
+        const famousSeen = [...(captain.famousSeen ?? [])];
         for (const s of Object.values(ships)) {
           if (!s.ai || inPort(s) || Math.hypot(s.x - player.x, s.y - player.y) > sight) continue;
           sightings[s.id] = { x: s.x, y: s.y, tick, classId: s.classId, nation: s.ai.nation };
+          if (s.ai.famous && !famousSeen.includes(s.ai.famous)) {
+            famousSeen.push(s.ai.famous);
+            events.push({ type: 'FamousSighted', entityIds: [s.id], payload: { pirateId: s.ai.famous } });
+          }
         }
-        captain = { ...captain, sightings };
+        captain = { ...captain, sightings, ...(famousSeen.length ? { famousSeen } : {}) };
       }
       return { state: { ...next, ships, captain, rng: { ...next.rng, traffic: rng.state() } }, events };
     },

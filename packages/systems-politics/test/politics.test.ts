@@ -48,6 +48,17 @@ describe('nations at war', () => {
     expect(atWar(content, sim.state, 'england', 'netherlands')).toBe(false);
   }, 60_000);
 
+  it('a war declared by hand is news from the first nation\'s capital, once', () => {
+    const sim = createSim(world(), [createPoliticsSystem(content, def.startDate, settlements)]);
+    sim.send({ type: 'SetRelation', a: 'england', b: 'france', war: true });
+    sim.applyCommands();
+    sim.send({ type: 'SetRelation', a: 'england', b: 'france', war: true });
+    sim.applyCommands();
+    expect(atWar(content, sim.state, 'england', 'france')).toBe(true);
+    expect(sim.state.news).toHaveLength(1);
+    expect(sim.state.news![0]).toMatchObject({ kind: 'war', nation: 'england', other: 'france', settlementId: 'town.port_royal', delayDays: 0 });
+  });
+
   it('replays exactly from its seed', () => {
     expect(run(400, 7).hash()).toBe(run(400, 7).hash());
   });

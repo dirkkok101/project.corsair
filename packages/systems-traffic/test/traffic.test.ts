@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createSim } from '@corsair/core';
+import { createSim, inPort } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
@@ -912,6 +912,25 @@ describe('the famous pirates', () => {
     expect(fight.state.famous!.morgan!.wealth).toBe(9000 + 200 + 10 * sugar);
     expect(fight.state.news!.at(-1)).toMatchObject({ kind: 'famousTaken', captain: 'Henry Morgan', nation: 'england' });
     expect(newsText(content, fight.state.news!.at(-1)!, 'Port Royal')).toMatch(/^Henry Morgan has taken the English .+ off Port Royal\.$/);
+  });
+
+  it('a famous pirate in sight the first time is sighted once, and remembered', () => {
+    const sim = world(4);
+    sim.step(day);
+    // Morgan under way down a merchant's lane, the player close by.
+    sim.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    sim.applyCommands();
+    const lane = Object.values(sim.state.ships).at(-1)!;
+    const morgan = famous(sim.state).find((s) => s.ai!.famous === 'morgan')!;
+    const her = { ...morgan, x: lane.x, y: lane.y, ai: { ...morgan.ai!, waitUntil: undefined, route: lane.ai!.route, along: lane.ai!.along } };
+    expect(inPort(her)).toBe(false);
+    const near = createSim(
+      { ...sim.state, ships: { ...sim.state.ships, [her.id]: her, player: { ...sim.state.ships.player!, docked: undefined, x: her.x + 1, y: her.y } } },
+      [traffic()],
+    );
+    near.step(2);
+    expect(near.events().filter((e) => e.type === 'FamousSighted').map((e) => e.payload.pirateId)).toEqual(['morgan']);
+    expect(near.state.captain!.famousSeen).toEqual(['morgan']);
   });
 
   it('beaten, she gives up half her wealth and the captain gains fame; she lies low, then sails again in a new ship', () => {
