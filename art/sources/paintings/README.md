@@ -416,6 +416,88 @@ merchant and plunder screens' goods). Each good's id is `ui.icon.good.{id}`, the
   > along the edges, the inside a plain flat very dark navy panel with nothing on it. Plain straight edges
   > between the corners, so the frame can be stretched.
 
+## Storyboard art (the game's new look): groups `people`, `moments`, `title`, `fates`, `ui`
+
+The storyboard ([docs/design/storyboard.md](../../../docs/design/storyboard.md), plan in
+[docs/design/ui-conversion.md](../../../docs/design/ui-conversion.md)) puts people, moments and a few title cards
+on screen. Until each painting is imported the game shows a labelled silhouette, so they can come in any order;
+the plan's slice order is the most useful one.
+
+### People (busts): group `people`
+
+Head and shoulders, three-quarter view, looking toward the viewer. Use the **UI style block** above (the flat
+magenta background), then this **bust block**, then the person:
+
+> A single character portrait from the chest up, in a 1660s Caribbean setting, three-quarter view facing slightly
+> left, looking at the viewer, framed from the top of the head to mid-chest, centred. Expressive face readable at
+> small size, warm skin tones, clothing in the period's fashion. Square image.
+
+Generate at 1:1. The import keys out the background and scales the bust to 192 × 224.
+
+| Id | The person |
+|---|---|
+| `bust.merchant` | A plump colonial merchant in a brown coat and white cravat, spectacles on his nose, a quill behind his ear, a shrewd smile |
+| `bust.barmaid` | A cheerful young tavern barmaid with a kerchief over dark curls, a white blouse and a green bodice, holding a pewter jug |
+| `bust.oldsalt` | A weathered old sailor with a grey beard, a knitted cap and a clay pipe, a scar on one cheek, squinting |
+| `bust.stranger` | A shady stranger in a dark hooded cloak, a gold earring, half his face in shadow, one eye catching the light |
+| `bust.sailors` | Three rough young sailors shoulder to shoulder, striped shirts and neckerchiefs, grinning, one with a tattooed forearm |
+| `bust.shipwright` | A broad-shouldered shipwright with rolled sleeves and a leather apron, an adze over his shoulder, sawdust in his hair |
+| `bust.governor.england` | An English colonial governor of the 1660s: long brown periwig, red coat with gold braid, lace cravat |
+| `bust.governor.france` | A French colonial governor of the 1660s: long curled dark wig, blue coat with lace cuffs and a gold sash |
+| `bust.governor.netherlands` | A Dutch colonial governor of the 1660s: black coat, broad flat white collar, a wide-brimmed black hat |
+| `bust.governor.spain` | A Spanish colonial governor of the 1660s: black doublet, a stiff white ruff, a gold chain of office, a pointed beard |
+| `bust.captain.merchant` | A merchant ship's master: a plain grey coat, a felt hat, a weathered careful face |
+| `bust.captain.navy` | A naval officer of the 1660s: a laced blue coat, a tricorn hat, a sword belt across the chest |
+| `bust.captain.pirate` | A pirate captain: a red sash, a brace of pistols on a cross-belt, a battered hat, a hard grin |
+
+### Moments: group `moments`
+
+Use the **scene style block** (top of this file) at 16:9. These fill the screen behind a short card, so keep the
+lower third calm and simple.
+
+**`moment.promotion`**
+> A gentleman's sword laid across a folded parchment commission with a large red wax seal, on red velvet over a dark
+> wooden desk, warm candle light from the left, a brass candlestick.
+
+**`moment.famous`**
+> A pirate ship's dark hull and grey sails emerging from sea mist at close range, seen from the deck of another ship,
+> an ominous black flag at the masthead with no symbol on it, cold blue-grey light.
+
+**`moment.hoard`**
+> An open iron-bound chest half dug out of a beach at sunset, gold coins and jewels spilling onto the sand, a shovel
+> stuck upright beside it, palms and a calm sea behind.
+
+### Title cards: group `title`
+
+**`loading.dawn`** (16:9, scene style block)
+> A lone two-masted brig under full sail at dawn, seen from low on the water, a misty green coast with a small fort
+> on a headland behind, pale gold sky, a long calm swell, gulls. Wide empty sky in the upper half.
+
+**`difficulty.1`** to **`difficulty.5`** (4:3, scene style block, one painting each, the same small brig in the
+middle distance in every one)
+> 1: a glassy calm under a clear blue sky. 2: a light breeze, small waves, a few white clouds. 3: a fresh breeze,
+> whitecaps, scattered clouds. 4: a strong wind, big waves, a grey sky, spray. 5: a black gale, huge waves, rain and
+> spray, the brig heeled hard over.
+
+### More fates: group `fates`
+
+Four more vignettes in the fate block above, so each of the score's seven fates has a picture:
+
+| Id | Scene |
+|---|---|
+| `fate.tavern` | A tavern doorway on a waterfront, a hanging sign with no writing, a bench and a rum barrel, lantern light |
+| `fate.planter` | A great plantation house with a deep veranda, palms and green fields of cane, a road of red earth |
+| `fate.council` | A council chamber's long table with high-backed chairs, papers and an inkstand, tall shuttered windows |
+| `fate.legend` | A tall ship under full sail on a golden sea at sunset, seen from a headland, gulls |
+
+### Fit icons: group `ui`
+
+**`ui.icons.fits`** (UI style block, 3:2): one sheet of nine icons in a 3 × 3 grid, each on its own patch of
+magenta with clear space between them. In order: a sheet of copper plate with rivets; a rolled bolt of white
+cotton sail; a stack of iron-strapped timber; a bronze cannon barrel; a small keg of powder; a striped canvas
+hammock; a small swivel gun on its yoke; a square of rope netting; a long oar. The import slices the sheet into
+`ui.icon.fit.{id}` at 24 × 20.
+
 ## What not to ask for
 
 - No names of other games, studios or artists in any prompt, and no "in the style of" anyone (the
