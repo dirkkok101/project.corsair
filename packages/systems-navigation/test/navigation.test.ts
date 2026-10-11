@@ -380,7 +380,7 @@ describe('course', () => {
     const { sim } = sailTo({ x: 200, y: 220 }, { x: 230, y: 220 }, 0, 60, 'town.test');
     const arrived = sim.events().find((e) => e.type === 'CourseArrived')!;
     expect(arrived.payload).toMatchObject({ portId: 'town.test' });
-    expect(Math.hypot(sim.state.ships.player!.x - 230, sim.state.ships.player!.y - 220)).toBeLessThan(3);
+    expect(Math.hypot(sim.state.ships.player!.x - 230, sim.state.ships.player!.y - 220)).toBeLessThan(4.5);
   });
 });
 

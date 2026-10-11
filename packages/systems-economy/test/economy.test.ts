@@ -598,7 +598,7 @@ describe('outfitting at the shipwright', () => {
     nearLand.applyCommands();
     expect(player(nearLand.state).fouling).toBe(0);
     expect(nearLand.state.captain!.gold).toBe(sim.state.captain!.gold);
-    const openSea = createSim({ ...sim.state, ships: { player: { ...player(sim.state), docked: undefined, fouling: 0.1, x: 880, y: 700 } } }, [createEconomySystem(content, settlements, map)]);
+    const openSea = createSim({ ...sim.state, ships: { player: { ...player(sim.state), docked: undefined, fouling: 0.1, x: 1320, y: 1050 } } }, [createEconomySystem(content, settlements, map)]);
     openSea.send({ type: 'Careen', shipId: 'player', beach: true });
     openSea.applyCommands();
     expect(reason(openSea)).toBe('no-beach');

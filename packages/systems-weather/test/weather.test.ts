@@ -187,7 +187,7 @@ describe('weather over time', () => {
 
   it('drops a storm on its end day even while it is still on the map', () => {
     const start = newSim(9).state;
-    const storm: Storm = { id: 'storm.test', x: 800, y: 550, radius: 30, headingDeg: 270, speed: 1, endDay: 2 };
+    const storm: Storm = { id: 'storm.test', x: 1200, y: 825, radius: 30, headingDeg: 270, speed: 1, endDay: 2 };
     const sim = createSim({ ...start, weather: { ...start.weather!, storms: [storm] } }, [
       createWeatherSystem(content, def, map),
     ]);
@@ -197,7 +197,7 @@ describe('weather over time', () => {
     expect(sim.state.weather!.storms).toHaveLength(0);
     const ended = sim.events().find((e) => e.type === 'StormDissipated')!;
     expect(ended.tick).toBe(2 * day);
-    expect(ended.payload.x).toBeGreaterThan(700);
+    expect(ended.payload.x).toBeGreaterThan(1050);
   });
 
   it('moves winds into the new season range when the season turns', () => {
@@ -259,7 +259,7 @@ describe('weather over time', () => {
     const run = (seed: number) => {
       const sim = newSim(seed);
       const hashes: string[] = [];
-      sim.send({ type: 'SpawnStorm', x: 1200, y: 600 });
+      sim.send({ type: 'SpawnStorm', x: 1800, y: 900 });
       for (let t = 0; t < 4 * day; t++) {
         if (t === 300) sim.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
         if (t === 400) sim.send({ type: 'SetHelm', shipId: 'player', helm: 0 });

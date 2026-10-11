@@ -43,11 +43,11 @@ const SHIP_SCALE = 1.6;
 /** One model unit in tiles: a ship as big as her 2D sprite (96 px over 3.7 units, 24 px a tile), times SHIP_SCALE. */
 const MODEL_SCALE = (96 / 3.7 / 24) * SHIP_SCALE;
 /** Camera distance from the ship, in tiles: from close aboard to the whole region. */
-const ZOOM = { min: 9, max: 420, start: 32 };
+const ZOOM = { min: 9, max: 630, start: 32 };
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
 const CLOUDS_FROM = [70, 160];
 /** Town names show within this many tiles of the camera's target. */
-const NAMES_WITHIN = 160;
+const NAMES_WITHIN = 240;
 /** Far out, ships grow so they stay readable (as Pirates! draws them), up to this many times life. */
 const FAR_SHIP_SCALE = 4;
 /** A ship's length in tiles at model scale (the brig's hull, 2.4 model units). */

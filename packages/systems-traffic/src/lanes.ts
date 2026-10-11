@@ -27,12 +27,12 @@ export interface SeaLanes {
   berth(id: string): Point | undefined;
 }
 
-/** How near the town a berth lies (inside the 3-tile docking range). */
-const BERTH_TILES = 2.8;
+/** How near the town a berth lies (inside the 4.5-tile docking range). */
+const BERTH_TILES = 4.2;
 
-const MOORING_SEARCH = 4;
+const MOORING_SEARCH = 6;
 /** How far a port's way out to open water may wind, in tiles. */
-const WAY_OUT_TILES = 200;
+const WAY_OUT_TILES = 300;
 const OPEN_SHARE = 0.75;
 
 export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: number): SeaLanes {

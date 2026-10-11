@@ -4,6 +4,7 @@ import { createSim, TICKS_PER_SECOND } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { expect, it } from 'vitest';
+import { DOCK_RANGE } from '@corsair/systems-economy';
 import { createSeaLanes } from '../src';
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -35,7 +36,7 @@ it('a course clicked to a port sails there by the lanes and ends within docking 
     console.log('VOYAGE', from.slice(5), '->', to.slice(5), 'secs', (t / 30).toFixed(0), 'aground%', ((blocked / t) * 100).toFixed(1), 'from town', Math.hypot(p.x - b.x, p.y - b.y).toFixed(1));
     // Every course ends (no grinding against a coast), and almost all within docking range of the town.
     expect(p.assist).toBeUndefined();
-    if (Math.hypot(p.x - b.x, p.y - b.y) <= 3) docked.push(to);
+    if (Math.hypot(p.x - b.x, p.y - b.y) <= DOCK_RANGE) docked.push(to);
   }
   // Villahermosa lies up an inlet too narrow to beat into: that course gives up a few tiles short.
   expect(docked.length).toBeGreaterThanOrEqual(8);

@@ -16,7 +16,7 @@ const world = decodeRasterMap(def, {
 // Fights are sailed on the world map itself.
 const map = world;
 // Open water south of Jamaica, so fights here are about seamanship, not coastlines.
-const SEA = { x: 880, y: 680 };
+const SEA = { x: 1320, y: 1020 };
 
 const ship = (classId: string, role?: 'merchant' | 'patrol' | 'pirate', crewShare?: number): Ship => {
   const cls = content.ships[classId]!;

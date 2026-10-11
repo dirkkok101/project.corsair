@@ -93,8 +93,8 @@
     }
   },
   "news": {
-    "$comment": "News spreads from its town at 'tilesPerDay' (a little slower than a brig), plus a seeded delay. Items are kept 'keepWeeks' from when they happened; 10 weeks x 7 days x 80 tiles is well beyond the map's 1,950-tile diagonal, so every town hears before an item is dropped.",
-    "tilesPerDay": 80,
+    "$comment": "News spreads from its town at 'tilesPerDay' (a little slower than a brig), plus a seeded delay. Items are kept 'keepWeeks' from when they happened; 10 weeks x 7 days x 120 tiles is well beyond the map's 2,900-tile diagonal, so every town hears before an item is dropped.",
+    "tilesPerDay": 120,
     "delayDays": [
       0,
       3
@@ -419,7 +419,7 @@
       "refill": 0.12
     },
     "coasters": {
-      "tiles": 30,
+      "tiles": 45,
       "share": 0.08,
       "max": 4
     }

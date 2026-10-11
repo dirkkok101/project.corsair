@@ -14,7 +14,7 @@ import { createWorld } from '@corsair/systems-navigation';
 //   ?town=town.port_royal (sail off that town; with ?park, lie still just off it)
 
 const params = new URLSearchParams(location.search);
-const ZOOMS: Record<string, number> = { close: 9, sail: 32, region: 420 };
+const ZOOMS: Record<string, number> = { close: 9, sail: 32, region: 630 };
 const content = loadContent();
 const def = content.maps.caribbean;
 const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/caribbean/*.png', { eager: true, query: '?url', import: 'default' });

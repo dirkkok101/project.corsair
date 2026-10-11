@@ -380,7 +380,7 @@ test("the captain's goals: L opens the log at the next three, with progress and 
   // Out on open water south of Jamaica.
   await page.evaluate(() => {
     window.__corsair.sim.step(1);
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
     window.__corsair.sim.step(1);
   });
   await page.keyboard.press('l');
@@ -460,7 +460,8 @@ test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes 
     window.__corsair.sim.step(1);
     return h;
   });
-  await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig · G');
+  // A goal just done shows first, for 7 seconds; the dig prompt follows.
+  await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig · G', { timeout: 10_000 });
   const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
   await page.keyboard.press('g');
   await expect(page.locator('.hud-prompt')).toContainText('You dig up');
@@ -551,7 +552,7 @@ test('sea life and gun smoke on the 3D sea: dolphins, flying fish, a whale and g
 test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart marks ships seen', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   const count = await page.evaluate(() => Object.values(window.__corsair.state.get('ships') as Record<string, { ai?: unknown }>).filter((s) => s.ai).length);
-  expect(count).toBe(34);
+  expect(count).toBe(50);
 
   // An English merchant sets out from Port Royal; bring the player alongside her.
   const id = await page.evaluate(() => {
@@ -757,13 +758,13 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
   const errors = await boot(page, '/?seed=3');
   // Open water south of Jamaica, away from every coast.
   await page.evaluate(() => {
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
     window.__corsair.sim.step(1);
   });
   // Clear the nearby sea so cruising isn't held by a passing sail.
   const far = await page.evaluate(() => {
     const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
-    return Object.values(ships).filter((s) => s.ai && Math.hypot(s.x - 880, s.y - 700) < 15).length;
+    return Object.values(ships).filter((s) => s.ai && Math.hypot(s.x - 1320, s.y - 1050) < 15).length;
   });
   if (far === 0) await expect(page.locator('.hud-date').first()).toContainText('2×');
 
@@ -797,7 +798,7 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
 test('course line: a port picked on the chart gets a route by sea, the HUD measures it, and F follows it', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   await page.evaluate(() => {
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
     window.__corsair.sim.step(1);
   });
   await page.keyboard.press('m');
@@ -880,7 +881,7 @@ test('a pirate falls on a merchant within sight: they heave to and fight it out,
   // beyond seeing the player but in sight of the merchant.
   const ids = await page.evaluate(() => {
     const last = () => Object.keys(window.__corsair.state.get('ships') as object).filter((k) => k.startsWith('ai.')).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 880, y: 700 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
     // Hove to, so she watches from where she is.
     window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'furled' });
     window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
@@ -889,8 +890,8 @@ test('a pirate falls on a merchant within sight: they heave to and fight it out,
     window.__corsair.cmd.send({ type: 'SpawnShip', role: 'pirate', from: 'town.tortuga', to: 'town.port_royal' });
     window.__corsair.sim.step(1);
     const pirate = last();
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: merchant, x: 880, y: 722 });
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: pirate, x: 880, y: 727 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: merchant, x: 1320, y: 1072 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: pirate, x: 1320, y: 1077 });
     window.__corsair.sim.step(1);
     return { merchant, pirate };
   });

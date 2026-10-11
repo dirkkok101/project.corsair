@@ -46,9 +46,9 @@ describe('ships at sea', () => {
     const ships = ai(sim.state);
     expect(ships).toHaveLength(content.traffic.population);
     const roles = (r: string) => ships.filter((s) => s.ai!.role === r).length;
-    expect(roles('merchant')).toBe(17);
-    expect(roles('patrol')).toBe(6);
-    expect(roles('pirate')).toBe(11);
+    expect(roles('merchant')).toBe(25);
+    expect(roles('patrol')).toBe(9);
+    expect(roles('pirate')).toBe(16);
     for (const s of ships) expect(isLand(tileAt(map, s.x, s.y))).toBe(false);
     // Pirates sail from havens under their own flag; the rest under their port's.
     for (const s of ships.filter((x) => x.ai!.role === 'pirate')) expect(s.ai!.nation).toBe('pirate');
@@ -521,7 +521,8 @@ describe('choosing a target at sea', () => {
       const lurker = t.pirate();
       const sim = t.alone([{ ...lurker, x: at.x, y: at.y + 4, ai: { ...lurker.ai!, route: [[at.x, at.y + 4], [at.x, at.y + 24]], along: 0 } }, { ...t.player(0), ...at }]);
       sim.step(30);
-      return Boolean(Object.values(sim.state.ships).find((x) => x.ai)!.ai!.chasing);
+      // Giving chase, or already alongside and joining battle.
+      return Boolean(Object.values(sim.state.ships).find((x) => x.ai)!.ai!.chasing) || sim.events().some((e) => e.type === 'BattleJoined');
     };
     expect(chased((harbour + reach) / 2)).toBe(false);
     expect(chased(reach + 3)).toBe(true);
@@ -1026,15 +1027,17 @@ describe('the famous pirates', () => {
     // Not spared, he would come for her.
     const hunted = createSim(meet({ ...later.state, famous: { ...later.state.famous, morgan: { ...later.state.famous!.morgan!, spared: undefined } } }), [traffic()]);
     hunted.step(30);
-    expect(hunted.state.ships[morgan.id]!.ai!.chasing).toBe(true);
+    // Giving chase, or already alongside and joining battle.
+    expect(hunted.state.ships[morgan.id]!.ai!.chasing || hunted.events().some((e) => e.type === 'BattleJoined' && e.entityIds.includes(morgan.id))).toBe(true);
     const off = createSim(meet(later.state), [traffic()]);
     off.step(30);
     expect(off.state.ships[morgan.id]!.ai!.chasing).toBeFalsy();
     expect(off.events().some((e) => e.type === 'BattleJoined' && e.entityIds.includes(morgan.id))).toBe(false);
-    // Fire on him and that is forgotten.
-    off.send({ type: 'Attack', shipId: 'player', targetId: morgan.id });
-    off.applyCommands();
-    expect(off.state.famous!.morgan!.spared).toBeUndefined();
+    // Fire on him (alongside, in hailing range) and that is forgotten.
+    const fire = createSim(meet(later.state), [traffic()]);
+    fire.send({ type: 'Attack', shipId: 'player', targetId: morgan.id });
+    fire.applyCommands();
+    expect(fire.state.famous!.morgan!.spared).toBeUndefined();
   }, 30_000);
 
   it('sunk, a survivor picked from the water may carry a piece of his map', () => {

@@ -515,10 +515,10 @@ async function main() {
       }`;
     },
   });
-  // 1 next to a town, falling to 0 about 12 tiles (30 km) out: within earshot of bells and quays.
+  // 1 next to a town, falling to 0 about 18 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {
     let best = 0;
-    for (const s of settlements) best = Math.max(best, 1 - Math.hypot(s.x - x, s.y - y) / 12);
+    for (const s of settlements) best = Math.max(best, 1 - Math.hypot(s.x - x, s.y - y) / 18);
     return best;
   };
   // Distances for the HUD: the map is equirectangular, close enough to square tiles.
@@ -794,7 +794,7 @@ async function main() {
       .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5)
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   /** A port under a tile (its town within two and a half tiles). */
-  const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 2.5);
+  const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 3.75);
 
   /** The nearest port close enough to dock at, if any. */
   /**

@@ -13,6 +13,9 @@ import type { Tile, TileMap } from '@corsair/data';
 // lazily a few a frame. Each chunk hangs a skirt below its edges so neighbours at different detail don't show
 // cracks. Vegetation is instanced per chunk and shown only near the camera.
 
+/** Land heights stand this much taller than at the old map scale, so islands 1.5x wider keep their shape. */
+const RELIEF = 1.5;
+
 /** Height of a tile's ground in tiles, before smoothing: by terrain, then by elevation band (0-7). */
 function groundOf(tile: number, band: number): number {
   switch (tile) {
@@ -23,11 +26,11 @@ function groundOf(tile: number, band: number): number {
     case 2:
       return 0.25; // beach
     case 3:
-      return 0.7 + 0.45 * band; // jungle
+      return RELIEF * (0.7 + 0.45 * band); // jungle
     case 4:
-      return 1.4 + 0.6 * band; // hills
+      return RELIEF * (1.4 + 0.6 * band); // hills
     default:
-      return 2.4 + 0.8 * band; // mountain
+      return RELIEF * (2.4 + 0.8 * band); // mountain
   }
 }
 
@@ -151,9 +154,10 @@ export function groundShape(map: TileMap): { base: Float32Array; heightAt: (x: n
     if (g <= 0.05) return g;
     // Inland only (none at the waterline, so the coast stays where the map has it): rolling hills everywhere,
     // sharp ridges on the heights.
-    const inland = THREE.MathUtils.smoothstep(g, 0.05, 1.2);
-    const rolling = (fbm(x * 0.35, y * 0.35, 4) - 0.5) * 0.9;
-    const ridge = (1 - Math.abs(fbm(x * 0.18 + 17, y * 0.18 + 5, 4) * 2 - 1)) * THREE.MathUtils.smoothstep(g, 1.8, 4) * 2.2;
+    // Sized with the relief: hills as tall and as broad, against the island, as at the old map scale.
+    const inland = THREE.MathUtils.smoothstep(g, 0.05, 1.2 * RELIEF);
+    const rolling = (fbm((x * 0.35) / RELIEF, (y * 0.35) / RELIEF, 4) - 0.5) * 0.9 * RELIEF;
+    const ridge = (1 - Math.abs(fbm((x * 0.18) / RELIEF + 17, (y * 0.18) / RELIEF + 5, 4) * 2 - 1)) * THREE.MathUtils.smoothstep(g, 1.8 * RELIEF, 4 * RELIEF) * 2.2 * RELIEF;
     return g + inland * (rolling + ridge);
   };
   return { base, heightAt };

@@ -110,11 +110,11 @@ export interface PlacedSettlement extends Settlement {
   y: number;
 }
 
-/** How far a settlement may be from the coast before its coordinates count as wrong (~7.5 km). */
-const COAST_SNAP_TILES = 3;
+/** How far a settlement may be from the coast before its coordinates count as wrong (~6.7 km). */
+const COAST_SNAP_TILES = 4;
 
 /** How far a port may move to reach a beach on the open sea, when its own coast is a lake or lagoon (~37 km). */
-const OPEN_SEA_SNAP_TILES = 15;
+const OPEN_SEA_SNAP_TILES = 22;
 
 /**
  * Every water tile joined to the open sea: the largest connected body of water. A bay whose mouth is

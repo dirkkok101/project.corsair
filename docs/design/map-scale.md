@@ -1,6 +1,6 @@
 # Slice: the world at 1.5x
 
-Planned 2026-10-11. The Caribbean map is rebuilt at 1.5x its resolution, 2400 x 1650 tiles in place of 1600 x 1100,
+Planned and built 2026-10-11 (decisions as section 2.4 defaulted; docking scaled 1.5x too, see the PRD note). The Caribbean map is rebuilt at 1.5x its resolution, 2400 x 1650 tiles in place of 1600 x 1100,
 over the same longitudes and latitudes. A tile shrinks from about 2.5 km to about 1.67 km. Ships keep their size and
 speed in tiles, so islands, coasts and the distances between ports are 1.5x larger against a ship.
 

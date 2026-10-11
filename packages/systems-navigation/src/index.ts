@@ -119,7 +119,7 @@ export function speedPoints(content: ContentPack, ship: Ship): number {
 /** A course to a point ends this near it; to a port (x, y the town, the route ending at its berth), within
  * docking range of the town, so the game can dock her. */
 const COURSE_ARRIVE_TILES = 1.5;
-const PORT_ARRIVE_TILES = 2.9;
+const PORT_ARRIVE_TILES = 4.4;
 /** How far ahead an assisted course looks for land to steer around. */
 const COAST_LOOK_TILES = 8;
 /** A course pressed against land this long (3 s) hands back the helm. */
@@ -243,7 +243,7 @@ export function createNavigationSystem(
           const g = goal;
           const sailable = (h: number) => angleOffWind(h, wind.fromDeg) >= off;
           goal =
-            [15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 120, -120, 150, -150]
+            [15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 120, -120, 135, -135, 150, -150, 165, -165, 180]
               .map((d) => normalizeDeg(g + d))
               .find((h) => sailable(h) && clear(h)) ?? g;
         }

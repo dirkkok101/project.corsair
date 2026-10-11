@@ -22,7 +22,7 @@ const { width: W, height: H, bounds } = map as {
 // Classification thresholds, metres. Tuned so the Bahama Banks read as shallows while the
 // Campeche Bank (30-200 m) stays open water for deep-draft ships.
 const CONFIG = {
-  zoom: 7,
+  zoom: 8,
   samplesPerAxis: 3,
   landFraction: 5 / 9,
   shallowsAboveDepth: -15,

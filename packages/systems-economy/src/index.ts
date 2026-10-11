@@ -15,7 +15,7 @@ export * from './career';
 // crashes its price and trade routes limit themselves. Towns produce and consume weekly.
 
 /** How close (in tiles) a ship must be to a settlement to dock there: about 7.5 km. */
-export const DOCK_RANGE = 3;
+export const DOCK_RANGE = 4.5;
 
 type Settlement = Pick<PlacedSettlement, 'id' | 'type' | 'size' | 'x' | 'y' | 'nation'>;
 
@@ -663,7 +663,7 @@ export function newsText(content: ContentPack, item: NewsItem, townName: string)
     .replace(/^./, (c) => c.toUpperCase());
 }
 
-const SEAWARD_LOOK_TILES = 12;
+const SEAWARD_LOOK_TILES = 18;
 
 /**
  * The heading that leads out of a harbour: of 32 headings, the one with the longest run of open

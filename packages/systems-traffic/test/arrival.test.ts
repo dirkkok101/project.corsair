@@ -35,17 +35,21 @@ describe('making port on the autopilot', () => {
         at = { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k };
         back -= len;
       }
-      const sim = createSim(withWeather({ ...w, ships: { player: { ...w.ships.player!, ...at } } }, content, def, 3), [
+      const path = lanes.path([at.x, at.y], lanes.berth(port.id)!)!;
+      // Sailing in along the lane: already heading for the next waypoint.
+      const [nx, ny] = path[1]!;
+      const headingDeg = ((Math.atan2(nx - at.x, -(ny - at.y)) * 180) / Math.PI + 360) % 360;
+      const sim = createSim(withWeather({ ...w, ships: { player: { ...w.ships.player!, ...at, headingDeg } } }, content, def, 3), [
         createWeatherSystem(content, def, map),
         createNavigationSystem(content, map, windAt),
       ]);
-      const path = lanes.path([at.x, at.y], lanes.berth(port.id)!)!;
       sim.send({ type: 'SetAssist', shipId: 'player', assist: 'course', x: port.x, y: port.y, portId: port.id, route: path.slice(1) });
       sim.applyCommands();
       // 600 ticks: 20 seconds at 1x.
       for (let i = 0; i < 600 && sim.state.ships.player!.assist; i++) sim.step(1);
       const ended = sim.events().at(-1)!;
-      if (sim.state.ships.player!.assist || ended.type !== 'CourseArrived') failed.push(`${port.id}: ${sim.state.ships.player!.assist ? 'still sailing' : `${ended.type} ${JSON.stringify(ended.payload)}`}`);
+      const off = Math.hypot(sim.state.ships.player!.x - port.x, sim.state.ships.player!.y - port.y).toFixed(1);
+      if (sim.state.ships.player!.assist || ended.type !== "CourseArrived") failed.push(`${port.id}: ${sim.state.ships.player!.assist ? "still sailing" : `${ended.type} ${JSON.stringify(ended.payload)}`} ${off} from the town`);
     }
     expect(failed).toEqual([]);
   });

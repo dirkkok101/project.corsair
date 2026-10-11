@@ -12,7 +12,7 @@ const content = loadContent();
 const def = content.maps.caribbean;
 const dir = fileURLToPath(new URL('../../data/content/maps/caribbean/', import.meta.url));
 const map = decodeRasterMap(def, { terrain: readFileSync(dir + def.layers.terrain), elevation: readFileSync(dir + def.layers.elevation), zones: readFileSync(dir + def.layers.zones) });
-const SEA = { x: 880, y: 680 };
+const SEA = { x: 1320, y: 1020 };
 const N = Number(process.env.N ?? 30);
 const base = { id: 'x', ...SEA, headingDeg: 90, speed: 0, helm: 0, sails: 'full' as const, blocked: false, cargo: {} };
 
