@@ -1,6 +1,6 @@
 import { dateOf, rngStream, seedRng } from '@corsair/core';
 import type { EmittedEvent, Storm, System, WeatherState, WeatherSystem, Wind, WindStrength, WorldState } from '@corsair/core';
-import { isLand, tileOf } from '@corsair/data';
+import { hourOf, isLand, tileOf } from '@corsair/data';
 import type { ContentPack, RasterMapDef, Tile, TileMap, WindZones } from '@corsair/data';
 
 type Zone = WindZones['zones'][number];
@@ -72,11 +72,6 @@ export function systemWindAt(content: ContentPack, s: WeatherSystem, x: number, 
   return { east: (sign * dy * m) / len, north: (sign * dx * m) / len, weight };
 }
 
-/** Hour of the game day, 0 to 24, from the tick (a new game starts at midnight). */
-export function hourOf(tick: number, ticksPerDay: number): number {
-  return ((tick % ticksPerDay) / ticksPerDay) * 24;
-}
-
 export interface Breeze {
   kind: 'sea' | 'land';
   /** Toward-vector in east/north terms, in windStrength multiplier units. */
@@ -144,7 +139,7 @@ export function createBreezeField(content: ContentPack, def: RasterMapDef, map: 
       const len = Math.hypot(gx, gy);
       if (len === 0) return undefined;
       // +1 at the sea-breeze peak hour, -1 twelve hours later (offshore land breeze).
-      const cycle = Math.cos(((hourOf(tick, content.calendar.ticksPerDay) - seaBreezePeakHour) / 24) * 2 * Math.PI);
+      const cycle = Math.cos(((hourOf(content.calendar, tick) - seaBreezePeakHour) / 24) * 2 * Math.PI);
       const amount = strength * cycle * (1 - (here - 1) / reach);
       if (Math.abs(amount) < 0.05) return undefined;
       return { kind: amount > 0 ? 'sea' : 'land', east: (-gx / len) * amount, north: (gy / len) * amount };

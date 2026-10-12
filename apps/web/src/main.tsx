@@ -1,7 +1,7 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship } from '@corsair/core';
-import { decodeRasterMap, difficultyOf, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
+import { decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
@@ -10,7 +10,6 @@ import {
   createBreezeField,
   createWeatherSystem,
   createWindField,
-  hourOf,
   stormWindAt,
   withWeather,
   zoneAt,
@@ -1324,7 +1323,7 @@ async function main() {
     );
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
-    const hour = hourOf(sim.state.tick, content.calendar.ticksPerDay);
+    const hour = hourOf(content.calendar, sim.state.tick);
     const breeze = breezes.at(sim.state.tick, ship.x, ship.y);
     const wind = windAt(sim.state, ship.x, ship.y);
     const offWind = angleOffWind(ship.headingDeg, wind.fromDeg);
@@ -1610,7 +1609,7 @@ async function main() {
                         ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
                         : undefined
         }
-        hour={sea3d.skyHour()}
+        hour={hour}
         held={cruise.held}
         saved={now - savedAt < 2000}
         banner={sailHo && now < sailHo.until ? sailHo.text : undefined}

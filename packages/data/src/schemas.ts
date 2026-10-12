@@ -196,7 +196,14 @@ export const weatherSchema = z.object({
   }),
 });
 
-export const calendarSchema = z.object({ ticksPerDay: z.number().int().positive() });
+export const calendarSchema = z.object({
+  ticksPerDay: z.number().int().positive(),
+  /** The time of day's own clock (calendar.json): each phase's game seconds at 1x, and the hours it runs from and to. */
+  daylight: z.object({
+    phases: z.array(z.tuple([z.number().positive(), z.number(), z.number()])).min(1),
+    startSeconds: z.number().min(0),
+  }),
+});
 
 export const musicSchema = z.object({
   tunes: z.array(

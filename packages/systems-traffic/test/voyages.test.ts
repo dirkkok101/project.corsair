@@ -16,7 +16,8 @@ describe('voyages', () => {
       }
       return attacks / voyages;
     };
-    const start = run();
+    // Ten seeds: the rate sits near the top of its band, where three seeds land either side of it by chance.
+    const start = run({}, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     // Attacks on her are rare (about one in twenty voyages), so she is measured over more seeds.
     const armed = run({ guns: 18, crew: 150 }, [1, 2, 3, 4, 5, 6, 7, 8]);
     console.log('VOYAGES attacks per voyage, Port Royal-Tortuga: starting brig', start.toFixed(2), 'fully armed', armed.toFixed(2));
@@ -27,7 +28,7 @@ describe('voyages', () => {
     expect(armed).toBeLessThan(start);
     expect(armed).toBeGreaterThan(0.15);
     expect(armed).toBeLessThan(0.45);
-  }, 300_000);
+  }, 900_000);
 
   it('the Leewards are quiet, and the trade still pays', () => {
     const m = voyageProbe(['town.basse_terre_st_kitts', 'town.charlestown'], { days: 40 });

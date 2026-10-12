@@ -372,8 +372,9 @@ test('harbour scenes: a pirate haven has its own scene, and night falls on it to
     }
   });
   await page.keyboard.press('e');
-  // 14 hours on from 08:00: the debug step runs the clock even in port.
-  await page.evaluate(() => window.__corsair.sim.step(771 * (14 / 24)));
+  // On from mid-morning into the night (calendar.json daylight: night falls about 13 minutes of game time in);
+  // the debug step runs the clock even in port.
+  await page.evaluate(() => window.__corsair.sim.step(30 * 820));
   await expect(page.locator('.port-name')).toHaveText('Tortuga');
   await page.keyboard.press('Escape');
   // A haven has no governor: merchant, tavern and shipwright, and the docks.

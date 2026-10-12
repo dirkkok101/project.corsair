@@ -232,13 +232,12 @@ export function createNavigationSystem(
       }
       if (assist && want !== undefined) {
         const aim = want;
-        // Keep her off the coast: land within `look` tiles of her bow on a heading (unless the goal is right there).
+        // Keep her off the coast: land within `look` tiles ahead on a heading (unless the goal is right there).
         const look = Math.min(COAST_LOOK_TILES, left - 1);
         const clear = (h: number) => {
           if (look < 1) return true;
           const r = (h * Math.PI) / 180;
-          const ahead = (k: number) => k + nav.hull.bowTiles;
-          for (let k = 1; k <= look; k++) if (isLand(tileAt(map, ship.x + Math.sin(r) * ahead(k), ship.y - Math.cos(r) * ahead(k)))) return false;
+          for (let k = 1; k <= look; k++) if (isLand(tileAt(map, ship.x + Math.sin(r) * k, ship.y - Math.cos(r) * k))) return false;
           return true;
         };
         if (angleOffWind(aim, wind.fromDeg) >= off) goal = aim;
@@ -279,7 +278,7 @@ export function createNavigationSystem(
     const water = (px: number, py: number) => !isLand(tileAt(map, px, py));
     // She is drawn far bigger than a point: her centre must stay on water, and no move may carry any part of her
     // hull's outline from water onto land (turning may, so she is never shut in: she turns, then sails clear).
-    // Only at the helm: a course or an intercept keeps off the coast by its own look-ahead and the lanes, and in a
+    // Only at the helm: a course or an intercept keeps off the coast by its look-ahead and the lanes, and in a
     // harbour she works close in; there only her centre counts.
     const byHand = steered.assist?.mode !== 'course' && steered.assist?.mode !== 'intercept';
     const inHarbour = harbours.some((h) => Math.hypot(h.x - ship.x, h.y - ship.y) <= nav.hull.harbourTiles);

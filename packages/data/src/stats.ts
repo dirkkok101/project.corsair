@@ -1,4 +1,41 @@
-import type { ContentPack } from './index';
+import type { Calendar, ContentPack } from './index';
+
+/** Game ticks a second at 1x (core's TICKS_PER_SECOND; data can't import core). */
+const TICKS_PER_SECOND = 30;
+
+/**
+ * The hour of the day (0 to 24) at a tick, by the time of day's own slow clock (calendar.json daylight): what the
+ * sky shows, and what breezes, night sight, music and the harbour keep.
+ */
+export function hourOf(calendar: Calendar, tick: number): number {
+  const { phases, startSeconds } = calendar.daylight;
+  const cycle = phases.reduce((n, [length]) => n + length, 0);
+  let s = (((tick / TICKS_PER_SECOND + startSeconds) % cycle) + cycle) % cycle;
+  for (const [length, from, to] of phases) {
+    if (s < length) return (from + ((to - from) * s) / length) % 24;
+    s -= length;
+  }
+  return 12;
+}
+
+/** The first tick at or after `after` whose hour is `hour` (the inverse of hourOf, for tests and the debug sky). */
+export function tickAtHour(calendar: Calendar, hour: number, after = 0): number {
+  const { phases, startSeconds } = calendar.daylight;
+  const cycle = phases.reduce((n, [length]) => n + length, 0);
+  let at = 0;
+  for (const [length, from, to] of phases) {
+    const h = hour < from ? hour + 24 : hour;
+    if (h >= from && h <= to) {
+      const into = at + ((h - from) / (to - from)) * length;
+      // Seconds into the cycle at `after`, and on to the next time the cycle reaches `into`.
+      const now = (((after / TICKS_PER_SECOND + startSeconds) % cycle) + cycle) % cycle;
+      const wait = (((into - now) % cycle) + cycle) % cycle;
+      return after + Math.round(wait * TICKS_PER_SECOND);
+    }
+    at += length;
+  }
+  return after;
+}
 
 /** What a ship really is: her class, as her mounted guns and installed upgrades change it. */
 export interface ShipStats {

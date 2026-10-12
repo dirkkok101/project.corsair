@@ -1,4 +1,29 @@
 {
-  "$comment": "Game time, PRD section 2. A day lasts about as long as a brig's real day's run (~115 tiles at ~4.5 tiles/s): 771 ticks at 30 per second is about 26 s at 1x, 13 s at the default 2x cruise. The sailing pace is 0.7 of the original, so the day is 1/0.7 as long and voyages, seasons and every rate measured in days are unchanged.",
-  "ticksPerDay": 771
+  "$comment": "Game time, PRD section 2. A day lasts about as long as a brig's real day's run (~115 tiles at ~4.5 tiles/s): 771 ticks at 30 per second is about 26 s at 1x, 13 s at the default 2x cruise. The sailing pace is 0.7 of the original, so the day is 1/0.7 as long and voyages, seasons and every rate measured in days are unchanged. The time of day is a clock of its own, slower than the date: a game day passes in under half a minute, too fast for sunrise and sunset to be seen, so the light keeps a long day (daylight.phases: game seconds at 1x, and the hours each shows: a short golden dawn, a long bright day, a golden dusk and a short moonlit night), about twenty minutes at 1x, faster when time is sped up, still while the game is paused. The sky, the coastal breezes, how far a ship is seen, the music and the harbour paintings all keep this one clock. A new game opens daylight.startSeconds into it, mid-morning.",
+  "ticksPerDay": 771,
+  "daylight": {
+    "phases": [
+      [
+        120,
+        5,
+        8
+      ],
+      [
+        840,
+        8,
+        16.5
+      ],
+      [
+        120,
+        16.5,
+        19.5
+      ],
+      [
+        120,
+        19.5,
+        29
+      ]
+    ],
+    "startSeconds": 300
+  }
 }

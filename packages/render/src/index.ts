@@ -1,4 +1,5 @@
 import type { WorldState } from '@corsair/core';
+import { hourOf } from '@corsair/data';
 import type { ContentPack } from '@corsair/data';
 import { Application, Assets, Rectangle, Texture, TextureSource } from 'pixi.js';
 import type { Texture as PixiTexture } from 'pixi.js';
@@ -101,8 +102,7 @@ export async function createHarbourRenderer(
       harbour.resize(width, height);
     },
     render(state, nowMs) {
-      const tpd = content.calendar.ticksPerDay;
-      daylight?.setHour(((state.tick % tpd) / tpd) * 24);
+      daylight?.setHour(hourOf(content.calendar, state.tick));
       lastState = state;
       harbour.update(nowMs);
       app.render();

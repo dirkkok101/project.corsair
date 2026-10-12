@@ -8,7 +8,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Ship, Wind, WorldState } from '@corsair/core';
-import { shipStats } from '@corsair/data';
+import { hourOf, shipStats, tickAtHour } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from './battleView';
 
@@ -77,34 +77,10 @@ const TURN_EASE = 2.5;
 /** A sunk ship takes this long to go under. */
 const SINK_SECONDS = 6;
 
-/**
- * The sky keeps its own slow day, not the game clock's (a game day passes in under half a minute): a long
- * bright day, golden sunrise and sunset, a short moonlit night (docs/reference/pirates-3d-style.md). Each
- * phase: real seconds at sea, and the hours it shows.
- */
-const SKY_PHASES: [number, number, number][] = [
-  [120, 5, 8],
-  [840, 8, 16.5],
-  [120, 16.5, 19.5],
-  [120, 19.5, 29],
-];
-const SKY_CYCLE = SKY_PHASES.reduce((n, [s]) => n + s, 0);
-/** The sky starts mid-morning. */
-const SKY_START = 300;
-
 /** What shows of her fit: the shipwright's upgrades, and her class's own oars and swivels. */
 function fitOfClass(content: ContentPack, s: { classId: string; upgrades?: string[] }): string[] {
   const cls = content.ships[s.classId];
   return [...(s.upgrades ?? []), ...(cls?.oars ? ['sweeps'] : []), ...(cls?.swivels ? ['swivel_guns'] : [])];
-}
-
-function skyHour(seconds: number): number {
-  let s = seconds % SKY_CYCLE;
-  for (const [length, from, to] of SKY_PHASES) {
-    if (s < length) return (from + ((to - from) * s) / length) % 24;
-    s -= length;
-  }
-  return 12;
 }
 
 const DAY_SUN = new THREE.Color('#fff4d6');
@@ -145,10 +121,8 @@ export interface SeaRenderer {
   toggleChase(): void;
   /** Which way is up the screen (degrees clockwise from north): 0 overhead, her heading from astern. */
   viewDeg(): number;
-  /** Sets the sky to an hour of its day (for reviewing sunrise, sunset and night). */
+  /** Shifts the sky to an hour of the day (for reviewing sunrise, sunset and night); the game's clock is untouched. */
   setSkyHour(hour: number): void;
-  /** The hour the sky shows (0 to 24): its own day, not the game clock's. */
-  skyHour(): number;
   /**
    * The point on the sea under a spot on the canvas (CSS pixels from its top left), in the tiles the last frame drew
    * (world tiles at sea and in battle alike); undefined above the horizon.
@@ -323,7 +297,10 @@ export async function createSeaRenderer(
   };
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
-  let skySeconds = SKY_START;
+  /** The game's tick, for the time of day (calendar.json daylight), held through a battle; and ?sky='s shift of it. */
+  let skyTick = 0;
+  let skyShift = 0;
+  let skyWant: number | undefined;
   /** The weather's overcast, eased toward `gloomWant`. */
   let gloom = 0;
   let gloomWant = 0;
@@ -335,8 +312,7 @@ export async function createSeaRenderer(
   const beginFrame = (nowMs: number, view: number) => {
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
-    skySeconds += dt;
-    const hour = skyHour(skySeconds);
+    const hour = hourOf(content.calendar, skyTick + skyShift);
     // The weather's overcast, easing in and out (the first frame takes it as it is).
     gloom = gloomSeen ? gloom + (gloomWant - gloom) * (1 - Math.exp(-dt * GLOOM_EASE)) : gloomWant;
     gloomSeen = true;
@@ -595,8 +571,13 @@ export async function createSeaRenderer(
     const me = state.ships[options.playerId];
     if (!me) return;
     gloomWant = gloomAt(state, me.x, me.y);
+    skyTick = state.tick;
+    if (skyWant !== undefined) {
+      skyShift = tickAtHour(content.calendar, skyWant, skyTick) - skyTick;
+      skyWant = undefined;
+    }
     const dt = beginFrame(nowMs, distance);
-    wildlife.update(me, dt, skyHour(skySeconds));
+    wildlife.update(me, dt, hourOf(content.calendar, skyTick + skyShift));
     // The smoke of distant fights: swelling, rising downwind, thinning to nothing.
     smokeClock += dt;
     const downwind = (options.windAt(state, me.x, me.y).fromDeg + 180) * (Math.PI / 180);
@@ -890,7 +871,6 @@ export async function createSeaRenderer(
       return { px: ((v.x + 1) / 2) * r.width, py: ((1 - v.y) / 2) * r.height };
     },
     viewDeg: () => (chase ? viewHeading : 0),
-    skyHour: () => skyHour(skySeconds),
     wildlife: {
       spawn: (kind) => wildlife.spawn(kind),
       get count() {
@@ -927,16 +907,7 @@ export async function createSeaRenderer(
       });
     },
     setSkyHour(hour) {
-      // The first moment in the sky's cycle that shows this hour.
-      let at = 0;
-      for (const [length, from, to] of SKY_PHASES) {
-        const h = hour < from ? hour + 24 : hour;
-        if (h >= from && h <= to) {
-          skySeconds = at + ((h - from) / (to - from)) * length;
-          return;
-        }
-        at += length;
-      }
+      skyWant = hour;
     },
   };
 }

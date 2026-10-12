@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim, rngStream, seedRng } from '@corsair/core';
 import type { Storm, WeatherSystem, WorldState } from '@corsair/core';
-import { decodeRasterMap, loadContent, tileOf } from '@corsair/data';
+import { decodeRasterMap, loadContent, tickAtHour, tileOf } from '@corsair/data';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { describe, expect, it } from 'vitest';
 import {
@@ -127,7 +127,7 @@ describe('zones and seasons', () => {
     const breezes = createBreezeField(content, def, map);
     // Just off Jamaica's south coast, where land lies to the north.
     const off = tileOf(def, -77.0, 17.78);
-    const at = (hour: number) => breezes.at(Math.round((hour / 24) * day), off.x, off.y);
+    const at = (hour: number) => breezes.at(tickAtHour(content.calendar, hour), off.x, off.y);
 
     it('blows onshore in the afternoon and offshore before dawn', () => {
       const sea = at(15)!;
@@ -140,7 +140,7 @@ describe('zones and seasons', () => {
 
     it('fades out at sea and dies away at the turn of the day', () => {
       const { x, y } = tileOf(def, -75, 15);
-      expect(breezes.at(Math.round((15 / 24) * day), x, y)).toBeUndefined();
+      expect(breezes.at(tickAtHour(content.calendar, 15), x, y)).toBeUndefined();
       expect(at(9)).toBeUndefined();
     });
 
@@ -148,7 +148,7 @@ describe('zones and seasons', () => {
       const sim = newSim(3);
       const windAt = createWindField(content, def, map);
       const zone = sim.state.weather!.zones[zoneAt(content, map, off.x, off.y).id]!;
-      const night = { ...sim.state, tick: Math.round((3 / 24) * day) };
+      const night = { ...sim.state, tick: tickAtHour(content.calendar, 3) };
       expect(windAt(night, off.x, off.y).fromDeg).not.toBeCloseTo(zone.fromDeg, 0);
     });
   });

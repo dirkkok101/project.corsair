@@ -1,6 +1,6 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
-import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, tileAt } from '@corsair/data';
+import { atDifficulty, crewQualityOf, difficultyOf, hourOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
@@ -1555,7 +1555,7 @@ export function createTrafficSystem(
       const player = ships.player;
       let captain = next.captain;
       if (player && captain) {
-        const hour = ((tick % tpd) / tpd) * 24;
+        const hour = hourOf(content.calendar, tick);
         const sight = t.sightTiles * (hour < 6 || hour >= 19 ? t.nightSight : 1);
         const sightings: Record<string, Sighting> = {};
         // A ship that has gone into port is out of sight until she sails again.
