@@ -258,7 +258,7 @@ const KEYS: { group: string; keys: [string, string][] }[] = [
 ];
 
 /** F1: every key, grouped as the storyboard's help (artboard 4.5). */
-function Help({ close }: { close: () => void }) {
+export function Help({ close }: { close: () => void }) {
   return (
     <div class="hud-help">
       <div class="hud-help-head">

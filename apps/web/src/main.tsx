@@ -3,7 +3,7 @@ import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SE
 import type { Nation, Ship } from '@corsair/core';
 import { decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
-import { createSeaRenderer } from '@corsair/render3d';
+import { createSeaRenderer, flagPicture } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
@@ -682,6 +682,11 @@ async function main() {
       else if (k === 'y' && !e.repeat && fight.battle.demands()) fight.battle.send({ type: 'Strike' });
       else if (k === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
       if (k === 's' && (e.ctrlKey || e.metaKey)) e.preventDefault();
+      // F1: every key, over the battle too.
+      if (e.key === 'F1' && !e.repeat) {
+        e.preventDefault();
+        helpOpen = !helpOpen;
+      }
       return;
     }
     // C: the 3D camera overhead or from astern.
@@ -1107,7 +1112,14 @@ async function main() {
           enemyTitle={fight.title}
           enemyNation={fight.nation}
           wavering={fight.battle.wavering()}
-          demand={fight.battle.demands() ? { name: fight.name, chest: Math.round(sim.state.captain?.chest ?? 0) } : undefined}
+          demand={
+            fight.battle.demands()
+              ? (() => {
+                  const flag = content.pirates.captains.find((c) => c.id === fight!.famous)?.flag;
+                  return { name: fight.name, chest: Math.round(sim.state.captain?.chest ?? 0), ...(flag ? { flag: flagPicture('pirate', flag) } : {}) };
+                })()
+              : undefined
+          }
           onStrike={() => fight?.battle.send({ type: 'Strike' })}
           report={fight.report}
           attacked={fight.attacked}
@@ -1174,6 +1186,7 @@ async function main() {
             chooseShot: (ammo) => fight?.battle.send({ type: 'SetAmmo', ammo }),
           }}
           onContinue={endBattle}
+          help={{ open: helpOpen, close: () => (helpOpen = false) }}
         />,
         battleRoot,
       );

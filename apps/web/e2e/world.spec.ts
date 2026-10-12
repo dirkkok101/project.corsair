@@ -781,6 +781,9 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   await expect(page.locator('.battle-card').first()).toContainText('Hull');
+  // A new career's ship sails under her own name; the gun bar is one row, with F1 for every key.
+  await expect(page.locator('.battle-card').first()).toContainText('Swallow');
+  await expect(page.locator('.battle-guns .battle-help')).toContainText('keys');
   // Tab switches shot at once (no reload); Space fires only a broadside that bears, so nothing yet.
   // Commands land on the next step (the test holds the clock).
   await page.keyboard.press('Tab');
@@ -846,12 +849,17 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await expect(page.locator('.battle-report-picture')).toBeVisible();
   // The hull, sails and men say how they are in words.
   await expect(page.locator('.battle-report-title')).not.toHaveText('');
+  // The ship cards make way for the report, which says how her own ship came out of it.
+  await expect(page.locator('.battle-card')).toHaveCount(0);
+  await expect(page.locator('.battle-ledger')).toContainText('Your ship: hull');
   await page.screenshot({ path: 'test-results/battle-report.png' });
   if (outcome === 'struck' || outcome === 'boarded') {
     // The report leads to her hold: one button does the sensible thing, a merchant let go by default, saying what that means.
     await page.keyboard.press('Enter');
     await expect(page.locator('.plunder-go')).toContainText(/let her go · Enter/i);
     await expect(page.locator('.plunder')).toContainText('thinks a little better of you');
+    // The other fates say what they cost.
+    await expect(page.locator('.plunder-fate')).toContainText('Sink her instead (England');
     expect(await page.evaluate(() => window.__corsair.state.get('prize'))).toBeDefined();
     await page.screenshot({ path: 'test-results/plunder.png' });
   }
@@ -1155,7 +1163,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   });
   test.skip(outcome !== 'boarded' && outcome !== 'struck', `no prize this run (${outcome})`);
   await page.getByRole('button', { name: /^To her hold/ }).click();
-  await page.locator('.plunder-fate').getByRole('button', { name: 'Keep her' }).click();
+  await page.locator('.plunder-fate').getByRole('button', { name: /^Keep her/ }).click();
   await expect(page.locator('.plunder')).toContainText('joins your fleet');
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');

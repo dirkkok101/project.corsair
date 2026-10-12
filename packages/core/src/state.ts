@@ -97,7 +97,7 @@ export interface Ship {
   fouling?: number;
   /** Fine-grain powder aboard keeps till this tick, then it is spent. */
   powderUntil?: number;
-  /** The player's flagship's name, when she was a prize (her class's name otherwise). */
+  /** The player's flagship's name: the career's first ship's, or a prize's (her class's name when unset). */
   name?: string;
   /** The player's flagship sailing with a fleet: the slowest of its ships' speeds, which she keeps to. */
   fleetSpeed?: number;

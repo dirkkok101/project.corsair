@@ -76,6 +76,8 @@ export const spriteSchema = z.object({
 const shipStart = {
   shipId: z.string(),
   classId: z.string(),
+  /** Her name (her class's name when unset). */
+  name: z.string().optional(),
   headingDeg: degrees,
   guns: z.number().int().min(0).optional(),
   port: z.string().optional(),

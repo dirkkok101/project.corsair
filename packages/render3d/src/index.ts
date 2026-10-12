@@ -20,7 +20,7 @@ import { CLOUD_SPEED, createOcean } from './sea/ocean';
 import type { SeaState, WakeShip } from './sea/ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
-import type { BuiltShip, ShipPlan } from './shipyard';
+import type { BuiltShip, FlagDesign, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import { createStorm } from './storm';
 import type { SprayShip } from './storm';
@@ -917,6 +917,15 @@ interface Banner {
   /** Sets the line under the name (redrawn only when it changes). */
   setLine(line: string): void;
 }
+
+/** A flag as the sea flies it, as a picture for the page (a famous pirate's demand shows hers). */
+export function flagPicture(nation: string, design?: FlagDesign): string {
+  const key = design ? `${design.field}|${design.colour}|${design.device}` : nation;
+  let url = FLAG_PICTURES.get(key);
+  if (!url) FLAG_PICTURES.set(key, (url = (flagTexture(nation, design).image as HTMLCanvasElement).toDataURL()));
+  return url;
+}
+const FLAG_PICTURES = new Map<string, string>();
 
 /**
  * A town's banner over it, the same size on screen at every zoom (Pirates! 2004 shows the nation's colours, the

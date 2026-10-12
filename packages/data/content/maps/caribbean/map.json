@@ -18,6 +18,7 @@
   "start": {
     "shipId": "player",
     "classId": "ship.brig",
+    "name": "Swallow",
     "lon": -76.83,
     "lat": 17.92,
     "headingDeg": 180,

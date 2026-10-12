@@ -423,6 +423,7 @@ export function createWorld(def: MapDef): WorldState {
     sails: 'full',
     blocked: false,
     cargo: {},
+    ...(start.name ? { name: start.name } : {}),
     ...(start.guns !== undefined ? { guns: start.guns } : {}),
   };
   return { tick: 0, wind: { ...wind }, ships: { [ship.id]: ship } };
