@@ -459,23 +459,6 @@ body {
   color: #ebede9;
 }
 
-.port-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 16px;
-  border-bottom: 1px solid #394a50;
-  padding-bottom: 6px;
-}
-
-/* Name, standing and trade lean on as few lines as fit, to keep the scene above in view. */
-.port-head > div:first-child {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 12px;
-}
-
 .port-name {
   font-family: 'Pirata One', serif;
   font-size: 30px;
@@ -485,25 +468,6 @@ body {
 
 .port-sub {
   color: #a8b5b2;
-}
-
-.port-purse {
-  text-align: right;
-}
-
-.port-tabs {
-  display: flex;
-  gap: 14px;
-  margin: 6px 0;
-}
-
-.port-tabs .active {
-  color: #e8c170;
-  border-bottom: 2px solid #e8c170;
-}
-
-.port-tabs .soon {
-  color: #577277;
 }
 
 .port-tab {
@@ -583,17 +547,26 @@ body {
   border-color: transparent;
 }
 
-/* With no panel behind it, the header gets its own band so it reads over the painting. */
-.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) > .port-head,
-.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) > .port-tabs {
-  padding: 6px 12px;
-  background: rgb(21 29 40 / 0.85);
-  border-bottom: none;
+/* The interior's top row: the tavern's sign on the left, Leave on the right. */
+.interior-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
-.port-panel:has(.merchant, .tavern-room, .governor, .shipwright) > .port-tabs {
-  margin: 0 0 12px;
-  border-top: 1px solid #394a50;
+.interior-title {
+  margin: 0;
+  font-family: 'Pirata One', serif;
+  font-size: 46px;
+  line-height: 1;
+  color: #f4ead6;
+  text-shadow: 0 2px 0 #1b1410, 0 0 12px rgb(0 0 0 / 0.6);
+}
+
+.interior-notice {
+  width: fit-content;
+  margin-bottom: 12px;
 }
 
 .merchant {
@@ -771,8 +744,7 @@ body {
 
 /* A good's name and its badges, and what's in the hold, each stay on one line (the headings may wrap). */
 .market td:first-child,
-.market .hold,
-.port-purse {
+.market .hold {
   white-space: nowrap;
 }
 
@@ -785,8 +757,7 @@ body {
   white-space: nowrap;
 }
 
-.market button,
-.port .leave {
+.market button {
   margin-left: 4px;
   padding: 2px 8px;
   font: inherit;
@@ -820,20 +791,6 @@ body {
   background: #de9e41;
 }
 
-.port-lean {
-  display: flex;
-  gap: 14px;
-  margin-top: 4px;
-  font-size: 13px;
-  color: #c7cfcc;
-}
-
-.port-lean .trend {
-  margin-left: 0;
-}
-
-
-
 .market .paid,
 .market .age {
   color: #819796;
@@ -850,15 +807,7 @@ body {
   background: #a53030;
 }
 
-.port-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 8px;
-  color: #819796;
-}
-
-/* Short windows: smaller rows, and the footer note gives way. */
+/* Short windows: smaller rows. */
 @media (max-height: 760px) {
   .port-panel {
     max-height: 72vh;
@@ -878,17 +827,6 @@ body {
     padding: 0 6px;
   }
 
-  .port-foot {
-    margin-top: 4px;
-  }
-
-  .port-foot > span {
-    display: none;
-  }
-
-  .port-foot .leave {
-    margin-left: auto;
-  }
 }
 
 .hud-saved {
@@ -1125,15 +1063,6 @@ body {
 .port-scene {
   background: none;
   display: block;
-}
-
-.port-close {
-  margin-left: auto;
-  font: inherit;
-  color: #a8b5b2;
-  background: none;
-  border: none;
-  cursor: pointer;
 }
 
 .port-spot {
@@ -1814,11 +1743,6 @@ body {
 .chart-ship.label-pirate {
   color: #090a14;
   border-color: #ebede9;
-}
-
-.port-notice {
-  margin: 4px 0;
-  color: #cf573c;
 }
 
 .crew-pay {

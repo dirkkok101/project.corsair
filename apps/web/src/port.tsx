@@ -340,6 +340,25 @@ function Merchant({
 }
 
 /** Standing with a nation as a word (the number on hover). */
+/** Tavern signs, one hung in each town's tavern. */
+const TAVERN_SIGNS = [
+  'The Sign of the Mermaid',
+  'The Rusty Anchor',
+  'The Jolly Tar',
+  'The Blue Parrot',
+  'The Drowned Sailor',
+  'The Three Crowns',
+  'The Bosun\'s Whistle',
+  'The Salt Herring',
+];
+
+/** The sign over a town's tavern: always the same one in the same town. */
+function tavernSign(townId: string): string {
+  let h = 0;
+  for (const c of townId) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return TAVERN_SIGNS[h % TAVERN_SIGNS.length]!;
+}
+
 function standingWord(n: number): string {
   return n >= 50 ? 'honoured' : n >= 20 ? 'friendly' : n > -20 ? 'neutral' : n > -50 ? 'unwelcome' : 'hunted';
 }
@@ -390,8 +409,6 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const trade = (type: 'Buy' | 'Sell', good: string, quantity: number) => send({ type, shipId, good, quantity });
   const known = state.captain?.knownPrices ?? {};
   const today = Math.floor(state.tick / content.calendar.ticksPerDay);
-  const goodName = (id: string) => content.goods.find((g) => g.id === id)?.name ?? id;
-  const lean = portTrade(content, town);
   /** The best price the captain has seen another port pay for a good, and when. */
   const bestSale = (good: string) => {
     let best: { name: string; sell: number; age: number; depth?: number } | undefined;
@@ -515,43 +532,14 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   return (
     <div class="port">
       <div class="port-panel">
-        <header class="port-head">
-          <div>
-            <div class="port-name">{town.name}</div>
-            <div class="port-sub">
-              {town.type === 'haven' ? 'Pirate haven' : `${NATION[town.nation]} ${town.type === 'capital' ? 'capital' : town.size}`} ·{' '}
-              {townLine(content, state, town)}
-            </div>
-            <div class="port-lean">
-              {lean.exports.length ? (
-                <span>
-                  <span class="trend export">exports</span> {lean.exports.map(goodName).join(', ')}
-                </span>
-              ) : null}
-              {lean.wants.length ? (
-                <span>
-                  <span class="trend want">wants</span> {lean.wants.map(goodName).join(', ')}
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <div class="port-purse">
-            <div class="port-sub">{date}</div>
-            {town.nation !== 'pirate' ? (
-              <div class="port-sub">
-                Standing with the {NATION[town.nation]}: {standingWord(state.captain?.standing?.[town.nation] ?? 0)}
-              </div>
-            ) : null}
-          </div>
-        </header>
-        {notice ? <div class="port-notice">{notice}</div> : null}
-
-        <nav class="port-tabs">
-          <span class="k-who">{SERVICES.find((s) => s.id === open)?.name}</span>
-          <button class="port-close" onClick={() => setOpen(undefined)} title="Back to the harbour (Esc)">
-            Harbour · Esc
+        {/* Over the painting, as in the storyboard: the tavern's sign, and the way out. The town is the harbour's. */}
+        <div class="interior-top">
+          {open === 'tavern' ? <h1 class="interior-title">{tavernSign(town.id)}</h1> : <span />}
+          <button class="k-btn small" onClick={() => setOpen(undefined)} title="Back to the harbour">
+            Leave <Key k="Esc" />
           </button>
-        </nav>
+        </div>
+        {notice ? <div class="hud-toast interior-notice">{notice}</div> : null}
 
         {open === 'governor' ? (
           <Governor content={content} state={state} town={town} shipId={shipId} send={send} />
@@ -574,12 +562,6 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           <Merchant content={content} state={state} town={town} ship={ship} bestSale={bestSale} trade={trade} />
         )}
 
-        <footer class="port-foot">
-          <span />
-          <button class="leave" onClick={() => send({ type: 'Undock', shipId })}>
-            Set sail · E
-          </button>
-        </footer>
       </div>
     </div>
   );

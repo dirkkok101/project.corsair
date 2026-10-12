@@ -237,8 +237,7 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
 
   await goTo('Bridgetown');
   const startGold = await gold();
-  // What the port makes and needs is common knowledge, and the rows say which way to trade.
-  await expect(page.locator('.port-lean')).toContainText('exports Sugar');
+  // What the port makes and needs is common knowledge: the rows say which way to trade.
   const sugar = page.locator('.port .market tr', { hasText: 'Sugar' });
   await expect(sugar).toContainText('made here');
   // Food is a staple: never worth carrying, so it gets no trade tag. Every good shows how much its market takes.
