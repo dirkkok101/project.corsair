@@ -159,6 +159,7 @@ const SAIL_HO_TILES = 15;
 /** The HUD's strip fades after this long with nothing on it changing. */
 const STRIP_REST_MS = 6000;
 const SAIL_HO_MS = 3500;
+const SONG_MS = 6000;
 
 async function main() {
   // A trackpad pinch never zooms the page itself: magnified, the page pushes the HUD and the menus off the
@@ -1039,6 +1040,9 @@ async function main() {
   // Sail ho! A ship coming within SAIL_HO_TILES is called out once, for a few seconds.
   const inSight = new Set<string>();
   let sailHo: { text: string; until: number } | undefined;
+  // A song's name shows for a few seconds as it starts, then gives the sea back.
+  let songHeard: string | undefined;
+  let songShownUntil = 0;
 
   // Fixed 30 Hz sim under a variable frame rate; the cap stops a background tab from fast-forwarding.
   const dt = 1 / TICKS_PER_SECOND;
@@ -1308,7 +1312,6 @@ async function main() {
     shipLabels.update(sim.state, def.start.shipId, (x, y) => sea3d.project(x, y), atSea);
     charts.update(
       sim.state.ships[def.start.shipId],
-      sea3d.viewBox(),
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
       guide,
     );
@@ -1328,6 +1331,10 @@ async function main() {
     const inStorm = (sim.state.weather?.storms ?? []).some((s) => stormWindAt(s, ship.x, ship.y));
     const cls = content.ships[ship.classId]!;
     const cruise = timeScale(inStorm);
+    if (audio.nowPlaying !== songHeard) {
+      songHeard = audio.nowPlaying;
+      songShownUntil = now + SONG_MS;
+    }
     speedNow = cruise.scale;
     // Sail ho: call out each ship as she first comes within range.
     const seen = new Set<string>();
@@ -1571,7 +1578,9 @@ async function main() {
               ? 'Press any key for sound'
               : !audio.music
                 ? 'Music off · N'
-                : audio.nowPlaying && `♪ ${audio.nowPlaying}`
+                : now < songShownUntil && audio.nowPlaying
+                  ? `♪ ${audio.nowPlaying}`
+                  : undefined
         }
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
@@ -1600,7 +1609,8 @@ async function main() {
                         ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
                         : undefined
         }
-        timeScale={cruise.held ? cruise.held : speedNow > 1 ? speedNow : undefined}
+        hour={sea3d.skyHour()}
+        held={cruise.held}
         saved={now - savedAt < 2000}
         banner={sailHo && now < sailHo.until ? sailHo.text : undefined}
         toasts={[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n.text] : []))}
@@ -1611,7 +1621,7 @@ async function main() {
         strip={strip}
         faded={now - stripChanged > STRIP_REST_MS}
         setSails={(sails) => sim.send({ type: 'SetSails', shipId: ship.id, sails })}
-        cruise={{ speed: wantedSpeed, choose: (n) => (wantedSpeed = n), course: Boolean(ship.assist), stop: () => sim.send({ type: 'SetAssist', shipId: ship.id, assist: 'off' }) }}
+        cruise={{ speed: wantedSpeed, choose: (n) => (wantedSpeed = n) }}
         help={helpOpen}
         closeHelp={() => (helpOpen = false)}
         fleetPace={(() => {

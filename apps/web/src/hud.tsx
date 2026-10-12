@@ -3,6 +3,7 @@ import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
 import { Key, Stat } from './ui/kit';
+import { Art } from './ui-art';
 
 const ROSE = { size: 168, ring: 62, inner: 10, outer: 54 };
 const GILT = '#e6bf6a';
@@ -149,9 +150,8 @@ export function Compass({
         </g>
       </svg>
       <div class="compass-speed">
-        {Math.round(knots)} {Math.round(knots) === 1 ? 'knot' : 'knots'}
+        {Math.round(knots)} {Math.round(knots) === 1 ? 'knot' : 'knots'} · {pointName.toLowerCase()}
       </div>
-      <div class="compass-point">{pointName}</div>
       <div class="compass-sailing" title="How well the wind fills your sails on this heading">
         <span style={{ width: `${Math.round(sailing * 100)}%`, background: drawing }} />
       </div>
@@ -177,6 +177,15 @@ export function compassProps(content: ContentPack, ship: { classId: string; head
   };
 }
 
+/** The part of the day an hour falls in, as a sailor says it. */
+export function partOfDay(hour: number): string {
+  if (hour < 5 || hour >= 20) return 'night';
+  if (hour < 7) return 'dawn';
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  return 'dusk';
+}
+
 export interface HudProps {
   state: WorldState;
   content: ContentPack;
@@ -198,8 +207,10 @@ export interface HudProps {
   banner?: string;
   /** Notes that come and go (a goal done, a dig's result, rent paid), newest last. */
   toasts?: string[];
-  /** Time acceleration in force (2 or 4), or why cruising is held at 1x ("near land", "sail in sight", "storm"). */
-  timeScale?: number | string;
+  /** The hour the sky shows (0 to 24), for the date line's "morning" or "dusk". */
+  hour: number;
+  /** Why cruising is held at 1x ("near land", "sail in sight", "storm"), while it is. */
+  held?: string;
   /** True for a moment after the career is saved. */
   saved?: boolean;
   /** Knots for a speed of one tile a second (from the map's scale and the game's clock). */
@@ -213,7 +224,7 @@ export interface HudProps {
   faded: boolean;
   /** Sails and cruise speed, by the compass. */
   setSails: (sails: Ship['sails']) => void;
-  cruise: { speed: number; choose: (speed: number) => void; course: boolean; stop: () => void };
+  cruise: { speed: number; choose: (speed: number) => void };
   /** F1: every key, grouped, and closing it. */
   help: boolean;
   closeHelp: () => void;
@@ -306,8 +317,8 @@ export function Hud(p: HudProps) {
         {p.fleetPace ? <div class="hud-pill hud-fleet">{p.fleetPace}</div> : null}
       </div>
       <div class="hud-date">
-        {p.date}
-        {typeof p.timeScale === 'string' ? ` · 1×, ${p.timeScale}` : p.timeScale ? ` · ${p.timeScale}×` : ''}
+        {p.date} · {partOfDay(p.hour)}
+        {p.held ? ` · 1×, ${p.held}` : ''}
       </div>
       {p.banner ? <div class="hud-banner">{p.banner}</div> : null}
       {p.toasts?.length ? (
@@ -336,17 +347,23 @@ export function Hud(p: HudProps) {
       </div>
       <div class="hud-controls">
         {(['full', 'half'] as const).map((sail) => (
-          <button key={sail} class={`k-btn small${ship.sails === sail ? ' active' : ''}`} title={sail === 'full' ? 'Full sail (W)' : 'Half sail, tighter turns (S)'} onClick={() => p.setSails(sail)}>
-            {sail === 'full' ? 'Full sail' : 'Half sail'}
+          <button
+            key={sail}
+            class={`k-btn small hud-sail${ship.sails === sail ? ' active' : ''}`}
+            aria-label={sail === 'full' ? 'Full sail' : 'Half sail'}
+            title={sail === 'full' ? 'Full sail (W)' : 'Half sail, tighter turns (S)'}
+            onClick={() => p.setSails(sail)}
+          >
+            <Art id={`ui.icon.${sail}_sail`} />
           </button>
         ))}
-        {[1, 2, 4].map((n) => (
-          <button key={n} class={`k-btn small${p.cruise.speed === n ? ' active' : ''}`} title="Cruise speed on open sea (= and -)" onClick={() => p.cruise.choose(n)}>
-            {n}×
-          </button>
-        ))}
-        <button class="k-btn small" disabled={!p.cruise.course} title="Drop the course and take the helm (right-click)" onClick={p.cruise.stop}>
-          Stop
+        <button
+          class="k-btn small"
+          aria-label="Cruise speed"
+          title="Cruise speed on open sea, 1×, 2× or 4×: click for the next (= and -)"
+          onClick={() => p.cruise.choose(p.cruise.speed >= 4 ? 1 : p.cruise.speed * 2)}
+        >
+          {p.cruise.speed}×
         </button>
       </div>
       <Compass {...compassProps(content, ship, wind, ship.speed * p.knotsPerTilePerSecond)} viewDeg={p.viewDeg} />

@@ -3,19 +3,8 @@ import { Tile } from '@corsair/data';
 import type { PlacedSettlement, TileMap } from '@corsair/data';
 import { ART } from './ui-art';
 
-// The map at one pixel per tile, palette colours shaded by elevation. The minimap crops it and
-// the sea chart (PRD S2) shows it whole; neither needs new art.
-const TILE_RGB: Record<Tile, [number, number, number]> = {
-  [Tile.Deep]: [37, 58, 94],
-  [Tile.Shallow]: [79, 143, 186],
-  [Tile.Beach]: [215, 181, 148],
-  [Tile.Jungle]: [70, 130, 50],
-  [Tile.Hills]: [117, 167, 67],
-  [Tile.Mountain]: [129, 151, 150],
-};
-const RELIEF_PER_BAND = 14; // brightness change per elevation band of slope, lit from the north-west
-
-const MINIMAP_TILES = { w: 240, h: 135 };
+// The minimap (storyboard 4.1): a corner of the parchment chart around her, at a little over a pixel a tile.
+const MINIMAP_TILES = { w: 160, h: 94 };
 /** How long a sighted ship's marker lingers on the chart, in game days. */
 const SIGHTING_DAYS = 3;
 
@@ -73,29 +62,6 @@ function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTML
     }
     labels.push(label.getBoundingClientRect());
   }
-}
-
-function paintOverview(map: TileMap): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = map.width;
-  canvas.height = map.height;
-  const ctx = canvas.getContext('2d')!;
-  const image = ctx.createImageData(map.width, map.height);
-  const h = (x: number, y: number) =>
-    x < 0 || y < 0 || x >= map.width || y >= map.height ? 0 : (map.elevation[y * map.width + x] ?? 0);
-  for (let y = 0; y < map.height; y++) {
-    for (let x = 0; x < map.width; x++) {
-      const i = y * map.width + x;
-      const [r, g, b] = TILE_RGB[map.tiles[i]! as Tile];
-      const shade = (h(x + 1, y + 1) - h(x - 1, y - 1)) * RELIEF_PER_BAND;
-      image.data[i * 4] = r + shade;
-      image.data[i * 4 + 1] = g + shade;
-      image.data[i * 4 + 2] = b + shade;
-      image.data[i * 4 + 3] = 255;
-    }
-  }
-  ctx.putImageData(image, 0, 0);
-  return canvas;
 }
 
 /** The chart's inks on parchment (storyboard 4.4): pale sea, shallows a shade darker, tan land darkening uphill, an ink coast. */
@@ -216,14 +182,13 @@ export function createCharts(
   market: ChartMarket,
 ) {
   let selected: PlacedSettlement | undefined;
-  const overview = paintOverview(map);
+  const paper = paintParchment(map);
 
   const minimap = parent.appendChild(document.createElement('canvas'));
   minimap.className = 'minimap';
   minimap.width = MINIMAP_TILES.w;
   minimap.height = MINIMAP_TILES.h;
   const mctx = minimap.getContext('2d')!;
-  mctx.imageSmoothingEnabled = false;
 
   const chart = parent.appendChild(document.createElement('div'));
   chart.className = 'chart';
@@ -231,7 +196,7 @@ export function createCharts(
   const sheet = chart.appendChild(document.createElement('div'));
   sheet.className = 'chart-sheet';
   sheet.style.aspectRatio = `${map.width} / ${map.height}`;
-  sheet.appendChild(paintParchment(map));
+  sheet.appendChild(paper);
   // The course (dashed, in red ink) and the wind's arrows, drawn over the parchment.
   const ink = sheet.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg'));
   ink.setAttribute('class', 'chart-ink');
@@ -511,31 +476,34 @@ export function createCharts(
       selected = undefined;
       for (const p of pins) p.label.classList.remove('selected');
     },
-    /** `view` is the stretch of sea on screen, in tiles. */
     update(
       player: Ship | undefined,
-      view: { x: number; y: number; w: number; h: number },
       seen?: { sightings: Record<string, Sighting>; tick: number; ticksPerDay: number },
       /** The course plotted, by the lanes, from her to the destination. */
       route?: [number, number][],
     ) {
       if (!player) return;
-      // Minimap: a window on the overview centred on the ship, clamped to the map.
+      // Minimap: a window on the parchment centred on the ship, clamped to the map.
       const sx = Math.max(0, Math.min(map.width - MINIMAP_TILES.w, Math.round(player.x - MINIMAP_TILES.w / 2)));
       const sy = Math.max(0, Math.min(map.height - MINIMAP_TILES.h, Math.round(player.y - MINIMAP_TILES.h / 2)));
-      mctx.drawImage(overview, sx, sy, MINIMAP_TILES.w, MINIMAP_TILES.h, 0, 0, MINIMAP_TILES.w, MINIMAP_TILES.h);
-      for (const s of settlements) {
-        mctx.fillStyle = NATION_COLOURS[s.nation];
-        mctx.fillRect(Math.floor(s.x - sx) - 1, Math.floor(s.y - sy) - 1, 3, 3);
-      }
-      mctx.strokeStyle = '#ebede9';
-      mctx.strokeRect(Math.round(view.x - sx) + 0.5, Math.round(view.y - sy) + 0.5, view.w, view.h);
+      mctx.drawImage(paper, sx, sy, MINIMAP_TILES.w, MINIMAP_TILES.h, 0, 0, MINIMAP_TILES.w, MINIMAP_TILES.h);
+      // Ports inked in, the destination ringed in red ink, and her as the chart's gold pin.
+      mctx.fillStyle = '#3b2a1c';
+      for (const s of settlements) mctx.fillRect(Math.floor(s.x - sx) - 1, Math.floor(s.y - sy) - 1, 3, 3);
       if (selected) {
-        mctx.strokeStyle = '#e8c170';
-        mctx.strokeRect(Math.floor(selected.x - sx) - 3.5, Math.floor(selected.y - sy) - 3.5, 8, 8);
+        mctx.strokeStyle = '#8e2414';
+        mctx.lineWidth = 1.5;
+        mctx.beginPath();
+        mctx.arc(selected.x - sx, selected.y - sy, 5, 0, Math.PI * 2);
+        mctx.stroke();
       }
       mctx.fillStyle = '#e8c170';
-      mctx.fillRect(Math.round(player.x - sx) - 1, Math.round(player.y - sy) - 1, 3, 3);
+      mctx.strokeStyle = '#1d1410';
+      mctx.lineWidth = 1.5;
+      mctx.beginPath();
+      mctx.arc(player.x - sx, player.y - sy, 3.5, 0, Math.PI * 2);
+      mctx.fill();
+      mctx.stroke();
 
       // A sighting fades out over SIGHTING_DAYS; one seen this tick is solid.
       const marks = Object.values(seen?.sightings ?? {})

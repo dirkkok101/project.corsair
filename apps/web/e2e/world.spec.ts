@@ -942,7 +942,10 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
     const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
     return Object.values(ships).filter((s) => s.ai && Math.hypot(s.x - 1320, s.y - 1050) < 15).length;
   });
-  if (far === 0) await expect(page.locator('.hud-date').first()).toContainText('2×');
+  if (far === 0) {
+    await expect(page.getByRole('button', { name: 'Cruise speed' })).toHaveText('2×');
+    await expect(page.locator('.hud-date').first()).not.toContainText('1×');
+  }
 
   // A merchant out of Port Royal, a few hours on her way: put the player near her.
   const target = await page.evaluate(() => {

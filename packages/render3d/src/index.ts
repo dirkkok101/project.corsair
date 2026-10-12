@@ -147,6 +147,8 @@ export interface SeaRenderer {
   viewDeg(): number;
   /** Sets the sky to an hour of its day (for reviewing sunrise, sunset and night). */
   setSkyHour(hour: number): void;
+  /** The hour the sky shows (0 to 24): its own day, not the game clock's. */
+  skyHour(): number;
   /**
    * The point on the sea under a spot on the canvas (CSS pixels from its top left), in the tiles the last frame drew
    * (world tiles at sea and in battle alike); undefined above the horizon.
@@ -154,8 +156,6 @@ export interface SeaRenderer {
   pick(px: number, py: number): { x: number; y: number } | undefined;
   /** Where a point on the sea (tiles) lies on the canvas, in CSS pixels; undefined behind the camera. */
   project(x: number, y: number): { px: number; py: number } | undefined;
-  /** The stretch of sea in view, in tiles (the corners picked; the horizon clamps a view from astern). */
-  viewBox(): { x: number; y: number; w: number; h: number };
   /** Debug: start a sea-life event now, by the player's ship, and count the animals out. */
   wildlife: { spawn(kind: WildlifeKind): void; readonly count: number };
   /** Two other ships firing on each other at (x, y) tiles: a bank of gun smoke there, drifting and thinning. */
@@ -889,27 +889,8 @@ export async function createSeaRenderer(
       if (v.z > 1) return undefined;
       return { px: ((v.x + 1) / 2) * r.width, py: ((1 - v.y) / 2) * r.height };
     },
-    viewBox() {
-      const r = canvas.getBoundingClientRect();
-      const reach = Math.max(distance * 3, 20);
-      const corners = [
-        [0, 0],
-        [r.width, 0],
-        [0, r.height],
-        [r.width, r.height],
-      ].map(([px, py]) => {
-        pickRay.setFromCamera(new THREE.Vector2((px! / Math.max(1, r.width)) * 2 - 1, -(py! / Math.max(1, r.height)) * 2 + 1), camera);
-        const hit = pickRay.ray.intersectPlane(SEA_PLANE, new THREE.Vector3());
-        // Above the horizon: as far as the camera sees along that line, clamped.
-        const d = hit ? Math.min(hit.distanceTo(pickRay.ray.origin), reach) : reach;
-        const p = pickRay.ray.at(d, new THREE.Vector3());
-        return [p.x, p.z] as const;
-      });
-      const xs = corners.map((c) => c[0]);
-      const ys = corners.map((c) => c[1]);
-      return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-    },
     viewDeg: () => (chase ? viewHeading : 0),
+    skyHour: () => skyHour(skySeconds),
     wildlife: {
       spawn: (kind) => wildlife.spawn(kind),
       get count() {
