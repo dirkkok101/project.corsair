@@ -127,32 +127,30 @@ body {
 .chart-plan {
   position: absolute;
   right: 12px;
-  top: 96px;
-  bottom: 52px;
+  top: 62px;
+  bottom: 56px;
   width: 296px;
   overflow: auto;
-  padding: 8px 10px;
-  font-size: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
   color: var(--k-cream);
-  background: linear-gradient(180deg, rgb(43 29 20 / 0.97), rgb(28 19 14 / 0.97));
-  border: 2px solid var(--k-brass);
-  border-radius: 6px;
 }
 
 .chart-plan-head {
-  margin: 4px 0 6px;
+  margin: 4px 0 8px;
   font-family: 'Pirata One', serif;
-  font-size: 18px;
+  font-size: 22px;
   color: #e8c170;
 }
 
 .chart-plan-row {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   align-items: flex-start;
   width: 100%;
-  margin-bottom: 6px;
-  padding: 5px 6px;
+  margin-bottom: 8px;
+  padding: 8px;
   font: inherit;
   text-align: left;
   color: inherit;
@@ -166,18 +164,34 @@ body {
   border-color: #e8c170;
 }
 
+/* The row's way in: it reads as a button, the whole row is one. */
+.chart-plan-go {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #1d1410;
+  background: var(--k-gold);
+}
+
+.chart-plan-row > span:not(.chart-plan-go) {
+  flex: 1 1 200px;
+}
+
 .chart-plan-row.lead {
-  color: #c7cfcc;
+  color: #d9ccae;
 }
 
 .chart-plan-empty,
 .chart-plan-foot {
   margin: 6px 0;
-  color: #a8b5b2;
+  color: #c9b993;
 }
 
+/* Pirates on a voyage, as words; the colour only backs the word up. */
 .risk-low {
-  color: #a8ca58;
+  color: #c9b993;
 }
 
 .risk-some {
@@ -185,7 +199,7 @@ body {
 }
 
 .risk-high {
-  color: #df84a5;
+  color: #ff9a7a;
 }
 
 .label-pirate {
@@ -1228,8 +1242,7 @@ body {
   display: none;
 }
 
-/* The goods filter, in the room under the chart and centred on it (the planner takes the right side);
-   a picked good's legend wraps onto a line of its own rather than running off the screen. */
+/* The goods filter, in the room under the chart and centred on it (the planner takes the right side). */
 .chart-goods {
   position: absolute;
   bottom: 8px;
@@ -1241,41 +1254,6 @@ body {
   align-items: center;
   gap: 4px 6px;
   max-width: calc(100vw - 340px);
-}
-
-.chart-goods button {
-  min-height: 30px;
-  padding: 0 12px;
-  border-radius: 4px;
-  font: 700 13px var(--k-body);
-  color: #f6ead0;
-  background: #3a2818;
-  border: 1px solid var(--k-brass);
-  cursor: pointer;
-}
-
-.chart-goods button.active {
-  color: #1d1410;
-  background: var(--k-gold);
-  border-color: #f2d58f;
-}
-
-.chart-legend {
-  margin-left: 10px;
-  font-size: 12px;
-  color: #a8b5b2;
-}
-
-.chart-legend[hidden] {
-  display: none;
-}
-
-.lean-exports {
-  color: #a8ca58;
-}
-
-.lean-wants {
-  color: #df84a5;
 }
 
 .chart-waters-layer {
@@ -1624,85 +1602,6 @@ body {
   border-radius: 50%;
   background: radial-gradient(closest-side, rgb(165 48 48 / 0.32), rgb(165 48 48 / 0.12) 60%, rgb(165 48 48 / 0));
   pointer-events: none;
-}
-
-/* The chart's key, under the hint: nations, havens, you, ships seen, and the wars. */
-.chart-key {
-  position: absolute;
-  top: 30px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 14px;
-  max-width: 96vw;
-  font-size: 12px;
-  color: #a8b5b2;
-}
-
-.chart-key-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
-
-/* The key's pins, inked as on the chart. */
-.chart-key-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: currentColor;
-  border: 1px solid #e9d6a8;
-}
-
-.chart-key-dot.label-spain {
-  color: #c99a3a;
-}
-
-.chart-key-dot.label-england {
-  color: #a8432f;
-}
-
-.chart-key-dot.label-france {
-  color: #2c4d73;
-}
-
-.chart-key-dot.label-netherlands {
-  color: #d07a2a;
-}
-
-.chart-key-dot.label-pirate {
-  color: #3b2a1c;
-}
-
-.chart-key-waters {
-  display: inline-block;
-  width: 14px;
-  height: 9px;
-  border-radius: 50%;
-  background: rgb(165 48 48 / 0.6);
-}
-
-.chart-key-you {
-  width: 9px;
-  height: 9px;
-  background: #e8c170;
-  border: 2px solid #090a14;
-  border-radius: 50%;
-}
-
-.chart-key-ship {
-  width: 6px;
-  height: 6px;
-  transform: rotate(45deg);
-  background: #ebede9;
-  border: 1px solid #090a14;
-}
-
-.chart-key-wars {
-  flex-basis: 100%;
-  text-align: center;
-  color: #cf573c;
 }
 
 /* A small market: a full hold sold there crashes the price. */
@@ -3032,8 +2931,8 @@ body {
 
 .chart-sheet {
   position: relative;
-  /* As big as the screen allows: room above for the hint and the key, below for the goods filter, and to
-     the right for the voyage planner. */
+  /* As big as the screen allows: room above for the title strip, below for the goods filter, and to the right
+     for the voyage planner. */
   margin: 62px 316px 56px 0;
   width: min(calc(98vw - 316px), calc((100vh - 130px) * 1600 / 1100));
   border-radius: 4px;
@@ -3144,14 +3043,34 @@ body {
   vertical-align: 1px;
 }
 
+/* A picked good, in ink: where it is cheap to buy, and where it is wanted. */
+.chart-mark.cheap {
+  background: #3b2a1c;
+  color: #f4e3bd;
+}
+
+.chart-mark.wanted {
+  background: #7a1f14;
+  color: #ffe7da;
+}
+
+/* The title strip, top left, as the HUD's strip. */
 .chart-hint {
   position: absolute;
   top: 10px;
   left: 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 4px 16px;
+  border-radius: 6px;
+  background: rgb(20 14 10 / 0.72);
+  border: 1px solid rgb(232 193 112 / 0.5);
   color: #e9dcbc;
+}
+
+.chart-hint-wars {
+  color: #ff9a7a;
 }
 
 .chart-hint-title {
@@ -3256,15 +3175,6 @@ body {
   display: flex;
   gap: 8px;
   margin-top: 12px;
-}
-
-.chart-key-wind {
-  display: inline-block;
-  width: 18px;
-  height: 2px;
-  margin-right: 4px;
-  vertical-align: middle;
-  background: #c9b993;
 }
 
 /* A haven's name on the chart in ink like the rest (its dark tag is for the sea's labels). */

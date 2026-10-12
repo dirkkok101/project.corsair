@@ -327,20 +327,10 @@ export function createCharts(
   rose.alt = '';
   const hint = chart.appendChild(document.createElement('div'));
   hint.className = 'chart-hint';
-  hint.innerHTML = '<span class="chart-hint-title">The Caribbean</span> time stands still while you study it · click a port for its card · <kbd class="k-key">M</kbd> close';
-  // The key: what every mark on the chart means, and who is at war (it decides who trades with you and who hunts you).
-  const key = chart.appendChild(document.createElement('div'));
-  key.className = 'chart-key';
-  const NATION_KEY: [string, string][] = [
-    ['spain', 'Spain'],
-    ['england', 'England'],
-    ['france', 'France'],
-    ['netherlands', 'the Netherlands'],
-  ];
   // The voyage planner: the trades worth sailing from here, best gold for the days first, and leads to
   // look into. Choosing one sets the course to where the buying is.
   const planner = chart.appendChild(document.createElement('div'));
-  planner.className = 'chart-plan';
+  planner.className = 'chart-plan k-wood';
   const choosePort = (id: string) => {
     const pin = pins.find((p) => p.s.id === id);
     if (!pin) return;
@@ -350,25 +340,27 @@ export function createCharts(
   };
   const goodName = (id: string) => market.goods.find((g) => g.id === id)?.name ?? id;
   const days = (d: number) => (d < 1 ? 'under a day' : `${Math.round(d)} ${Math.round(d) === 1 ? 'day' : 'days'}`);
+  const PIRATES = { low: 'pirates rare', some: 'some pirates', high: 'pirates likely' } as const;
+  const GO = '<span class="chart-plan-go">Set course</span>';
   const showPlan = () => {
     const plan = market.plan();
     const rows = plan.trades
       .map(
         (t) =>
-          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span></span></button>`,
+          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">${PIRATES[t.risk]}</span></span>${GO}</button>`,
       )
       .join('');
     const contracts = plan.contracts
       .map((c) => {
         const port = c.from ?? c.to;
         const late = c.days > c.daysLeft;
-        return `<button class="chart-plan-row" data-port="${port.id}" title="Sets your course to ${port.name}">${keyMark(`ui.icon.good.${c.good}`)}<span><b>${c.units - c.delivered} ${goodName(c.good).toLowerCase()} for ${c.to.name}</b>${c.inHold ? ': in your hold' : c.from ? `: buy at ${c.from.name}` : ''}<br><span class="gain">${c.reward.toLocaleString()} gold reward</span> · ${days(c.days)} · <span class="${late ? 'risk-high' : 'risk-low'}">${days(c.daysLeft)} left${late ? ': too far' : ''}</span></span></button>`;
+        return `<button class="chart-plan-row" data-port="${port.id}" title="Sets your course to ${port.name}">${keyMark(`ui.icon.good.${c.good}`)}<span><b>${c.units - c.delivered} ${goodName(c.good).toLowerCase()} for ${c.to.name}</b>${c.inHold ? ': in your hold' : c.from ? `: buy at ${c.from.name}` : ''}<br><span class="gain">${c.reward.toLocaleString()} gold reward</span> · ${days(c.days)} · <span class="${late ? 'risk-high' : 'risk-low'}">${days(c.daysLeft)} left${late ? ': too far' : ''}</span></span>${GO}</button>`;
       })
       .join('');
     const leads = plan.leads
       .map(
         (t) =>
-          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">pirates ${t.risk}</span> · call to learn the prices</span></button>`,
+          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">${PIRATES[t.risk]}</span> · call to learn the prices</span>${GO}</button>`,
       )
       .join('');
     planner.innerHTML =
@@ -376,21 +368,18 @@ export function createCharts(
       '<div class="chart-plan-head">Voyages from here</div>' +
       (rows || '<div class="chart-plan-empty">No trade you know of pays yet: call at more ports to learn their prices.</div>') +
       (leads ? `<div class="chart-plan-head">Worth a look</div>${leads}` : '') +
-      '<div class="chart-plan-foot">Click one to set your course to where you buy; F follows it.</div>';
+      '<div class="chart-plan-foot">A course goes to where you buy; F follows it.</div>';
     for (const b of planner.querySelectorAll<HTMLButtonElement>('[data-port]')) b.addEventListener('click', () => choosePort(b.dataset.port!));
   };
-  /** A painted mark in the key, or nothing if the art isn't there. */
+  /** A good's painted icon, or nothing if the art isn't there. */
   const keyMark = (id: string) => (ART[id] ? `<img class="chart-key-mark" src="${ART[id]}" alt="">` : '');
-  const showKey = () => {
+  // The title strip (storyboard 4.4), and who is at war: it decides who trades with you and who hunts you.
+  const showHint = () => {
     const wars = market.wars();
-    key.innerHTML =
-      '<span class="chart-key-item">ports:</span>' +
-      NATION_KEY.map(([id, name]) => `<span class="chart-key-item"><span class="chart-key-dot label-${id}"></span>${name}</span>`).join('') +
-      '<span class="chart-key-item"><span class="chart-key-dot label-pirate"></span>pirate haven, in <span class="chart-key-waters"></span> pirate waters</span>' +
-      `<span class="chart-key-item">${keyMark('ui.chart.you')}you</span>` +
-      '<span class="chart-key-item"><span class="chart-key-ship"></span>a ship seen (fades over days)</span>' +
-      '<span class="chart-key-item"><span class="chart-key-wind"></span>the wind now</span>' +
-      `<div class="chart-key-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a} and ${b}`).join(' · ')}` : 'All nations at peace'} · pirates are at war with everyone</div>`;
+    hint.innerHTML =
+      '<span class="chart-hint-title">The Caribbean</span><span>arrows: the wind now</span>' +
+      `<span class="chart-hint-wars">${wars.length ? `At war: ${wars.map(([a, b]) => `${a}–${b}`).join(', ')}` : 'All nations at peace'}</span>` +
+      '<span><kbd class="k-key">M</kbd> close</span>';
   };
 
   // Goods filter: pick a good and every port shows whether it makes or needs it (common knowledge)
@@ -402,6 +391,7 @@ export function createCharts(
   // Staples (food) are never worth carrying, so they have no filter.
   const goodButtons = market.goods.filter((g) => !g.staple).map((g) => {
     const b = filter.appendChild(document.createElement('button'));
+    b.className = 'k-btn small';
     b.textContent = g.name;
     b.addEventListener('click', () => {
       good = good === g.id ? undefined : g.id;
@@ -409,27 +399,21 @@ export function createCharts(
     });
     return { id: g.id, b };
   });
-  const legend = filter.appendChild(document.createElement('span'));
-  legend.className = 'chart-legend';
-  legend.innerHTML =
-    '<span class="lean-exports">▲ green</span>: made there, the price to buy · <span class="lean-wants">▼ pink</span>: needed there, the price to sell';
   const showGood = () => {
     for (const { id, b } of goodButtons) b.classList.toggle('active', id === good);
-    legend.hidden = !good;
     for (const { s, label } of pins) {
       const lean = good ? market.lean(s.id, good) : undefined;
       const seen = good ? market.known(s.id)?.prices[good] : undefined;
       const price = seen && (lean === 'exports' ? seen.buy : seen.sell);
-      const mark = lean === 'exports' ? '▲ ' : lean === 'wants' ? '▼ ' : '';
-      label.textContent = `${mark}${s.name}${price !== undefined ? ` ${price}` : ''}`;
-      const has = good ? undefined : market.mark(s.id);
+      label.textContent = s.name;
+      // Made there it is cheap (the price to buy); needed there it is wanted (the price to sell).
+      const verdict = lean === 'exports' ? 'cheap' : lean === 'wants' ? 'wanted' : undefined;
+      const has = verdict ? `${verdict}${price !== undefined ? ` · ${price}` : ''}` : good ? undefined : market.mark(s.id);
       if (has) {
         const tag = label.appendChild(document.createElement('span'));
-        tag.className = 'chart-mark';
+        tag.className = `chart-mark${verdict ? ` ${verdict}` : ''}`;
         tag.textContent = has;
       }
-      label.classList.toggle('lean-exports', lean === 'exports');
-      label.classList.toggle('lean-wants', lean === 'wants');
       label.classList.toggle('faded', Boolean(good) && !lean);
     }
     layoutLabels(pins, sheet.getBoundingClientRect());
@@ -443,7 +427,7 @@ export function createCharts(
       // Prices may have been learned since the chart was last open, and the wind has moved.
       if (!chart.hidden) {
         showGood();
-        showKey();
+        showHint();
         showPlan();
         drawWinds();
       }
