@@ -1685,25 +1685,75 @@ body {
 
 /* The shipwright (storyboard 2.9): his speech, three choices, and the ships and fits as cards. */
 .shipwright {
-  width: min(1100px, 100%);
+  /* A width of its own, not its contents' (the panel fits its contents, so Leave sits on its corner): the ship
+     cards and the fits' columns need the room. */
+  width: min(1100px, calc(100vw - 60px));
   padding: 16px;
 }
 
+/* The three choices head the yard (storyboard 2.9), above whatever each one shows. */
 .shipwright-tabs {
   display: flex;
-  gap: 8px;
-  margin: 14px 0 12px;
+  gap: 10px;
+  margin: 0 0 14px;
 }
 
-.shipwright-row {
+/* A line of work in the yard: what it is, its state, and its button. */
+.yard-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(240 220 180 / 0.18);
+}
+
+.yard-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
+  gap: 12px;
+  font-size: 16px;
 }
 
-.shipwright-row > span:first-child {
-  min-width: 190px;
+.yard-row > .inline-icon {
+  width: 24px;
+  height: 20px;
+}
+
+.yard-row-what {
+  flex: 1;
+  min-width: 0;
+}
+
+.yard-guns {
+  margin-bottom: 4px;
+}
+
+.yard-guns-icon {
+  width: 36px;
+  height: 30px;
+  image-rendering: pixelated;
+}
+
+.ships-for-sale-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.ships-for-sale-purse {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-weight: 700;
+}
+
+.ship-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .ship-cards {
@@ -1773,7 +1823,7 @@ body {
 
 .fit-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
 }
@@ -1788,7 +1838,7 @@ body {
 
 .fit-card > .k-btn,
 .fit-card > .k-tag,
-.fit-card > .fit-price {
+.fit-card > .fit-why {
   grid-column: 2;
   justify-self: start;
 }
@@ -1820,9 +1870,10 @@ body {
   color: #8a2a1e;
 }
 
-.fit-price {
+/* Why a fit can't be had: the purse, or the yard. */
+.fit-why {
   font-size: 12px;
-  color: #6b5236;
+  color: #8a2a1e;
 }
 
 .fit-card.installed {
@@ -1831,8 +1882,21 @@ body {
 
 /* The governor (storyboard 2.8): his speech, then the bounties, the rank ribbon and one offer. */
 .governor {
-  width: min(860px, 100%);
+  /* A width of its own, as the shipwright's: the rank ladder needs the room. */
+  width: min(860px, calc(100vw - 60px));
   padding: 16px;
+}
+
+/* The bounties and the rank, each on a parchment card of its own (storyboard 2.8). */
+.governor-card {
+  margin-top: 12px;
+  padding: 14px 18px;
+}
+
+/* Ink on parchment: the wood panel's pale notes would vanish here. */
+.governor-card .k-sub,
+.governor-card .moment-kicker {
+  color: #6b5233;
 }
 
 .governor-row {
@@ -1842,27 +1906,73 @@ body {
 .governor-bounty {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.governor-bounty b {
-  margin-left: auto;
-  color: var(--k-gold);
+.governor-bounty-icon {
+  width: 36px;
+  height: 30px;
+  image-rendering: pixelated;
 }
 
-.rank-ribbon {
-  display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) auto;
+.governor-bounty-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.governor-bounty-text b {
+  font-size: 18px;
+}
+
+/* Every rung as a dot on one line: those won filled, his own in bold. */
+.rank-ladder {
+  position: relative;
+  display: flex;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rank-ladder::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  background: rgb(59 42 28 / 0.4);
+}
+
+.rank-ladder li {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  width: 100%;
+  gap: 4px;
+  font-size: 13px;
+  text-align: center;
 }
 
-.rank-ribbon b {
-  font-family: var(--k-display);
-  font-size: 20px;
-  font-weight: normal;
-  color: var(--k-gold);
+.rank-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid #3b2a1c;
+  background: #f5e8c8;
+}
+
+.rank-ladder li.won .rank-dot {
+  background: #7a4a00;
+}
+
+.rank-ladder li.now .rank-name {
+  font-weight: 800;
+}
+
+.rank-said {
+  margin-top: 10px;
 }
 
 .governor-offer {
@@ -1952,12 +2062,6 @@ body {
   background: #151d28;
 }
 
-.governor-rank {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
 
 /* The tavern (storyboard 2.7): the people standing in the room, and the one you talk to. */
 .tavern-room {

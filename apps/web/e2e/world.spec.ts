@@ -52,12 +52,14 @@ test('a new career starts docked in port, under-gunned, and the shipwright outfi
   await openService(page, 'Shipwright');
   // She is sound, so the shipwright speaks of the room on her gun deck, and his button goes to the guns.
   await expect(page.locator('.shipwright .k-say')).toContainText('room on her deck for 8 more guns');
+  // Beneath his word, the mending and careening, each with her state.
+  await expect(page.locator('.yard-row').first()).toContainText('hull 85 of 85');
   await page.locator('.shipwright').getByRole('button', { name: 'See the guns' }).click();
-  await expect(page.locator('.shipwright-tabs .active')).toHaveText('Fit out');
-  await expect(page.locator('.shipwright')).toContainText('Guns 10 / 18');
+  await expect(page.locator('.shipwright-tabs .active')).toHaveText('Fit her out');
+  await expect(page.locator('.shipwright')).toContainText('Guns 10 of 18');
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
   await page.locator('.shipwright').getByRole('button', { name: /^Buy 1/ }).click();
-  await expect(page.locator('.shipwright')).toContainText('Guns 11 / 18');
+  await expect(page.locator('.shipwright')).toContainText('Guns 11 of 18');
   const hammocks = page.locator('.fit-card', { hasText: 'Triple hammocks' });
   // The fit says its upside and its downside.
   await expect(hammocks.locator('.fit-up')).toHaveText('+25% crew berths');
@@ -885,6 +887,9 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   await expect(page.locator('.governor-offer')).toContainText('Their ships become lawful prizes');
   await page.locator('.governor-offer').getByRole('button', { name: /^Take the letter/ }).click();
   await expect(page.locator('.governor')).toContainText('You hold an English letter of marque');
+  // His rank shows as the whole ladder, the letter his first rung.
+  await expect(page.locator('.rank-ladder li')).toHaveCount(8);
+  await expect(page.locator('.rank-ladder li.now')).toHaveText('Letter of marque');
   await page.screenshot({ path: 'test-results/governor.png' });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
@@ -1263,7 +1268,7 @@ test('the shipyard: new ships for sale, and why one can\'t be bought yet', async
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await openService(page, 'Shipwright');
-  await page.locator('.shipwright-tabs').getByRole('button', { name: 'Ships' }).click();
+  await page.locator('.shipwright-tabs').getByRole('button', { name: 'Ships for sale' }).click();
   const yard = page.locator('.ships-for-sale');
   await expect(yard).toContainText('war sloop');
   await expect(yard).toContainText('merchantman');
@@ -1272,6 +1277,8 @@ test('the shipyard: new ships for sale, and why one can\'t be bought yet', async
   // A new career's purse (1,000 gold) buys no ship yet, and the button says so (buying is the economy tests').
   // Each card compares her with yours.
   await expect(yard.locator('.ship-card', { hasText: 'war sloop' }).locator('.ship-card-compare')).toContainText('Against your brig: faster');
+  // Each card says what she is for.
+  await expect(yard.locator('.ship-card', { hasText: 'war sloop' })).toContainText('raider');
   const barque = yard.locator('.ship-card', { hasText: 'barque' }).getByRole('button');
   await expect(barque).toBeDisabled();
   await expect(barque).toHaveAttribute('title', /Not enough gold/);
