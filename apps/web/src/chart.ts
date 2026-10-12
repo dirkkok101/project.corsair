@@ -39,17 +39,28 @@ function layoutLabels(pins: { s: PlacedSettlement; dot: HTMLElement; label: HTML
   const dots = new Map(pins.map((p) => [p.s.id, p.dot.getBoundingClientRect()]));
   const labels: DOMRect[] = [];
   const hit = (r: DOMRect, o: DOMRect) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top;
-  for (const { s, label } of [...pins].sort((a, b) => rank(a.s) - rank(b.s))) {
+  // With a good picked, the ports it marks are placed first, and a faded port's name gives way rather than crowd them.
+  const faded = (l: HTMLElement) => (l.classList.contains('faded') ? 1 : 0);
+  for (const { s, label } of [...pins].sort((a, b) => faded(a.label) - faded(b.label) || rank(a.s) - rank(b.s))) {
     label.hidden = false;
     // A name stays on the chart: one that would run off its edge (under the planner) tries another side.
     const inside = (r: DOMRect) => r.left >= sheet.left && r.right <= sheet.right && r.top >= sheet.top && r.bottom <= sheet.bottom;
     const clear = (r: DOMRect) => inside(r) && !labels.some((o) => hit(r, o)) && ![...dots].some(([id, o]) => id !== s.id && hit(r, o));
-    const spot = PLACEMENTS.find((where) => {
-      label.dataset.place = where;
-      return clear(label.getBoundingClientRect());
-    });
+    const find = () =>
+      PLACEMENTS.find((where) => {
+        label.dataset.place = where;
+        return clear(label.getBoundingClientRect());
+      });
+    label.classList.remove('stacked');
+    let spot = find();
+    // A name with a tag that finds no room tries the tag beneath the name: narrower, it fits more gaps.
+    if (!spot && label.querySelector('.chart-mark')) {
+      label.classList.add('stacked');
+      spot = find();
+      if (!spot) label.classList.remove('stacked');
+    }
     // Capitals and cities always keep their name, on the right if nothing is clear.
-    if (!spot && rank(s) > RANK.city) {
+    if (!spot && (rank(s) > RANK.city || faded(label))) {
       label.hidden = true;
       continue;
     }
@@ -146,8 +157,9 @@ export interface PlannedTrade {
   /** Days to sail there from here, then on to sell. */
   daysToStart: number;
   days: number;
-  /** Pirate waters along the way. */
+  /** Pirate waters along the way, and the haven whose waters they are. */
   risk: 'low' | 'some' | 'high';
+  haven: string;
 }
 /** A governor's contract the captain has heard of: land `units` of a good at `to` for the reward. */
 export interface PlannedContract {
@@ -276,11 +288,30 @@ export function createCharts(
       card.hidden = true;
     });
     card.querySelector('[data-close]')!.addEventListener('click', () => (card.hidden = true));
+    cardPort = s;
+    placeCard(s);
+  };
+  let cardPort: PlacedSettlement | undefined;
+  const placeCard = (s: PlacedSettlement) => {
     card.style.left = `${(s.x / map.width) * 100}%`;
     card.style.top = `${(s.y / map.height) * 100}%`;
-    // Open towards the middle of the chart so the card never runs off an edge.
-    card.dataset.side = `${s.x > map.width / 2 ? 'left' : 'right'} ${s.y > map.height / 2 ? 'up' : 'down'}`;
+    // Beside the port, on the first side that stays on the chart and hides neither the port nor its name (the
+    // sides toward the chart's middle first); if none does, toward the middle.
+    const pin = pins.find((p) => p.s.id === s.id);
+    const h = s.x > map.width / 2 ? ['left', 'right'] : ['right', 'left'];
+    const v = s.y > map.height / 2 ? ['up', 'down'] : ['down', 'up'];
+    const mid = v[0] === 'up' ? ['over', 'under'] : ['under', 'over'];
+    const sides = [`${h[0]} ${v[0]}`, `${h[0]} ${v[1]}`, `${h[1]} ${v[0]}`, `${h[1]} ${v[1]}`, `mid ${mid[0]}`, `mid ${mid[1]}`];
     card.hidden = false;
+    const edge = sheet.getBoundingClientRect();
+    const hit = (a: DOMRect, b: DOMRect) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const fits = (side: string) => {
+      card.dataset.side = side;
+      const box = card.getBoundingClientRect();
+      const inside = box.left >= edge.left && box.right <= edge.right && box.top >= edge.top && box.bottom <= edge.bottom;
+      return inside && !(pin && (hit(box, pin.dot.getBoundingClientRect()) || (!pin.label.hidden && hit(box, pin.label.getBoundingClientRect()))));
+    };
+    card.dataset.side = sides.find(fits) ?? sides[0]!;
   };
   /** The wind's arrows over open water, in faint ink: which way it blows now, longer the harder. */
   const drawWinds = () => {
@@ -320,6 +351,9 @@ export function createCharts(
   marker.src = ART['ui.chart.you'] ?? '';
   marker.alt = '';
   marker.title = 'You';
+  const you = sheet.appendChild(document.createElement('div'));
+  you.className = 'chart-you';
+  you.innerHTML = '<span class="chart-you-tag">you</span>';
   // A compass rose in the corner, as on any chart.
   const rose = sheet.appendChild(document.createElement('img'));
   rose.className = 'chart-rose';
@@ -341,13 +375,16 @@ export function createCharts(
   const goodName = (id: string) => market.goods.find((g) => g.id === id)?.name ?? id;
   const days = (d: number) => (d < 1 ? 'under a day' : `${Math.round(d)} ${Math.round(d) === 1 ? 'day' : 'days'}`);
   const PIRATES = { low: 'pirates rare', some: 'some pirates', high: 'pirates likely' } as const;
+  // How near a lane runs to a haven is all the chart knows: it names the haven, so the warning says why.
+  const pirates = (t: { risk: keyof typeof PIRATES; haven: string }) =>
+    `<span class="risk-${t.risk}">${PIRATES[t.risk]}${t.risk === 'low' ? '' : `: ${t.risk === 'high' ? 'passes' : 'skirts'} ${t.haven}`}</span>`;
   const GO = '<span class="chart-plan-go">Set course</span>';
   const showPlan = () => {
     const plan = market.plan();
     const rows = plan.trades
       .map(
         (t) =>
-          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">${PIRATES[t.risk]}</span></span>${GO}</button>`,
+          `<button class="chart-plan-row" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · ${pirates(t)}</span>${GO}</button>`,
       )
       .join('');
     const contracts = plan.contracts
@@ -360,7 +397,7 @@ export function createCharts(
     const leads = plan.leads
       .map(
         (t) =>
-          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · <span class="risk-${t.risk}">${PIRATES[t.risk]}</span> · call to learn the prices</span>${GO}</button>`,
+          `<button class="chart-plan-row lead" data-port="${t.from.id}" title="Sets your course to ${t.from.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · ${pirates(t)} · call to learn the prices</span>${GO}</button>`,
       )
       .join('');
     planner.innerHTML =
@@ -417,21 +454,24 @@ export function createCharts(
       label.classList.toggle('faded', Boolean(good) && !lean);
     }
     layoutLabels(pins, sheet.getBoundingClientRect());
+    // Its name may have moved: the open card moves to keep clear of it.
+    if (!card.hidden && cardPort) placeCard(cardPort);
   };
 
-  window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'm') {
-      chart.hidden = !chart.hidden;
-      // A card left from the last look would show stale prices.
-      card.hidden = true;
-      // Prices may have been learned since the chart was last open, and the wind has moved.
-      if (!chart.hidden) {
-        showGood();
-        showHint();
-        showPlan();
-        drawWinds();
-      }
+  const toggle = (open = chart.hidden) => {
+    chart.hidden = !open;
+    // A card left from the last look would show stale prices.
+    card.hidden = true;
+    // Prices may have been learned since the chart was last open, and the wind has moved.
+    if (open) {
+      showGood();
+      showHint();
+      showPlan();
+      drawWinds();
     }
+  };
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'm') toggle();
     if (e.key === 'Escape') {
       if (!card.hidden) card.hidden = true;
       else chart.hidden = true;
@@ -442,6 +482,10 @@ export function createCharts(
     /** The chart is open: the world waits while the captain studies it. */
     get open() {
       return !chart.hidden;
+    },
+    /** Open the chart, its voyages beside it (the log's trading goal sends the captain here). */
+    show() {
+      toggle(true);
     },
     /** The search rings of the treasure maps held: centre and radius in tiles, and whose hoard. */
     rings(list: { x: number; y: number; r: number; label: string }[]) {
@@ -506,6 +550,8 @@ export function createCharts(
         marker.style.left = `${(player.x / map.width) * 100}%`;
         marker.style.top = `${(player.y / map.height) * 100}%`;
         marker.style.transform = `translate(-50%, -50%) rotate(${player.headingDeg}deg)`;
+        you.style.left = marker.style.left;
+        you.style.top = marker.style.top;
         sighted.innerHTML = marks
           .map(
             ({ s, fade }) =>

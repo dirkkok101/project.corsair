@@ -413,10 +413,18 @@ async function main() {
     };
     const havens = settlements.filter((s) => s.nation === 'pirate');
     const reach = content.traffic.pirateRangeTiles;
-    const risk = (a: string, b: string): 'low' | 'some' | 'high' => {
+    const risk = (a: string, b: string): { risk: 'low' | 'some' | 'high'; haven: string } => {
       const r = lanes.route(a, b) ?? [];
-      const near = Math.min(...r.map((p) => Math.min(...havens.map((h) => Math.hypot(h.x - p[0], h.y - p[1])))));
-      return near < reach * 0.35 ? 'high' : near < reach * 0.7 ? 'some' : 'low';
+      // The lane's nearest pass by a haven: how near, and whose.
+      let near = Infinity;
+      let haven = '';
+      for (const p of r) {
+        for (const h of havens) {
+          const d = Math.hypot(h.x - p[0], h.y - p[1]);
+          if (d < near) [near, haven] = [d, h.name];
+        }
+      }
+      return { risk: near < reach * 0.35 ? 'high' : near < reach * 0.7 ? 'some' : 'low', haven };
     };
     const toStart = (s: PlacedSettlement) => (me.docked === s.id ? 0 : Math.hypot(s.x - me.x, s.y - me.y) / perDay);
     // Candidates are ranked on the straight-line distance first; only the best few have their lanes found
@@ -453,7 +461,7 @@ async function main() {
     const perTrip = (t: { daysToStart: number; days: number }) => Math.max(0.5, t.daysToStart + t.days);
     const sail = (c: Candidate) => {
       const length = laneLength(c.from.id, c.to.id);
-      return length === undefined ? undefined : { good: c.good, from: c.from, to: c.to, daysToStart: toStart(c.from), days: length / perDay, risk: risk(c.from.id, c.to.id) };
+      return length === undefined ? undefined : { good: c.good, from: c.from, to: c.to, daysToStart: toStart(c.from), days: length / perDay, ...risk(c.from.id, c.to.id) };
     };
     const trades = priced
       .sort((a, b) => b.score - a.score)
@@ -1446,6 +1454,10 @@ async function main() {
             sim.applyCommands();
           }}
           close={() => (logOpen = false)}
+          openChart={() => {
+            logOpen = false;
+            charts.show();
+          }}
           goals={goals}
           date={(tick) => formatDate(dateOf(def.startDate, Math.floor(tick / content.calendar.ticksPerDay)))}
           plot={(x, y) => {

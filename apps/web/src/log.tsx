@@ -190,6 +190,8 @@ export interface LogProps {
   /** Plot a course to a spot at sea (tile coordinates). */
   plot: (x: number, y: number) => void;
   close: () => void;
+  /** Close the log and open the chart, its voyages beside it. */
+  openChart: () => void;
   /** The career's goals (careerGoals), in order. */
   goals: Goal[];
   /** A tick as a date ("14 May 1661"). */
@@ -271,7 +273,7 @@ function Goals({
   goals: Goal[];
   settlements: PlacedSettlement[];
   plot: LogProps['plot'];
-  open: (page: 'top' | 'maps') => void;
+  open: (page: 'top' | 'maps' | 'chart') => void;
   level: DifficultyLevel;
 }) {
   const next = goals.filter((g) => !g.done).slice(0, 3);
@@ -307,7 +309,7 @@ function Goals({
                     </button>
                   ) : g.page ? (
                     <button class="k-btn small paper" onClick={() => open(g.page!)}>
-                      {g.page === 'top' ? 'See the Top Ten' : 'See your maps'}
+                      {g.page === 'top' ? 'See the Top Ten' : g.page === 'chart' ? "Open the chart's voyages" : 'See your maps'}
                     </button>
                   ) : null}
                 </div>
@@ -450,7 +452,7 @@ function Fleet({ content, state, settlements, shipId, send }: Pick<LogProps, 'co
 }
 
 /** The captain's log (L, storyboard 6.1-6.3): a book with bookmarks, open at sea or in port. */
-export function Log({ content, state, map, settlements, shipId, send, plot, close, goals, date }: LogProps) {
+export function Log({ content, state, map, settlements, shipId, send, plot, close, openChart, goals, date }: LogProps) {
   const pieces = state.captain?.mapPieces ?? {};
   const maps = content.pirates.captains.flatMap((c) => {
     const hoard = state.famous?.[c.id]?.hoard;
@@ -467,7 +469,7 @@ export function Log({ content, state, map, settlements, shipId, send, plot, clos
           {page === 'log' ? (
             <LogPage state={state} settlements={settlements} date={date} plot={plot} />
           ) : page === 'goals' ? (
-            <Goals goals={goals} settlements={settlements} plot={plot} open={setPage} level={difficultyOf(content, state.difficulty)} />
+            <Goals goals={goals} settlements={settlements} plot={plot} open={(p) => (p === 'chart' ? openChart() : setPage(p))} level={difficultyOf(content, state.difficulty)} />
           ) : page === 'fleet' ? (
             <Fleet content={content} state={state} settlements={settlements} shipId={shipId} send={send} />
           ) : page === 'career' ? (

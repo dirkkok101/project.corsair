@@ -350,6 +350,12 @@ test("sea chart: a port's card says what it means for you, with the prices last 
   await expect(page.locator('.chart-card')).toContainText('Rum is cheap');
   await expect(page.locator('.chart-card')).toContainText('All prices, seen 2 days ago');
   await expect(page.locator('.chart-card')).toContainText('Sugar');
+  // The card opens beside the port, never over its name.
+  const [cardBox, nameBox] = [(await page.locator('.chart-card').boundingBox())!, (await page.locator('.chart-port', { hasText: 'Port Royal' }).boundingBox())!];
+  const overlaps = cardBox.x < nameBox.x + nameBox.width && cardBox.x + cardBox.width > nameBox.x && cardBox.y < nameBox.y + nameBox.height && cardBox.y + cardBox.height > nameBox.y;
+  expect(overlaps).toBe(false);
+  // Her own place is ringed and tagged.
+  await expect(page.locator('.chart-you')).toContainText('you');
   await page.screenshot({ path: 'test-results/chart-prices.png' });
   await page.locator('.chart-card').getByRole('button', { name: 'Close' }).click();
   await page.locator('.chart-port', { hasText: 'Havana' }).click();

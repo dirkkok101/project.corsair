@@ -19,9 +19,9 @@ export interface Goal {
   /** How to read the progress ("guns", "gold"). */
   unit: string;
   done: boolean;
-  /** Where it gets done: a port to sail for, or a page of the log. */
+  /** Where it gets done: a port to sail for, a page of the log, or the chart's voyages. */
   port?: string;
-  page?: 'top' | 'maps';
+  page?: 'top' | 'maps' | 'chart';
 }
 
 /** The career's goals, in order, from the state of the world. */
@@ -57,7 +57,7 @@ export function careerGoals(content: ContentPack, state: WorldState, settlements
   return [
     goal({ id: 'guns', title: 'Mount a full battery', why: 'Pirates think twice', have: stats.guns, of: stats.maxGuns, unit: 'guns', port: yard }),
     goal({ id: 'crew', title: 'Sign on a full crew', why: 'Boarding becomes a plan, not a gamble', have: crewOf(content, ship), of: fleetBerths(content, state, ship), unit: 'men', port: tavern }),
-    goal({ id: 'trade', title: 'Make 2,000 gold trading', why: "The shipwright's upgrades in reach", have: Math.max(0, record.tradeProfit ?? 0), of: 2000, unit: 'gold' }),
+    goal({ id: 'trade', title: 'Make 2,000 gold trading', why: "The shipwright's upgrades in reach", have: Math.max(0, record.tradeProfit ?? 0), of: 2000, unit: 'gold', page: 'chart' }),
     goal({ id: 'prize', title: 'Take your first prize', why: 'Plunder and volunteers', have: record.prizes ?? 0, of: 1, unit: 'prizes' }),
     goal({ id: 'marque', title: 'Win a letter of marque', why: 'Lawful prizes and bounties', have: (captain.marques ?? []).length, of: 1, unit: 'letters', port: governor }),
     goal({ id: 'match', title: 'Beat a pirate of your own size', why: 'The famous pirates of your rung notice you', have: matched, of: 1, unit: 'beaten' }),
