@@ -659,6 +659,8 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await card.getByRole('button', { name: 'Anything else?' }).click();
   await expect(card).toContainText('Port Royal has run short of sugar');
   await expect(card.locator('.k-tag.new')).toHaveText('new');
+  // Told now: his badge counts it off, though the telling keeps its mark for the visit.
+  await expect(page.locator('.tavern-person.active .spot-badge')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/tavern.png' });
   // Heard now: the badge goes, and the rumour is in the captain's memory.
   await page.keyboard.press('Escape');

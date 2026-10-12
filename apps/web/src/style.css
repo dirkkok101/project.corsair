@@ -586,6 +586,9 @@ body {
 
 /* The merchant (storyboard 2.2): his wood panel on the left, the parchment ledger on the right, over his shop. */
 .port-panel:has(.merchant, .tavern-room, .governor, .shipwright) {
+  /* As wide as what the building shows, so Leave sits on its corner rather than off in the air. */
+  width: fit-content;
+  justify-self: start;
   max-height: 86vh;
   background: transparent;
   border-color: transparent;

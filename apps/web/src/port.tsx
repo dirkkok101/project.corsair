@@ -1315,6 +1315,7 @@ function Teller({
   settlements,
   map,
   plot,
+  heard,
 }: {
   bust: string;
   who: string;
@@ -1324,11 +1325,16 @@ function Teller({
   settlements: PlacedSettlement[];
   map: TileMap;
   plot?: (x: number, y: number) => void;
+  /** This telling has been told (it counts off the person's badge). */
+  heard: (id: string) => void;
 }) {
   const [k, setK] = useState(0);
   const [chart, setChart] = useState(false);
   const [plotted, setPlotted] = useState<string>();
   const t = tellings[Math.min(k, tellings.length - 1)];
+  useEffect(() => {
+    if (t) heard(t.id);
+  }, [t?.id]);
   if (!t) return <Speech bust={bust} who={who} line={quiet} />;
   const place = settlements.find((s) => s.id === t.place);
   const away = place && place.id !== here.id ? place : undefined;
@@ -1400,8 +1406,11 @@ const barmaidTells = (n: import('@corsair/core').NewsItem) => Boolean(n.ship || 
  * sailors stand in the room; one opens their speech card. Listening marks the news heard.
  */
 function Tavern({ content, state, settlements, town, rumours, hear, shipId, send, map, plot }: TavernProps) {
-  // What was new when the captain walked in stays marked for this visit.
+  // What was new when the captain walked in stays marked for this visit; a person's badge counts what of it they
+  // haven't yet told.
   const [fresh] = useState(() => new Set(rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).map((n) => n.id)));
+  const [told_, setTold] = useState<ReadonlySet<string>>(() => new Set());
+  const heardHere = (id: string) => setTold((s) => (s.has(id) ? s : new Set(s).add(id)));
   // Once per visit: the port screen renders every frame, so this must not run from render.
   useEffect(hear, []);
   const here = settlements.find((s) => s.id === town)!;
@@ -1430,8 +1439,8 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
   ];
   const stranger = Boolean(strangerOffer(content, state, here, settlements));
   const people: { id: Person; name: string; bust: string; badge: number }[] = [
-    { id: 'barmaid', name: 'Barmaid', bust: 'bust.barmaid', badge: gossip.filter((t) => t.fresh).length },
-    { id: 'oldsalt', name: 'Old salt', bust: 'bust.oldsalt', badge: talk.filter((t) => t.fresh).length },
+    { id: 'barmaid', name: 'Barmaid', bust: 'bust.barmaid', badge: gossip.filter((t) => t.fresh && !told_.has(t.id)).length },
+    { id: 'oldsalt', name: 'Old salt', bust: 'bust.oldsalt', badge: talk.filter((t) => t.fresh && !told_.has(t.id)).length },
     ...(stranger ? [{ id: 'stranger' as const, name: 'Stranger', bust: 'bust.stranger', badge: 0 }] : []),
     { id: 'sailors', name: 'Sailors', bust: 'bust.sailors', badge: 0 },
   ];
@@ -1463,6 +1472,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
             settlements={settlements}
             map={map}
             plot={plot}
+            heard={heardHere}
           />
         ) : who === 'oldsalt' ? (
           <Teller
@@ -1475,6 +1485,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
             settlements={settlements}
             map={map}
             plot={plot}
+            heard={heardHere}
           />
         ) : who === 'stranger' ? (
           <Stranger content={content} state={state} here={here} settlements={settlements} shipId={shipId} send={send} />
