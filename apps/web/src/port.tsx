@@ -1212,43 +1212,53 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
   const tpd = content.calendar.ticksPerDay;
   const haven = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id;
   const f = famesOf(content, state);
-  const fame = f.trade + f.war + f.adventure;
   const pieces = state.captain?.mapPieces ?? {};
   const jailed = new Set((state.captain?.deeds ?? []).flatMap((d) => (d.captive ? [d.captive] : [])));
+  // The ten, and the captain at her place below them while she is not one of them.
+  const rows = place > 10 ? [...ranks.slice(0, 10), ranks[place - 1]!] : ranks.slice(0, 10);
+  const status = (r: (typeof ranks)[number]) => {
+    if (r.player) return 'your purse and the chest';
+    const months = r.returnAt ? Math.max(1, Math.ceil((r.returnAt - state.tick) / tpd / 30)) : 0;
+    const beaten = state.famous?.[r.id!]?.defeats ?? 0;
+    const doing = jailed.has(r.id!)
+      ? 'your prisoner, for a governor'
+      : state.famous?.[r.id!]?.revenge
+        ? 'hunting you, for his hoard'
+        : r.returnAt
+          ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}`
+          : `sails from ${haven(r.haven)}`;
+    const held = pieces[r.id!] ? ` · you hold ${pieces[r.id!]} of ${content.pirates.rules.mapPieces} pieces of his map` : '';
+    return `${doing}${beaten && !r.returnAt ? ` · beaten by you ${beaten === 1 ? 'once' : `${beaten} times`}` : ''}${held}`;
+  };
   return (
     <div class="top-ten">
-      <span class="port-sub">
-        The Top Ten pirates on the Main, by their wealth. You count your purse and plunder chest{fame ? ` · your fame ${fame}` : ''}.
-      </span>
+      <div class="book-sub">By their wealth: yours counts your purse and the plunder chest.</div>
       <ol>
-        {ranks.slice(0, 10).map((r, i) => {
-          const months = r.returnAt ? Math.max(1, Math.ceil((r.returnAt - state.tick) / tpd / 30)) : 0;
+        {rows.map((r) => {
+          const flag = content.pirates.captains.find((c) => c.id === r.id)?.flag;
           return (
             <li key={r.id ?? 'you'} class={r.player ? 'you' : undefined}>
-              <span class="top-rank">{i + 1}.</span>
+              <span class="top-rank">{ranks.indexOf(r) + 1}</span>
+              <span class="top-flag" style={flag ? { background: flag.field, color: flag.colour } : undefined} aria-hidden="true" />
               <span class="top-name">{r.name}</span>
+              <span class="age">{status(r)}</span>
               <span class="top-wealth">{r.wealth.toLocaleString()} gold</span>
-              <span class="age">
-                {r.player
-                  ? ''
-                  : jailed.has(r.id!)
-                    ? 'your prisoner, for a governor'
-                    : state.famous?.[r.id!]?.revenge
-                      ? 'hunting you, for his hoard'
-                    : r.returnAt
-                      ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}`
-                      : `sails from ${haven(r.haven)}`}
-                {pieces[r.id ?? ''] ? ` · you hold ${pieces[r.id!]} of ${content.pirates.rules.mapPieces} pieces of his map` : ''}
-              </span>
             </li>
           );
         })}
       </ol>
-      {place > 10 ? (
-        <div class="port-sub">
-          You: {ranks[place - 1]!.wealth.toLocaleString()} gold, {place}th. Beat one of them, or grow richer than {ranks[9]!.name}, to make the list.
-        </div>
-      ) : null}
+      <div class="top-foot">
+        <span>
+          <b>Your fame</b>: trade {f.trade} · war {f.war} · adventure {f.adventure}
+        </span>
+        <span class="age">
+          {place > 10
+            ? `Beat one of them, or grow richer than ${ranks[9]!.name}, to make the list.`
+            : place === 1
+              ? 'The richest on the Main.'
+              : `Beat one above you, or grow richer than ${ranks[place - 2]!.name}, to climb.`}
+        </span>
+      </div>
     </div>
   );
 }

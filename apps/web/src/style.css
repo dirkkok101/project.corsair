@@ -493,41 +493,72 @@ body {
   cursor: pointer;
 }
 
-/* The Top Ten: rank, name, wealth, and where each one is. */
-.top-ten {
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-
+/* The Top Ten (storyboard 6.4): rank, flag, name, what each is about, and wealth; the captain's row marked. */
 .top-ten ol {
-  margin: 4px 0;
+  margin: 8px 0;
   padding: 0;
   list-style: none;
 }
 
 .top-ten li {
   display: grid;
-  grid-template-columns: 2em minmax(0, 15em) 7em minmax(0, 1fr);
-  gap: 10px;
-  padding: 2px 0;
+  grid-template-columns: 2em 34px minmax(0, 14em) minmax(0, 1fr) 7.5em;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
 }
 
 .top-ten li.you {
-  color: #e8c170;
+  background: rgb(122 74 0 / 0.16);
 }
 
 .top-ten .top-rank {
   text-align: right;
-  color: #819796;
+  font: 800 18px var(--k-body);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Her flag's field, with its device's colour as a mark in the middle. */
+.top-flag {
+  position: relative;
+  width: 34px;
+  height: 22px;
+  border-radius: 2px;
+  background: #e8c170;
+  border: 1px solid #2b1d12;
+}
+
+.top-flag::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+
+.top-ten li.you .top-flag::after {
+  display: none;
+}
+
+.top-ten .top-name {
+  font: 700 19px var(--k-voice);
 }
 
 .top-ten .top-wealth {
   text-align: right;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
-.top-ten .age {
-  color: #819796;
+.top-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
 }
 
 .market {
@@ -1234,6 +1265,7 @@ body {
 .in-port .hud-rose,
 .in-port .labels,
 #stage.in-port .minimap,
+#stage.log-open .minimap,
 .in-battle .hud,
 .in-battle .hud-rose:not(.battle-compass),
 .in-battle .hud-prompt,
@@ -1545,7 +1577,6 @@ body {
 .log-book .port-sub,
 .log-book .age,
 .log-book .plunder-note,
-.log-book .top-ten .top-rank,
 .log-book .top-ten .age {
   color: #6b5233;
 }
@@ -1554,11 +1585,6 @@ body {
   font-size: 15px;
 }
 
-.log-book .top-ten li {
-  padding: 4px 6px;
-}
-
-.log-book .top-ten li.you,
 .log-book .career-points,
 .log-book .log-map-title {
   color: #7a4a00;
@@ -3211,9 +3237,15 @@ body {
 .career-points {
   width: 50px;
   text-align: right;
-  font-family: var(--k-display);
-  font-size: 26px;
+  font: 800 24px var(--k-body);
+  font-variant-numeric: lining-nums tabular-nums;
   color: #7a4a00;
+}
+
+/* The score's figure: the display face's 0 reads as an 8. */
+.career-num {
+  font: 800 34px var(--k-body);
+  font-variant-numeric: lining-nums;
 }
 
 .career-why {

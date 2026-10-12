@@ -1467,6 +1467,7 @@ async function main() {
     const harbour = town && harbourScene(town);
     void renderer.harbour.show(town && ((service && interior(town, service)) || harbour?.scene));
     stage.classList.toggle('in-port', Boolean(town));
+    stage.classList.toggle('log-open', logOpen);
     render(
       sim.state.captain?.retired ? (
         <Ending content={content} state={sim.state} again={() => location.reload()} />

@@ -333,7 +333,9 @@ function Goals({
         </div>
         <div class="book-rule" />
         <h3 class="book-heading">Difficulty: {level.name}</h3>
-        <p class="book-sub">{level.about}</p>
+        <p class="book-sub">
+          {level.about} Retirement score × {level.score}.
+        </p>
       </div>
     </>
   );

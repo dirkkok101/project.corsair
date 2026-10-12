@@ -53,9 +53,11 @@ export function CareerCard({ content, state, final }: { content: ContentPack; st
       </table>
       <div class="career-total">
         <div>
-          <div class="career-score-big">Score {s.total}</div>
+          <div class="career-score-big">
+            Score <span class="career-num">{s.total}</span>
+          </div>
           <div class="book-sub">
-            {s.multiple !== 1 ? `× ${s.multiple} for ${difficultyOf(content, state.difficulty).name} · ` : ''}
+            × {s.multiple} for {difficultyOf(content, state.difficulty).name} ·{' '}
             {next ? `the next fate at ${next.score}` : 'the highest fate there is'}
           </div>
         </div>

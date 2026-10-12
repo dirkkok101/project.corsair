@@ -460,11 +460,13 @@ test('the Top Ten: the log ranks the famous pirates by wealth, and the captain b
   await page.keyboard.press('l');
   await page.locator('.log-tabs').getByRole('button', { name: /^Top Ten/ }).click();
   const list = page.locator('.top-ten li');
-  await expect(list).toHaveCount(10);
+  await expect(list).toHaveCount(11);
   await expect(list.first()).toContainText('Henry Morgan');
   await expect(list.first()).toContainText('9,000 gold');
-  // A new captain's 1,000 gold is less than the poorest of them: eleventh, and told how to make the list.
-  await expect(page.locator('.top-ten')).toContainText('You: 1,000 gold, 11th');
+  // A new captain's 1,000 gold is less than the poorest of them: eleventh, under them, and told how to make the list.
+  await expect(page.locator('.top-ten li.you')).toContainText('11');
+  await expect(page.locator('.top-ten li.you')).toContainText('1,000 gold');
+  await expect(page.locator('.top-foot')).toContainText('to make the list');
   await page.screenshot({ path: 'test-results/top-ten.png' });
   expect(errors).toEqual([]);
 });
