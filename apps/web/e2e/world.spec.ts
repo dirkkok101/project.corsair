@@ -145,6 +145,15 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
   await page.screenshot({ path: 'test-results/assist.png' });
 });
 
+test('the title stays up after the loading screen has faded, until a career is chosen', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Set sail' })).toBeVisible();
+  // Well past the loading screen's fade, which once took the title away with it.
+  await page.waitForTimeout(1500);
+  await expect(page.locator('.loading')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Set sail' })).toBeVisible();
+});
+
 test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Set sail' }).click();

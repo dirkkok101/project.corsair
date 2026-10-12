@@ -31,12 +31,16 @@ export type Choice = { save: Save } | { difficulty: string };
 
 /** The start screen: resolves to the save to continue, or a new career at the difficulty picked. */
 export function chooseCareer(root: HTMLElement, opts: StartOptions): Promise<Choice> {
+  // Its own element: rendered into `root` itself, Preact would take over the fading loading screen's element,
+  // and the title would go when that is removed.
+  const host = root.appendChild(document.createElement('div'));
   return new Promise((resolve) => {
     const done = (choice: Choice) => {
-      render(null, root);
+      render(null, host);
+      host.remove();
       resolve(choice);
     };
-    render(<Start {...opts} done={done} />, root);
+    render(<Start {...opts} done={done} />, host);
   });
 }
 
