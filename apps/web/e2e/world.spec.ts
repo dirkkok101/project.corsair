@@ -242,13 +242,16 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   // What the port makes and needs is common knowledge: the rows say which way to trade.
   const sugar = page.locator('.port .market tr', { hasText: 'Sugar' });
   await expect(sugar).toContainText('made here');
-  // Food is a staple: never worth carrying, so it gets no trade tag. Every good shows how much its market takes.
-  await expect(page.locator('tr', { hasText: 'Food' }).locator('.trend')).toHaveCount(0);
+  // Food is a staple: never worth carrying, so it gets no trade hint.
+  await expect(page.locator('tr', { hasText: 'Food' })).not.toContainText('made here');
   // A good's row says one verdict; clicking it says why, how much the market takes included.
   await expect(sugar.locator('.verdict')).not.toHaveText('');
+  // One button a row: the trade that fits now.
+  await expect(sugar.getByRole('button')).toHaveCount(1);
   await sugar.click();
   await expect(page.locator('.ledger-why')).toContainText('He takes about');
-  await page.locator('.port .market tr', { hasText: 'Sugar' }).getByRole('button', { name: 'Buy max' }).click();
+  // Its why box holds every trade in it; the row keeps the one that fits now.
+  await page.locator('.ledger-why').getByRole('button', { name: 'Buy max' }).click();
   await expect(sugar.locator('.ledger-hint')).toContainText('you paid');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);
@@ -1060,6 +1063,8 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   await page.evaluate(() => window.__corsair.sim.step(1));
   await openService(page, 'Tavern');
   await page.locator('.tavern-person', { hasText: 'Sailors' }).click();
+  // Signing on says what her guns want of her crew.
+  await expect(page.locator('.recruit .k-tag')).not.toHaveText('');
   // Nothing taken yet: the chest is empty, but three days' wages are owed.
   await expect(page.locator('.crew-pay').getByRole('button', { name: /Divide the plunder/ })).toBeDisabled();
   const pay = page.locator('.crew-pay').getByRole('button', { name: /Pay wages/ });
@@ -1068,7 +1073,7 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
   await pay.click();
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(gold - owed);
-  await expect(page.locator('.crew-pay')).toContainText('unpaid 0 days');
+  await expect(page.locator('.crew-pay')).toContainText('0 days since they were last paid');
   await page.screenshot({ path: 'test-results/crew-pay.png' });
   expect(errors).toEqual([]);
 });

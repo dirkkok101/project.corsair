@@ -578,12 +578,6 @@ body {
   border-bottom: 1px solid #202e37;
 }
 
-/* The tavern's buttons and crew count keep whole; the note beside them wraps instead. */
-.recruit button,
-.recruit > span:first-child {
-  white-space: nowrap;
-}
-
 /* The merchant (storyboard 2.2): his wood panel on the left, the parchment ledger on the right, over his shop. */
 .port-panel:has(.merchant, .tavern-room, .governor, .shipwright) {
   /* As wide as what the building shows, so Leave sits on its corner rather than off in the air. */
@@ -617,6 +611,8 @@ body {
 }
 
 .merchant {
+  /* A width of its own, so opening a good's why box doesn't stretch the ledger and move Leave. */
+  width: min(1180px, calc(100vw - 60px));
   display: grid;
   grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
   gap: 16px;
@@ -776,7 +772,22 @@ body {
   opacity: 0.4;
 }
 
+.ledger-why-trades {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* A good in the hold: what he charges and what he pays, each named. */
+.ledger-pair {
+  font-size: 15px;
+  font-weight: 400;
+}
+
 .ledger-why {
+  /* Pinned to the ledger's foot, so it shows however far the rows scroll. */
+  position: sticky;
+  bottom: 0;
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 4px;
@@ -828,11 +839,6 @@ body {
   padding: 0 4px;
 }
 
-.trend.export {
-  color: #090a14;
-  background: #75a743;
-}
-
 .trend.want {
   color: #090a14;
   background: #de9e41;
@@ -847,11 +853,6 @@ body {
 .market .best {
   white-space: nowrap;
   font-size: 13px;
-}
-
-.trend.scarce {
-  color: #ebede9;
-  background: #a53030;
 }
 
 /* Short windows: smaller rows. */
@@ -1672,17 +1673,6 @@ body {
   border-color: #ebede9;
 }
 
-.crew-pay {
-  flex-wrap: wrap;
-}
-
-.recruit {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 4px 0 8px;
-}
-
 /* The shipwright (storyboard 2.9): his speech, three choices, and the ships and fits as cards. */
 .shipwright {
   /* A width of its own, not its contents' (the panel fits its contents, so Leave sits on its corner): the ship
@@ -2065,6 +2055,8 @@ body {
 
 /* The tavern (storyboard 2.7): the people standing in the room, and the one you talk to. */
 .tavern-room {
+  /* A width of its own: the card doesn't change size with who is talking, and Leave stays put. */
+  width: min(900px, calc(100vw - 60px));
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2108,7 +2100,8 @@ body {
 }
 
 .tavern-card {
-  width: min(860px, 100%);
+  box-sizing: border-box;
+  width: 100%;
   padding: 16px;
 }
 
@@ -2151,14 +2144,78 @@ body {
   box-shadow: 0 6px 16px rgb(0 0 0 / 0.5);
 }
 
-.tavern-card .recruit {
-  flex-wrap: wrap;
-  margin: 8px 0 0;
+/* The speech fills the card, so the sailors' two cards beneath it share its width. */
+.tavern-card .k-speech-body {
+  flex: 1;
 }
 
-.tavern-card .recruit .port-sub {
-  flex-basis: 100%;
-  color: var(--k-cream-dim);
+/* The sailors' two cards: signing on, and paying the crew (storyboard 2.7). */
+.tavern-subs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.tavern-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.tavern-sub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.tavern-sub-title {
+  font-family: var(--k-display);
+  font-size: 22px;
+  color: var(--k-gold);
+}
+
+.crew-chest {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.crew-chest-icon {
+  width: 36px;
+  height: 30px;
+  image-rendering: pixelated;
+}
+
+.crew-chest-gold {
+  font-size: 22px;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.crew-morale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.crew-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.crew-choice .k-btn {
+  justify-content: space-between;
+}
+
+.crew-choice-what {
+  font-weight: 400;
 }
 
 /* Moments (storyboard 2.13): full-screen beats over everything, a painting behind or a letter over the game. */

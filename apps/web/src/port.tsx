@@ -172,7 +172,7 @@ function Merchant({
                 ? { word: 'dear here', tone: 'bad' }
                 : { word: 'fair', tone: '' };
     // The hint: what you paid and what selling makes, else where it sells best.
-    const hint = held
+    const known = held
       ? g.id === 'food'
         ? `${held} aboard`
         : plunder
@@ -183,6 +183,8 @@ function Merchant({
       : best && best.sell > q.buy
         ? `Sells best at ${best.name}, ${best.sell} (seen ${best.age === 0 ? 'today' : `${best.age} ${best.age === 1 ? 'day' : 'days'} ago`})`
         : '';
+    // What the port makes or needs leads the hint: one line says which way to trade it.
+    const hint = [tag, known].filter(Boolean).join(' · ');
     const why = [
       `Stock here ${story.stock}; usually about ${story.usualStock}.`,
       story.level === 'dear'
@@ -238,6 +240,16 @@ function Merchant({
           ? `"I've more ${glut.g.name.toLowerCase()} than I can sell, captain: it's yours cheap."`
           : `"Prices are fair today, captain. What'll it be?"`;
   const opened = rows.find((r) => r.g.id === open);
+  // No deal to offer yet (an empty hold, no other port's prices known): what this port makes and needs is the start.
+  const made = rows.filter((r) => r.tag === 'made here').map((r) => r.g.name.toLowerCase());
+  const needed = rows.filter((r) => r.tag === 'needed here').map((r) => r.g.name.toLowerCase());
+  const and = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : (xs[0] ?? ''));
+  const start = [
+    made.length ? `${and(made).replace(/^./, (c) => c.toUpperCase())} ${made.length === 1 ? 'is' : 'are'} made here: cheap to buy, to carry where ${made.length === 1 ? "it's" : "they're"} needed.` : '',
+    needed.length ? `${town.name} needs ${and(needed)}: bring ${needed.length === 1 ? 'it' : 'them'} here to sell.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div class="merchant">
       <div class="k-wood merchant-side">
@@ -278,12 +290,13 @@ function Merchant({
             </button>
           ) : null}
         </div>
-        <div class="merchant-preview">{preview ?? 'Point at a button to see what the trade comes to; click a good to see why it costs what it does.'}</div>
+        <div class="merchant-preview">
+          {preview ?? (!profitable.length && !bestBuy && start ? start : 'Point at a button to see what the trade comes to; click a good to see why it costs what it does.')}
+        </div>
       </div>
       <div class="k-paper merchant-ledger">
         <div class="ledger-head">
           <span class="k-who ink">{town.name} market</span>
-          <span class="k-sub ink">Click a good to see why it costs what it does</span>
         </div>
         {deals.map((c) => (
           <p class="contract" key={c.id}>
@@ -300,40 +313,69 @@ function Merchant({
                 <td class="ledger-good">
                   <div>
                     <b>{r.g.name}</b> <span class={`verdict ${r.verdict.tone}`}>{r.verdict.word}</span>
-                    {r.tag ? <span class={`trend ${r.tag === 'made here' ? 'export' : 'want'}`}>{r.tag}</span> : null}
                   </div>
                   {r.hint ? <div class={`ledger-hint${r.held ? '' : ' best'}`}>{r.hint}</div> : null}
                 </td>
                 <td class="num ledger-price" title="He charges · he pays">
-                  {r.held ? `${r.q.buy} · ${r.q.sell}` : r.stock < 1 ? '—' : r.q.buy}
+                  {r.held ? (
+                    <span class="ledger-pair">
+                      buy <b>{r.q.buy}</b> · sell <b>{r.q.sell}</b>
+                    </span>
+                  ) : r.stock < 1 ? (
+                    '—'
+                  ) : (
+                    r.q.buy
+                  )}
                 </td>
                 <td class="actions" onClick={(e) => e.stopPropagation()}>
+                  {/* One button: the trade that fits now. The rest are in the good's why box. */}
                   {r.held && r.g.id !== 'food' ? (
                     <button class="k-btn small paper" {...hover(r.say, 'Sell', ALL)} onClick={() => trade('Sell', r.g.id, ALL)} disabled={!r.canSell}>
                       Sell all
                     </button>
-                  ) : null}
-                  <button class="k-btn small paper" {...hover(r.say, 'Buy', 10)} onClick={() => trade('Buy', r.g.id, 10)} disabled={!r.canBuy}>
-                    Buy 10
-                  </button>
-                  {r.g.id !== 'food' ? (
-                    <button class="k-btn small paper" {...hover(r.say, 'Buy', ALL)} onClick={() => trade('Buy', r.g.id, ALL)} disabled={!r.canBuy}>
-                      Buy max
+                  ) : (
+                    <button class="k-btn small paper" {...hover(r.say, 'Buy', 10)} onClick={() => trade('Buy', r.g.id, 10)} disabled={!r.canBuy}>
+                      Buy 10
                     </button>
-                  ) : null}
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {opened ? (
-          <div class="ledger-why">
-            <b>
-              {opened.g.name}: why {opened.q.buy}?
-            </b>{' '}
-            {opened.why.join(' ')}
-          </div>
-        ) : null}
+        {/* Always there, so opening a good doesn't move the rows: why it costs what it does, and every trade in it. */}
+        <div class="ledger-why">
+          {opened ? (
+            <>
+              <b>
+                {opened.g.name}: why {opened.q.buy}?
+              </b>{' '}
+              {opened.why.join(' ')}
+              <div class="ledger-why-trades">
+                <button class="k-btn small paper" {...hover(opened.say, 'Buy', 10)} onClick={() => trade('Buy', opened.g.id, 10)} disabled={!opened.canBuy}>
+                  Buy 10
+                </button>
+                {opened.g.id !== 'food' ? (
+                  <button class="k-btn small paper" {...hover(opened.say, 'Buy', ALL)} onClick={() => trade('Buy', opened.g.id, ALL)} disabled={!opened.canBuy}>
+                    Buy max
+                  </button>
+                ) : null}
+                {opened.held ? (
+                  <button class="k-btn small paper" {...hover(opened.say, 'Sell', 10)} onClick={() => trade('Sell', opened.g.id, 10)} disabled={!opened.canSell}>
+                    Sell 10
+                  </button>
+                ) : null}
+                {opened.held && opened.g.id !== 'food' ? (
+                  <button class="k-btn small paper" {...hover(opened.say, 'Sell', ALL)} onClick={() => trade('Sell', opened.g.id, ALL)} disabled={!opened.canSell}>
+                    Sell all
+                  </button>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <span class="k-sub ink">Click a good to see why it costs what it does, and to buy or sell more of it.</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -590,25 +632,43 @@ function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'co
   const price = content.combat.port.recruitGold * cut;
   const berths = fleetBerths(content, state, ship);
   const room = berths - crew;
+  // Her guns want men: a broadside's crew to fire at all, and fullManning times that for her fastest reloads.
+  const guns = shipStats(content, ship).guns;
+  const broadside = Math.ceil((guns * content.combat.guns.crewPerGun) / 2);
+  const fastest = broadside * content.crew.manning.fullManning;
+  const manned =
+    crew < cls.minCrew
+      ? { word: `too few to sail her (${cls.minCrew})`, tone: 'war' }
+      : crew < broadside
+        ? { word: `too few to work her guns (${broadside})`, tone: 'war' }
+        : crew < fastest
+          ? { word: `${fastest} for her fastest reloads`, tone: '' }
+          : { word: 'her guns fully manned', tone: 'gold' };
   return (
-    <div class="recruit">
-      <span>
-        Crew {crew} / {berths}
-        {crew < cls.minCrew ? <span class="trend scarce">short-handed</span> : null}
-      </span>
-      <button class="k-btn small" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: 10 })}>
-        Sign on 10 · {Math.round(10 * price)} gold
-      </button>
-      <button class="k-btn small primary" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
-        Fill the berths · {Math.round(room * price)} gold
-      </button>
-      {cut < 1 ? <span class="port-sub">Your rank here: men sign on for {Math.round((1 - cut) * 100)}% less.</span> : null}
-      {room > 0 ? (
-        <span class="port-sub">
-          Each 10 more men: food lasts {Math.floor(foodDays(content, { ...ship, crew: crew + 10 }))} days instead of {Math.floor(foodDays(content, ship))}, and wages
-          rise {10 * content.crew.wagesPerManDay} gold a day
+    <div class="k-wood tavern-sub recruit">
+      <div class="tavern-sub-head">
+        <span>
+          Crew <b>{crew}</b> of {berths} berths
         </span>
-      ) : null}
+        <span class={`k-tag ${manned.tone}`}>{manned.word}</span>
+      </div>
+      <div class="k-bar">
+        <span style={{ width: `${Math.round((crew / Math.max(1, berths)) * 100)}%` }} />
+      </div>
+      <div class="tavern-replies">
+        <button class="k-btn small" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: Math.min(10, room) })}>
+          Sign on {Math.min(10, Math.max(room, 0))} · {Math.round(Math.min(10, Math.max(room, 0)) * price)} gold
+        </button>
+        <button class="k-btn small primary" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
+          Fill the berths · {Math.round(room * price)} gold
+        </button>
+      </div>
+      {cut < 1 ? <div class="k-sub">Your rank here: men sign on for {Math.round((1 - cut) * 100)}% less.</div> : null}
+      <div class="k-sub">
+        {room > 0
+          ? `Each 10 more men: food lasts ${Math.floor(foodDays(content, { ...ship, crew: crew + 10 }))} days instead of ${Math.floor(foodDays(content, ship))}, and wages rise ${10 * content.crew.wagesPerManDay} gold a day.`
+          : 'Every berth is taken: a bigger ship, or hammocks at the shipwright, berths more.'}
+      </div>
     </div>
   );
 }
@@ -626,19 +686,52 @@ function CrewPay({ content, state, shipId, send }: Pick<TavernProps, 'content' |
   const days = daysUnpaid(content, state);
   // Morale heads day by day toward the crew's mood: say which way it is going.
   const drift = crewMood(content, state, ship) - morale;
+  const gold = state.captain?.gold ?? 0;
+  const m = content.crew.morale;
   return (
-    <div class="recruit crew-pay">
-      <span>
-        <Art id="ui.icon.morale" class="inline-icon" /> {moraleWord(content, morale)}
-        {Math.abs(drift) > 2 ? `, ${drift > 0 ? 'rising' : 'falling'}` : ''} ·{' '}
-        <Art id="ui.icon.chest" class="inline-icon" /> chest {Math.round(share.chest)} · unpaid {days} days
-      </span>
-      <button class="k-btn small" disabled={share.chest <= 0} onClick={() => send({ type: 'DividePlunder', shipId })}>
-        Divide the plunder{share.chest > 0 ? ` · you take ${share.captain}, each man ${Math.round(share.perHead)}` : ''}
-      </button>
-      <button class="k-btn small" disabled={owed <= 0 || (state.captain?.gold ?? 0) < owed} onClick={() => send({ type: 'PayWages', shipId })}>
-        Pay wages · {owed} gold
-      </button>
+    <div class="k-wood tavern-sub crew-pay">
+      <div class="tavern-sub-title">Paying the crew</div>
+      <div class="crew-chest">
+        <Art id="ui.icon.chest" class="crew-chest-icon" />
+        <div>
+          <div>
+            <b class="crew-chest-gold">{Math.round(share.chest).toLocaleString()}</b> gold in the plunder chest
+          </div>
+          <div class="k-sub">
+            The crew sails for it. {days} {days === 1 ? 'day' : 'days'} since they were last paid.
+          </div>
+        </div>
+      </div>
+      <div class="crew-morale">
+        <Art id="ui.icon.morale" class="inline-icon" /> Morale:{' '}
+        <b>
+          {moraleWord(content, morale)}
+          {Math.abs(drift) > 2 ? `, ${drift > 0 ? 'rising' : 'falling'}` : ''}
+        </b>
+        <span class="k-sub">At "{moraleWord(content, m.deserting - 1)}" men slip away in port</span>
+      </div>
+      <div class="crew-choice">
+        <button class="k-btn small primary" disabled={share.chest <= 0} onClick={() => send({ type: 'DividePlunder', shipId })}>
+          <span>Divide the plunder</span>
+          {share.chest > 0 ? <span class="crew-choice-what">you {share.captain} · each man {Math.round(share.perHead)}</span> : null}
+        </button>
+        <span class="k-sub">
+          {share.chest > 0 ? 'The chest is emptied; the bigger each share, the happier they are.' : 'Nothing in the chest yet: prizes and plunder fill it.'}
+        </span>
+      </div>
+      <div class="crew-choice">
+        <button class="k-btn small" disabled={owed <= 0 || gold < owed} onClick={() => send({ type: 'PayWages', shipId })}>
+          <span>Pay wages instead</span>
+          {owed > 0 ? <span class="crew-choice-what">{owed} gold from your purse</span> : null}
+        </button>
+        <span class="k-sub">
+          {owed <= 0
+            ? 'Paid up: nothing owed yet.'
+            : gold < owed
+              ? `You have ${gold.toLocaleString()} gold.`
+              : `${content.crew.wagesPerManDay} gold a man a day since they were last paid; the chest stays theirs.`}
+        </span>
+      </div>
     </div>
   );
 }
@@ -1439,8 +1532,10 @@ function Sailors({ content, state, here, shipId, send }: Pick<TavernProps, 'cont
   const line = room > 0 ? `"${room} of us would sign on, captain, ${price} gold a man."` : `"Your berths are full, captain. Come back when you've room."`;
   return (
     <Speech bust="bust.sailors" who="The sailors" line={line}>
-      <Recruit content={content} state={state} shipId={shipId} send={send} nation={here.nation} />
-      <CrewPay content={content} state={state} shipId={shipId} send={send} />
+      <div class="tavern-subs">
+        <Recruit content={content} state={state} shipId={shipId} send={send} nation={here.nation} />
+        <CrewPay content={content} state={state} shipId={shipId} send={send} />
+      </div>
     </Speech>
   );
 }
