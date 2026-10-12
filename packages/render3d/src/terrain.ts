@@ -11,7 +11,9 @@ import type { Tile, TileMap } from '@corsair/data';
 //
 // Drawn in chunks with levels of detail: a quarter-tile mesh near the camera down to two tiles far out, built
 // lazily a few a frame. Each chunk hangs a skirt below its edges so neighbours at different detail don't show
-// cracks. Vegetation is instanced per chunk and shown only near the camera.
+// cracks. Vegetation is instanced per chunk: in full near the ship, and further out as a sparse canopy of leaf
+// cards on the same trees. Across a band of distance the trees go over from one to the other one by one, each at
+// its own distance, so the forest thins and fills rather than popping in.
 
 /** Land heights stand this much taller than at the old map scale, so islands 1.5x wider keep their shape. */
 const RELIEF = 1.5;
@@ -116,8 +118,14 @@ const LODS: { step: number; within: number }[] = [
 ];
 /** Chunks built per frame at most, so sailing into new country never stalls a frame. */
 const BUILDS_PER_FRAME = 3;
-/** Vegetation shows in chunks this near the camera's target (tiles). */
-const TREES_WITHIN = 90;
+/** The full vegetation thins out over this band of distance from the ship (tiles). */
+const TREES_FADE = { from: 70, to: 90 };
+/** The far canopy fills in over this band, just inside the full vegetation's, so a tree going shows one under it. */
+const CANOPY_IN = { from: 55, to: 70 };
+/** The far canopy dissolves out over this band, where the haze has the land. */
+const CANOPY_FADE = { from: 240, to: 300 };
+/** A chunk's half-diagonal (tiles): its every tree lies this near its centre. */
+const CHUNK_REACH = CHUNK * 0.71;
 
 /** Ground kept clear of trees (a town's footprint): centre and radius in tiles. */
 export interface Clearing {
@@ -186,6 +194,14 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
   const material = groundMaterial();
   const object = new THREE.Group();
   const kit = treeKit();
+  // The ship's place, for every tree's fade; set each frame.
+  const fadeCentre = { value: new THREE.Vector2() };
+  for (const m of [kit.barkMaterial, kit.frondMaterial, kit.leafMaterial, kit.rockMaterial]) fadeByDistance(m, fadeCentre, TREES_FADE);
+  const canopyLeaf = fadeByDistance(kit.leafMaterial.clone(), fadeCentre, CANOPY_FADE, CANOPY_IN);
+  const canopyFrond = fadeByDistance(kit.frondMaterial.clone(), fadeCentre, CANOPY_FADE, CANOPY_IN);
+  // Far off the leaf textures are drawn from their smallest mipmaps, whose edges average down to thin alpha: a
+  // lower cut keeps the crowns whole instead of speckled.
+  canopyLeaf.alphaTest = canopyFrond.alphaTest = 0.15;
 
   // The chunks that have land in them, and what each is showing.
   interface Chunk {
@@ -195,6 +211,7 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
     lod: number;
     meshes: (THREE.Mesh | undefined)[];
     plants?: THREE.Group;
+    canopy?: THREE.Group;
   }
   const chunks: Chunk[] = [];
   for (let cy = 0; cy < h; cy += CHUNK) {
@@ -341,6 +358,54 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
     return group;
   };
 
+  /**
+   * The far canopy: one tree in four of the full planting (the same seeded places, so each stands where its full
+   * self will), crowns only, as a few broad leaf cards, casting no shadow.
+   */
+  const canopy = (c: Chunk): THREE.Group => {
+    const near = clearings.filter((k) => k.x + k.r > c.cx && k.x - k.r < c.cx + CHUNK && k.y + k.r > c.cy && k.y - k.r < c.cy + CHUNK);
+    const palms: THREE.Matrix4[] = [];
+    const trees: THREE.Matrix4[] = [];
+    const tint: THREE.Color[] = [];
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let y = c.cy; y < Math.min(h, c.cy + CHUNK); y += 1) {
+      for (let x = c.cx; x < Math.min(w, c.cx + CHUNK); x += 1) {
+        const r = hash2(Math.round(x * 2), Math.round(y * 2));
+        const px = x + hash2(Math.round(x * 2) + 7, Math.round(y * 2)) * 0.5;
+        const py = y + hash2(Math.round(x * 2), Math.round(y * 2) + 7) * 0.5;
+        const g = heightAt(px, py);
+        if (g < 0.12 || near.some((k) => Math.hypot(px - k.x, py - k.y) < k.r)) continue;
+        const tile = map.tiles[Math.floor(py) * w + Math.floor(px)] ?? 3;
+        // Broader than the full trees, to cover as much ground with a quarter of them.
+        const s = (0.75 + hash2(Math.round(px * 9), Math.round(py * 9)) * 0.5) * 2.2;
+        q.setFromAxisAngle(up, r * Math.PI * 2);
+        if (g < 0.75 && r < 0.22) palms.push(new THREE.Matrix4().compose(new THREE.Vector3(px, g - 0.02, py), q.clone(), new THREE.Vector3(s, s, s)));
+        else if (g >= 0.55 && tile >= 3 && r < (tile === 5 ? 0.12 : 0.55)) {
+          trees.push(new THREE.Matrix4().compose(new THREE.Vector3(px, g, py), q.clone(), new THREE.Vector3(s, s * (0.85 + r * 0.5), s)));
+          const v = hash2(Math.round(px * 5), Math.round(py * 5));
+          tint.push(new THREE.Color().setHSL(0.18 + v * 0.1, 0.25, 0.82 + v * 0.16));
+        }
+      }
+    }
+    const group = new THREE.Group();
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, list: THREE.Matrix4[], tints?: THREE.Color[]) => {
+      if (!list.length) return;
+      const inst = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((p, i) => {
+        inst.setMatrixAt(i, p);
+        if (tints) inst.setColorAt(i, tints[i]!);
+      });
+      group.add(inst);
+    };
+    add(kit.palmCard, canopyFrond, palms);
+    add(kit.treeCard, canopyLeaf, trees, tint);
+    return group;
+  };
+  const dispose = (g: THREE.Group) => {
+    for (const m of g.children) (m as THREE.InstancedMesh).dispose();
+  };
+
   return {
     heightAt,
     depth,
@@ -369,15 +434,39 @@ export function createGround(map: TileMap, clearings: Clearing[] = []): Ground {
             c.meshes[l] = undefined;
           }
         }
-        const near = Math.hypot(c.centre.x - target.x, c.centre.z - target.z) - CHUNK * 0.7 < TREES_WITHIN;
-        if (near && !c.plants && builds < BUILDS_PER_FRAME + 1) {
-          c.plants = plant(c);
-          builds++;
+      }
+
+      // Vegetation. A chunk's trees show while any of them can be seen, and go once every one has dissolved.
+      fadeCentre.value.set(target.x, target.z);
+      const needed: { c: Chunk; d: number; far: boolean }[] = [];
+      for (const c of chunks) {
+        const d = Math.hypot(c.centre.x - target.x, c.centre.z - target.z);
+        const near = d - CHUNK_REACH < TREES_FADE.to;
+        const far = d - CHUNK_REACH < CANOPY_FADE.to && d + CHUNK_REACH > CANOPY_IN.from;
+        if (near && !c.plants) needed.push({ c, d, far: false });
+        if (far && !c.canopy) needed.push({ c, d, far: true });
+        for (const [g, show] of [
+          [c.plants, near],
+          [c.canopy, far],
+        ] as const) {
+          if (!g) continue;
+          if (show && !g.parent) object.add(g);
+          if (!show && g.parent) object.remove(g);
         }
-        if (c.plants) {
-          if (near && !c.plants.parent) object.add(c.plants);
-          if (!near && c.plants.parent) object.remove(c.plants);
+        // The full planting is dropped once well behind; the canopy is cheap to keep.
+        if (c.plants && d - CHUNK_REACH > TREES_FADE.to * 1.6) {
+          dispose(c.plants);
+          c.plants = undefined;
         }
+      }
+      // Nearest first, so a view fills in from the ship outward rather than in waves.
+      needed.sort((a, b) => a.d - b.d);
+      for (const n of needed) {
+        if (builds >= BUILDS_PER_FRAME + 1) break;
+        if (n.far) n.c.canopy = canopy(n.c);
+        else n.c.plants = plant(n.c);
+        object.add(n.far ? n.c.canopy! : n.c.plants!);
+        builds++;
       }
     },
   };
@@ -477,6 +566,58 @@ roughnessFactor = mix(mix(0.95, 0.82, gRocky), 0.45, gWet * gSandy);`,
 }`,
       );
   };
+  return material;
+}
+
+/**
+ * Thins a tree material out by its distance (tiles, across the sea) from `centre`: across a band each tree goes
+ * whole, at a distance of its own (a hash of where it stands), so none flickers or stipples, and nothing needs
+ * sorting. Seen out to `out.from`, thinning to none at `out.to`; with `into`, none nearer than `into.from`,
+ * filling in to all by `into.to`.
+ */
+function fadeByDistance<M extends THREE.Material>(
+  material: M,
+  centre: { value: THREE.Vector2 },
+  out: { from: number; to: number },
+  into?: { from: number; to: number },
+): M {
+  const inner = into;
+  const outer = out;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.fadeCentre = centre;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vFadeAt;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+// The tree's own foot, so the whole of it dissolves together.
+vec4 fadeAt = vec4(0.0, 0.0, 0.0, 1.0);
+#ifdef USE_INSTANCING
+fadeAt = instanceMatrix * fadeAt;
+#endif
+vFadeAt = (modelMatrix * fadeAt).xz;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform vec2 fadeCentre;
+varying vec2 vFadeAt;`,
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+{
+  float d = distance(vFadeAt, fadeCentre);
+  float seen = 1.0 - smoothstep(${outer.from.toFixed(1)}, ${outer.to.toFixed(1)}, d);
+  ${inner ? `seen *= smoothstep(${inner.from.toFixed(1)}, ${inner.to.toFixed(1)}, d);` : ''}
+  // Each tree's own point in the band, from where it stands.
+  if (seen <= fract(sin(dot(vFadeAt, vec2(12.9898, 78.233))) * 43758.5453)) discard;
+}`,
+      );
+  };
+  // Two materials differing only in their bands must not share one compiled program.
+  material.customProgramCacheKey = () => `fade-${inner?.from ?? 0}-${outer.to}`;
   return material;
 }
 
@@ -664,6 +805,25 @@ export function treeKit() {
   }
   const bush = mergeGeometries(bushParts)!;
 
+  // Far off, a crown is a few broad cards: a jungle tree two crossed and one across the top; a palm a star of
+  // fronds, drooping, at the top of a trunk too thin to see.
+  const treeCard = mergeGeometries([
+    card(0.5, 0.42).translate(0, 0.34, 0).toNonIndexed(),
+    card(0.5, 0.42).rotateY(Math.PI / 2).translate(0, 0.34, 0).toNonIndexed(),
+    new THREE.PlaneGeometry(0.5, 0.5).rotateX(-Math.PI / 2).translate(0, 0.5, 0).toNonIndexed(),
+  ])!;
+  const palmCard = mergeGeometries(
+    Array.from({ length: 5 }, (_, i) => {
+      const leaf = new THREE.PlaneGeometry(0.4, 0.15).translate(0.2, 0, 0);
+      leaf.rotateX(-Math.PI / 2);
+      leaf.rotateZ(-0.3);
+      leaf.rotateY((i / 5) * Math.PI * 2);
+      leaf.translate(top.x, top.y, top.z);
+      return leaf.toNonIndexed();
+    }),
+  )!;
+  palmCard.scale(2.2, 2.2, 2.2);
+
   // A shore rock: a lumpy grey boulder.
   const rock = new THREE.IcosahedronGeometry(0.1, 1);
   {
@@ -682,6 +842,8 @@ export function treeKit() {
     treeCrown,
     bush,
     rock,
+    treeCard,
+    palmCard,
     barkMaterial: new THREE.MeshStandardMaterial({ map: barkMap, roughness: 0.9 }),
     frondMaterial: foliage(frondMap),
     leafMaterial: foliage(leafMap),
