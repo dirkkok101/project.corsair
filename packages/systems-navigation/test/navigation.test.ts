@@ -83,7 +83,30 @@ describe('sailing model', () => {
     const end = sim.state.ships.player!;
     expect(isLand(tileAt(map, end.x, end.y))).toBe(false);
     expect(end.x).toBeGreaterThan(36);
+    // Her bow too: she is drawn far bigger than a point, and stops a good way short of the beach, not with her
+    // centre at the waterline.
+    expect(isLand(tileAt(map, end.x + 1, end.y))).toBe(false);
     expect(sim.events().filter((e) => e.type === 'ShipBlocked')).toHaveLength(1);
+  });
+
+  it('keeps her whole drawn hull off the land, sailing close along a coast', () => {
+    const world = createWorld(content.maps.placeholder);
+    const { bowTiles: bow, beamTiles: beam } = content.navigation.hull;
+    // North-north-east, closing the straight west face of the island (x = 42, rows 30 to 35) at a shallow angle.
+    const ship = { ...world.ships.player!, x: 39, y: 37.5, headingDeg: 20 };
+    const sim = createSim({ ...world, wind: { fromDeg: 180, strength: 'fresh' }, ships: { player: ship } }, [
+      createNavigationSystem(content, map),
+    ]);
+    const onLand = () => {
+      const s = sim.state.ships.player!;
+      const r = (s.headingDeg * Math.PI) / 180;
+      const [fx, fy, sx, sy] = [Math.sin(r), -Math.cos(r), Math.cos(r), Math.sin(r)];
+      return [[1, 0], [0, 1], [0, -1], [-1, 0]].some(([a, c]) => isLand(tileAt(map, s.x + fx * a! * bow + sx * c! * beam, s.y + fy * a! * bow + sy * c! * beam)));
+    };
+    for (let t = 0; t < 20 * TICKS_PER_SECOND; t++) {
+      sim.step();
+      expect(onLand()).toBe(false);
+    }
   });
 
   it('slides along the coast instead of sticking when it meets land at an angle', () => {

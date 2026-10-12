@@ -1,5 +1,5 @@
 {
-  "$comment": "Sailing tuning, PRD section 4. A ship's condition slows her (shot-through sails, a hull below 30%, fewer hands than her minimum crew: crew.json shortHandedFloor); load and currents are not modelled yet. World pace is 0.7 of what it was (0.7 tiles/s per speed point) so a passing ship stays on screen long enough to deal with; days are longer to match (calendar.json), and the game cruises at 2x away from coasts and other ships. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet.",
+  "$comment": "Sailing tuning, PRD section 4. A ship's condition slows her (shot-through sails, a hull below 30%, fewer hands than her minimum crew: crew.json shortHandedFloor); load and currents are not modelled yet. World pace is 0.7 of what it was (0.7 tiles/s per speed point) so a passing ship stays on screen long enough to deal with; days are longer to match (calendar.json), and the game cruises at 2x away from coasts and other ships. Wind multipliers are spread so each step up is clearly faster; gale damage risk is not modelled yet. A ship is drawn about four tiles long (render3d SHIP_SCALE), so her whole hull is kept off the land, not just her centre: hull marks her outline (bowTiles to bow and stern, beamTiles to either side), and no move may carry any point of it from water onto land. Within harbourTiles of a port only her centre is kept off the land, as before: a harbour is tight, and she must work close in to berth and to beat out. The outline holds only at the helm: a course or an intercept keeps off by its own look-ahead from her bow and by the sea lanes, which the outline would only slow (it grounded a course in the Tortuga channel). Turning is always free, so she can never be shut in; she turns, then sails clear.",
   "tilesPerSecondPerSpeedPoint": 0.7,
   "turnDegPerSecondPerPoint": 6,
   "accelPerSecond": 0.6,
@@ -8,6 +8,7 @@
     "half": 0.6,
     "full": 1
   },
+  "hull": { "bowTiles": 2, "beamTiles": 0.5, "harbourTiles": 12 },
   "rigTurnFactor": {
     "square": 0.85,
     "mixed": 0.92,

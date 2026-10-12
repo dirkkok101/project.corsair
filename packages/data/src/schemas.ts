@@ -52,6 +52,11 @@ export const navigationSchema = z.object({
   decelPerSecond: z.number().positive().optional(),
   sailSettings: z.record(z.enum(['furled', 'half', 'full']), z.number().min(0).max(1)),
   rigTurnFactor: z.record(rig, z.number().positive()),
+  /**
+   * Her drawn hull (tiles): bow and stern this far from her centre, her sides this far: kept off the land at the
+   * helm, except within harbourTiles of a port, where she works close in to berth and to beat out.
+   */
+  hull: z.object({ bowTiles: z.number().min(0), beamTiles: z.number().min(0), harbourTiles: z.number().min(0) }),
   windStrength: z.record(windStrength, z.number().min(0)),
   // Ids name the sprite states too (art pipeline section 4), so they are a closed set.
   pointsOfSail: z

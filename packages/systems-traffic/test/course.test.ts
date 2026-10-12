@@ -27,7 +27,7 @@ it('a course clicked to a port sails there by the lanes and ends within docking 
     const berth = lanes.berth(b.id)!;
     const route = lanes.path(start, berth);
     const world = createWorld(def);
-    const sim = createSim({ ...world, wind: { fromDeg: 70, strength: 'fresh' }, ships: { player: { ...world.ships.player!, x: start[0], y: start[1] } } }, [createNavigationSystem(content, map)]);
+    const sim = createSim({ ...world, wind: { fromDeg: 70, strength: 'fresh' }, ships: { player: { ...world.ships.player!, x: start[0], y: start[1] } } }, [createNavigationSystem(content, map, undefined, settlements)]);
     sim.send({ type: 'SetAssist', shipId: 'player', assist: 'course', x: b.x, y: b.y, portId: b.id, route: route?.slice(1) });
     sim.applyCommands();
     let t = 0, blocked = 0;

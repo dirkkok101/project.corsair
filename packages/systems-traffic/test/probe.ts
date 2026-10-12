@@ -56,7 +56,7 @@ export function voyageProbe(
     createWeatherSystem(content, def, map),
     createEconomySystem(content, settlements, map),
     createTrafficSystem(content, settlements, lanes, map, windAt),
-    createNavigationSystem(content, map, windAt),
+    createNavigationSystem(content, map, windAt, settlements),
   ]);
   const byId = new Map(settlements.map((s) => [s.id, s]));
   let bound = 1;

@@ -234,7 +234,7 @@ async function main() {
     createEconomySystem(content, settlements, map, windAt),
     createPoliticsSystem(content, def.startDate, settlements),
     createTrafficSystem(content, settlements, lanes, map, windAt),
-    createNavigationSystem(content, map, windAt),
+    createNavigationSystem(content, map, windAt, settlements),
     // Last, so it writes up what the others did.
     createLogbookSystem(content, settlements),
   ]);

@@ -128,10 +128,26 @@ const COURSE_AGROUND_TICKS = 90;
 const WAYPOINT_TILES = 3;
 const LAST_WAYPOINT_TILES = 1;
 
+/** A hull's outline, as [along, across] in fractions of navigation.json hull: bow to stern down her keel, and her sides. */
+const HULL: [number, number][] = [
+  [1, 0],
+  [0.5, 0],
+  [-0.5, 0],
+  [-1, 0],
+  [0.5, 1],
+  [0.5, -1],
+  [0, 1],
+  [0, -1],
+  [-0.5, 1],
+  [-0.5, -1],
+];
+
 export function createNavigationSystem(
   content: ContentPack,
   map: TileMap,
   windAt: (state: WorldState, x: number, y: number) => Wind = (state) => state.wind,
+  /** The ports, whose harbours she may work close in (navigation.json hull). */
+  harbours: readonly { x: number; y: number }[] = [],
 ): System {
   const nav = content.navigation;
   const bestUpwind = new Map<string, number>();
@@ -216,12 +232,13 @@ export function createNavigationSystem(
       }
       if (assist && want !== undefined) {
         const aim = want;
-        // Keep her off the coast: land within `look` tiles ahead on a heading (unless the goal is right there).
+        // Keep her off the coast: land within `look` tiles of her bow on a heading (unless the goal is right there).
         const look = Math.min(COAST_LOOK_TILES, left - 1);
         const clear = (h: number) => {
           if (look < 1) return true;
           const r = (h * Math.PI) / 180;
-          for (let k = 1; k <= look; k++) if (isLand(tileAt(map, ship.x + Math.sin(r) * k, ship.y - Math.cos(r) * k))) return false;
+          const ahead = (k: number) => k + nav.hull.bowTiles;
+          for (let k = 1; k <= look; k++) if (isLand(tileAt(map, ship.x + Math.sin(r) * ahead(k), ship.y - Math.cos(r) * ahead(k)))) return false;
           return true;
         };
         if (angleOffWind(aim, wind.fromDeg) >= off) goal = aim;
@@ -260,10 +277,23 @@ export function createNavigationSystem(
     const dx = Math.sin(rad) * speed * dt;
     const dy = -Math.cos(rad) * speed * dt;
     const water = (px: number, py: number) => !isLand(tileAt(map, px, py));
-    if (water(ship.x + dx, ship.y + dy)) {
+    // She is drawn far bigger than a point: her centre must stay on water, and no move may carry any part of her
+    // hull's outline from water onto land (turning may, so she is never shut in: she turns, then sails clear).
+    // Only at the helm: a course or an intercept keeps off the coast by its own look-ahead and the lanes, and in a
+    // harbour she works close in; there only her centre counts.
+    const byHand = steered.assist?.mode !== 'course' && steered.assist?.mode !== 'intercept';
+    const inHarbour = harbours.some((h) => Math.hypot(h.x - ship.x, h.y - ship.y) <= nav.hull.harbourTiles);
+    const [bow, beam] = byHand && !inHarbour ? [nav.hull.bowTiles, nav.hull.beamTiles] : [0, 0];
+    const [fx, fy, sx, sy] = [Math.sin(rad), -Math.cos(rad), Math.cos(rad), Math.sin(rad)];
+    /** Which of her outline's points are on land, as bits. */
+    const aground = (px: number, py: number) =>
+      HULL.reduce((bits, [along, across], i) => (water(px + fx * along * bow + sx * across * beam, py + fy * along * bow + sy * across * beam) ? bits : bits | (1 << i)), 0);
+    const now = aground(ship.x, ship.y);
+    const room = (px: number, py: number) => water(px, py) && (aground(px, py) & ~now) === 0;
+    if (room(ship.x + dx, ship.y + dy)) {
       // Contact ends only once land is no longer just ahead; otherwise a ship nosing the coast
       // would flip in and out of contact every tick and repeat ShipBlocked.
-      const blocked = ship.blocked && !water(ship.x + dx + Math.sin(rad) * 0.5, ship.y + dy - Math.cos(rad) * 0.5);
+      const blocked = ship.blocked && !water(ship.x + dx + fx * (bow + 0.5), ship.y + dy + fy * (bow + 0.5));
       const free = steered.assist?.aground ? { ...steered, assist: { ...steered.assist, aground: 0 } } : steered;
       return { ship: { ...free, x: ship.x + dx, y: ship.y + dy, headingDeg, speed, blocked }, events };
     }
@@ -274,7 +304,7 @@ export function createNavigationSystem(
     // Try the axis with the larger move first. In a concave corner of the tile coast both are
     // land and the ship holds position until it turns away.
     const axes: [number, number][] = Math.abs(dx) >= Math.abs(dy) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
-    const free = axes.find(([ax, ay]) => (ax !== 0 || ay !== 0) && water(ship.x + ax, ship.y + ay));
+    const free = axes.find(([ax, ay]) => (ax !== 0 || ay !== 0) && room(ship.x + ax, ship.y + ay));
     const [x, y] = free ? [ship.x + free[0], ship.y + free[1]] : [ship.x, ship.y];
     if (!ship.blocked) events.push({ type: 'ShipBlocked', entityIds: [ship.id], payload: { x, y, headingDeg } });
     // A course that can't find its way (a channel too narrow to beat up) gives up rather than grind.

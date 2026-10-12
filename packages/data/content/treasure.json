@@ -7,6 +7,6 @@
   "ringOffset": 0.5,
   "stranger": { "chance": 0.35, "unfinishedChance": 0.6, "priceShare": 0.15, "minPrice": 150, "nearTiles": 300, "nearWeight": 2, "unfinishedWeight": 4 },
   "survivorChance": 0.35,
-  "dig": { "reachTiles": 2, "toleranceTiles": 2, "hours": 12, "revengeReach": 1.5 },
+  "dig": { "reachTiles": 3, "toleranceTiles": 2, "hours": 12, "revengeReach": 1.5 },
   "landmarks": ["a lone palm", "a split rock", "a wrecked hull", "a ruined hut", "three palms in a row", "a stone cairn"]
 }
