@@ -122,8 +122,8 @@ const BUILDS_PER_FRAME = 3;
 const TREES_FADE = { from: 70, to: 90 };
 /** The far canopy fills in over this band, just inside the full vegetation's, so a tree going shows one under it. */
 const CANOPY_IN = { from: 55, to: 70 };
-/** The far canopy dissolves out over this band, where the haze has the land. */
-const CANOPY_FADE = { from: 240, to: 300 };
+/** The far canopy thins out over this band: past all a zoomed-out view takes in of the islands round you. */
+const CANOPY_FADE = { from: 380, to: 480 };
 /** A chunk's half-diagonal (tiles): its every tree lies this near its centre. */
 const CHUNK_REACH = CHUNK * 0.71;
 
