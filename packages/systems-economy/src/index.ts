@@ -722,6 +722,26 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     },
   });
 
+  /**
+   * The ship a yard's work goes on: the flagship, or `only`, a ship of the fleet. `put` writes the work back, and
+   * keeps the fleet's pace, which a fleet ship's fits can change.
+   */
+  const fitted = (state: WorldState, flagship: Ship, only?: string) => {
+    if (!only || only === flagship.id) {
+      return { ship: flagship as Ship | FleetShip, fleet: false, put: (change: Partial<Ship>) => ({ ...state, ships: { ...state.ships, [flagship.id]: { ...flagship, ...change } } }) };
+    }
+    const fleet = fleetOf(state);
+    const ship = fleet.find((f) => f.id === only);
+    if (!ship) return undefined;
+    return {
+      ship: ship as Ship | FleetShip,
+      fleet: true,
+      put: (change: Partial<Ship>) => {
+        const next = fleet.map((f) => (f === ship ? { ...f, ...(change.guns === undefined ? {} : { guns: change.guns }), ...(change.upgrades ? { upgrades: change.upgrades } : {}) } : f));
+        return { ...state, ships: { ...state.ships, [flagship.id]: withFleetPace(content, flagship, next) }, captain: { ...state.captain!, fleet: next } };
+      },
+    };
+  };
   const refuse = (state: WorldState, ship: Ship, reason: string, extra: Record<string, unknown> = {}) => ({
     state,
     events: [{ type: 'TradeRefused', entityIds: [ship.id], payload: { reason, ...extra } }] as EmittedEvent[],
@@ -1219,12 +1239,15 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         };
       }
       if (command.type === 'BuyGuns' || command.type === 'SellGuns') {
-        // The shipwright mounts cannon up to her gun deck, or buys them back at half.
+        // The shipwright mounts cannon up to her gun deck, or buys them back at half: on the flagship, or on
+        // `only`, a ship of the fleet.
         const ship = state.ships[command.shipId];
         if (!ship) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
         if (!sellsGuns(byId.get(ship.docked)!)) return refuse(state, ship, 'not-sold-here');
-        const { guns, maxGuns } = shipStats(content, ship);
+        const target = fitted(state, ship, command.only);
+        if (!target) return refuse(state, ship, 'no-such-ship');
+        const { guns, maxGuns } = shipStats(content, target.ship);
         const p = content.combat.port;
         const buying = command.type === 'BuyGuns';
         const count = buying
@@ -1232,12 +1255,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           : Math.min(Math.floor(command.count), guns);
         if (!(count > 0)) return refuse(state, ship, buying ? (guns >= maxGuns ? 'battery-full' : 'not-enough-gold') : 'no-guns');
         const gold = buying ? -count * p.gunGold : count * p.gunSellGold;
+        const armed = target.put({ guns: guns + (buying ? count : -count) });
         return {
-          state: {
-            ...state,
-            ships: { ...state.ships, [ship.id]: { ...ship, guns: guns + (buying ? count : -count) } },
-            captain: { ...state.captain, gold: state.captain.gold + gold },
-          },
+          state: { ...armed, captain: { ...armed.captain!, gold: state.captain.gold + gold } },
           events: [{ type: buying ? 'GunsBought' : 'GunsSold', entityIds: [ship.id, ship.docked], payload: { count, gold: Math.abs(gold) } }],
         };
       }
@@ -1274,26 +1294,23 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const upgrade = content.upgrades[command.upgradeId];
         if (!ship || !upgrade) return undefined;
         if (!ship.docked) return refuse(state, ship, 'not-docked');
-        if (ship.upgrades?.includes(upgrade.id)) return refuse(state, ship, 'installed');
+        const target = fitted(state, ship, command.only);
+        if (!target) return refuse(state, ship, 'no-such-ship');
+        // A fit that spoils (fine-grain powder) is for the ship that fights: the flagship.
+        if (target.fleet && upgrade.modifiers.spoilsDays) return refuse(state, ship, 'flagship-only');
+        if (target.ship.upgrades?.includes(upgrade.id)) return refuse(state, ship, 'installed');
         const yard = byId.get(ship.docked)!;
         if (!sellsUpgrade(content, yard, upgrade.id, hasPerk(content, state.captain, yard.nation, 'bestFits'))) return refuse(state, ship, 'not-sold-here');
         // Priced by the work on her class (guns, hull or berths), not one price for every ship; an admiral's cheaper.
-        const price = Math.round(upgradePrice(content, ship.classId, upgrade.id).price * perkPrice(content, state.captain, yard.nation, 'upgrade'));
+        const price = Math.round(upgradePrice(content, target.ship.classId, upgrade.id).price * perkPrice(content, state.captain, yard.nation, 'upgrade'));
         if (state.captain.gold < price) return refuse(state, ship, 'not-enough-gold');
+        const fit = target.put({
+          upgrades: [...(target.ship.upgrades ?? []), upgrade.id],
+          // What spoils (fine-grain powder) keeps so many days.
+          ...(upgrade.modifiers.spoilsDays ? { powderUntil: state.tick + Math.round(upgrade.modifiers.spoilsDays * content.calendar.ticksPerDay) } : {}),
+        });
         return {
-          state: {
-            ...state,
-            ships: {
-              ...state.ships,
-              [ship.id]: {
-                ...ship,
-                upgrades: [...(ship.upgrades ?? []), upgrade.id],
-                // What spoils (fine-grain powder) keeps so many days.
-                ...(upgrade.modifiers.spoilsDays ? { powderUntil: state.tick + Math.round(upgrade.modifiers.spoilsDays * content.calendar.ticksPerDay) } : {}),
-              },
-            },
-            captain: { ...state.captain, gold: state.captain.gold - price },
-          },
+          state: { ...fit, captain: { ...fit.captain!, gold: state.captain.gold - price } },
           events: [{ type: 'UpgradeBought', entityIds: [ship.id, ship.docked], payload: { upgradeId: upgrade.id, gold: price } }],
         };
       }

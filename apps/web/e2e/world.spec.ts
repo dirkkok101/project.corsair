@@ -55,7 +55,7 @@ test('a new career starts docked in port, under-gunned, and the shipwright outfi
   // Beneath his word, the mending and careening, each with her state.
   await expect(page.locator('.yard-row').first()).toContainText('hull 85 of 85');
   await page.locator('.shipwright').getByRole('button', { name: 'See the guns' }).click();
-  await expect(page.locator('.shipwright-tabs .active')).toHaveText('Fit her out');
+  await expect(page.locator('.shipwright-tabs .active')).toHaveText('Fit out');
   await expect(page.locator('.shipwright')).toContainText('Guns 10 of 18');
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
   await page.locator('.shipwright').getByRole('button', { name: /^Buy 1/ }).click();
@@ -870,10 +870,11 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
     return window.__corsair.battle.result()?.outcome;
   });
   expect(outcome).toBeDefined();
-  // The after-action report says what the fight changed; a prize waits on the plunder screen.
-  await expect(page.locator('.battle-report')).toBeVisible();
+  // The after-action report says what the fight changed; with a prize, her hold and her fate are on the same screen.
+  await expect(page.locator('.battle-report-body')).toBeVisible();
   await expect(page.locator('.battle-standing')).toContainText('England (for the attack) -20');
-  await expect(page.locator('.battle-report-picture')).toBeVisible();
+  // A painting when she got away or went down; with a prize, her hold takes its place.
+  if (outcome !== 'struck' && outcome !== 'boarded') await expect(page.locator('.battle-report-picture')).toBeVisible();
   // The hull, sails and men say how they are in words.
   await expect(page.locator('.battle-report-title')).not.toHaveText('');
   // The ship cards make way for the report, which says how her own ship came out of it.
@@ -881,12 +882,12 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await expect(page.locator('.battle-ledger')).toContainText('Your ship: hull');
   await page.screenshot({ path: 'test-results/battle-report.png' });
   if (outcome === 'struck' || outcome === 'boarded') {
-    // The report leads to her hold: one button does the sensible thing, a merchant let go by default, saying what that means.
-    await page.keyboard.press('Enter');
+    // One button does the sensible thing, a merchant let go by default, saying what that means.
     await expect(page.locator('.plunder-go')).toContainText(/let her go · Enter/i);
     await expect(page.locator('.plunder')).toContainText('thinks a little better of you');
-    // The other fates say what they cost.
-    await expect(page.locator('.plunder-fate')).toContainText('Sink her instead (England');
+    // Each fate is a card that says what it costs.
+    await expect(page.locator('.fate-sink')).toContainText('England');
+    await expect(page.locator('.fate-keep')).toContainText('sells for about');
     expect(await page.evaluate(() => window.__corsair.state.get('prize'))).toBeDefined();
     await page.screenshot({ path: 'test-results/plunder.png' });
   }
@@ -942,8 +943,8 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
     for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
     return window.__corsair.battle.result()?.outcome;
   });
-  await expect(page.locator('.battle-report')).toBeVisible();
-  // The report, and the plunder screen too when she was taken: Enter through to the sea.
+  await expect(page.locator('.battle-report-body')).toBeVisible();
+  // The report, or the victory screen when she was taken: Enter through to the sea.
   for (let i = 0; i < 3 && (await page.evaluate(() => window.__corsair.view())) === 'battle'; i++) {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(150);
@@ -1197,8 +1198,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
     return window.__corsair.battle.result()?.outcome;
   });
   test.skip(outcome !== 'boarded' && outcome !== 'struck', `no prize this run (${outcome})`);
-  await page.getByRole('button', { name: /^To her hold/ }).click();
-  await page.locator('.plunder-fate').getByRole('button', { name: /^Keep her/ }).click();
+  await page.locator('.fate-keep').click();
   await expect(page.locator('.plunder')).toContainText('joins your fleet');
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
@@ -1216,14 +1216,26 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  // The log's Fleet page, in port: her state, and selling her.
+  // The harbour says where the prize is dealt with, and the shipwright's badge counts her.
+  await expect(page.locator('.harbour-news')).toContainText('at the shipwright');
+  await expect(page.locator('.port-spot', { hasText: 'Shipwright' }).locator('.spot-badge')).toHaveText('1');
+  // The log's Fleet page: her state, read only.
   await page.getByRole('button', { name: /^Log/ }).click();
   await page.locator('.log-tabs').getByRole('button', { name: 'Fleet' }).click();
-  const prize = page.locator('.fleet-row:not(.flagship)');
-  await expect(prize).toContainText('fluyt');
+  await expect(page.locator('.fleet-row:not(.flagship)')).toContainText('fluyt');
+  await expect(page.locator('.log-book')).toContainText('the shipwright mends, fits, swaps and sells them');
   // The harbour's own labels make way for the open book.
   await expect(page.locator('.harbour-head')).toBeHidden();
   await page.screenshot({ path: 'test-results/fleet-log.png' });
+  await page.keyboard.press('l');
+  // The shipwright: a card a ship, each with her own orders; fitting her out picks her.
+  await openService(page, 'Shipwright');
+  const prize = page.locator('.yard-ship:not(.flagship)');
+  await expect(prize).toContainText('fluyt');
+  const name = await prize.locator('b').innerText();
+  await prize.getByRole('button', { name: 'Fit out' }).click();
+  await expect(page.locator('.yard-fitting .active')).toHaveText(name);
+  await page.locator('.shipwright-tabs').getByRole('button', { name: 'Your ships' }).click();
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
   await prize.getByRole('button', { name: /^Sell/ }).click();
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBeGreaterThan(gold);

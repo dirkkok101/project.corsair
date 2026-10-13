@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BattleResult, Command, SailSetting } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
@@ -88,7 +89,7 @@ export interface PlunderOffer {
   foodWith: number;
   /** Keeping her: her hold, the men she needs and her speed, and why she can't be kept, if not. */
   /** Her pace as she is (her damage slows her), and once a shipwright has mended her. */
-  keep: { hold: number; minCrew: number; speed: number; fullSpeed: number; whyNot?: string };
+  keep: { hold: number; minCrew: number; speed: number; fullSpeed: number; value: number; whyNot?: string };
   /**
    * A famous pirate taken prisoner: her name, the map pieces of her hoard already held (of `pieces`), the bounty
    * any governor pays and the standing it brings, and the morale setting her free gives.
@@ -210,11 +211,11 @@ function fateText(content: ContentPack, offer: PlunderOffer, release: boolean, k
 }
 
 /**
- * The plunder screen (storyboard 5.4, after Pirates! 2004), made easy: her hold as icons, one big button that takes
- * the best of it, signs on her volunteers and settles her fate (Enter); the other fates and picking the goods by hand
- * beneath; a famous prisoner's fate on a card of its own.
+ * The victory screen (storyboard 5.3-5.4, after Pirates! 2004), made easy: what the fight did beside her hold, the best
+ * of it already chosen; her fate as three cards, each with what it costs; signing on her men; a famous prisoner's
+ * fate; and one big button that does it all (Enter). Picking the goods by hand is a click away.
  */
-function Plunder({ content, offer, name, onPlunder }: { content: ContentPack; offer: PlunderOffer; name: string; onPlunder: (choice: PlunderChoice) => void }) {
+function Plunder({ content, offer, name, report, onPlunder }: { content: ContentPack; offer: PlunderOffer; name: string; report: ComponentChildren; onPlunder: (choice: PlunderChoice) => void }) {
   const used = Object.values(offer.mine).reduce((a, b) => a + b, 0);
   const [take, setTake] = useState(() => bestTake(content, offer.theirs, offer.capacity - used));
   const [jettison, setJettison] = useState<Record<string, number>>({});
@@ -247,37 +248,58 @@ function Plunder({ content, offer, name, onPlunder }: { content: ContentPack; of
   const step = (n: number) => Math.max(1, Math.ceil(n / 4));
   const taken = keep ? offer.theirs : take;
   const go = keep ? 'Take her into the fleet' : `${herUnits ? 'Take the best and ' : ''}${release ? 'let her go' : 'sink her'}`;
+  const nation = COUNTRY[offer.nation] ?? offer.nation;
+  // Keeping her is the better bargain when she would sell for more than her hold is worth.
+  const keepBest = !offer.keep.whyNot && offer.keep.value > worth(content, offer.theirs);
+  const fates: { id: 'release' | 'sink' | 'keep'; label: string; what: string; on: boolean; pick: () => void; why?: string }[] = [
+    {
+      id: 'release',
+      label: 'Let her go',
+      what: offer.nation === 'pirate' ? 'back to raiding' : `${nation} ${signed(content.combat.standing.mercy)}`,
+      on: release && !keep,
+      pick: () => (setRelease(true), setKeep(false)),
+    },
+    {
+      id: 'sink',
+      label: 'Sink her',
+      what: offer.nation === 'pirate' ? 'one pirate fewer' : `${nation} ${signed(content.combat.standing.scuttle)}`,
+      on: !release && !keep,
+      pick: () => (setRelease(false), setKeep(false)),
+    },
+    {
+      id: 'keep',
+      label: 'Keep her',
+      what: `+${offer.keep.hold} tons, needs ${offer.keep.minCrew} men · sells for about ${offer.keep.value.toLocaleString()} in port`,
+      on: keep,
+      pick: () => setKeep(true),
+      ...(offer.keep.whyNot ? { why: offer.keep.whyNot } : {}),
+    },
+  ];
   return (
-    <div class="plunder">
-      <div class="k-wood plunder-hold">
-        <h2 class="plunder-title">{name}'s hold</h2>
-        {herUnits ? (
-          <div class="plunder-goods">
-            {Object.entries(offer.theirs)
-              .filter(([, n]) => n > 0)
-              .map(([g, n]) => (
-                <div key={g} class={`plunder-good${taken[g] ? ' taking' : ''}`}>
-                  <GoodIcon id={g} />
-                  <b>{n}</b>
-                  <span class="k-sub">{goodLabel(g).toLowerCase()}</span>
-                </div>
-              ))}
-          </div>
-        ) : (
-          <div class="k-sub">Her hold is empty: her purse was all she carried.</div>
-        )}
-        <button class="k-btn primary plunder-go" onClick={choose}>
-          <span>
-            {go.replace(/^./, (c) => c.toUpperCase())} · Enter
-          </span>
-          <span class="plunder-go-what">
-            {taking && !keep ? `${goodsText(content, take)}, about ${worth(content, take).toLocaleString()} gold` : keep ? `+${offer.keep.hold} tons of hold` : ''}
-          </span>
-        </button>
-        {herUnits > taking && !keep ? <div class="plunder-note">{herUnits - taking} left in her hold: no room in yours. Choose the goods yourself to make room.</div> : null}
-        <div class="plunder-rows">
+    <div class="k-wood victory plunder">
+      <div class="victory-top">
+        <div class="victory-what">{report}</div>
+        <div class="victory-hold">
+          <h3 class="plunder-title">{name}'s hold</h3>
+          {herUnits ? (
+            <div class="plunder-goods">
+              {Object.entries(offer.theirs)
+                .filter(([, n]) => n > 0)
+                .map(([g, n]) => (
+                  <div key={g} class={`plunder-good${taken[g] ? ' taking' : ''}`}>
+                    <GoodIcon id={g} />
+                    <b>{n}</b>
+                    <span class="k-sub">{goodLabel(g).toLowerCase()}</span>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <div class="k-sub">Her hold is empty: her purse was all she carried.</div>
+          )}
+          {herUnits > taking && !keep ? <div class="plunder-note">{herUnits - taking} left in her hold: no room in yours. Choose the goods yourself to make room.</div> : null}
           {offer.volunteers > 0 ? (
-            <div class="plunder-row">
+            <label class="plunder-sign">
+              <input type="checkbox" checked={volunteers} aria-label="Sign on her men" onChange={() => setVolunteers(!volunteers)} />
               <span>
                 Sign on {offer.volunteers} of her men:{' '}
                 {volunteers
@@ -286,85 +308,9 @@ function Plunder({ content, offer, name, onPlunder }: { content: ContentPack; of
                     }, and the plunder split more ways`
                   : 'they are put ashore'}
               </span>
-              <button class={`k-btn small plunder-yes${volunteers ? ' active' : ''}`} aria-pressed={volunteers} aria-label="Sign on her men" onClick={() => setVolunteers(!volunteers)}>
-                {volunteers ? 'Yes' : 'No'}
-              </button>
-            </div>
-          ) : null}
-          <div class="plunder-row plunder-fate-note">
-            <span>{fateText(content, offer, release, keep)}</span>
-            <span class="k-tag gold">her fate</span>
-          </div>
-        </div>
-        {/* The other fates, each with what it costs; the chosen one is the big button's. */}
-        <div class="plunder-fate">
-          {release && !keep ? null : (
-            <button class="k-btn small" onClick={() => (setRelease(true), setKeep(false))}>
-              Let her go instead{offer.nation === 'pirate' ? '' : ` (${COUNTRY[offer.nation] ?? offer.nation} ${signed(content.combat.standing.mercy)})`}
-            </button>
-          )}
-          {!release && !keep ? null : (
-            <button class="k-btn small" onClick={() => (setRelease(false), setKeep(false))}>
-              Sink her instead{offer.nation === 'pirate' ? '' : ` (${COUNTRY[offer.nation] ?? offer.nation} ${signed(content.combat.standing.scuttle)})`}
-            </button>
-          )}
-          {keep ? null : (
-            <button class="k-btn small" disabled={Boolean(offer.keep.whyNot)} title={offer.keep.whyNot} onClick={() => setKeep(true)}>
-              Keep her: +{offer.keep.hold} tons, {offer.keep.minCrew} men to sail her
-            </button>
-          )}
-          {herUnits ? (
-            <button class="k-btn small plunder-toggle" onClick={() => setByHand(!byHand)}>
-              {byHand ? 'Hide the goods' : 'Choose the goods myself'}
-            </button>
+            </label>
           ) : null}
         </div>
-        {offer.keep.whyNot ? <div class="plunder-note">Keep her: {offer.keep.whyNot}</div> : null}
-        {byHand ? (
-          <div class="plunder-hand">
-            <div class="plunder-room">
-              Your hold {used - thrown + taking} / {offer.capacity}
-            </div>
-            <table>
-              <tbody>
-                {Object.entries(offer.theirs).map(([g, n]) => (
-                  <tr key={g} class="plunder-take">
-                    <td>
-                      <GoodIcon id={g} /> {goodLabel(g)}
-                    </td>
-                    <td>hers {n}</td>
-                    <td>
-                      <button class="k-btn small" onClick={() => setTake({ ...take, [g]: Math.max(0, (take[g] ?? 0) - step(n)) })}>
-                        −
-                      </button>
-                      <span class="plunder-n">take {take[g] ?? 0}</span>
-                      <button class="k-btn small" onClick={() => setTake({ ...take, [g]: Math.min(n, (take[g] ?? 0) + Math.min(step(n), room)) })}>
-                        +
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {Object.entries(offer.mine).map(([g, n]) => (
-                  <tr key={`mine-${g}`} class="plunder-throw">
-                    <td>
-                      <GoodIcon id={g} /> {goodLabel(g)}
-                    </td>
-                    <td>yours {n}</td>
-                    <td>
-                      <button class="k-btn small" onClick={() => setJettison({ ...jettison, [g]: Math.max(0, (jettison[g] ?? 0) - step(n)) })}>
-                        −
-                      </button>
-                      <span class="plunder-n">over the side {jettison[g] ?? 0}</span>
-                      <button class="k-btn small" onClick={() => setJettison({ ...jettison, [g]: Math.min(n, (jettison[g] ?? 0) + step(n)) })}>
-                        +
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
       </div>
       {offer.captive ? (
         <div class="k-paper plunder-captive">
@@ -391,6 +337,86 @@ function Plunder({ content, offer, name, onPlunder }: { content: ContentPack; of
             </button>
           </div>
           <div class="plunder-captive-note">{captiveText(offer.captive, captive)}</div>
+        </div>
+      ) : null}
+      {/* Her fate: three equal cards, each with what it costs; keeping her is marked when she is the better bargain. */}
+      <div class="plunder-fates">
+        {fates.map((f) => (
+          <button
+            key={f.id}
+            class={`fate-card fate-${f.id}${f.on ? ' active' : ''}${f.id === 'keep' && keepBest ? ' best' : ''}`}
+            aria-pressed={f.on}
+            disabled={Boolean(f.why)}
+            title={f.why}
+            onClick={f.pick}
+          >
+            <b>
+              {f.label}
+              {f.id === 'keep' && keepBest ? <span class="k-tag gold">best</span> : null}
+            </b>
+            <span>{f.why ?? f.what}</span>
+          </button>
+        ))}
+      </div>
+      <div class="plunder-fate-note">{fateText(content, offer, release, keep)}</div>
+      <div class="victory-go">
+        <button class="k-btn primary plunder-go" onClick={choose}>
+          <span>
+            {go.replace(/^./, (c) => c.toUpperCase())} · Enter
+          </span>
+          <span class="plunder-go-what">
+            {taking && !keep ? `${goodsText(content, take)}, about ${worth(content, take).toLocaleString()} gold` : keep ? `+${offer.keep.hold} tons of hold` : ''}
+          </span>
+        </button>
+        {herUnits ? (
+          <button class="k-btn small plunder-toggle" onClick={() => setByHand(!byHand)}>
+            {byHand ? 'Take the best for me' : 'Choose the goods myself'}
+          </button>
+        ) : null}
+      </div>
+      {byHand && !keep ? (
+        <div class="plunder-hand">
+          <div class="plunder-room">
+            Your hold {used - thrown + taking} / {offer.capacity}
+          </div>
+          <table>
+            <tbody>
+              {Object.entries(offer.theirs).map(([g, n]) => (
+                <tr key={g} class="plunder-take">
+                  <td>
+                    <GoodIcon id={g} /> {goodLabel(g)}
+                  </td>
+                  <td>hers {n}</td>
+                  <td>
+                    <button class="k-btn small" onClick={() => setTake({ ...take, [g]: Math.max(0, (take[g] ?? 0) - step(n)) })}>
+                      −
+                    </button>
+                    <span class="plunder-n">take {take[g] ?? 0}</span>
+                    <button class="k-btn small" onClick={() => setTake({ ...take, [g]: Math.min(n, (take[g] ?? 0) + Math.min(step(n), room)) })}>
+                      +
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {Object.entries(offer.mine).map(([g, n]) => (
+                <tr key={`mine-${g}`} class="plunder-throw">
+                  <td>
+                    <GoodIcon id={g} /> {goodLabel(g)}
+                  </td>
+                  <td>yours {n}</td>
+                  <td>
+                    <button class="k-btn small" onClick={() => setJettison({ ...jettison, [g]: Math.max(0, (jettison[g] ?? 0) - step(n)) })}>
+                      −
+                    </button>
+                    <span class="plunder-n">over the side {jettison[g] ?? 0}</span>
+                    <button class="k-btn small" onClick={() => setJettison({ ...jettison, [g]: Math.min(n, (jettison[g] ?? 0) + step(n)) })}>
+                      +
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
     </div>
@@ -525,18 +551,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
-  // The report first; with a prize, Enter (or its button) goes on to her hold.
-  const [atHold, setAtHold] = useState(false);
   const [fightOn, setFightOn] = useState(false);
-  const toHold = useRef(() => setAtHold(true));
-  useEffect(() => {
-    if (!state.result || !offer || atHold) return;
-    const key = (e: KeyboardEvent) => {
-      if (!e.repeat && e.key === 'Enter') toHold.current();
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [Boolean(state.result), Boolean(offer), atHold]);
   // A mast going by the board, called out for a few seconds (the sim's own record of it lasts a moment).
   const mastCall = useRef<{ text: string; until: number; seen: number }>({ text: '', until: -1, seen: -1 });
   const now = state.tick / 30;
@@ -557,6 +572,33 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     return aim[side] === 'ready' ? 'Ready' : left > 0 ? `Loading ${Math.ceil(left)} s` : AIM[aim[side]];
   };
   const enemy = state.ships.enemy;
+  /** What the fight did: how it ended, a line for each thing won or lost, her own ship, and the standing it moved. */
+  const reportBody = (result: BattleResult) => (
+    <div class="battle-report-body">
+      <h2 class="battle-report-title">{TITLE[result.outcome]}</h2>
+      <div class="k-sub">{outcomeText(state)}</div>
+      <div class="book-rule light" />
+      <ul class="battle-ledger">
+        {(report ? reportRows(content, report) : []).map((row) => (
+          <li key={row.text} class={row.tone ?? ''}>
+            <Art id={row.icon} class="inline-icon" /> {row.text}
+          </li>
+        ))}
+        <li>
+          <Art id="ui.icon.hull" class="inline-icon" /> Your ship: hull {result.player.hull} of {me.hullMax}, sails {result.player.sailCondition}%, {result.player.crew} men
+        </li>
+      </ul>
+      {report && standingChips(content, report, attacked).length ? (
+        <div class="battle-standing">
+          {standingChips(content, report, attacked).map((c) => (
+            <span key={c.name} class={`k-tag ${c.d > 0 ? 'gold' : 'war'}`}>
+              {c.name} {signed(c.d)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
   return (
     <div class="battle">
       {state.result ? null : (
@@ -675,53 +717,25 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
           </span>
         </div>
       )}
-      {state.result && !(offer && atHold) ? (
+      {state.result && offer ? (
+        <div class="battle-report-screen">
+          <Plunder content={content} offer={offer} name={enemyName} report={reportBody(state.result)} onPlunder={onPlunder} />
+          {advice ? <div class="battle-advice">{advice}</div> : null}
+        </div>
+      ) : state.result ? (
         <div class="battle-report-screen">
           <div class="k-wood battle-report">
             {PICTURES[PICTURE[state.result.outcome]] ? <img class="battle-report-picture" src={PICTURES[PICTURE[state.result.outcome]]} alt="" /> : null}
             <div class="battle-report-text">
-              <h2 class="battle-report-title">{TITLE[state.result.outcome]}</h2>
-              <div class="k-sub">{outcomeText(state)}</div>
-              <div class="book-rule light" />
-              <ul class="battle-ledger">
-                {(report ? reportRows(content, report) : []).map((row) => (
-                  <li key={row.text} class={row.tone ?? ''}>
-                    <Art id={row.icon} class="inline-icon" /> {row.text}
-                  </li>
-                ))}
-                <li>
-                  <Art id="ui.icon.hull" class="inline-icon" /> Your ship: hull {state.result.player.hull} of {me.hullMax}, sails {state.result.player.sailCondition}%,{' '}
-                  {state.result.player.crew} men
-                </li>
-              </ul>
-              {report && standingChips(content, report, attacked).length ? (
-                <div class="battle-standing">
-                  {standingChips(content, report, attacked).map((c) => (
-                    <span key={c.name} class={`k-tag ${c.d > 0 ? 'gold' : 'war'}`}>
-                      {c.name} {signed(c.d)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
+              {reportBody(state.result)}
               <div class="battle-report-go">
-                {offer ? (
-                  <button class="k-btn primary" onClick={() => setAtHold(true)}>
-                    To her hold <Key k="Enter" />
-                  </button>
-                ) : (
-                  <button class="k-btn primary" onClick={onContinue}>
-                    Continue <Key k="Enter" />
-                  </button>
-                )}
+                <button class="k-btn primary" onClick={onContinue}>
+                  Continue <Key k="Enter" />
+                </button>
               </div>
             </div>
           </div>
           {advice ? <div class="battle-advice">{advice}</div> : null}
-        </div>
-      ) : null}
-      {state.result && offer && atHold ? (
-        <div class="battle-report-screen">
-          <Plunder content={content} offer={offer} name={enemyName} onPlunder={onPlunder} />
         </div>
       ) : null}
       {help?.open ? <Help close={help.close} /> : null}

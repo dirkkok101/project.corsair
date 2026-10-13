@@ -1103,6 +1103,23 @@ describe('the fleet', () => {
     expect(player(sim.state).sailCondition).toBe(100);
   });
 
+  it('fits guns and fits on a ship of the fleet, not the flagship; powder only on the flagship', () => {
+    const sim = withFluyt();
+    const id = sim.state.captain!.fleet![0]!.id;
+    const flagGuns = player(sim.state).guns;
+    sim.send({ type: 'SellGuns', shipId: 'player', count: 2, only: id });
+    sim.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'hammocks', only: id });
+    sim.applyCommands();
+    const fl = sim.state.captain!.fleet![0]!;
+    expect(fl.guns).toBe(shipStats(content, fluyt).guns - 2);
+    expect(fl.upgrades).toEqual(['hammocks']);
+    expect(player(sim.state).guns).toBe(flagGuns);
+    expect(player(sim.state).upgrades ?? []).toEqual([]);
+    sim.send({ type: 'BuyUpgrade', shipId: 'player', upgradeId: 'powder', only: id });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('flagship-only');
+  });
+
   it("counts every ship's hold and berths, and buying fills the fleet's hold", () => {
     const sim = withFluyt();
     const brig = content.ships['ship.brig']!;

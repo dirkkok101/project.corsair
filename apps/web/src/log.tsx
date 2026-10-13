@@ -2,10 +2,10 @@ import type { Command, Hoard, WorldState } from "@corsair/core";
 import { difficultyOf, isLand, shipStats, tileAt } from "@corsair/data";
 import type { ContentPack, DifficultyLevel, PlacedSettlement, TileMap } from "@corsair/data";
 import { CareerCard } from "./career";
-import { cargoUsed, crewOf, fleetBerths, fleetHold, fleetOf, fleetShipPace, hoardRing, perkPrice, shipRepairCost, shipValue } from "@corsair/systems-economy";
+import { cargoUsed, fleetBerths, fleetHold, fleetOf, fleetShipPace, hoardRing, shipValue } from "@corsair/systems-economy";
 import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { LaidUp, TopTen } from "./port";
+import { TopTen } from "./port";
 import { Art, shipIcon, shipKind } from "./ui-art";
 
 /** The parchment's size on screen, in pixels. */
@@ -344,34 +344,23 @@ function Goals({
 }
 
 /**
- * The Fleet page (storyboard 3.4): every ship, the flagship first, her state, and in port her mending, making her the
- * flagship or selling her; what the fleet carries and the pace it keeps; ships laid up here; what a ship sells for.
+ * The Fleet page (storyboard 3.4): every ship, the flagship first, and her state; what the fleet carries and the pace
+ * it keeps; what each would sell for. The orders are the shipwright's, in port.
  */
-function Fleet({ content, state, settlements, shipId, send }: Pick<LogProps, 'content' | 'state' | 'settlements' | 'shipId' | 'send'>) {
+function Fleet({ content, state, settlements, shipId }: Pick<LogProps, 'content' | 'state' | 'settlements' | 'shipId'>) {
   const ship = state.ships[shipId]!;
   const fleet = fleetOf(state);
   const hold = fleetHold(content, state, ship);
   const berths = fleetBerths(content, state, ship);
   const cargo = cargoUsed(ship);
-  const crew = crewOf(content, ship);
-  const gold = state.captain?.gold ?? 0;
   const port = settlements.find((s) => s.id === ship.docked);
-  // A major of the port's nation has his repairs cheaper.
-  const cut = port ? perkPrice(content, state.captain, port.nation, 'repair') : 1;
+  const laidUp = state.captain?.laidUp ?? [];
   // The flagship's own pace, not the fleet's she is held to.
   const slowest = [{ ...ship, fleetSpeed: undefined }, ...fleet].reduce((a, b) => (fleetShipPace(content, b) < fleetShipPace(content, a) ? b : a));
   const fits = (u?: string[]) => (u ?? []).map((id) => content.upgrades[id]?.name.toLowerCase()).filter(Boolean);
   const condition = (f: { classId: string; hull?: number; upgrades?: string[]; guns?: number }) => {
     const stats = shipStats(content, f);
     return [`hull ${Math.round(f.hull ?? stats.hullMax)} of ${stats.hullMax}`, `${stats.guns} guns`, ...fits(f.upgrades)].join(' · ');
-  };
-  const mend = (id: string, f: Parameters<typeof shipRepairCost>[1]) => {
-    const cost = shipRepairCost(content, f, cut);
-    return cost > 0 ? (
-      <button class="k-btn small paper" disabled={gold <= 0} title={gold < cost ? `You have ${gold} gold: as far as the purse reaches.` : undefined} onClick={() => send({ type: 'Repair', shipId, only: id })}>
-        Mend · {cost.toLocaleString()}
-      </button>
-    ) : null;
   };
   return (
     <>
@@ -386,37 +375,17 @@ function Fleet({ content, state, settlements, shipId, send }: Pick<LogProps, 'co
               <b>{ship.name ?? 'Your flagship'}</b> <span class="book-sub">{shipKind(ship.classId)} · flagship</span>
               <div class="book-small">{condition(ship)}</div>
             </div>
-            {port ? mend(ship.id, ship) : null}
           </div>
-          {fleet.map((f) => {
-            const cls = content.ships[f.classId]!;
-            const why =
-              hold - cls.cargo < cargo
-                ? `Her hold is needed: the rest of the fleet can't carry the ${cargo} tons aboard.`
-                : berths - shipStats(content, f).maxCrew < crew
-                  ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
-                  : undefined;
-            return (
-              <div key={f.id} class="fleet-row">
-                <Art id={shipIcon(content, f.classId)} class="fleet-ship" />
-                <div class="fleet-what">
-                  <b>{f.name}</b> <span class="book-sub">{shipKind(f.classId)}</span>
-                  <div class="book-small">{condition(f)}</div>
-                </div>
-                {port ? (
-                  <div class="fleet-actions">
-                    {mend(f.id, f)}
-                    <button class="k-btn small paper" onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>
-                      Make flagship
-                    </button>
-                    <button class="k-btn small paper" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
-                      Sell · {shipValue(content, f).toLocaleString()}
-                    </button>
-                  </div>
-                ) : null}
+          {fleet.map((f) => (
+            <div key={f.id} class="fleet-row">
+              <Art id={shipIcon(content, f.classId)} class="fleet-ship" />
+              <div class="fleet-what">
+                <b>{f.name}</b> <span class="book-sub">{shipKind(f.classId)}</span>
+                <div class="book-small">{condition(f)}</div>
               </div>
-            );
-          })}
+              <span class="book-small">worth about {shipValue(content, f).toLocaleString()}</span>
+            </div>
+          ))}
         </div>
         <div class="fleet-totals">
           <span>
@@ -431,20 +400,24 @@ function Fleet({ content, state, settlements, shipId, send }: Pick<LogProps, 'co
           </span>
         </div>
         {!fleet.length ? <p class="book-sub">Your fleet is your flagship alone. Take a prize and keep her, or buy a ship, to grow it.</p> : null}
-        {!port && fleet.length ? <p class="book-sub">In port, mend a ship, make her your flagship or sell her here.</p> : null}
+        {fleet.length ? <p class="book-sub">In port, the shipwright mends, fits, swaps and sells them.</p> : null}
       </div>
       <div class="book-page">
-        {port ? (
+        {laidUp.length ? (
           <>
-            <h3 class="book-heading">Laid up at {port.name}</h3>
-            <LaidUp content={content} state={state} shipId={shipId} send={send} />
-            {!(state.captain?.laidUp ?? []).some((l) => l.settlementId === port.id) ? <p class="book-sub">None of your ships lies here.</p> : null}
+            <h3 class="book-heading">Laid up</h3>
+            {laidUp.map((l) => (
+              <p key={l.id} class="book-small">
+                Your {shipKind(l.classId)} {l.name}, at {settlements.find((s) => s.id === l.settlementId)?.name ?? l.settlementId}
+                {port?.id === l.settlementId ? ': the shipwright here gives her back' : ''}.
+              </p>
+            ))}
             <div class="book-rule" />
           </>
         ) : null}
         <h3 class="book-heading">Selling</h3>
         <p class="book-small">
-          A shipwright pays {Math.round(content.combat.fleet.sellShare * 100)}% of her class's price, less for a holed hull and torn sails, and half what her fits cost. Sell her in any port.
+          A shipwright pays {Math.round(content.combat.fleet.sellShare * 100)}% of her class's price, less for a holed hull and torn sails, and half what her fits cost. Sell her at any port's shipwright.
         </p>
       </div>
     </>
@@ -471,7 +444,7 @@ export function Log({ content, state, map, settlements, shipId, send, plot, clos
           ) : page === 'goals' ? (
             <Goals goals={goals} settlements={settlements} plot={plot} open={(p) => (p === 'chart' ? openChart() : setPage(p))} level={difficultyOf(content, state.difficulty)} />
           ) : page === 'fleet' ? (
-            <Fleet content={content} state={state} settlements={settlements} shipId={shipId} send={send} />
+            <Fleet content={content} state={state} settlements={settlements} shipId={shipId} />
           ) : page === 'career' ? (
             <div class="book-page wide">
               <h2 class="book-title">Your career</h2>

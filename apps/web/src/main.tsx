@@ -24,7 +24,7 @@ import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -798,6 +798,9 @@ async function main() {
   let stripChanged = 0;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: string | undefined;
+  // The fleet as she last sailed: a ship not in it on making port is a prize brought in, and the harbour says where
+  // she is dealt with.
+  let fleetSailed = new Set(fleetOf(sim.state).map((f) => f.id));
   /** What a refused order in port means, in words (the rest say so on their own button). */
   const REFUSED: Record<string, string> = {
     'not-enough-gold': 'Not enough gold for that.',
@@ -1164,7 +1167,8 @@ async function main() {
                         : men < needs
                           ? `Too few men to sail her too: the fleet would need ${needs}, you have ${men}${prize.volunteers ? ' with her volunteers' : ''}.`
                           : undefined;
-                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: fleetShipPace(content, prize.ship), fullSpeed: cls.speed, whyNot };
+                    const value = shipValue(content, { ...prize.ship, hull: prize.ship.hull ?? cls.hull, sailCondition: prize.ship.sailCondition ?? 100 });
+                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: fleetShipPace(content, prize.ship), fullSpeed: cls.speed, value, whyNot };
                   })(),
                   role: prize.ship.ai?.role ?? 'merchant',
                   nation: prize.ship.ai?.nation ?? 'pirate',
@@ -1256,7 +1260,15 @@ async function main() {
       const ev = evs[i]!;
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
       if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
-      if (ev.type === 'Undocked') portNotice = undefined;
+      if (ev.type === 'Undocked') {
+        portNotice = undefined;
+        fleetSailed = new Set(fleetOf(sim.state).map((f) => f.id));
+      }
+      if (ev.type === 'Docked') {
+        const brought = fleetOf(sim.state).filter((f) => !fleetSailed.has(f.id));
+        if (brought.length === 1) portNotice = `Your prize, the ${shipKind(brought[0]!.classId)} ${brought[0]!.name}, lies here: mend, fit or sell her at the shipwright.`;
+        if (brought.length > 1) portNotice = `Your ${brought.length} prizes lie here: mend, fit or sell them at the shipwright.`;
+      }
       // A promotion from the governor, as his commission; a title brings land.
       if (ev.type === 'Promoted') {
         const p = ev.payload as { nation: string; rank: string; acres: number };
@@ -1264,15 +1276,13 @@ async function main() {
       }
       // A famous pirate in sight for the first time.
       if (ev.type === 'FamousSighted') moments.push({ kind: 'famous', pirateId: ev.payload.pirateId as string });
-      // Pieces of a treasure map from a beaten pirate's men, or from her in irons.
-      const piece = (ev.type === 'BattleOver' && (ev.payload.famous as { piece?: number; name: string } | null)?.piece) || 0;
-      if (piece) {
-        const name = (ev.payload.famous as { name: string }).name;
-        const id = content.pirates.captains.find((c) => c.name === name)?.id;
-        if (id) moments.push({ kind: 'map', pirateId: id, line: `Her men give up a piece of ${name}'s map for their lives, captain.` });
-      }
+      // A piece of a treasure map from a beaten pirate's men is on the victory screen's report; one from her in
+      // irons was chosen there: a note on the sea says where to see it, not another screen.
       const captive = ev.type === 'PlunderTaken' ? (ev.payload.captive as { id: string; choice: string } | null) : null;
-      if (captive?.choice === 'hoard') moments.push({ kind: 'map', pirateId: captive.id, line: "That's all you'll have from me, captain. Much good may it do you." });
+      if (captive?.choice === 'hoard') {
+        const name = content.pirates.captains.find((c) => c.id === captive.id)?.name ?? captive.id;
+        courseNote = { text: `A piece of ${name}'s map: see it in the log (L)`, kind: 'Map', icon: 'ui.icon.chest', tone: 'gold', until: now + 5000 };
+      }
       // News that matters waiting in the port she makes: war and peace, as a letter.
       if (ev.type === 'Docked' && ev.entityIds[0] === player().id) {
         const town = settlements.find((s) => s.id === ev.entityIds[1]);

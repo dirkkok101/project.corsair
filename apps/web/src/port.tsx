@@ -43,6 +43,8 @@ import {
   wagesOwed,
   sellsGuns,
   sellsUpgrade,
+  shipRepairCost,
+  shipValue,
   townOf,
   tradeLean,
   tradePreview,
@@ -470,8 +472,11 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const unheard = rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).length;
   // What waits at each building, as a badge: news unheard, bounties owed, mending to do.
   const owed = hasGovernor(town) ? bountiesOwed(content, state, town.nation).pay.length : 0;
+  // The shipwright's badge counts the ships of the fleet (and any laid up here) he can mend, fit or sell;
+  // with the flagship alone, mending to do.
+  const yardShips = fleetOf(state).length + (state.captain?.laidUp ?? []).filter((l) => l.settlementId === town.id).length;
   const mending = repairCost(content, ship, fleetOf(state)) > 0 ? 1 : 0;
-  const badge: Partial<Record<Service, number>> = { tavern: unheard, governor: owed, shipwright: mending };
+  const badge: Partial<Record<Service, number>> = { tavern: unheard, governor: owed, shipwright: yardShips || mending };
   const label = (s: { id: Service; name: string }) => (badge[s.id] ? `${s.name} (${badge[s.id]})` : s.name);
 
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
@@ -1062,7 +1067,7 @@ function bountyLabel(content: ContentPack, pay: { captive?: string }[]) {
 }
 
 /** The shipwright's three choices: mending the fleet, buying ships, fitting a ship out. */
-type Yard = 'repair' | 'buy' | 'upgrade';
+type Yard = 'ships' | 'buy' | 'upgrade';
 
 /**
  * The shipwright (storyboard 2.9): three choices across the top, Mend her, Ships for sale and Fit her out. Mend
@@ -1095,7 +1100,10 @@ function Shipwright({
   const room = stats.maxGuns - stats.guns;
   const gunGold = content.combat.port.gunGold;
   // He greets you at the mending: his word on her, and the work it needs beneath it.
-  const [yard, setYard] = useState<Yard>('repair');
+  const [yard, setYard] = useState<Yard>('ships');
+  // The ship the fits go on: the flagship, or one of the fleet.
+  const [fitting, setFitting] = useState(shipId);
+  const fitOut = (id: string) => (setFitting(id), setYard('upgrade'));
   const hullShare = Math.round(((ship.hull ?? stats.hullMax) / stats.hullMax) * 100);
   const worst = Math.min(hullShare, Math.round(ship.sailCondition ?? 100));
   // How hard he speaks of it goes by how hurt she is: a few shot holes are not a beating.
@@ -1109,16 +1117,16 @@ function Shipwright({
           ? [
               `"She's sound. There's room on her deck for ${room} more ${room === 1 ? 'gun' : 'guns'}, ${gunGold} gold apiece."`,
               yard === 'upgrade' ? null : (
-                <button class="k-btn small primary" onClick={() => setYard('upgrade')}>
+                <button class="k-btn small primary" onClick={() => fitOut(shipId)}>
                   See the guns
                 </button>
               ),
             ]
           : [`"She's sound and clean, captain. Looking for a new ship, or something to make her better?"`, null];
   const choices: [Yard, string][] = [
-    ['repair', 'Mend her'],
+    ['ships', 'Your ships'],
     ['buy', 'Ships for sale'],
-    ['upgrade', 'Fit her out'],
+    ['upgrade', 'Fit out'],
   ];
   return (
     <div class="shipwright k-wood">
@@ -1129,20 +1137,31 @@ function Shipwright({
           </button>
         ))}
       </div>
-      {yard === 'repair' ? (
+      {yard === 'ships' ? (
         <>
           <Speech bust="bust.shipwright" who="The shipwright" line={line}>
             {act ? <div class="tavern-replies">{act}</div> : null}
           </Speech>
           <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} hamlet={hamlet} />
+          <YourShips content={content} state={state} shipId={shipId} send={send} cut={cut} fitOut={fitOut} />
+          <LaidUp content={content} state={state} shipId={shipId} send={send} />
         </>
       ) : yard === 'buy' ? (
-        <>
-          <LaidUp content={content} state={state} shipId={shipId} send={send} />
-          <ShipsForSale content={content} state={state} town={town} shipId={shipId} send={send} />
-        </>
+        <ShipsForSale content={content} state={state} town={town} shipId={shipId} send={send} />
       ) : (
-        <UpgradeYard content={content} state={state} town={town} shipId={shipId} send={send} />
+        <>
+          {fleet.length ? (
+            <div class="yard-fitting">
+              <span class="k-sub">Fitting out:</span>
+              {[{ id: shipId, name: ship.name ?? 'your flagship' }, ...fleet].map((s) => (
+                <button key={s.id} class={`k-btn small${(fleet.some((f) => f.id === fitting) ? fitting : shipId) === s.id ? ' primary active' : ''}`} onClick={() => setFitting(s.id)}>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <UpgradeYard content={content} state={state} town={town} shipId={shipId} send={send} only={fleet.some((f) => f.id === fitting) ? fitting : undefined} />
+        </>
       )}
     </div>
   );
@@ -1191,7 +1210,95 @@ function RepairYard({
         )}
       </div>
       <Careen content={content} state={state} shipId={shipId} send={send} hamlet={hamlet} />
-      <div class="k-sub">Each ship's state, mending one ship alone, and making a ship your flagship or selling her: the log's Fleet page (L).</div>
+    </div>
+  );
+}
+
+/**
+ * Your ships (storyboard 3.1): a card a ship, the flagship first, each with her state and her own orders: mend her,
+ * fit her out, make her the flagship, sell her.
+ */
+function YourShips({
+  content,
+  state,
+  shipId,
+  send,
+  cut,
+  fitOut,
+}: {
+  content: ContentPack;
+  state: WorldState;
+  shipId: string;
+  send: PortProps['send'];
+  cut: number;
+  fitOut: (id: string) => void;
+}) {
+  const ship = state.ships[shipId]!;
+  const fleet = fleetOf(state);
+  const gold = state.captain?.gold ?? 0;
+  const hold = fleetHold(content, state, ship);
+  const berths = fleetBerths(content, state, ship);
+  const cargo = cargoUsed(ship);
+  const crew = crewOf(content, ship);
+  const fits = (u?: string[]) => (u ?? []).map((id) => content.upgrades[id]?.name.toLowerCase()).filter(Boolean);
+  const condition = (f: { classId: string; hull?: number; sailCondition?: number; upgrades?: string[]; guns?: number }) => {
+    const stats = shipStats(content, f);
+    return [`hull ${Math.round(f.hull ?? stats.hullMax)} of ${stats.hullMax}`, `sails ${Math.round(f.sailCondition ?? 100)}%`, `${stats.guns} guns`, ...fits(f.upgrades)].join(' · ');
+  };
+  const mend = (id: string, f: Parameters<typeof shipRepairCost>[1]) => {
+    const cost = shipRepairCost(content, f, cut);
+    return cost > 0 ? (
+      <button class="k-btn small" disabled={gold <= 0} title={gold < cost ? `You have ${gold} gold: as far as the purse reaches.` : undefined} onClick={() => send({ type: 'Repair', shipId, only: id })}>
+        Mend · {cost.toLocaleString()}
+      </button>
+    ) : null;
+  };
+  return (
+    <div class="yard-ships">
+      <div class="yard-ship flagship">
+        <Art id={shipIcon(content, ship.classId)} class="yard-ship-art" />
+        <div class="yard-ship-what">
+          <b>{ship.name ?? 'Your flagship'}</b> <span class="k-sub">{shipKind(ship.classId)} · flagship</span>
+          <div class="k-sub">{condition(ship)}</div>
+        </div>
+        <div class="yard-ship-orders">
+          {fleet.length ? mend(ship.id, ship) : null}
+          <button class="k-btn small" onClick={() => fitOut(ship.id)}>
+            Fit out
+          </button>
+        </div>
+      </div>
+      {fleet.map((f) => {
+        const cls = content.ships[f.classId]!;
+        const why =
+          hold - cls.cargo < cargo
+            ? `Her hold is needed: the rest of the fleet can't carry the ${cargo} tons aboard.`
+            : berths - shipStats(content, f).maxCrew < crew
+              ? `Her berths are needed: the rest of the fleet can't berth your ${crew} men.`
+              : undefined;
+        return (
+          <div key={f.id} class="yard-ship">
+            <Art id={shipIcon(content, f.classId)} class="yard-ship-art" />
+            <div class="yard-ship-what">
+              <b>{f.name}</b> <span class="k-sub">{shipKind(f.classId)}</span>
+              <div class="k-sub">{condition(f)}</div>
+            </div>
+            <div class="yard-ship-orders">
+              {mend(f.id, f)}
+              <button class="k-btn small" onClick={() => fitOut(f.id)}>
+                Fit out
+              </button>
+              <button class="k-btn small" onClick={() => send({ type: 'MakeFlagship', shipId, fleetId: f.id })}>
+                Make flagship
+              </button>
+              <button class="k-btn small" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
+                Sell · {shipValue(content, f).toLocaleString()}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {!fleet.length ? <div class="k-sub">Your fleet is your flagship alone. Keep a prize, or buy a ship, to grow it.</div> : null}
     </div>
   );
 }
@@ -1236,8 +1343,9 @@ function Careen({ content, state, shipId, send, hamlet }: { content: ContentPack
 }
 
 /** Fitting out the flagship: her guns, and the yard's improvements. */
-function UpgradeYard({ content, state, town, shipId, send }: { content: ContentPack; state: WorldState; town: PlacedSettlement; shipId: string; send: PortProps['send'] }) {
-  const ship = state.ships[shipId]!;
+function UpgradeYard({ content, state, town, shipId, send, only }: { content: ContentPack; state: WorldState; town: PlacedSettlement; shipId: string; send: PortProps['send']; only?: string }) {
+  // The ship being fitted: the flagship, or `only`, one of the fleet.
+  const ship = (only && fleetOf(state).find((f) => f.id === only)) || state.ships[shipId]!;
   const stats = shipStats(content, ship);
   const gold = state.captain?.gold ?? 0;
   const p = content.combat.port;
@@ -1263,15 +1371,15 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
         </div>
         {sellsGuns(town) ? (
           <>
-            <button class="k-btn small" disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: 1 })}>
+            <button class="k-btn small" disabled={room <= 0 || gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: 1, only })}>
               Buy 1 · {p.gunGold} gold
             </button>
             {room > 1 ? (
-              <button class="k-btn small primary" disabled={gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: room })}>
+              <button class="k-btn small primary" disabled={gold < p.gunGold} onClick={() => send({ type: 'BuyGuns', shipId, count: room, only })}>
                 Fill the gun deck · {(room * p.gunGold).toLocaleString()} gold
               </button>
             ) : null}
-            <button class="k-btn small ghost" disabled={stats.guns <= 0} onClick={() => send({ type: 'SellGuns', shipId, count: 1 })}>
+            <button class="k-btn small ghost" disabled={stats.guns <= 0} onClick={() => send({ type: 'SellGuns', shipId, count: 1, only })}>
               Sell 1 · {p.gunSellGold} gold
             </button>
           </>
@@ -1297,9 +1405,11 @@ function UpgradeYard({ content, state, town, shipId, send }: { content: ContentP
               </div>
               {installed.has(u.id) ? (
                 <span class="k-tag gold">installed</span>
+              ) : only && u.modifiers.spoilsDays ? (
+                <span class="fit-why">Only the flagship fights: it goes on her.</span>
               ) : sellsUpgrade(content, town, u.id, best) ? (
                 <>
-                  <button class="k-btn small primary" disabled={gold < cost.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id })}>
+                  <button class="k-btn small primary" disabled={gold < cost.price} onClick={() => send({ type: 'BuyUpgrade', shipId, upgradeId: u.id, only })}>
                     Buy · {cost.price.toLocaleString()} gold
                   </button>
                   {gold < cost.price ? <span class="fit-why">You have {gold.toLocaleString()} gold.</span> : null}

@@ -152,7 +152,8 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
 
 - **Elements:** hotspot labels on the buildings (a badge when someone there has something for you: "2" on the
   tavern), the arrival line (the most useful single fact, picked by the game), Set sail. Retire… lives under the
-  Docks hotspot.
+  Docks hotspot. A prize brought in is the arrival line ("Your prize, the fluyt Good Hope, lies here: mend, fit or
+  sell her at the shipwright"), and the shipwright's badge counts the ships of the fleet.
 - **Art:** exists (16 harbours).
 
 ### 2.6 Merchant
@@ -174,8 +175,9 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
 └────────────────────────────────────────────────────────────┘
 ```
 
-- **Elements:** icon, name, a verdict word, one price, one or two buttons per good; a hint line under a good only
-  when it has one; a click on the good (not hover) opens why (stock, news, what you paid). The merchant speaks
+- **Elements:** icon, name, a verdict word, one price, and all four trades on every row in fixed columns (Buy 10,
+  Buy max, Sell 10, Sell all; the ones that can't apply greyed, food without Buy max and Sell all); a hint line under
+  a good only when it has one; a click on the good (not hover) opens why (stock, news, what you paid). The merchant speaks
   one line: the best fact here. Default action: "Sell the plunder" or "Fill the hold with the best buy".
 - **Art:** exists (`interior.merchant`), plus a merchant bust (2.14).
 
@@ -225,7 +227,7 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
 
 ### 2.9 Shipwright
 
-- **Purpose:** keep her sound, then make her better.
+- **Purpose:** the place for your ships: keep them sound, make them better, swap the flag, sell them.
 - **Layout:** the yard painting; the shipwright speaks the one thing that matters now; ships and fits are cards.
 
 ```
@@ -244,8 +246,11 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
 └────────────────────────────────────────────────────────────┘
 ```
 
-- **Elements:** one opening sentence and its button; ship cards with three icon stats and a comparison line
-  against yours; fit cards with the upside and downside in words; fleet management moves to the log's Fleet page.
+- **Elements:** three tabs, Your ships · Ships for sale · Fit out. Your ships: one opening sentence and its button,
+  mending the fleet and careening, then a card a ship (the flagship first) with her state and her own orders: Mend,
+  Fit out, Make flagship, Sell; ships laid up here beneath. Ships for sale: ship cards with three icon stats and a
+  comparison line against yours. Fit out: which ship (any of the fleet; fine powder only on the flagship, which
+  fights), then fit cards with the upside and downside in words. The log's Fleet page is a summary to read at sea.
 - **Art:** exists (`interior.shipwright`), ship card art (2.14, six new classes), fit icons (2.14).
 
 ### 2.10 At sea: the quiet HUD
@@ -284,8 +289,11 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
   news, Buy food, Attack (with the consequence: "Spain will remember"), Leave.
 - **Battle.** Keep the 3D battle; the HUD shrinks to both ships' cards (hull, sails, men as named bands) and the
   ammo in three icons.
-- **Report and plunder.** One painting (exists: `outcome.*`), three result lines with their consequences, and one
-  button: "Take the best and let her go". Choosing by hand stays behind "Choose myself".
+- **Victory.** One screen: what the fight did (result lines with their consequences, a map piece among them) beside
+  her hold with the best already chosen and signing on her men; her fate as three equal cards (Let her go, Sink her,
+  Keep her, each with what it costs, Keep her marked "best" when she sells for more than her hold is worth); a famous
+  prisoner's fate; and one button, "Take the best and let her go" (Enter). Choosing by hand stays behind "Choose the
+  goods myself". A fight with no prize ends on the report alone: one painting (exists: `outcome.*`) and Continue.
 - **Art:** captain busts (2.14), outcome paintings exist.
 
 ### 2.12 The chart and the treasure map

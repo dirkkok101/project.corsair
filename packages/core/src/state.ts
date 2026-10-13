@@ -544,9 +544,9 @@ export type Command =
   /** Mend the fleet at the shipwright: one ship (`fleetId` a fleet ship's id, or `shipId` for the flagship), or all. */
   | { type: 'Repair'; shipId: string; only?: string }
   /** At the shipwright: mount or sell back cannon, or install an upgrade. */
-  | { type: 'BuyGuns'; shipId: string; count: number }
-  | { type: 'SellGuns'; shipId: string; count: number }
-  | { type: 'BuyUpgrade'; shipId: string; upgradeId: string }
+  | { type: 'BuyGuns'; shipId: string; count: number; only?: string }
+  | { type: 'SellGuns'; shipId: string; count: number; only?: string }
+  | { type: 'BuyUpgrade'; shipId: string; upgradeId: string; only?: string }
   /** Clean her foul bottom: at a shipwright (gold), or on a beach nearby (`beach`: days of her time, no gold). */
   | { type: 'Careen'; shipId: string; beach?: boolean }
   /** At the tavern: divide the plunder chest with the crew, or pay them wages from the captain's purse. */
