@@ -171,6 +171,14 @@ export interface BattleSetup {
   playerMorale?: number;
   /** Seat the enemy this far apart along this bearing from the player, in battle tiles. */
   bearingDeg: number;
+  /**
+   * A fair start (she was attacked while under way): the two lie across the wind, neither holding the weather
+   * gauge, close (combat.json battle.fairApart) on courses drawing apart downwind (fairAngle off the line between
+   * them), so the attacker must come round to board and she has time for broadsides first: measured against a
+   * pirate brigantine, near four before the grapple where meeting as they lay gave one. Unset, they start as they
+   * met (her own attack, or caught napping).
+   */
+  fair?: boolean;
   /** The career's difficulty (combat.json difficulty): a veering wind, the player's near misses forgiven. Neutral when unset. */
   difficulty?: DifficultyLevel;
 }
@@ -179,6 +187,21 @@ const TPS = 30;
 const DT = 1 / TPS;
 const EFFECT_SECONDS = 0.6;
 
+
+/**
+ * The weather gauge: the ship to windward of the other (by more than `margin` of the distance between them) can
+ * choose when to close; within it, neither has it.
+ */
+export function weatherGauge(state: Pick<BattleState, 'wind' | 'ships'>, margin = 0.35): 'player' | 'enemy' | undefined {
+  const { player, enemy } = state.ships;
+  const rad = (state.wind.fromDeg * Math.PI) / 180;
+  const [wx, wy] = [Math.sin(rad), -Math.cos(rad)];
+  const dx = enemy.x - player.x;
+  const dy = enemy.y - player.y;
+  const apart = Math.max(1e-6, Math.hypot(dx, dy));
+  const windward = (dx * wx + dy * wy) / apart;
+  return windward > margin ? 'enemy' : windward < -margin ? 'player' : undefined;
+}
 
 export function createBattle(content: ContentPack, setup: BattleSetup) {
   const c = content.combat;
@@ -254,17 +277,34 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     };
   };
 
-  // The player where she met the enemy; the enemy along the bearing she lay at, on open water.
+  // The player where she met the enemy; the enemy along the bearing she lay at (across the wind for a fair
+  // start, on the side nearer that bearing), on open water.
   const mid = { x: setup.player.x, y: setup.player.y };
+  const from = setup.wind.fromDeg;
+  const across = [normalizeDeg(from + 90), normalizeDeg(from - 90)].sort(
+    (a, b) => Math.abs(((a - setup.bearingDeg + 540) % 360) - 180) - Math.abs(((b - setup.bearingDeg + 540) % 360) - 180),
+  );
+  // Open water for her: a fair start tries the two bearings across the wind first; then round from the bearing she lay at.
+  const candidates = [...(setup.fair ? across : []), ...Array.from({ length: 24 }, (_, k) => setup.bearingDeg + k * 15)];
   let enemyAt = { x: mid.x, y: mid.y };
-  for (let turn = 0; turn < 360; turn += 15) {
-    const rad = ((setup.bearingDeg + turn) * Math.PI) / 180;
-    const at = { x: mid.x + Math.sin(rad) * c.battle.startApart, y: mid.y - Math.cos(rad) * c.battle.startApart };
-    if (water(at.x, at.y)) {
-      enemyAt = at;
-      break;
-    }
+  let line = setup.bearingDeg;
+  for (const deg of candidates) {
+    const rad = (deg * Math.PI) / 180;
+    const far = setup.fair ? c.battle.fairApart : c.battle.startApart;
+    const at = { x: mid.x + Math.sin(rad) * far, y: mid.y - Math.cos(rad) * far };
+    if (!water(at.x, at.y)) continue;
+    enemyAt = at;
+    line = normalizeDeg(deg);
+    break;
   }
+  // Fair: each heads fairAngle off the line to the other, turned downwind (never in irons; 90 is side by side on
+  // the same course), under way at least at fighting pace.
+  const downwind = normalizeDeg(from + 180);
+  const off = (a: number) => Math.abs(((a - downwind + 540) % 360) - 180);
+  const turn = c.battle.fairAngle;
+  const toward = (bearing: number) => [normalizeDeg(bearing + turn), normalizeDeg(bearing - turn)].sort((a, b) => off(a) - off(b))[0]!;
+  const fairPlayer = setup.fair ? { headingDeg: toward(line), speed: Math.max(setup.player.speed, c.battle.fairSpeed) } : {};
+  const fairEnemy = setup.fair ? { headingDeg: toward(normalizeDeg(line + 180)), speed: Math.max(setup.enemy.speed, c.battle.fairSpeed) } : {};
   // A pirate captain's temperament: the one she sails under on the map (that weighed the odds before she
   // came on), else drawn from the battle's seed by share.
   const temperament = (() => {
@@ -279,8 +319,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     grappling: 0,
     wind: setup.wind,
     ships: {
-      player: { ...arm(setup.player, 'player'), x: mid.x, y: mid.y },
-      enemy: { ...arm(setup.enemy, 'enemy'), ...enemyAt, ...(temperament ? { temperament } : {}) },
+      player: { ...arm(setup.player, 'player'), x: mid.x, y: mid.y, ...fairPlayer },
+      enemy: { ...arm(setup.enemy, 'enemy'), ...enemyAt, ...fairEnemy, ...(temperament ? { temperament } : {}) },
     },
     shots: [],
     effects: [],

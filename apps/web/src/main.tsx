@@ -416,6 +416,8 @@ async function main() {
       enemy: them,
       seed: (seed ^ Math.imul(sim.state.tick, 2654435761)) >>> 0,
       bearingDeg,
+      // Fallen on while under way, she gets a fair start; her own attack, or caught napping, starts as they met.
+      fair: !attacked && me.speed >= content.combat.battle.nappingSpeed,
       playerMorale: moraleOf(content, sim.state),
       difficulty: difficultyOf(content, sim.state.difficulty),
     });

@@ -2934,6 +2934,20 @@ body {
   padding-top: 8px;
 }
 
+/* The weather gauge, a quiet line: gold when hers is the wind, red when the enemy's. */
+.battle-gauge {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.battle-gauge.player {
+  border-color: var(--k-gold);
+}
+
+.battle-gauge.enemy {
+  border-color: #ff9a7a;
+}
+
 .battle-advice {
   color: #e9dcbc;
 }

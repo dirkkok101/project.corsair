@@ -342,6 +342,13 @@ export const combatSchema = z.object({
     decelPerSecond: z.number().positive(),
     /** How far apart the ships start, in battle tiles. */
     startApart: z.number().positive(),
+    /** A fair start (attacked under way): both ships under way at least at this speed. */
+    fairSpeed: z.number().min(0),
+    /** A fair start: this far apart, each heading this many degrees off the line to the other (90: side by side). */
+    fairApart: z.number().positive(),
+    fairAngle: z.number().min(0).max(180),
+    /** Below this speed she was caught napping: the fight starts as they met. */
+    nappingSpeed: z.number().min(0),
     /** Hulls this close (tiles) touch and the grapples go out; held for grappleSeconds, the boarders go
      * over. Sailing clear past breakTiles cuts the grapples. */
     boardTiles: z.number().positive(),

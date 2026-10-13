@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BattleResult, Command, SailSetting } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
+import { weatherGauge } from '@corsair/minigame-sea-battle';
 import { Compass, Help } from './hud';
 import type { CompassProps } from './hud';
 import { bandOf, Key } from './ui/kit';
@@ -573,6 +574,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     return aim[side] === 'ready' ? 'Ready' : left > 0 ? `Loading ${Math.ceil(left)} s` : AIM[aim[side]];
   };
   const enemy = state.ships.enemy;
+  const gauge = weatherGauge(state);
   /** What the fight did: how it ended, a line for each thing won or lost, her own ship, and the standing it moved. */
   const reportBody = (result: BattleResult) => (
     <div class="battle-report-body">
@@ -646,6 +648,16 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
         </div>
       ) : null}
       <div class="battle-toasts">
+        {/* Who holds the weather gauge: the ship to windward chooses when to close. */}
+        {!state.result && !state.wreck ? (
+          <div class={`battle-call battle-gauge ${gauge ?? 'neither'}`}>
+            {gauge === 'player'
+              ? 'Weather gauge: yours. You choose when to close; bear down to board, or hold off and fire.'
+              : gauge === 'enemy'
+                ? 'Weather gauge: hers. She chooses when to close; work to windward, or turn and run.'
+                : 'Weather gauge: neither. Whoever wins the wind chooses when to close.'}
+          </div>
+        ) : null}
         {!state.result && !state.wreck && state.grappling === 0 && (board.active || (apart <= 12 && board.odds >= 0.5)) ? (
           <div class="battle-call battle-board">
             <Key k="G" />

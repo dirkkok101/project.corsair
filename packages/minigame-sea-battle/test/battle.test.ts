@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { Ship } from '@corsair/core';
 import { decodeRasterMap, difficultyOf, loadContent, shipStats } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
-import { createBattle } from '../src';
+import { createBattle, weatherGauge } from '../src';
 
 const content = loadContent();
 const def = content.maps.caribbean;
@@ -73,6 +73,40 @@ function fight(enemy: Ship, seed: number, autopilot: 'runner' | 'cautious' | 'ag
   }
   return Object.assign(battle, { volleys, firstVolley, beforeGrapple: beforeGrapple ?? volleys, grapples, broken });
 }
+
+describe('a fair start', () => {
+  // A pirate sloop falls on the brig. Fair: across the wind, converging. Not: bows-on from dead to windward.
+  const start = (fair: boolean, seed: number) =>
+    createBattle(content, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: { ...ship('ship.brig', undefined, 0.5), headingDeg: 0, speed: 5 },
+      enemy: { ...ship('ship.sloop', 'pirate', 0.9), headingDeg: 180, speed: 5 },
+      seed,
+      bearingDeg: 0,
+      fair,
+    });
+  const apart = (b: ReturnType<typeof start>) => Math.hypot(b.state.ships.enemy.x - b.state.ships.player.x, b.state.ships.enemy.y - b.state.ships.player.y);
+
+  it('lies across the wind, neither with the weather gauge, on courses drawing apart downwind', () => {
+    const fair = start(true, 1);
+    expect(weatherGauge(fair.state)).toBeUndefined();
+    expect(apart(fair)).toBeCloseTo(content.combat.battle.fairApart, 5);
+    // Each heads fairAngle off the line to the other, downwind of it (never in irons), so they draw apart.
+    const { player, enemy } = fair.state.ships;
+    const line = (Math.atan2(enemy.x - player.x, -(enemy.y - player.y)) * 180) / Math.PI;
+    const angle = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    expect(angle(player.headingDeg, line)).toBeCloseTo(content.combat.battle.fairAngle, 5);
+    expect(angle(enemy.headingDeg, line + 180)).toBeCloseTo(content.combat.battle.fairAngle, 5);
+    expect(angle(player.headingDeg, 180)).toBeLessThanOrEqual(90);
+    // Out of boarding reach, and both under way.
+    expect(apart(fair)).toBeGreaterThan(content.combat.battle.boardTiles * 4);
+    expect(player.speed).toBeGreaterThanOrEqual(content.combat.battle.fairSpeed);
+    // As they met, she came down from windward with the gauge.
+    expect(weatherGauge(start(false, 1).state)).toBe('enemy');
+  });
+
+});
 
 describe('sea battle', () => {
   it('always ends, and replays exactly from its seed', () => {
