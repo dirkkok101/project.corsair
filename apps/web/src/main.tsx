@@ -20,6 +20,7 @@ import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
 import { compassProps, Hud } from './hud';
+import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
@@ -137,6 +138,13 @@ const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/c
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
 /** Which way `to` lies from `from`, as one of eight points of the compass (y grows southward). */
+/** Where a ship lies from her own bow, as the lookout calls it ("off the starboard bow"). */
+function fromTheBow(from: { x: number; y: number; headingDeg: number }, to: { x: number; y: number }): string {
+  const deg = ((Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI - from.headingDeg + 720) % 360;
+  return ['dead ahead', 'off the starboard bow', 'on the starboard beam', 'off the starboard quarter', 'astern', 'off the port quarter', 'on the port beam', 'off the port bow'][
+    Math.round(deg / 45) % 8
+  ]!;
+}
 function pointOfCompass(from: { x: number; y: number }, to: { x: number; y: number }): string {
   const deg = ((Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI + 360) % 360;
   return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(deg / 45) % 8]!;
@@ -729,13 +737,13 @@ async function main() {
       const ev = sim.events().slice(before).find((x) => x.type === 'Careened' || x.type === 'TradeRefused');
       if (ev?.type === 'Careened') {
         sim.step(Math.round(content.calendar.ticksPerDay * content.economy.fouling.beachDays));
-        digNote = { text: `Hove down on the beach for ${content.economy.fouling.beachDays} days: her bottom is clean, and she sails at her best again`, until: performance.now() + 7000 };
-      } else digNote = { text: 'No beach within reach to heave her down on: close the shore first', until: performance.now() + 4000 };
+        digNote = { text: `Hove down on the beach for ${content.economy.fouling.beachDays} days: her bottom is clean, and she sails at her best again`, kind: 'Careened on a beach', icon: 'ui.icon.hull', until: performance.now() + 7000 };
+      } else digNote = { text: 'No beach within reach to heave her down on: close the shore first', kind: 'No beach', icon: 'ui.icon.anchor', until: performance.now() + 4000 };
     }
     // G: go ashore and dig, inside a treasure map's search ring and near a beach (D steers; G boards only in battle).
     if (e.key.toLowerCase() === 'g' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
       if (digHere()) dig();
-      else digNote = { text: "Nothing to dig for here: sail into a treasure map's search ring (M), close to the shore", until: performance.now() + 4000 };
+      else digNote = { text: "Nothing to dig for here: sail into a treasure map's search ring (M), close to the shore", kind: 'Nothing to dig', icon: 'ui.icon.chest', until: performance.now() + 4000 };
     }
     // L: the captain's log, at sea or in port; Escape closes it too.
     if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen;
@@ -782,7 +790,7 @@ async function main() {
   // ship: intercept; to a port: sail in and dock; to the sea: sail there, by the lanes round any land) and
   // holding it re-aims; a right-click hails the ship or enters the port under it, or else drops the course.
   // In battle a left-click (or hold) steers to the point and the right button fires.
-  let courseNote: { text: string; until: number } | undefined;
+  let courseNote: (Toast & { until: number }) | undefined;
   /** F1's key help is open. */
   let helpOpen = false;
   /** The HUD's strip fades while nothing on it changes: what it last showed, and when that changed. */
@@ -808,7 +816,7 @@ async function main() {
     if (!to) return;
     const route = lanes.path([me.x, me.y], to);
     if (!route) {
-      if (!held) courseNote = { text: 'No way there by sea', until: performance.now() + 2500 };
+      if (!held) courseNote = { text: 'No way there by sea', kind: 'Course', icon: 'ui.icon.course', tone: 'warn', until: performance.now() + 2500 };
       return;
     }
     const [ex, ey] = port ? [port.x, port.y] : to;
@@ -958,9 +966,9 @@ async function main() {
     })?.name;
   };
   // What the last dig turned up, said a while.
-  let digNote: { text: string; until: number } | undefined;
+  let digNote: (Toast & { until: number }) | undefined;
   // A goal just done (careerGoals), said a while; the goals already done when the career was loaded say nothing.
-  let goalNote: { text: string; until: number } | undefined;
+  let goalNote: (Toast & { until: number }) | undefined;
   let goalsDone: Set<string> | undefined;
   /**
    * G: heave to, put the men ashore on the nearest beach and dig. Half a day passes (treasure.json dig hours) while
@@ -975,7 +983,7 @@ async function main() {
     const ev = sim.events().slice(before).find((e) => e.type === 'HoardFound' || e.type === 'DigMissed' || e.type === 'DigRefused');
     const now = performance.now();
     if (!ev || ev.type === 'DigRefused') {
-      digNote = { text: 'No beach within reach to put the men ashore: close the shore first', until: now + 4000 };
+      digNote = { text: 'No beach within reach to put the men ashore: close the shore first', kind: 'No beach', icon: 'ui.icon.anchor', until: now + 4000 };
       return;
     }
     sim.step(Math.round((content.calendar.ticksPerDay * content.treasure.dig.hours) / 24));
@@ -990,6 +998,8 @@ async function main() {
       text: hint
         ? `Half a day's digging, and only sand. From the beach the men see ${hint.landmark} to the ${way}, about ${Math.max(1, Math.round(hint.tiles * kmPerTile))} km off`
         : "Half a day's digging, and only sand. Nothing on this coast matches your maps",
+      kind: 'Dig result',
+      icon: 'ui.icon.chest',
       until: now + 9000,
     };
   };
@@ -1056,7 +1066,7 @@ async function main() {
   };
   // Sail ho! A ship coming within SAIL_HO_TILES is called out once, for a few seconds.
   const inSight = new Set<string>();
-  let sailHo: { text: string; until: number } | undefined;
+  let sailHo: { id: string; until: number } | undefined;
   // A song's name shows for a few seconds as it starts, then gives the sea back.
   let songHeard: string | undefined;
   let songShownUntil = 0;
@@ -1283,7 +1293,7 @@ async function main() {
           });
         }
       }
-      if (ev.type === 'RentPaid') courseNote = { text: `Rent from your land: +${(ev.payload.gold as number).toLocaleString()} gold`, until: now + 4000 };
+      if (ev.type === 'RentPaid') courseNote = { text: `Rent from your land: +${(ev.payload.gold as number).toLocaleString()} gold`, kind: 'Rent', icon: 'ui.icon.gold', until: now + 4000 };
       // Retired: the career is over; keep it, so the start screen shows how it ended.
       if (ev.type === 'Retired') void save();
       // Plague breaks out in the port she lies in: no other ship will come in until it passes.
@@ -1298,13 +1308,13 @@ async function main() {
       if (ev.type === 'MapPieceBought') moments.push({ kind: 'map', pirateId: ev.payload.pirateId as string, line: "That's all I know, captain. The rest is with men who'd sooner cut your throat." });
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
-        courseNote = { text: `Plague at ${name}: the port is shut to shipping`, until: now + 4000 };
+        courseNote = { text: `Plague at ${name}: the port is shut to shipping`, kind: 'Port shut', icon: 'ui.icon.anchor', tone: 'warn', until: now + 4000 };
       }
       if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') {
         // Pressed onto the shore within reach of the port she was bound for: she goes in all the same.
         const port = portInReach();
         if (port && port.id === destination?.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
-        else courseNote = { text: 'Aground: no way through there. Take the helm', until: now + 3500 };
+        else courseNote = { text: 'Aground: no way through there. Take the helm', kind: 'Aground', icon: 'ui.icon.hull', tone: 'warn', until: now + 3500 };
       }
       // A fight between other ships within sight: smoke on the water and the thud of distant guns.
       if (ev.type === 'SeaFight') {
@@ -1368,8 +1378,7 @@ async function main() {
     for (const s of Object.values(sim.state.ships)) {
       if (!s.ai || inPort(s) || ship.docked || Math.hypot(s.x - ship.x, s.y - ship.y) > SAIL_HO_TILES) continue;
       seen.add(s.id);
-      const title = shipTitle(s).replace(/^./, (c) => c.toUpperCase());
-      if (!inSight.has(s.id)) sailHo = { text: s.ai.famous ? `Sail ho! ${title}: ${s.ai.name} himself` : `Sail ho! ${title}, the ${s.ai.name}`, until: now + SAIL_HO_MS };
+      if (!inSight.has(s.id)) sailHo = { id: s.id, until: now + SAIL_HO_MS };
     }
     inSight.clear();
     for (const id of seen) inSight.add(id);
@@ -1382,14 +1391,15 @@ async function main() {
     // The crew's needs, when they press: food running out, or a grumbling crew.
     const days = foodDays(content, ship);
     const mood = moraleOf(content, sim.state);
-    const crewWarning = ship.docked
+    const left = Math.floor(days);
+    const crewWarning: Toast | undefined = ship.docked
       ? undefined
       : days < 1
-        ? 'The food is gone: the crew is starving. Make port, or hail a passing ship (H) and buy food from her'
+        ? { text: 'The food is gone: the crew is starving. Make port, or hail a passing ship (H) and buy food from her', kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
         : days <= 3
-          ? `Food for ${Math.floor(days)} days: buy food in port, or from a passing ship (H)`
+          ? { text: `Food for ${left === 1 ? 'one more day' : `${left} days`}: buy food in port, or from a passing ship (H)`, kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
           : mood < content.crew.morale.grumbling
-            ? `The crew is ${moraleWord(content, mood).toLowerCase()}: divide the plunder or pay wages in a tavern`
+            ? { text: `The crew is ${moraleWord(content, mood).toLowerCase()}: divide the plunder or pay wages in a tavern`, kind: 'Warning: the crew', icon: 'ui.icon.morale', tone: 'warn' }
             : undefined;
     // Autosave on arriving in port, whichever way the Dock command came in.
     if (ship.docked && !wasDocked) {
@@ -1444,7 +1454,7 @@ async function main() {
     const fresh = goalsDone ? goals.find((g) => g.done && !goalsDone!.has(g.id)) : undefined;
     if (fresh) {
       const next = goals.find((g) => !g.done);
-      goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, until: now + 7000 };
+      goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, kind: 'Goal done', icon: 'ui.icon.cannon_loaded', tone: 'gold', until: now + 7000 };
     }
     goalsDone = doneNow;
     if (fight) logOpen = false;
@@ -1504,6 +1514,7 @@ async function main() {
     stage.classList.toggle('in-port', Boolean(town));
     stage.classList.toggle('log-open', logOpen);
     stage.classList.toggle('moment-open', Boolean(moments[0] && !fight));
+    stage.classList.toggle('hail-open', Boolean(hailing));
     render(
       sim.state.captain?.retired ? (
         <Ending content={content} state={sim.state} again={() => location.reload()} />
@@ -1639,11 +1650,7 @@ async function main() {
                   ? raided.ai.role === 'patrol'
                     ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`
                     : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name} · sail in and H to take a hand`
-                  : sailHo && now < sailHo.until
-                  ? `Intercept her · I`
-                    : crewWarning
-                      ? crewWarning
-                      : intercepting?.ai
+                  : intercepting?.ai
                       ? `Intercepting the ${intercepting.ai.name} · I to stop`
                       : ship.assist?.mode === 'course'
                         ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
@@ -1652,8 +1659,13 @@ async function main() {
         hour={hour}
         held={cruise.held}
         saved={now - savedAt < 2000}
-        banner={sailHo && now < sailHo.until ? sailHo.text : undefined}
-        toasts={[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n.text] : []))}
+        banner={(() => {
+          const her = sailHo && now < sailHo.until ? sim.state.ships[sailHo.id] : undefined;
+          if (!her?.ai) return undefined;
+          const who = her.ai.famous ? `${her.ai.name} himself, in a ${shipKind(her.classId)},` : `A ${shipTitle(her)}`;
+          return { text: `${who} ${fromTheBow(ship, her)}`, hail: near?.id === her.id };
+        })()}
+        toasts={[...[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
           const g = goals.find((x) => !x.done);
           return g && { title: g.title, have: g.have, of: g.of, unit: g.unit };

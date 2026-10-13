@@ -1,12 +1,13 @@
 import { inPort } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
-import { shipTitle } from './hail';
+import { NATION_ADJECTIVE } from './hail';
+import { shipKind } from './ui-art';
 
-// "Spanish frigate" under every AI ship near the player (a famous pirate by his name), so nations read at a
-// glance alongside the flags; the prizes she tows as a count. DOM text over the 3D view, placed where the
-// 3D camera shows each ship; hidden in port and in battle.
+// Under every AI ship near the player, on a short line from her: her nation as a tag, her name, and what she is
+// ("fluyt, merchant"), so who she is and whether she is worth a chase read at a glance; the prizes she tows as a
+// count. DOM over the 3D view, placed where the 3D camera shows each ship; hidden in port and in battle.
 const NEAR_TILES = 14;
-const BELOW_PX = 22;
+const BELOW_PX = 18;
 
 export function createShipLabels(parent: HTMLElement) {
   const layer = parent.appendChild(document.createElement('div'));
@@ -31,10 +32,21 @@ export function createShipLabels(parent: HTMLElement) {
         }
         el.className = `ship-label label-${ship.ai.nation}`;
         const towing = ship.ai.prizes?.length ?? 0;
-        const name = ship.ai.famous ? `${ship.ai.name}'s ${shipTitle(ship).replace(/^(a|an|the) /i, '').replace(/^pirate /, '')}` : shipTitle(ship);
-        // First letter up ("Pirate sloop"); names keep their own case.
-        const shown = name.replace(/^./, (c) => c.toUpperCase());
-        el.textContent = towing ? `${shown} +${towing}` : shown;
+        const role = ship.ai.famous ? 'famous pirate' : ship.ai.role === 'patrol' ? 'man-of-war' : ship.ai.role;
+        const tag = NATION_ADJECTIVE[ship.ai.nation] ?? ship.ai.nation;
+        const text = `${tag}|${ship.ai.name}|${shipKind(ship.classId)}, ${role}${towing ? ` +${towing}` : ''}`;
+        // Rebuilt only when it changes: this runs every frame.
+        if (el.dataset.text !== text) {
+          el.dataset.text = text;
+          el.replaceChildren();
+          const box = el.appendChild(document.createElement('span'));
+          box.className = 'ship-label-box';
+          const t = box.appendChild(document.createElement('span'));
+          t.className = 'ship-label-tag';
+          t.textContent = tag.replace(/^./, (c) => c.toUpperCase());
+          box.appendChild(document.createElement('b')).textContent = ship.ai.name;
+          box.append(` · ${shipKind(ship.classId)}, ${role}${towing ? ` +${towing}` : ''}`);
+        }
         el.style.transform = `translate(${Math.round(at.px)}px, ${Math.round(at.py + BELOW_PX)}px) translateX(-50%)`;
       }
       for (const [id, el] of nodes) {

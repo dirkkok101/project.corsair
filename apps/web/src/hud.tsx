@@ -203,10 +203,10 @@ export interface HudProps {
   sound?: string;
   /** The one thing to do now ("Enter Port Royal · E"): a trailing " · K" shows as a key cap. */
   prompt?: string;
-  /** "Sail ho!": a ship just come into sight, called out across the top. */
-  banner?: string;
-  /** Notes that come and go (a goal done, a dig's result, rent paid), newest last. */
-  toasts?: string[];
+  /** "Sail ho!": a ship just come into sight, called out across the top: who and where, and whether she can be hailed. */
+  banner?: { text: string; hail: boolean };
+  /** Notes that come and go (a goal done, a dig's result, rent paid) and warnings that stay while they hold. */
+  toasts?: Toast[];
   /** The hour the sky shows (0 to 24), for the date line's "morning" or "dusk". */
   hour: number;
   /** Why cruising is held at 1x ("near land", "sail in sight", "storm"), while it is. */
@@ -230,6 +230,14 @@ export interface HudProps {
   closeHelp: () => void;
   /** The fleet held to its slowest ship's pace: why, in a few words (until the log's Fleet page, slice S8). */
   fleetPace?: string;
+}
+
+/** A note on the HUD: what it says, what kind it is (said small beneath), its icon, and gold or red for a goal or a warning. */
+export interface Toast {
+  text: string;
+  kind: string;
+  icon: string;
+  tone?: 'gold' | 'warn';
 }
 
 /** "Enter Port Royal · E" as text and a key cap. */
@@ -320,12 +328,29 @@ export function Hud(p: HudProps) {
         {p.date} · {partOfDay(p.hour)}
         {p.held ? ` · 1×, ${p.held}` : ''}
       </div>
-      {p.banner ? <div class="hud-banner">{p.banner}</div> : null}
+      {p.banner ? (
+        <div class="hud-banner">
+          <b>Sail ho!</b>
+          <span>{p.banner.text}</span>
+          {p.banner.hail ? (
+            <span class="hud-banner-key">
+              <Key k="H" /> hail
+            </span>
+          ) : null}
+          <span class="hud-banner-key">
+            <Key k="I" /> intercept
+          </span>
+        </div>
+      ) : null}
       {p.toasts?.length ? (
         <div class="hud-toasts">
           {p.toasts.map((t) => (
-            <div key={t} class="hud-toast">
-              {t}
+            <div key={t.text} class={`hud-toast${t.tone ? ` ${t.tone}` : ''}`}>
+              <Art id={t.icon} class="hud-toast-icon" />
+              <div>
+                <div>{t.text}</div>
+                <div class="hud-toast-kind">{t.kind}</div>
+              </div>
             </div>
           ))}
         </div>

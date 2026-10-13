@@ -129,7 +129,7 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
               {items.length ? `${items.length === 1 ? 'Her news goes' : `${items.length} pieces of news go`} to your log.` : "She has no news you haven't heard."}
             </span>
             <button class="k-btn" onClick={close}>
-              Sail on <Key k="H" />
+              Sail on <Key k="Esc" />
             </button>
           </div>
         </div>

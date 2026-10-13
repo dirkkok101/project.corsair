@@ -30,12 +30,70 @@ body {
   position: absolute;
   left: 0;
   top: 0;
-  padding: 0 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   white-space: nowrap;
-  font-size: 11px;
-  color: #ebede9;
-  background: rgb(9 10 20 / 0.55);
-  border-left: 3px solid #819796;
+  font-size: 14px;
+  color: #f1e6cc;
+  border-color: #819796;
+}
+
+/* The short line up to her hull. */
+.ship-label::before {
+  content: '';
+  width: 2px;
+  height: 18px;
+  background: rgb(241 230 204 / 0.6);
+}
+
+.ship-label-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 6px;
+  background: var(--k-glass-strong);
+  border: 1px solid var(--k-brass-dim);
+  border-left: 4px solid;
+  border-left-color: inherit;
+}
+
+.ship-label-tag {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font: 700 11px var(--k-body);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #1d1210;
+  background: #819796;
+}
+
+/* The tag in her nation's colour; a pirate's label is not the whole box tinted. */
+.ship-label.label-spain .ship-label-tag {
+  background: #e8c170;
+}
+
+.ship-label.label-england .ship-label-tag {
+  background: #cf573c;
+}
+
+.ship-label.label-france .ship-label-tag {
+  background: #73bed3;
+}
+
+.ship-label.label-netherlands .ship-label-tag {
+  background: #de9e41;
+}
+
+.ship-label.label-pirate {
+  background: none;
+  border-color: #b0303b;
+}
+
+.ship-label.label-pirate .ship-label-tag {
+  color: #f1e6cc;
+  background: #411d31;
 }
 
 /* The 3D sea and its battles: full window, over the harbour canvas (hidden in port). */
@@ -284,18 +342,35 @@ body {
   font-weight: bold;
 }
 
+/* Sail ho: who and where, and the keys for what to do about her. */
 .hud-banner {
   position: absolute;
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 8px 18px;
   border-radius: 6px;
   background: var(--k-glass-strong);
   border: 1px solid var(--k-gold);
-  font-family: var(--k-display);
-  font-size: 24px;
+  font-size: 18px;
+  color: var(--k-cream);
+  white-space: nowrap;
+}
+
+.hud-banner b {
+  font: normal 24px var(--k-display);
   color: var(--k-gold);
+}
+
+.hud-banner-key {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 15px;
+  color: #e9dcbc;
 }
 
 .hud-toasts {
@@ -309,11 +384,38 @@ body {
 }
 
 .hud-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 9px 14px;
   border-radius: 6px;
   background: var(--k-glass-strong);
   border: 1px solid var(--k-brass-dim);
   color: var(--k-cream);
+}
+
+.hud-toast.gold {
+  border-color: var(--k-gold);
+}
+
+.hud-toast.warn {
+  border-color: #ff9a7a;
+}
+
+.hud-toast-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.hud-toast-kind {
+  font-size: 13px;
+  color: #c9b993;
+}
+
+.hud-toast.warn .hud-toast-kind {
+  color: #ff9a7a;
 }
 
 .hud-strip {
@@ -331,7 +433,7 @@ body {
 }
 
 .hud-strip.faded {
-  opacity: 0.35;
+  opacity: 0.65;
 }
 
 .hud-controls {
@@ -1300,6 +1402,12 @@ body {
 #stage.log-open .hud-rose,
 #stage.log-open .hud-prompt,
 #stage.log-open .labels,
+#stage.hail-open .minimap,
+#stage.hail-open .hud,
+#stage.hail-open .hud-rose,
+#stage.hail-open .hud-prompt,
+#stage.hail-open .labels,
+#stage.hail-open .ship-labels,
 #stage.moment-open .minimap,
 #stage.moment-open .hud,
 #stage.moment-open .hud-rose,

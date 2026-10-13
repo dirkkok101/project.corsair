@@ -760,10 +760,14 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
     return newest;
   });
   await expect(page.locator('.hud-prompt')).toContainText('Hail the English fluyt');
-  // Her name rides under her on the 3D sea.
-  await expect(page.locator('.ship-label', { hasText: 'English fluyt' })).toBeVisible();
+  // Her nation, name and what she is ride under her on the 3D sea.
+  const label = page.locator('.ship-label', { hasText: 'fluyt, merchant' });
+  await expect(label).toBeVisible();
+  await expect(label.locator('.ship-label-tag')).toHaveText(/english/i);
   await page.keyboard.press('h');
   await expect(page.locator('.hail')).toContainText('bound for Cartagena');
+  // The sea's prompt and HUD make way for the hail.
+  await expect(page.locator('.hud-prompt')).toBeHidden();
   // Firing on a nation's ship is allowed, with a warning of what it costs.
   await expect(page.locator('.hail-attack')).toContainText('angers the English');
   // Her captain speaks on a card, his bust beside it.
@@ -997,6 +1001,9 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
     return at.id;
   });
   await expect(page.locator('.hud-banner')).toContainText('Sail ho!');
+  // Where she lies from the bow, and the key to go after her.
+  await expect(page.locator('.hud-banner')).toContainText(/dead ahead|astern|(bow|beam|quarter)/);
+  await expect(page.locator('.hud-banner')).toContainText('intercept');
   // Cruising holds at 1x (here the coast may hold it too: either reason drops it).
   await expect(page.locator('.hud-date').first()).toContainText('1×,');
   await page.keyboard.press('i');
