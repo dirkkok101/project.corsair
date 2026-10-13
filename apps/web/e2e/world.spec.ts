@@ -278,6 +278,8 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await page.keyboard.press('l');
   await expect(page.locator('.log-mark.active')).toHaveText('Log');
   await expect(page.locator('.logbook-line').first()).toContainText(/Sold \d+ sugar at Port Royal for [\d,]+ gold: \+/);
+  // The log opens with the command taken.
+  await expect(page.locator('.logbook-line').last()).toContainText('Took command of the brig Swallow at Port Royal.');
   await page.screenshot({ path: 'test-results/logbook.png' });
   await page.keyboard.press('l');
   await expect(page.locator('.log')).toHaveCount(0);

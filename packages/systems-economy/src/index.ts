@@ -1,5 +1,5 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, KnownPrices, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, KnownPrices, LogEntry, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigation';
@@ -518,7 +518,15 @@ export function withEconomy(world: WorldState, content: ContentPack, settlements
       content.goods.map((g) => [g.id, Math.round(normalStock(content, s, g.id) * rng.range(0.7, 1.3))]),
     );
   }
-  const captain: Captain = { gold: content.economy.startingGold, knownPrices: {}, chest: 0, morale: content.crew.morale.start, paidTick: world.tick, mess: 0 };
+  // The log opens with the command taken (storyboard 6.1), at the port the captain's ship lies at.
+  const own = Object.values(world.ships).find((s) => !s.ai);
+  const home = own && [...settlements].sort((a, b) => Math.hypot(a.x - own.x, a.y - own.y) - Math.hypot(b.x - own.x, b.y - own.y))[0];
+  const homeName = home && content.settlements.find((s) => s.id === home.id)?.name;
+  const logbook: LogEntry[] =
+    own && home && homeName
+      ? [{ tick: world.tick, kind: 'deed', text: `Took command of the ${own.classId.replace(/^ship\./, '').replace(/_/g, ' ')} ${own.name ?? ''} at ${homeName}.`.replace(/ +/g, ' '), place: home.id }]
+      : [];
+  const captain: Captain = { gold: content.economy.startingGold, knownPrices: {}, chest: 0, morale: content.crew.morale.start, paidTick: world.tick, mess: 0, logbook };
   // The player's ship sails with a few days' food aboard.
   const ships = Object.fromEntries(
     Object.entries(world.ships).map(([id, s]) => [id, s.ai || s.cargo.food ? s : { ...s, cargo: { ...s.cargo, food: content.crew.startFood } }]),

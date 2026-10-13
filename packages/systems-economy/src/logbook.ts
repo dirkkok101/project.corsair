@@ -1,4 +1,4 @@
-import type { GameEvent, LogEntry, System } from '@corsair/core';
+import type { GameEvent, LogEntry, System, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import { newsText } from './index';
 
@@ -12,8 +12,14 @@ const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', fr
  * The captain's log (storyboard 6.1): it watches what the systems do and writes the captain's deeds and losses, and
  * the news he hears in taverns and from ships he hails, as dated lines. Sales of one good in one port on one day make one line.
  */
-export function createLogbookSystem(content: ContentPack, settlements: Pick<PlacedSettlement, 'id' | 'name'>[]): System {
+export function createLogbookSystem(content: ContentPack, settlements: Pick<PlacedSettlement, 'id' | 'name' | 'x' | 'y'>[]): System {
   const town = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id ?? '';
+  // Where a deed at sea was done: the port nearest the captain's ship, as the world's news says "off" a town.
+  const nearest = (state: WorldState, shipId?: string) => {
+    const ship = shipId ? state.ships[shipId] : undefined;
+    if (!ship) return undefined;
+    return [...settlements].sort((a, b) => Math.hypot(a.x - ship.x, a.y - ship.y) - Math.hypot(b.x - ship.x, b.y - ship.y))[0];
+  };
   const good = (id: unknown) => (content.goods.find((g) => g.id === id)?.name ?? String(id)).toLowerCase();
   const kind = (classId: unknown) => String(classId).replace(/^ship\./, '').replace(/_/g, ' ');
   const gold = (n: unknown) => `${Math.round(Number(n)).toLocaleString('en-GB')} gold`;
@@ -25,19 +31,22 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
     }.`;
 
   /** The line an event of the player's writes, or none. */
-  const lineOf = (e: GameEvent): Omit<LogEntry, 'tick'> | undefined => {
+  const lineOf = (e: GameEvent, state: WorldState): Omit<LogEntry, 'tick'> | undefined => {
     const p = e.payload;
     const at = e.entityIds[1];
     switch (e.type) {
       case 'BattleOver': {
+        const near = nearest(state, e.entityIds[0]);
+        const off = near ? ` off ${near.name}` : '';
+        const place = near ? { place: near.id } : {};
         const her = `the ${ADJECTIVE[String(p.nation)] ?? ''} ${p.role === 'merchant' ? 'merchant' : p.role === 'patrol' ? 'man-of-war' : 'pirate'} ${p.ship}`.replace(/ +/g, ' ');
         const purse = Number(p.purse) ? `: ${gold(p.purse)} in her purse` : '';
-        if (p.outcome === 'struck' || p.outcome === 'boarded') return { kind: 'deed', text: `Took ${her}${purse}.` };
-        if (p.outcome === 'sunk') return { kind: 'deed', text: `Sank ${her}.` };
-        if (p.outcome === 'escaped') return { kind: 'deed', text: `${her[0]!.toUpperCase()}${her.slice(1)} got away.` };
-        if (p.outcome === 'fled') return { kind: 'loss', text: `Drew clear of ${her}.` };
-        if (p.outcome === 'yielded') return { kind: 'loss', text: `Struck to ${p.ship} when called on: gave up the chest and the hold.` };
-        return { kind: 'loss', text: `Beaten by ${her}.` };
+        if (p.outcome === 'struck' || p.outcome === 'boarded') return { kind: 'deed', text: `Took ${her}${off}${purse}.`, ...place };
+        if (p.outcome === 'sunk') return { kind: 'deed', text: `Sank ${her}${off}.`, ...place };
+        if (p.outcome === 'escaped') return { kind: 'deed', text: `${her[0]!.toUpperCase()}${her.slice(1)} got away${off}.`, ...place };
+        if (p.outcome === 'fled') return { kind: 'loss', text: `Drew clear of ${her}${off}.`, ...place };
+        if (p.outcome === 'yielded') return { kind: 'loss', text: `Struck to ${p.ship}${off} when called on: gave up the chest and the hold.`, ...place };
+        return { kind: 'loss', text: `Beaten by ${her}${off}.`, ...place };
       }
       case 'Sold': {
         const sale = { good: String(p.good), quantity: Number(p.quantity), gold: Number(p.gold), ...(p.paid === undefined ? {} : { profit: Math.round(Number(p.gold) - Number(p.paid)) }) };
@@ -55,8 +64,12 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
         const name = content.pirates.captains.find((c) => c.id === p.pirateId)?.name ?? String(p.pirateId);
         return { kind: 'deed', text: `Bought a piece of ${name}'s map at ${town(at)}.`, place: at };
       }
-      case 'HoardFound':
-        return { kind: 'deed', text: `Dug up ${p.name}'s hoard: ${gold(p.gold)}.` };
+      case 'HoardFound': {
+        const near = nearest(state, e.entityIds[0]);
+        return near
+          ? { kind: 'deed', text: `Dug up ${p.name}'s hoard near ${near.name}: ${gold(p.gold)}.`, place: near.id }
+          : { kind: 'deed', text: `Dug up ${p.name}'s hoard: ${gold(p.gold)}.` };
+      }
       case 'ShipBought':
         return { kind: 'deed', text: `Bought the ${kind(p.classId)} ${p.name} at ${town(at)}.`, place: at };
       case 'ShipSold':
@@ -100,7 +113,7 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
           }
           continue;
         }
-        const line = lineOf(e);
+        const line = lineOf(e, state);
         if (line) write({ tick: e.tick, ...line });
       }
       if (log === (state.captain.logbook ?? [])) return state;

@@ -30,13 +30,26 @@ function docked() {
 }
 
 describe('the logbook', () => {
+  it('opens with the command taken, at the port the ship lies at', () => {
+    const log = docked().state.captain!.logbook!;
+    expect(log[0]).toMatchObject({ kind: 'deed', place: port.id, text: `Took command of the brig Swallow at ${port.name}.` });
+  });
+
+  it('says off which port a battle was fought', () => {
+    const sim = docked();
+    const book = createLogbookSystem(content, settlements).observe!(sim.state, [
+      { tick: 5, type: 'BattleOver', system: 'traffic', entityIds: ['player', 'ai.1'], payload: { outcome: 'struck', ship: 'La Trinidad', nation: 'spain', role: 'merchant', purse: 206 } },
+    ]);
+    expect(book.captain!.logbook!.at(-1)).toMatchObject({ kind: 'deed', place: port.id, text: `Took the Spanish merchant La Trinidad off ${port.name}: 206 gold in her purse.` });
+  });
+
   it('writes a sale, adding lots of one good sold the same day into one line, with the profit', () => {
     const sim = docked();
     sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 10 });
     sim.applyCommands();
     sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 10 });
     sim.applyCommands();
-    const log = sim.state.captain!.logbook!;
+    const log = sim.state.captain!.logbook!.filter((e) => e.sale);
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({ kind: 'deed', place: port.id, sale: { good: 'sugar', quantity: 20 } });
     expect(log[0]!.text).toMatch(new RegExp(`^Sold 20 sugar at ${port.name} for [\\d,]+ gold: \\+[\\d,]+\\.$`));
@@ -44,7 +57,7 @@ describe('the logbook', () => {
     sim.step(day);
     sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 10 });
     sim.applyCommands();
-    expect(sim.state.captain!.logbook).toHaveLength(2);
+    expect(sim.state.captain!.logbook!.filter((e) => e.sale)).toHaveLength(2);
   });
 
   it('writes the news heard in a tavern', () => {
@@ -81,6 +94,6 @@ describe('the logbook', () => {
     state = log.observe!(state, deeds);
     const book = state.captain!.logbook!;
     expect(book).toHaveLength(LOGBOOK_SIZE);
-    expect(book.at(-1)!.text).toBe(`Dug up Pirate ${LOGBOOK_SIZE + 4}'s hoard: 100 gold.`);
+    expect(book.at(-1)!.text).toBe(`Dug up Pirate ${LOGBOOK_SIZE + 4}'s hoard near ${port.name}: 100 gold.`);
   });
 });
