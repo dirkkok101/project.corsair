@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import type { Ship, WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { newsText } from '@corsair/systems-economy';
+import { foodDays, newsText } from '@corsair/systems-economy';
 import { Key, Speech } from './ui/kit';
 import { Art, shipKind } from './ui-art';
 
@@ -160,10 +160,13 @@ function Provisions({ content, state, ship, buyFood, room }: { content: ContentP
   const left = sp.spare - (state.captain?.provisionsFrom?.[ship.id] ?? 0);
   if (left <= 0) return row('She has no more food to spare.');
   const gold = state.captain?.gold ?? 0;
+  const mine = Object.values(state.ships).find((s) => !s.ai);
   const can = Math.min(left, room, Math.floor(gold / price));
   const why = room <= 0 ? 'Your hold is full.' : gold < price ? 'Not enough gold.' : undefined;
   return row(
-    `Buy food from her stores: up to ${left}, at ${price} gold each (dear: far from market).`,
+    `Buy food from her stores: up to ${left}, at ${price} gold each (dear: far from market). You have ${gold.toLocaleString()} gold${
+      mine ? `, ${Math.floor(foodDays(content, mine))} days of food aboard` : ''
+    } and room for ${Math.max(0, room)}.`,
     <button class="k-btn" disabled={can <= 0} title={why} onClick={() => buyFood(can)}>
       Buy {Math.max(0, can)} food · {Math.max(0, can) * price} gold
     </button>,

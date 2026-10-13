@@ -732,6 +732,24 @@ body {
   margin-bottom: 12px;
 }
 
+/* What you have to spend, beside the way out. */
+.interior-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.interior-holdings {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 14px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: rgb(20 14 10 / 0.82);
+  box-shadow: inset 0 0 0 1px var(--k-brass);
+}
+
 .interior-title {
   margin: 0;
   font-family: 'Pirata One', serif;
@@ -1950,14 +1968,6 @@ body {
   display: flex;
   align-items: center;
   gap: 18px;
-}
-
-.ships-for-sale-purse {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-weight: 700;
 }
 
 .ship-card-head {

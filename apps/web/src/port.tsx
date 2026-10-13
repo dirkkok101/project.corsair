@@ -580,9 +580,12 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         {/* Over the painting, as in the storyboard: the tavern's sign, and the way out. The town is the harbour's. */}
         <div class="interior-top">
           {open === 'tavern' ? <h1 class="interior-title">{tavernSign(town.id)}</h1> : <span />}
-          <button class="k-btn small" onClick={() => setOpen(undefined)} title="Back to the harbour">
-            Leave <Key k="Esc" />
-          </button>
+          <div class="interior-right">
+            <Holdings content={content} state={state} shipId={shipId} service={open} />
+            <button class="k-btn small" onClick={() => setOpen(undefined)} title="Back to the harbour">
+              Leave <Key k="Esc" />
+            </button>
+          </div>
         </div>
         {notice ? <div class="hud-toast interior-notice">{notice}</div> : null}
 
@@ -608,6 +611,47 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         )}
 
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the captain has to spend and to fill, beside the way out of every building where gold buys something: the
+ * purse always, then what that building deals in (the shipwright's guns and fleet, the tavern's men, food and chest,
+ * the governor's chest). The merchant's ledger shows its own (the hold, his purse, yours).
+ */
+function Holdings({ content, state, shipId, service }: { content: ContentPack; state: WorldState; shipId: string; service: Service }) {
+  if (service === 'merchant') return null;
+  const ship = state.ships[shipId]!;
+  const gold = state.captain?.gold ?? 0;
+  const crew = crewOf(content, ship);
+  const berths = fleetBerths(content, state, ship);
+  const chest = Math.round(state.captain?.chest ?? 0);
+  const { guns, maxGuns } = shipStats(content, ship);
+  const food = Math.floor(foodDays(content, ship));
+  const morale = moraleOf(content, state);
+  const purse = <Stat icon="ui.icon.gold" value={`${gold.toLocaleString()} gold`} title="Gold in your purse" />;
+  const men = <Stat icon="ui.icon.crew" value={`${crew} of ${berths} men`} title={`Crew ${crew}, berths ${berths}`} low={crew < berths / 3} />;
+  const plunder = <Stat icon="ui.icon.chest" value={`${chest.toLocaleString()} in the chest`} title="The plunder chest: the crew's, divided at the tavern" />;
+  return (
+    <div class="interior-holdings">
+      {purse}
+      {service === 'shipwright' ? (
+        <>
+          <Stat icon="ui.icon.cannon_loaded" value={`${guns} of ${maxGuns} guns`} title="Guns on the flagship, of her gun deck" />
+          {men}
+          <Stat icon="ui.icon.anchor" value={`${fleetOf(state).length + 1} of ${content.combat.fleet.maxShips} ships`} title="Ships in your fleet, of the most one captain can keep" />
+        </>
+      ) : service === 'tavern' ? (
+        <>
+          {plunder}
+          {men}
+          <Stat icon="ui.icon.food" value={`${food} ${food === 1 ? 'day' : 'days'}`} title="Food aboard, in days for this crew" low={food <= 3} />
+          <Stat icon="ui.icon.morale" value={moraleWord(content, morale)} title="The crew's morale" low={morale < 40} />
+        </>
+      ) : (
+        plunder
+      )}
     </div>
   );
 }
@@ -757,12 +801,6 @@ function ShipsForSale({ content, state, town, shipId, send }: { content: Content
       <div class="ships-for-sale-head">
         <span class="k-sub">
           Each joins your fleet at once: make her your flagship to fight in her. The great ships are built in Europe, and the half-galleys are Spain's: take one.
-        </span>
-        <span class="ships-for-sale-purse">
-          <Stat icon="ui.icon.gold" value={`${gold.toLocaleString()} gold`} title="Gold in your purse" />
-          <span>
-            Fleet {fleet.length + 1} of {max}
-          </span>
         </span>
       </div>
       <div class="ship-cards ships-for-sale">

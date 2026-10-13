@@ -50,6 +50,9 @@ test('a new career starts docked in port, under-gunned, and the shipwright outfi
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
   await openService(page, 'Shipwright');
+  // Beside the way out, what there is to spend and to fill: the purse, her guns, her men, the fleet.
+  await expect(page.locator('.interior-holdings')).toContainText('1,000 gold');
+  await expect(page.locator('.interior-holdings')).toContainText('10 of 18 guns');
   // She is sound, so the shipwright speaks of the room on her gun deck, and his button goes to the guns.
   await expect(page.locator('.shipwright .k-say')).toContainText('room on her deck for 8 more guns');
   // Beneath his word, the mending and careening, each with her state.
