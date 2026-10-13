@@ -464,6 +464,8 @@ export interface WorldState {
   nextNewsId?: number;
   /** Counter for AI ship ids. */
   nextShipId?: number;
+  /** When the player last saw two other ships fight (a quiet sea stages one in her sight, traffic.json encounters). */
+  fightSeenAt?: number;
   politics?: Politics;
   /**
    * A ship just taken, waiting on the captain's word (TakePlunder): her cargo to choose from, the men

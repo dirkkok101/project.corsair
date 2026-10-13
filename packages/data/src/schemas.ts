@@ -727,6 +727,19 @@ export const trafficSchema = z.object({
     fameFrom: z.number().min(0),
     fameFull: z.number().positive(),
   }),
+  /**
+   * A quiet sea stages a fight in her sight: when she has seen none for quietDays at sea, at this chance each check
+   * (four a day), two ships fall on each other this share of her sight off her bow: by `kinds` weight, a pirate
+   * on a merchant, a patrol on a pirate, or (at war) a warship on an enemy merchant.
+   */
+  encounters: z.object({
+    quietDays: z.number().min(0),
+    chance: z.number().min(0).max(1),
+    distance: z.number().positive().max(1),
+    /** The staged hunter leaves the watching captain be this long: her prey is the other ship. */
+    calmDays: z.number().min(0),
+    kinds: z.object({ piracy: z.number().min(0), patrol: z.number().min(0), war: z.number().min(0) }),
+  }),
   /** A nation the captain has wronged (standing hostile) sends a patrol, at this chance a sailing, to the port nearest her. */
   seek: z.object({ chance: z.number().min(0).max(1) }),
   names: z.record(nation, z.array(z.string()).min(1)),

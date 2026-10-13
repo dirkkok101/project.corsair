@@ -667,6 +667,94 @@ export function createTrafficSystem(
     const rung = 1 + content.pirates.rules.rungStrength.filter((x) => at >= x * notice).length;
     return rung >= def.rung;
   };
+  /**
+   * Two ships fall on each other in her sight: a spot of open water off her bow (traffic.json encounters.distance
+   * of her sight), the prey there, bound on for a port by the lanes, and the hunter a few tiles off, already after
+   * her. Which pair by `kinds`: a pirate and a merchant, a patrol and a pirate, or a warship and an enemy merchant
+   * (only at war). Undefined when no spot or pair can be had.
+   */
+  const stage = (state: WorldState, me: Ship, tick: number, rng: Rng): { state: WorldState; ids: string[]; kind: string } | undefined => {
+    const e = t.encounters;
+    const far = t.sightTiles * e.distance;
+    let spot: [number, number] | undefined;
+    for (const turn of [0, 25, -25, 50, -50, 80, -80]) {
+      const rad = ((me.headingDeg + turn) * Math.PI) / 180;
+      const x = me.x + Math.sin(rad) * far;
+      const y = me.y - Math.cos(rad) * far;
+      if (x < 1 || y < 1 || x > map.width - 2 || y > map.height - 2) continue;
+      if (isLand(tileAt(map, x, y)) || isLand(tileAt(map, x + 4, y))) continue;
+      spot = [x, y];
+      break;
+    }
+    if (!spot) return undefined;
+    const ports = settlements.filter((s) => !isHaven(s));
+    const near = [...ports].sort((a, b) => Math.hypot(a.x - spot![0], a.y - spot![1]) - Math.hypot(b.x - spot![0], b.y - spot![1]));
+    const haven = settlements.filter(isHaven).sort((a, b) => Math.hypot(a.x - spot![0], a.y - spot![1]) - Math.hypot(b.x - spot![0], b.y - spot![1]))[0];
+    const wars = near.flatMap((a) => near.filter((b) => a.nation !== b.nation && atWar(content, state, a.nation, b.nation)).map((b) => [a, b] as const));
+    const kinds = { piracy: e.kinds.piracy, patrol: e.kinds.patrol, war: wars.length ? e.kinds.war : 0 };
+    const kind = rng.weighted(kinds);
+    // The prey's port, the hunter's, and the prey's role.
+    const [preyHome, hunterHome, preyRole, hunterRole] =
+      kind === 'piracy'
+        ? [near[0]!, haven ?? near[0]!, 'merchant' as const, 'pirate' as const]
+        : kind === 'patrol'
+          ? [haven ?? near[0]!, near[0]!, 'pirate' as const, 'patrol' as const]
+          : [wars[0]![1], wars[0]![0], 'merchant' as const, 'patrol' as const];
+    if (!preyHome || !hunterHome) return undefined;
+    // Bound on for the port nearest the spot that isn't her own, nor her nation's enemy's: by the lanes from where she is.
+    const bound = near.find((s) => s.id !== preyHome.id && !atWar(content, state, preyHome.nation, s.nation));
+    if (!bound) return undefined;
+    const berth = lanes.berth(bound.id);
+    const way = berth ? lanes.path(spot, berth) : undefined;
+    if (!way) return undefined;
+    const prey = spawn(content, state, preyRole, preyHome, spot, rng, tick);
+    const preyShip: Ship = { ...prey.ship, sails: 'full', ai: { ...prey.ship.ai!, from: preyHome.id, to: bound.id, route: way, along: 0, waitUntil: undefined } };
+    const hunterAt: [number, number] = [spot[0] + 5, spot[1] + 3];
+    const hunter = spawn(content, prey.state, hunterRole, hunterHome, isLand(tileAt(map, hunterAt[0], hunterAt[1])) ? [spot[0] - 5, spot[1] - 3] : hunterAt, rng, tick);
+    const home = lanes.berth(hunterHome.id);
+    const back = home ? lanes.path([hunter.ship.x, hunter.ship.y], home) : undefined;
+    const hunterShip: Ship = {
+      ...hunter.ship,
+      sails: 'full',
+      // Her prey is the merchant, not the captain watching: she leaves her be a while after (encounters.calmDays).
+      ai: {
+        ...hunter.ship.ai!,
+        from: hunterHome.id,
+        to: hunterHome.id,
+        route: back ?? [[hunter.ship.x, hunter.ship.y]],
+        along: 0,
+        waitUntil: undefined,
+        target: preyShip.id,
+        calmUntil: tick + Math.round(e.calmDays * tpd),
+      },
+    };
+    const ships = { ...hunter.state.ships, [preyShip.id]: preyShip, [hunterShip.id]: hunterShip };
+    // Each stands in for one of her role far out of sight (not famous, not in a convoy, not in a fight), so the sea
+    // keeps its numbers.
+    for (const made of [preyShip, hunterShip]) {
+      const spare = Object.values(ships)
+        .filter(
+          (x) =>
+            x.ai &&
+            x.id !== preyShip.id &&
+            x.id !== hunterShip.id &&
+            x.ai.role === made.ai!.role &&
+            !inPort(x) &&
+            !x.ai.famous &&
+            !x.ai.convoy &&
+            !x.ai.skirmish &&
+            !x.ai.target &&
+            !x.ai.chasing &&
+            !x.ai.carries &&
+            !x.ai.blockadeOf &&
+            !x.ai.prizes?.length,
+        )
+        .sort((a, b) => Math.hypot(b.x - me.x, b.y - me.y) - Math.hypot(a.x - me.x, a.y - me.y))[0];
+      if (spare && Math.hypot(spare.x - me.x, spare.y - me.y) > t.sightTiles * 3) delete ships[spare.id];
+    }
+    return { state: { ...hunter.state, ships }, ids: [hunterShip.id, preyShip.id], kind };
+  };
+
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
   const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
   const hunts = (state: WorldState, ship: Ship) =>
@@ -1529,6 +1617,22 @@ export function createTrafficSystem(
         ships = { ...ships, [id]: moved };
       }
 
+      // A quiet sea is a dead one: when she has seen no fight for a while, the world stages one off her bow, near
+      // the edge of her sight, with real ships that carry on their way after (traffic.json encounters).
+      const quarter = Math.max(1, Math.round(tpd / 4));
+      const me = ships.player;
+      if (tick % quarter === 0 && me && !me.docked && !next.prize) {
+        const e = t.encounters;
+        if (tick - (next.fightSeenAt ?? 0) >= e.quietDays * tpd && rng.float() < e.chance) {
+          const staged = stage({ ...next, ships }, me, tick, rng);
+          if (staged) {
+            next = { ...staged.state, fightSeenAt: tick };
+            ships = { ...staged.state.ships };
+            events.push({ type: 'FightStaged', entityIds: staged.ids, payload: { kind: staged.kind } });
+          }
+        }
+      }
+
       // The convoys' timetable: each line sails every so many days, to its ports in turn.
       if (tick % tpd === 0) {
         const day = tick / tpd;
@@ -1621,7 +1725,14 @@ export function createTrafficSystem(
         }
         captain = { ...captain, sightings, ...(famousSeen.length ? { famousSeen } : {}) };
       }
-      return { state: { ...next, ships, captain, rng: { ...next.rng, traffic: rng.state() } }, events };
+      // A fight she saw of itself keeps the sea from staging one (fightSeenAt).
+      const watcher = ships.player;
+      const saw =
+        watcher &&
+        events.some(
+          (ev) => (ev.type === 'SkirmishBegun' || ev.type === 'SeaFight') && Math.hypot((ev.payload.x as number) - watcher.x, (ev.payload.y as number) - watcher.y) <= t.sightTiles,
+        );
+      return { state: { ...next, ships, captain, ...(saw ? { fightSeenAt: tick } : {}), rng: { ...next.rng, traffic: rng.state() } }, events };
     },
   };
 }

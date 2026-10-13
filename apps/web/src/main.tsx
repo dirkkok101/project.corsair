@@ -1432,6 +1432,20 @@ async function main() {
         if (port && port.id === destination?.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
         else courseNote = { text: 'Aground: no way through there. Take the helm', kind: 'Aground', icon: 'ui.icon.hull', tone: 'warn', until: now + 3500 };
       }
+      // Two ships falling on each other in her sight: who, and where, and that she may take a hand.
+      if (ev.type === 'SkirmishBegun') {
+        const me = player();
+        const [hunter, prey] = [sim.state.ships[ev.entityIds[0]!], sim.state.ships[ev.entityIds[1]!]];
+        if (hunter?.ai && prey?.ai && Math.hypot(prey.x - me.x, prey.y - me.y) <= content.traffic.sightTiles) {
+          const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : `a ${({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' } as Record<string, string>)[ship.ai!.nation] ?? ''}`} ${shipKind(ship.classId)}`;
+          courseNote = {
+            text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: I to close, H to hail`.replace(/^./, (c) => c.toUpperCase()),
+            kind: 'Sea fight',
+            icon: 'ui.icon.cannon_loaded',
+            until: now + 6000,
+          };
+        }
+      }
       // A fight between other ships within sight: smoke on the water and the thud of distant guns.
       if (ev.type === 'SeaFight') {
         const me = player();

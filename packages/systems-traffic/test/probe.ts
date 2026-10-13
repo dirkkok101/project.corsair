@@ -33,6 +33,9 @@ export interface VoyageMeasures {
   piratesSunk: number;
   /** Fights between AI ships that happened within the player's sight. */
   fightsSeen: number;
+  /** Fights the quiet sea staged in her sight, and skirmishes (fights played out on the map) that began there. */
+  staged: number;
+  skirmishes: number;
   /** At the end, per unit, buying at the route's first port and selling at its second: the best good, and that margin at normal stock. */
   margin: { good: string; now: number; normal: number };
 }
@@ -71,7 +74,7 @@ export function voyageProbe(
     sim.applyCommands();
   };
   sail();
-  const m: VoyageMeasures = { voyages: 0, attacks: 0, merchantsTaken: 0, piratesSunk: 0, fightsSeen: 0, margin: { good: '', now: 0, normal: 0 } };
+  const m: VoyageMeasures = { voyages: 0, attacks: 0, merchantsTaken: 0, piratesSunk: 0, fightsSeen: 0, staged: 0, skirmishes: 0, margin: { good: '', now: 0, normal: 0 } };
   let seen = sim.events().length;
   const end = days * content.calendar.ticksPerDay;
   while (sim.state.tick < end) {
@@ -88,6 +91,8 @@ export function voyageProbe(
         sim.applyCommands();
         sail();
       }
+      if (ev.type === 'FightStaged') m.staged++;
+      if (ev.type === 'SkirmishBegun') m.skirmishes++;
       if (ev.type === 'SeaFight') {
         if (ev.payload.winner === 'pirate') m.merchantsTaken++;
         else if (ev.payload.loser === 'pirate') m.piratesSunk++;

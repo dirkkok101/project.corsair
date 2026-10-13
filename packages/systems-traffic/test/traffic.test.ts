@@ -855,6 +855,25 @@ describe('ships that change hands', () => {
   });
 });
 
+describe('a quiet sea', () => {
+  it('stages a fight in her sight once she has seen none a while: a hunter after her prey, the sea keeping its numbers', () => {
+    // Open water south of Jamaica, under way, every check a fight (chance 1).
+    const sure = { ...content, traffic: { ...content.traffic, encounters: { ...content.traffic.encounters, chance: 1 } } };
+    const start = createWorld(def);
+    const at = { ...start, ships: { player: { ...start.ships.player!, x: 1320, y: 1020, headingDeg: 90, speed: 4 } } };
+    const sim = world(5, at, sure);
+    sim.step(day);
+    const before = traffic0(sim.state).length;
+    sim.step(Math.ceil(content.traffic.encounters.quietDays + 1) * day);
+    const staged = sim.events().find((e) => e.type === 'FightStaged');
+    expect(staged).toBeDefined();
+    // She heard of it as she saw it: the clock of quiet days starts again.
+    expect(sim.state.fightSeenAt).toBeGreaterThan(0);
+    // Each staged ship stood in for one far off: about as many ships as before.
+    expect(Math.abs(traffic0(sim.state).length - before)).toBeLessThanOrEqual(4);
+  }, 60_000);
+});
+
 describe('the famous pirates', () => {
   const traffic = () => createTrafficSystem(content, settlements, lanes, map, windAt);
   const famous = (state: WorldState) => ai(state).filter((s) => s.ai!.famous);
