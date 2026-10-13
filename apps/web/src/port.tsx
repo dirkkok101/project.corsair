@@ -79,6 +79,8 @@ export interface PortProps {
   plot?: (x: number, y: number) => void;
   /** Opens the captain's log (L), in port too. */
   openLog?: () => void;
+  /** A building to go in to, asked from outside (a letter's "To the governor"); a new object each time. */
+  request?: { service: Service };
 }
 
 export type Service = 'merchant' | 'tavern' | 'governor' | 'shipwright';
@@ -426,7 +428,7 @@ function arrivalNews(content: ContentPack, state: WorldState, town: PlacedSettle
 }
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
-export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date, map, plot, openLog }: PortProps) {
+export function Port({ state, content, town, settlements, shipId, send, hotspots, onOpen, notice, date, map, plot, openLog, request }: PortProps) {
   // The harbour first (the painting is the menu, storyboard 2.1); a building opens its service, Esc comes back.
   const [open, setOpen] = useState<Service | undefined>(undefined);
   // Retiring asks first, with the score as it stands.
@@ -434,6 +436,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   // The docks: the ships in harbour, and retiring.
   const [docks, setDocks] = useState(false);
   useEffect(() => onOpen(open), [open]);
+  useEffect(() => {
+    if (request) setOpen(request.service);
+  }, [request]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -990,7 +995,7 @@ function Governor({
       ) : offer ? (
         <div class="k-paper governor-offer">
           <div class="k-say">
-            "{list(enemies)} {enemies.length === 1 ? 'is' : 'are'} our enemy. A letter of marque, {price ? `${price.toLocaleString()} gold` : 'freely given'}?"
+            “{list(enemies)} {enemies.length === 1 ? 'is' : 'are'} our enemy. A letter of marque, {price ? `${price.toLocaleString()} gold` : 'freely given'}?”
           </div>
           <div class="governor-offer-means">
             Their ships become lawful prizes: each one you take raises your standing with {COUNTRY[nation]} and earns a bounty here.{' '}

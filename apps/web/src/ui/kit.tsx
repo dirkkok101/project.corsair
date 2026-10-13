@@ -31,13 +31,16 @@ export function Key({ k }: { k: string }) {
  * Someone speaking: their bust (a silhouette with their name until painted), who they are, and one line.
  * `children` are the replies or actions beneath.
  */
+/** Straight quotes turned the right way: the voice face draws a straight one as a closing quote. */
+export const curly = (s: string) => s.replace(/"([^"]*)"/g, '“$1”');
+
 export function Speech({ bust, who, line, children }: { bust: string; who: string; line: string; children?: ComponentChildren }) {
   return (
     <div class="k-speech">
       <Bust id={bust} label={who} />
       <div class="k-speech-body">
         <div class="k-who">{who}</div>
-        <div class="k-say">{line}</div>
+        <div class="k-say">{curly(line)}</div>
         {children}
       </div>
     </div>

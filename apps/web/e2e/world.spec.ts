@@ -320,6 +320,9 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   await expect(letter).toContainText("Your uncle's brig is yours, with 10 guns and 75 men");
   await expect(letter).toContainText('the Spanish are at war with us');
   await expect(letter.locator('.moment-goal')).toContainText('Mount a full battery');
+  // It says where the goal gets done, and the harbour's own labels make way for it.
+  await expect(letter.locator('.moment-goal')).toContainText('the shipwright at Port Royal');
+  await expect(page.locator('.harbour-head')).toBeHidden();
   // The loading screen has faded from over it.
   await expect(page.locator('.loading')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/opening-letter.png' });
@@ -502,6 +505,8 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
   await expect(moment).toContainText("That's all I know, captain");
   await expect(moment).toContainText('1 of 4 pieces');
   await expect(moment.locator('.parchment')).toHaveCount(1);
+  // The piece just bought is ringed.
+  await expect(moment.locator('.moment-quarters .new')).toHaveCount(1);
   await page.screenshot({ path: 'test-results/map-moment.png' });
   await moment.getByRole('button', { name: 'Later' }).click();
   await expect(page.locator('.moment')).toHaveCount(0);
@@ -610,7 +615,9 @@ test('moments: war comes as a letter in port, and a famous pirate seen the first
   await page.evaluate(() => window.__corsair.sim.step(1));
   const letter = page.locator('.moment-letter');
   await expect(letter).toContainText('War!');
-  await expect(letter).toContainText('England and France are at war');
+  await expect(letter.locator('.moment-who')).toHaveText('England and France are at war');
+  // Port Royal's governor is party to the war: the letter offers the way in to him.
+  await expect(letter.getByRole('button', { name: 'To the governor' })).toBeVisible();
   await expect(letter.locator('.moment-means')).toContainText("England's governors will grant a letter of marque against France");
   await page.screenshot({ path: 'test-results/moment-letter.png' });
   await page.keyboard.press('Enter');

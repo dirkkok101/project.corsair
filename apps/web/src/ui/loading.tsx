@@ -25,10 +25,10 @@ export function showLoading(root: HTMLElement, painting: string | undefined): Lo
   const line = LINES[Math.floor(Math.random() * LINES.length)]!;
   const draw = (share: number, what: string, leaving = false) =>
     render(
-      <div class={`loading${leaving ? ' leaving' : ''}`} style={painting ? { backgroundImage: `url(${painting})` } : undefined}>
+      <div class={`loading${leaving ? ' leaving' : ''}`} style={painting ? { backgroundImage: `linear-gradient(rgb(8 10 16 / 0) 40%, rgb(8 10 16 / 0.55)), url(${painting})` } : undefined}>
         <h1 class="loading-title">Project Corsair</h1>
         <div class="loading-foot">
-          <p class="loading-line">"{line}"</p>
+          <p class="loading-line">“{line}”</p>
           <div class="loading-rope" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}>
             <span style={{ width: `${Math.round(Math.max(0.04, Math.min(1, share)) * 100)}%` }} />
           </div>

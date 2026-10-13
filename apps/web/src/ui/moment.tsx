@@ -3,14 +3,14 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { hoardRing, rungBrings } from '@corsair/systems-economy';
 import { topTen } from '@corsair/systems-traffic';
 import { Parchment, quartersHeld, waterNear } from '../log';
-import { Bust, Key } from './kit';
+import { Bust, curly, Key } from './kit';
 
 // Moments (storyboard 2.13): short full-screen beats that reward and then get out of the way, one at a time from a
 // queue, the world stopped while one shows. Enter or Escape closes one.
 
 export type Moment =
   /** News that matters (war, peace): a dated letter, its headline and what it means for you. */
-  | { kind: 'letter'; newsId: string; at: string; date: string; headline: string; text: string; means: string }
+  | { kind: 'letter'; newsId: string; at: string; date: string; headline: string; text: string; means: string; governor?: boolean }
   /** A governor's commission: the new rank, what it brings, and the next. */
   | { kind: 'promotion'; nation: string; rank: string; acres: number; town: string }
   /** A famous pirate seen for the first time. */
@@ -20,7 +20,7 @@ export type Moment =
   /** A piece of a treasure map: whose, the line that came with it. */
   | { kind: 'map'; pirateId: string; line: string }
   /** A new career's opening letter (storyboard 1.4): her ship, the war, and the first goal. */
-  | { kind: 'opening'; town: string; date: string; ship: string; guns: number; men: number; enemies: string; goal?: { title: string; have: string; why: string } };
+  | { kind: 'opening'; town: string; date: string; ship: string; guns: number; men: number; enemies: string; goal?: { title: string; have: string; where: string } };
 
 const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' };
 const ADJECTIVE: Record<string, string> = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' };
@@ -46,11 +46,15 @@ export interface MomentProps {
   close: () => void;
   /** Plot a course to a spot at sea (tile coordinates). */
   plot: (x: number, y: number) => void;
+  /** Closes a letter and goes in to the port's governor. */
+  toGovernor: () => void;
 }
 
 /** The moment at the head of the queue, full screen. */
-export function MomentView({ moment, content, state, map, settlements, scene, close, plot }: MomentProps) {
-  if (moment.kind === 'letter')
+export function MomentView({ moment, content, state, map, settlements, scene, close, plot, toGovernor }: MomentProps) {
+  if (moment.kind === 'letter') {
+    // The news's first sentence says who ("England and France are at war!"); the rest is the story.
+    const [who, ...rest] = moment.text.split(/(?<=[!.])\s+/);
     return (
       <div class="moment moment-dim">
         <div class="k-paper moment-letter">
@@ -59,19 +63,31 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
           </div>
           <div class="book-rule" />
           <div class="moment-headline">{moment.headline}</div>
-          <div class="moment-news">{moment.text}</div>
+          <div class="moment-who">{who!.replace(/[!.]$/, '')}</div>
+          {rest.length ? (
+            <>
+              <div class="book-rule" />
+              <p class="moment-news">{rest.join(' ')}</p>
+            </>
+          ) : null}
           <div class="moment-means">
             <b>What it means for you</b>
             <div>{moment.means}</div>
           </div>
           <div class="moment-actions">
-            <button class="k-btn primary" onClick={close}>
+            {moment.governor ? (
+              <button class="k-btn primary" onClick={toGovernor}>
+                To the governor
+              </button>
+            ) : null}
+            <button class={`k-btn${moment.governor ? '' : ' primary'}`} onClick={close}>
               Into the log <Key k="Enter" />
             </button>
           </div>
         </div>
       </div>
     );
+  }
 
   if (moment.kind === 'opening')
     return (
@@ -97,7 +113,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
                 <div class="moment-kicker">Your first goal</div>
                 <div class="moment-goal-title">{moment.goal.title}</div>
                 <div class="book-sub">
-                  {moment.goal.have} · {moment.goal.why}
+                  {moment.goal.have} · {moment.goal.where}
                 </div>
               </div>
             ) : (
@@ -117,6 +133,23 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
     const next = ladder[rung + 1];
     const merit = state.captain?.merit?.[moment.nation as keyof NonNullable<NonNullable<WorldState['captain']>['merit']>] ?? 0;
     const brings = rungBrings(content, rung);
+    const country = COUNTRY[moment.nation] ?? 'The Crown';
+    // The governor says what the rank opens to him, by the best thing it brings.
+    const perks = new Set(Object.entries(content.politics.ranks.perks).filter(([, p]) => p.rung === ladder[rung]?.id).map(([k]) => k));
+    const gives = perks.has('frigate')
+      ? `${country}'s yards will build you a frigate.`
+      : perks.has('repair')
+        ? `${country}'s yards are yours.`
+        : perks.has('upgrade')
+          ? `${country}'s shipwrights will fit you out at a friend's price.`
+          : perks.has('price')
+            ? `${country}'s merchants will deal fairly with you.`
+            : perks.has('recruit')
+              ? `Men will sooner sign on under an officer of ${country}.`
+              : ladder[rung]?.acres
+                ? `${country} rewards you with land.`
+                : `${country} does not forget those who serve her.`;
+    const now = brings.join(' · ');
     return (
       <div class="moment" style={paint(scene('moment.promotion'))}>
         <div class="moment-head">
@@ -128,9 +161,11 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
           <div class="k-speech">
             <Bust id={`bust.governor.${moment.nation}`} label={`The governor of ${moment.town}`} />
             <div class="k-speech-body">
-              <div class="k-say">"{moment.rank}, then. {COUNTRY[moment.nation] ?? 'The Crown'} does not forget those who serve her."</div>
+              <div class="k-say">
+                “{moment.rank}, then. {gives}”
+              </div>
               <b class="moment-gold">Now, at {ADJECTIVE[moment.nation] ?? ''} ports</b>
-              <div>{brings.length ? brings.join(' · ') : 'Your rank, and the respect it carries.'}</div>
+              <div>{now ? now[0]!.toUpperCase() + now.slice(1) : 'Your rank, and the respect it carries.'}</div>
               {moment.acres ? <div>Your land: {moment.acres} acres, paying rent each month.</div> : null}
               {next ? (
                 <div class="k-sub">
@@ -139,7 +174,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
               ) : null}
             </div>
           </div>
-          <div class="moment-actions">
+          <div class="moment-actions end">
             <button class="k-btn primary" onClick={close}>
               Thank him <Key k="Enter" />
             </button>
@@ -200,6 +235,9 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
   if (!hoard) return null;
   const ring = hoardRing(content, hoard, held);
   const near = settlements.find((s) => s.id === hoard.near)?.name ?? hoard.near;
+  const got = quartersHeld(hoard, held);
+  // The piece just come to hand is ringed, so the captain sees which quarter it is.
+  const fresh = got[got.length - 1];
   return (
     <div class="moment moment-map">
       <div class="moment-map-sheet">
@@ -207,8 +245,8 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
         {/* The quarters still missing, marked as such over the torn-away parchment. */}
         <div class="moment-quarters" aria-hidden="true">
           {[0, 1, 2, 3].map((q) => (
-            <div key={q} class={quartersHeld(hoard, held).includes(q) ? '' : 'missing'}>
-              {quartersHeld(hoard, held).includes(q) ? null : <span>not yet found</span>}
+            <div key={q} class={got.includes(q) ? (q === fresh ? 'new' : '') : 'missing'}>
+              {got.includes(q) ? null : <span>not yet found</span>}
             </div>
           ))}
         </div>
@@ -216,7 +254,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
       <div class="moment-head left">
         <div class="moment-kicker">A piece of a treasure map</div>
         <h2 class="moment-title">{c.name}'s hoard</h2>
-        <div class="k-say">"{moment.line}"</div>
+        <div class="k-say">“{moment.line}”</div>
         <div class="book-rule light" />
         <div class="moment-line">
           <b>

@@ -23,7 +23,7 @@ import { compassProps, Hud } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { Service } from './port';
-import { cargoUsed, createEconomySystem, createLogbookSystem, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -303,6 +303,9 @@ async function main() {
     const town = settlements.find((s) => s.id === def.start.port)!;
     const at = enemiesOf(content, sim.state, town.nation).filter((n) => n !== 'pirate');
     const goal = careerGoals(content, sim.state, settlements).find((g) => !g.done);
+    // Where the first goal gets done ("the shipwright at Port Royal"), else what it brings.
+    const building = goal && ({ guns: 'shipwright', fit: 'shipwright', fitted: 'shipwright', crew: 'tavern', marque: 'governor', rank: 'governor' } as Record<string, string>)[goal.id];
+    const goalPort = goal?.port && settlements.find((s) => s.id === goal.port)?.name;
     moments.push({
       kind: 'opening',
       town: town.name,
@@ -311,7 +314,7 @@ async function main() {
       guns: shipStats(content, me).guns,
       men: crewOf(content, me),
       enemies: at.length ? `the ${at.map((n) => ({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' })[n] ?? n).join(' and the ')} are` : '',
-      ...(goal ? { goal: { title: goal.title, have: goal.unit ? `${goal.have.toLocaleString()} of ${goal.of.toLocaleString()} ${goal.unit}` : 'not yet', why: goal.why } } : {}),
+      ...(goal ? { goal: { title: goal.title, have: goal.unit ? `${goal.have.toLocaleString()} of ${goal.of.toLocaleString()} ${goal.unit}` : 'not yet', where: building && goalPort ? `the ${building} at ${goalPort}` : goal.why } } : {}),
     });
   }
   /** News already shown as a letter this session (closing it hears it, so it is not shown again). */
@@ -324,6 +327,8 @@ async function main() {
       sim.applyCommands();
     }
   };
+  // A building the port screen is asked to open (a war letter's "To the governor").
+  let portRequest: { service: Service } | undefined;
   // The captain's log (L) is open: the world waits, as with the chart.
   let logOpen = false;
   // The ship being spoken and the news she brought; the clock stops while the captains talk.
@@ -1273,6 +1278,8 @@ async function main() {
             headline: n.kind === 'war' ? 'War!' : 'Peace',
             text: newsText(content, n, town!.name),
             means: letterMeans(n.kind, n.nation!, n.other!, sim.state.captain?.marques ?? []),
+            // A war this port's governor is party to: he grants letters of marque against the other side.
+            governor: n.kind === 'war' && hasGovernor(town!) && (town!.nation === n.nation || town!.nation === n.other),
           });
         }
       }
@@ -1483,6 +1490,10 @@ async function main() {
           scene={sceneUrl}
           close={closeMoment}
           plot={(x, y) => setCourse(x, y, false)}
+          toGovernor={() => {
+            portRequest = { service: 'governor' };
+            closeMoment();
+          }}
         />
       ) : null,
       momentRoot,
@@ -1492,6 +1503,7 @@ async function main() {
     void renderer.harbour.show(town && ((service && interior(town, service)) || harbour?.scene));
     stage.classList.toggle('in-port', Boolean(town));
     stage.classList.toggle('log-open', logOpen);
+    stage.classList.toggle('moment-open', Boolean(moments[0] && !fight));
     render(
       sim.state.captain?.retired ? (
         <Ending content={content} state={sim.state} again={() => location.reload()} />
@@ -1509,6 +1521,7 @@ async function main() {
           map={map}
           plot={(x, y) => setCourse(x, y, false)}
           openLog={() => (logOpen = true)}
+          request={portRequest}
           send={(command) => {
             sim.send(command);
             sim.applyCommands();
@@ -1517,6 +1530,8 @@ async function main() {
       ) : null,
       portRoot,
     );
+    // Asked once: the port has it now, and a later call must not open the governor again.
+    portRequest = undefined;
     // Sound must never stop the game: report a failure once and keep sailing.
     try {
       audio.update(

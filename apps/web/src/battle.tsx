@@ -370,7 +370,7 @@ function Plunder({ content, offer, name, onPlunder }: { content: ContentPack; of
         <div class="k-paper plunder-captive">
           <div class="moment-kicker">A famous pirate taken</div>
           <h3 class="plunder-title">{offer.captive.name}, in irons</h3>
-          <div class="k-say">"What will you do with me, Captain?"</div>
+          <div class="k-say">“What will you do with me, Captain?”</div>
           <div class="plunder-captive-choices">
             <button
               class={`k-btn paper${captive === 'hoard' ? ' active' : ''}`}
@@ -576,7 +576,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
             {demand.flag ? <img class="battle-demand-flag" src={demand.flag} alt="" /> : null}
             <div>
               <h2 class="battle-demand-title">{demand.name} calls on you to strike!</h2>
-              <div class="k-say">"Strike your colours and keep your ship and your men, Captain."</div>
+              <div class="k-say">“Strike your colours and keep your ship and your men, Captain.”</div>
             </div>
           </div>
           <div class="battle-demand-ifs">
