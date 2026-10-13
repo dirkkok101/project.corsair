@@ -481,6 +481,9 @@ test('the Top Ten: the log ranks the famous pirates by wealth, and the captain b
   // A new captain's 1,000 gold is less than the poorest of them: eleventh, under them, and told how to make the list.
   await expect(page.locator('.top-ten li.you')).toContainText('11');
   await expect(page.locator('.top-ten li.you')).toContainText('1,000 gold');
+  // Where each is: the captain at sea, the famous pirates at sea or in port.
+  await expect(page.locator('.top-ten li.you')).toContainText('at sea');
+  await expect(list.first()).toContainText(/at sea from|in port at|sails from/);
   await expect(page.locator('.top-foot')).toContainText('to make the list');
   await page.screenshot({ path: 'test-results/top-ten.png' });
   expect(errors).toEqual([]);
@@ -1216,6 +1219,8 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   await page.locator('.log-tabs').getByRole('button', { name: 'Fleet' }).click();
   const prize = page.locator('.fleet-row:not(.flagship)');
   await expect(prize).toContainText('fluyt');
+  // The harbour's own labels make way for the open book.
+  await expect(page.locator('.harbour-head')).toBeHidden();
   await page.screenshot({ path: 'test-results/fleet-log.png' });
   const gold = await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold);
   await prize.getByRole('button', { name: /^Sell/ }).click();

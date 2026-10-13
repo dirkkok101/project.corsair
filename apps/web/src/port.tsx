@@ -1363,8 +1363,17 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
   const jailed = new Set((state.captain?.deeds ?? []).flatMap((d) => (d.captive ? [d.captive] : [])));
   // The ten, and the captain at her place below them while she is not one of them.
   const rows = place > 10 ? [...ranks.slice(0, 10), ranks[place - 1]!] : ranks.slice(0, 10);
+  // The port nearest a ship (where one lying in port lies).
+  const nearest = (x: number, y: number) => [...settlements].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0]?.name;
+  const me = Object.values(state.ships).find((s) => !s.ai);
+  /** At sea, or in port and where: whether she can be gone after now. */
+  const whereabouts = (r: (typeof ranks)[number]) => {
+    const ship = Object.values(state.ships).find((s) => s.ai?.famous === r.id);
+    if (!ship) return `sails from ${haven(r.haven)}`;
+    return inPort(ship) ? `in port at ${nearest(ship.x, ship.y)}` : `at sea from ${haven(r.haven)}`;
+  };
   const status = (r: (typeof ranks)[number]) => {
-    if (r.player) return 'your purse and the chest';
+    if (r.player) return me?.docked ? `in port at ${settlements.find((s) => s.id === me.docked)?.name ?? me.docked}` : 'at sea';
     const months = r.returnAt ? Math.max(1, Math.ceil((r.returnAt - state.tick) / tpd / 30)) : 0;
     const beaten = state.famous?.[r.id!]?.defeats ?? 0;
     const doing = jailed.has(r.id!)
@@ -1373,13 +1382,12 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
         ? 'hunting you, for his hoard'
         : r.returnAt
           ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}`
-          : `sails from ${haven(r.haven)}`;
+          : whereabouts(r);
     const held = pieces[r.id!] ? ` · you hold ${pieces[r.id!]} of ${content.pirates.rules.mapPieces} pieces of his map` : '';
     return `${doing}${beaten && !r.returnAt ? ` · beaten by you ${beaten === 1 ? 'once' : `${beaten} times`}` : ''}${held}`;
   };
   return (
     <div class="top-ten">
-      <div class="book-sub">By their wealth: yours counts your purse and the plunder chest.</div>
       <ol>
         {rows.map((r) => {
           const flag = content.pirates.captains.find((c) => c.id === r.id)?.flag;

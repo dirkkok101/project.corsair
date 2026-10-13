@@ -480,7 +480,10 @@ export function Log({ content, state, map, settlements, shipId, send, plot, clos
             </div>
           ) : page === 'top' ? (
             <div class="book-page wide">
-              <h2 class="book-title">The Top Ten</h2>
+              <div class="top-head">
+                <h2 class="book-title">The Top Ten</h2>
+                <span class="book-sub">by their wealth · yours counts your purse and the plunder chest</span>
+              </div>
               <div class="book-rule" />
               <TopTen content={content} state={state} settlements={settlements} />
             </div>

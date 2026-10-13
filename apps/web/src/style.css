@@ -622,6 +622,14 @@ body {
 }
 
 /* The Top Ten (storyboard 6.4): rank, flag, name, what each is about, and wealth; the captain's row marked. */
+/* The title with what ranks them beside it, as the storyboard has it. */
+.top-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .top-ten ol {
   margin: 8px 0;
   padding: 0;
@@ -1402,6 +1410,10 @@ body {
 #stage.log-open .hud-rose,
 #stage.log-open .hud-prompt,
 #stage.log-open .labels,
+#stage.log-open .harbour-head,
+#stage.log-open .harbour-news,
+#stage.log-open .harbour-foot,
+#stage.log-open .port-spot,
 #stage.hail-open .minimap,
 #stage.hail-open .hud,
 #stage.hail-open .hud-rose,
