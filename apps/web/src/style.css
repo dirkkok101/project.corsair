@@ -725,6 +725,12 @@ body {
 }
 
 /* The interior's top row: the tavern's sign on the left, Leave on the right. */
+/* "Anything else?" and "From the start" take the same room, so the replies after it never shift. */
+.tavern-next {
+  min-width: 128px;
+  justify-content: center;
+}
+
 .interior-top {
   display: flex;
   justify-content: space-between;

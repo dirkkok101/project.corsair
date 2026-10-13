@@ -1648,6 +1648,12 @@ function Teller({
           ) : null}
         </div>
         <div class="tavern-replies">
+          {/* First, so it stays put however many other replies a telling has. */}
+          {tellings.length > 1 ? (
+            <button class="k-btn small tavern-next" onClick={() => setK((k + 1) % tellings.length)}>
+              {k + 1 < tellings.length ? 'Anything else?' : 'From the start'}
+            </button>
+          ) : null}
           {away ? (
             <button class={`k-btn small${chart ? ' active' : ''}`} onClick={() => setChart(!chart)}>
               See it on the chart
@@ -1662,11 +1668,6 @@ function Teller({
               }}
             >
               Plot a course to {away.name}
-            </button>
-          ) : null}
-          {tellings.length > 1 ? (
-            <button class="k-btn small" onClick={() => setK((k + 1) % tellings.length)}>
-              {k + 1 < tellings.length ? 'Anything else?' : 'From the start'}
             </button>
           ) : null}
         </div>
