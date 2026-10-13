@@ -3564,7 +3564,8 @@ body {
 
 .chart-port {
   position: absolute;
-  z-index: 2;
+  /* Over the ports' marks, whose hit areas reach past them: a name always takes its own click. */
+  z-index: 5;
   transform: translate(8px, -50%);
   font: 700 clamp(12px, 0.9vw, 16px) var(--k-voice);
   white-space: nowrap;
@@ -3639,42 +3640,122 @@ body {
   color: var(--k-cream);
 }
 
-/* A port's card: its harbour in miniature, what it means for you, Set course. */
+/* A port's card, in the voyages' place beside the chart (storyboard 4.4): her harbour in miniature, what she means
+   for you, and Set course at its foot. */
 .chart-card {
   position: absolute;
-  z-index: 5;
-  width: 360px;
-  padding: 14px;
+  right: 12px;
+  top: 62px;
+  bottom: 56px;
+  width: 296px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
   font-size: 14px;
+  color: var(--k-cream);
 }
 
-.chart-card[hidden] {
+.chart-card[hidden],
+.chart-plan[hidden] {
   display: none;
 }
 
-.chart-card[data-side~='right'] {
-  transform: translate(18px, -18px);
+.chart-card-back {
+  align-self: flex-start;
+  margin-bottom: 10px;
+  padding: 0;
+  font: 700 14px var(--k-body);
+  color: var(--k-gold);
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
-.chart-card[data-side~='left'] {
-  transform: translate(calc(-100% - 18px), -18px);
+.chart-card-back:hover {
+  text-decoration: underline;
 }
 
-.chart-card[data-side~='up'] {
-  translate: 0 calc(-100% + 36px);
+.chart-card-go {
+  width: 100%;
+  min-height: 46px;
+  font-size: 17px;
 }
 
-/* Above or below the port, centred on it, when neither side has room. */
-.chart-card[data-side~='mid'] {
-  transform: translateX(-50%);
+.chart-card-set {
+  padding: 10px 0;
+  font-weight: 700;
+  color: var(--k-gold);
 }
 
-.chart-card[data-side~='under'] {
-  translate: 0 24px;
+.chart-card-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--k-cream-dim);
 }
 
-.chart-card[data-side~='over'] {
-  translate: 0 calc(-100% - 24px);
+/* The way to a port picked but not yet set, fainter than the course. */
+.chart-preview {
+  fill: none;
+  /* Dark ink, so it reads over the red of pirate waters too. */
+  stroke: #2b1d12;
+  stroke-opacity: 0.85;
+  stroke-width: 3;
+  stroke-dasharray: 4 5;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The picked port: ringed in gold, its name bold. */
+.chart-dot.picked {
+  z-index: 4;
+  box-shadow: 0 0 0 3px #e8c170, 0 0 0 5px #2b1d12;
+}
+
+.chart-port.picked {
+  z-index: 6;
+  font-weight: 800;
+  color: #1d1410;
+}
+
+/* How far the picked port is, on a scrap of parchment beneath it. */
+.chart-days {
+  position: absolute;
+  z-index: 4;
+  transform: translate(-50%, 14px);
+  padding: 1px 7px;
+  border-radius: 3px;
+  font: 700 12px var(--k-body);
+  color: #f4ead6;
+  background: #7a1f14;
+  pointer-events: none;
+}
+
+.chart-days[hidden],
+.chart-hover-name[hidden] {
+  display: none;
+}
+
+/* A hidden name, shown while the pointer is on its port. */
+.chart-hover-name {
+  position: absolute;
+  z-index: 7;
+  transform: translate(10px, -50%);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font: 700 13px var(--k-voice);
+  white-space: nowrap;
+  color: #2b1d12;
+  background: #f1e2bd;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  pointer-events: none;
+}
+
+/* A bigger mark to hit than to see: the islands crowd. */
+.chart-dot::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
 }
 
 .chart-card-head {
@@ -3745,9 +3826,8 @@ body {
 }
 
 .chart-card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 /* A haven's name on the chart in ink like the rest (its dark tag is for the sea's labels). */

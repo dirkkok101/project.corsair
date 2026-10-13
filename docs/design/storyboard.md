@@ -299,8 +299,11 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
 ### 2.12 The chart and the treasure map
 
 - **Chart (M).** A parchment chart on a table, opened like an object. Ports are drawn as ink marks; a port with
-  something for you carries one icon (war, plague, a good price for your hold). A click opens a small card: the
-  harbour painting in miniature, three verdict lines with their age, news, and Set course.
+  something for you carries one icon (war, plague, a good price for your hold). A click picks a port and leaves
+  the chart clear: it is ringed in gold, the way there from her is drawn in dashed ink with "6 days" beside it, and
+  its card takes the voyages' place beside the chart (the harbour painting in miniature, verdict lines with their
+  age, news, every price folded away, and one big Set course · Enter; ← Voyages or Esc goes back). A double click
+  sets course at once. A crowded island's hidden name shows while the pointer is on its mark.
 - **Treasure map moment.** When you get a piece: the full screen goes to parchment, the new piece slides into
   place beside the ones you hold, the stranger's line ("That's all I know, captain"), and [Plot a course] [Later].
   When the map is whole, it is shown once complete.

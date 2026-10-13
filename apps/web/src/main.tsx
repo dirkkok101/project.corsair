@@ -589,6 +589,11 @@ async function main() {
           .join('')
       }`;
     },
+    route: (id) => {
+      const berth = lanes.berth(id);
+      const me = player();
+      return berth ? lanes.path([me.x, me.y], berth)?.slice(1) : undefined;
+    },
     card: (id) => {
       const s = settlements.find((x) => x.id === id)!;
       const me = player();

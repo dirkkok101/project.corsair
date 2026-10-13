@@ -365,10 +365,21 @@ test("sea chart: a port's card says what it means for you, with the prices last 
   // Her own place is ringed and tagged.
   await expect(page.locator('.chart-you')).toContainText('you');
   await page.screenshot({ path: 'test-results/chart-prices.png' });
-  await page.locator('.chart-card').getByRole('button', { name: 'Close' }).click();
+  await page.locator('.chart-card').getByRole('button', { name: /Voyages/ }).click();
+  await expect(page.locator('.chart-plan')).toBeVisible();
+  // Picking a port rings it, draws the way there and says how far, beside the chart in the voyages' place.
   await page.locator('.chart-port', { hasText: 'Havana' }).click();
   await expect(page.locator('.chart-card')).toContainText('Prices unknown');
-  await page.locator('.chart-card').getByRole('button', { name: 'Close' }).click();
+  await expect(page.locator('.chart-plan')).toBeHidden();
+  await expect(page.locator('.chart-dot.picked')).toHaveAttribute('title', 'Havana');
+  await expect(page.locator('.chart-days')).toContainText('days');
+  expect(await page.locator('.chart-preview').getAttribute('points')).not.toBe('');
+  // Enter sets the course; Esc goes back to the voyages.
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.chart-card')).toContainText('Your course');
+  await expect(page.locator('.chart-port.selected')).toHaveText(/Havana/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.chart-card')).toBeHidden();
 
   // The goods filter marks makers and buyers everywhere, with prices only where the captain has been.
   await page.locator('.chart-goods').getByRole('button', { name: 'Sugar' }).click();
@@ -699,7 +710,8 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await page.keyboard.press('m');
   await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
   await expect(page.locator('.chart-rumour')).toContainText('run short of sugar');
-  // The planner lists the contract she has heard of.
+  // Back to the voyages: the planner lists the contract she has heard of.
+  await page.keyboard.press('Escape');
   await expect(page.locator('.chart-plan')).toContainText('Contracts you have heard of');
   await expect(page.locator('.chart-plan')).toContainText('sugar for Port Royal: buy at');
   await page.screenshot({ path: 'test-results/contract-plan.png' });

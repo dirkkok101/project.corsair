@@ -139,6 +139,8 @@ export interface ChartMarket {
   plan: () => VoyagePlan;
   /** A port's card: its harbour painting, about how many days' sail, and what it means for you, a line each. */
   card: (settlementId: string) => { painting?: string; days?: number; lines: CardLine[] };
+  /** The course by the lanes from where she is to a port, to show before it is set. */
+  route: (settlementId: string) => [number, number][] | undefined;
   /** The one thing a port has for you, shown by its name (plague, a good price for your hold), if any. */
   mark: (settlementId: string) => string | undefined;
   /** The wind now at a spot on the map: where it blows from, in degrees, and how hard. */
@@ -218,6 +220,9 @@ export function createCharts(
   winds.setAttribute('class', 'chart-winds');
   const course = ink.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'polyline'));
   course.setAttribute('class', 'chart-course');
+  // The way to a port picked but not yet set as the course, in fainter ink.
+  const preview = ink.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'polyline'));
+  preview.setAttribute('class', 'chart-preview');
   let courseDrawn = '';
   // Pirate waters: a faint red about each haven, fading out where pirates' interest has halved (in a
   // layer of their own, clipped to the sheet).
@@ -245,32 +250,63 @@ export function createCharts(
       el.style.left = `${(s.x / map.width) * 100}%`;
       el.style.top = `${(s.y / map.height) * 100}%`;
     }
-    // A click opens the port's card; its Set course makes it the destination.
-    dot.addEventListener('click', () => showCard(s));
-    label.addEventListener('click', () => showCard(s));
+    // A click picks the port: ringed, the way there drawn, her card beside the chart; a double click sets course.
+    for (const el of [dot, label]) {
+      el.addEventListener('click', () => showCard(s));
+      el.addEventListener('dblclick', () => (choosePort(s.id), showCard(s)));
+    }
+    // A name hidden to keep the crowded islands legible shows while the pointer is on its port.
+    dot.addEventListener('mouseenter', () => {
+      if (!label.hidden) return;
+      hover.textContent = s.name;
+      hover.style.left = dot.style.left;
+      hover.style.top = dot.style.top;
+      hover.hidden = false;
+    });
+    dot.addEventListener('mouseleave', () => (hover.hidden = true));
     return { s, dot, label };
   });
-  // A port's card (storyboard 4.4): its harbour in miniature, how far, what it means for you in a few lines with
-  // their age, the talk about it, every price seen there folded away, and Set course.
-  const card = sheet.appendChild(document.createElement('div'));
+  const hover = sheet.appendChild(document.createElement('div'));
+  hover.className = 'chart-hover-name';
+  hover.hidden = true;
+  // How far the picked port is, by it on the chart.
+  const far = sheet.appendChild(document.createElement('div'));
+  far.className = 'chart-days';
+  far.hidden = true;
+  // A port's card (storyboard 4.4): beside the chart in the voyages' place, so the chart stays clear: her harbour in
+  // miniature, how far, what she means for you in a few lines with their age, the talk about her, every price seen
+  // there folded away, and Set course.
+  const card = chart.appendChild(document.createElement('div'));
   card.className = 'chart-card k-wood';
   card.hidden = true;
   // A click on the bare chart puts the card away.
   sheet.addEventListener('click', (e) => {
-    if (e.target === sheet || (e.target as Element).tagName === 'CANVAS') card.hidden = true;
+    if (e.target === sheet || (e.target as Element).tagName === 'CANVAS') hideCard();
   });
+  /** Back to the voyages: no port picked. */
+  const hideCard = () => {
+    card.hidden = true;
+    planner.hidden = false;
+    far.hidden = true;
+    preview.setAttribute('points', '');
+    cardPort = undefined;
+    for (const p of pins) {
+      p.dot.classList.remove('picked');
+      p.label.classList.remove('picked');
+    }
+  };
   const showCard = (s: PlacedSettlement) => {
     const known = market.known(s.id);
     const age = known && market.today() - known.day;
     const when = age === undefined ? '' : age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age} days ago`;
     const kind = s.nation === 'pirate' ? 'Pirate haven' : `${NATION_NAME[s.nation]} ${s.type === 'capital' ? 'capital' : s.size}`;
     const about = market.card(s.id);
-    const far = about.days === undefined ? '' : about.days < 0.5 ? ' · here' : ` · ${about.days < 1.5 ? 'a day' : `${Math.round(about.days)} days`} by the lanes`;
+    const sail = about.days === undefined ? '' : about.days < 0.5 ? 'here' : about.days < 1.5 ? 'a day' : `${Math.round(about.days)} days`;
     const welcome = market.welcome(s.id);
     const lines = [...about.lines, ...(welcome ? [{ text: welcome, tone: 'bad' as const }] : [])];
     const rumours = market.rumours(s.id);
     card.innerHTML =
-      `<div class="chart-card-head">${about.painting ? `<img class="chart-card-art" src="${about.painting}" alt="">` : ''}<div><div class="chart-card-name">${s.name}</div><div class="k-sub">${kind} · ${market.people(s.id)}${far}</div></div></div>` +
+      `<div class="chart-card-head">${about.painting ? `<img class="chart-card-art" src="${about.painting}" alt="">` : ''}<div><div class="chart-card-name">${s.name}</div><div class="k-sub">${kind} · ${market.people(s.id)}${sail && sail !== 'here' ? ` · ${sail} by the lanes` : sail ? ' · here' : ''}</div></div></div>` +
       `<div class="chart-card-lines">${lines.map((l) => `<div class="${l.tone ?? ''}">${l.text}${l.age ? ` <span class="k-sub">(${l.age})</span>` : ''}</div>`).join('')}</div>` +
       rumours.map((r) => `<div class="chart-rumour">${r}</div>`).join('') +
       (known
@@ -282,37 +318,31 @@ export function createCharts(
             })
             .join('')}</table></details>`
         : '<div class="k-sub">Prices unknown: call here to learn them</div>') +
-      `<div class="chart-card-actions"><button class="k-btn small primary" data-go>${selected?.id === s.id ? 'Course set' : 'Set course'}</button><button class="k-btn small" data-close>Close</button></div>`;
-    card.querySelector('[data-go]')!.addEventListener('click', () => {
-      choosePort(s.id);
-      card.hidden = true;
-    });
-    card.querySelector('[data-close]')!.addEventListener('click', () => (card.hidden = true));
+      (selected?.id === s.id
+        ? '<div class="chart-card-actions"><div class="chart-card-set">Your course · <kbd class="k-key">F</kbd> follows it</div></div>'
+        : '<div class="chart-card-actions"><button class="k-btn primary chart-card-go" data-go>Set course · Enter</button></div>') +
+      '<div class="chart-card-hint">Double-click a port to set course at once · Esc back</div>';
+    card.insertAdjacentHTML('afterbegin', '<button class="chart-card-back" data-back>← Voyages</button>');
+    card.querySelector('[data-go]')?.addEventListener('click', () => (choosePort(s.id), showCard(s)));
+    card.querySelector('[data-back]')!.addEventListener('click', hideCard);
     cardPort = s;
-    placeCard(s);
+    card.hidden = false;
+    planner.hidden = true;
+    // On the chart: the port ringed, the way there drawn from her, and how far beside it.
+    for (const p of pins) {
+      p.dot.classList.toggle('picked', p.s.id === s.id);
+      p.label.classList.toggle('picked', p.s.id === s.id);
+    }
+    const way = selected?.id === s.id ? undefined : market.route(s.id);
+    preview.setAttribute('points', way?.length && here ? [here, ...way].map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ') : '');
+    far.hidden = !sail || sail === 'here';
+    far.textContent = sail;
+    far.style.left = `${(s.x / map.width) * 100}%`;
+    far.style.top = `${(s.y / map.height) * 100}%`;
   };
   let cardPort: PlacedSettlement | undefined;
-  const placeCard = (s: PlacedSettlement) => {
-    card.style.left = `${(s.x / map.width) * 100}%`;
-    card.style.top = `${(s.y / map.height) * 100}%`;
-    // Beside the port, on the first side that stays on the chart and hides neither the port nor its name (the
-    // sides toward the chart's middle first); if none does, toward the middle.
-    const pin = pins.find((p) => p.s.id === s.id);
-    const h = s.x > map.width / 2 ? ['left', 'right'] : ['right', 'left'];
-    const v = s.y > map.height / 2 ? ['up', 'down'] : ['down', 'up'];
-    const mid = v[0] === 'up' ? ['over', 'under'] : ['under', 'over'];
-    const sides = [`${h[0]} ${v[0]}`, `${h[0]} ${v[1]}`, `${h[1]} ${v[0]}`, `${h[1]} ${v[1]}`, `mid ${mid[0]}`, `mid ${mid[1]}`];
-    card.hidden = false;
-    const edge = sheet.getBoundingClientRect();
-    const hit = (a: DOMRect, b: DOMRect) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-    const fits = (side: string) => {
-      card.dataset.side = side;
-      const box = card.getBoundingClientRect();
-      const inside = box.left >= edge.left && box.right <= edge.right && box.top >= edge.top && box.bottom <= edge.bottom;
-      return inside && !(pin && (hit(box, pin.dot.getBoundingClientRect()) || (!pin.label.hidden && hit(box, pin.label.getBoundingClientRect()))));
-    };
-    card.dataset.side = sides.find(fits) ?? sides[0]!;
-  };
+  // Where she is, for the course drawn to a picked port.
+  let here: [number, number] | undefined;
   /** The wind's arrows over open water, in faint ink: which way it blows now, longer the harder. */
   const drawWinds = () => {
     const step = Math.round(map.width / 9);
@@ -454,14 +484,12 @@ export function createCharts(
       label.classList.toggle('faded', Boolean(good) && !lean);
     }
     layoutLabels(pins, sheet.getBoundingClientRect());
-    // Its name may have moved: the open card moves to keep clear of it.
-    if (!card.hidden && cardPort) placeCard(cardPort);
   };
 
   const toggle = (open = chart.hidden) => {
     chart.hidden = !open;
     // A card left from the last look would show stale prices.
-    card.hidden = true;
+    hideCard();
     // Prices may have been learned since the chart was last open, and the wind has moved.
     if (open) {
       showGood();
@@ -473,8 +501,13 @@ export function createCharts(
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') toggle();
     if (e.key === 'Escape') {
-      if (!card.hidden) card.hidden = true;
+      if (!card.hidden) hideCard();
       else chart.hidden = true;
+    }
+    // Enter sets course to the port picked.
+    if (e.key === 'Enter' && !chart.hidden && !card.hidden && cardPort && selected?.id !== cardPort.id) {
+      choosePort(cardPort.id);
+      showCard(cardPort);
     }
   });
 
@@ -511,6 +544,7 @@ export function createCharts(
       route?: [number, number][],
     ) {
       if (!player) return;
+      here = [player.x, player.y];
       // Minimap: a window on the parchment centred on the ship, clamped to the map.
       const sx = Math.max(0, Math.min(map.width - MINIMAP_TILES.w, Math.round(player.x - MINIMAP_TILES.w / 2)));
       const sy = Math.max(0, Math.min(map.height - MINIMAP_TILES.h, Math.round(player.y - MINIMAP_TILES.h / 2)));
