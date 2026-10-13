@@ -141,6 +141,8 @@ export interface ChartMarket {
   card: (settlementId: string) => { painting?: string; days?: number; lines: CardLine[] };
   /** The course by the lanes from where she is to a port, to show before it is set. */
   route: (settlementId: string) => [number, number][] | undefined;
+  /** Whether a port is closed to her flag (at war): drawn faded in red ink, its mark struck through. */
+  closed: (settlementId: string) => boolean;
   /** The one thing a port has for you, shown by its name (plague, a good price for your hold), if any. */
   mark: (settlementId: string) => string | undefined;
   /** The wind now at a spot on the map: where it blows from, in degrees, and how hard. */
@@ -466,6 +468,7 @@ export function createCharts(
     });
     return { id: g.id, b };
   });
+  const pin = (id: string) => pins.find((p) => p.s.id === id);
   const showGood = () => {
     for (const { id, b } of goodButtons) b.classList.toggle('active', id === good);
     for (const { s, label } of pins) {
@@ -482,6 +485,9 @@ export function createCharts(
         tag.textContent = has;
       }
       label.classList.toggle('faded', Boolean(good) && !lean);
+      const shut = market.closed(s.id);
+      label.classList.toggle('closed', shut);
+      pin(s.id)?.dot.classList.toggle('closed', shut);
     }
     layoutLabels(pins, sheet.getBoundingClientRect());
   };

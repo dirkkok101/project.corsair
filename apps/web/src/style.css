@@ -3721,6 +3721,17 @@ body {
   margin-left: 0;
 }
 
+/* Closed to her flag (at war): red ink, faded, the mark struck through. */
+.chart-port.closed {
+  color: #7a1f14;
+  opacity: 0.75;
+}
+
+.chart-dot.closed {
+  opacity: 0.7;
+  background-image: linear-gradient(45deg, transparent 42%, #7a1f14 42% 58%, transparent 58%);
+}
+
 .chart-port.faded {
   opacity: 0.7;
 }

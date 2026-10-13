@@ -574,6 +574,19 @@ export function shockFactor(content: ContentPack, state: WorldState, settlementI
   return shock ? content.economy.shocks.kinds[shock.kind]!.stock : 1;
 }
 
+/**
+ * Why a port won't let the captain in, if it won't: a nation he has made an enemy of ('hostile'), one at war with
+ * his flag ('at-war'), or plague. Pirate havens take anyone but in plague.
+ */
+export function closedTo(content: ContentPack, state: WorldState, s: Pick<Settlement, 'id' | 'nation'>): 'hostile' | 'at-war' | 'plague' | undefined {
+  if (s.nation !== 'pirate') {
+    if ((state.captain?.standing?.[s.nation] ?? 0) <= content.combat.standing.refused) return 'hostile';
+    const flag = state.captain?.nation;
+    if (flag && atWar(content, state, flag, s.nation)) return 'at-war';
+  }
+  return plagued(state, s.id) ? 'plague' : undefined;
+}
+
 /** Whether plague has shut a port now. */
 export function plagued(state: WorldState, settlementId: string): boolean {
   return (state.towns?.[settlementId]?.plague ?? 0) > state.tick;
@@ -923,11 +936,10 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         if (!ship || !s) return undefined;
         if (ship.docked) return refuse(state, ship, 'already-docked');
         if (Math.hypot(ship.x - s.x, ship.y - s.y) > DOCK_RANGE) return refuse(state, ship, 'too-far', { settlementId: s.id });
-        // A nation the player has made an enemy of shuts its ports to them (pirate havens never do).
-        if (s.nation !== 'pirate' && (state.captain.standing?.[s.nation] ?? 0) <= content.combat.standing.refused) {
-          return refuse(state, ship, 'hostile', { settlementId: s.id, nation: s.nation });
-        }
-        if (plagued(state, s.id)) return refuse(state, ship, 'plague', { settlementId: s.id });
+        // A nation the player has made an enemy of, or one at war with her flag, shuts its ports to her (pirate
+        // havens never do); plague shuts any.
+        const closed = closedTo(content, state, s);
+        if (closed) return refuse(state, ship, closed, { settlementId: s.id, nation: s.nation });
         // Drop anchor: stopped, helm and assist cleared.
         const { assist: _assist, ...rest } = ship;
         let docked: Ship = { ...rest, docked: s.id, speed: 0, helm: 0 };

@@ -27,11 +27,11 @@
     }
   },
   "monthly": {
-    "drift": 0.1,
-    "noise": 6,
-    "warAbove": 75,
+    "drift": 0.12,
+    "noise": 9,
+    "warAbove": 70,
     "warChance": 0.15,
-    "peaceBelow": 35,
+    "peaceBelow": 45,
     "peaceChance": 0.25,
     "warSettle": 30,
     "warTension": 85

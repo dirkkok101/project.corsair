@@ -24,7 +24,7 @@ import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { PortNotice, Service } from './port';
-import { cargoUsed, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, closedTo, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -44,7 +44,7 @@ import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
 import { careerGoals, createSeaLanes, createTrafficSystem, prizePapers, withTraffic } from '@corsair/systems-traffic';
-import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
+import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
 const shipAtlases = import.meta.glob<string>('../../../art/game/ships/*.png', {
@@ -264,7 +264,7 @@ async function main() {
       lanes,
       seed,
     );
-    return { ...w, captain: { ...w.captain!, nation, standing: { ...w.captain!.standing, [nation]: content.politics.flag.standing } } };
+    return withPolitics({ ...w, captain: { ...w.captain!, nation, standing: { ...w.captain!.standing, [nation]: content.politics.flag.standing } } }, seed);
   };
   const world = resumed?.state ?? fresh();
   const sim = createSim(world, [
@@ -478,9 +478,14 @@ async function main() {
     const priced: Candidate[] = [];
     const unpriced: Candidate[] = [];
     const worth = (id: string) => content.goods.find((x) => x.id === id)?.basePrice ?? 0;
+    // Ports closed to her (at war with her flag, or that she made an enemy of) are no voyage.
+    const open = settlements.filter((s) => {
+      const why = closedTo(content, sim.state, s);
+      return why !== 'at-war' && why !== 'hostile';
+    });
     for (const g of content.goods.filter((x) => !x.staple)) {
-      for (const from of settlements) {
-        for (const to of settlements) {
+      for (const from of open) {
+        for (const to of open) {
           if (from === to) continue;
           const buy = known[from.id]?.prices[g.id]?.buy;
           const seen = known[to.id]?.prices[g.id];
@@ -534,11 +539,11 @@ async function main() {
         const to = settlements.find((s) => s.id === c.settlementId);
         if (!to) return [];
         const need = c.units - c.delivered;
-        const cheapest = settlements
+        const cheapest = open
           .filter((s) => s !== to && known[s.id]?.prices[c.good]?.buy !== undefined)
           .sort((a, b) => known[a.id]!.prices[c.good]!.buy - known[b.id]!.prices[c.good]!.buy)[0];
         const staple = content.goods.find((g) => g.id === c.good)?.staple;
-        const maker = settlements
+        const maker = open
           .filter((s) => s !== to && (staple || tradeLean(content, s, c.good) === 'exports'))
           .sort((a, b) => Math.hypot(a.x - to.x, a.y - to.y) - Math.hypot(b.x - to.x, b.y - to.y))[0];
         const inHold = (me.cargo[c.good] ?? 0) >= need;
@@ -603,6 +608,10 @@ async function main() {
       const s = settlements.find((x) => x.id === id);
       if (s && plagued(sim.state, id)) return 'Plague: the port is shut to all shipping until it passes.';
       if (!s || s.nation === 'pirate') return undefined;
+      const flag = sim.state.captain?.nation;
+      if (flag && closedTo(content, sim.state, s) === 'at-war') {
+        return `Closed to you: ${COUNTRY_NAME[s.nation]} is at war with ${COUNTRY_NAME[flag]}, and her warships hunt your flag.`;
+      }
       const standing = sim.state.captain?.standing?.[s.nation] ?? 0;
       if (standing <= content.combat.standing.refused) return `They would not let you in: your standing with them is ${standing}.`;
       if (standing <= content.combat.standing.hostile) return `Their patrols hunt you (standing ${standing}); the town still trades.`;
@@ -654,6 +663,10 @@ async function main() {
       const perDay = content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
       const days = me.docked === id ? 0 : (Math.hypot(s.x - me.x, s.y - me.y) * 1.3) / perDay;
       return { painting: sceneUrl(harbourId(s)), days, lines: lines.slice(0, 4) };
+    },
+    closed: (id) => {
+      const port = settlements.find((s) => s.id === id);
+      return Boolean(port && closedTo(content, sim.state, port) === 'at-war');
     },
     mark: (id) => {
       if (plagued(sim.state, id)) return 'plague';
@@ -1338,7 +1351,7 @@ async function main() {
             date: formatDate(dateOf(def.startDate, Math.floor(n.tick / content.calendar.ticksPerDay))),
             headline: n.kind === 'war' ? 'War!' : 'Peace',
             text: newsText(content, n, town!.name),
-            means: letterMeans(n.kind, n.nation!, n.other!, sim.state.captain?.marques ?? []),
+            means: letterMeans(n.kind, n.nation!, n.other!, sim.state.captain?.marques ?? [], sim.state.captain?.nation),
             // A war this port's governor is party to: he grants letters of marque against the other side.
             governor: n.kind === 'war' && hasGovernor(town!) && (town!.nation === n.nation || town!.nation === n.other),
           });
@@ -1357,6 +1370,15 @@ async function main() {
       // An order refused in port: say why, rather than nothing happening.
       if (ev.type === 'TradeRefused' && player().docked && REFUSED[ev.payload.reason as string]) portNotice = { text: REFUSED[ev.payload.reason as string]!, icon: 'ui.icon.gold', tone: 'warn' };
       if (ev.type === 'MapPieceBought') moments.push({ kind: 'map', pirateId: ev.payload.pirateId as string, line: "That's all I know, captain. The rest is with men who'd sooner cut your throat." });
+      if (ev.type === 'TradeRefused' && (ev.payload.reason === 'at-war' || ev.payload.reason === 'hostile')) {
+        const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
+        const flag = sim.state.captain?.nation;
+        const text =
+          ev.payload.reason === 'at-war' && flag
+            ? `${name} won't let ${({ england: 'an English', spain: 'a Spanish', france: 'a French', netherlands: 'a Dutch' } as Record<string, string>)[flag]} ship in: ${COUNTRY_NAME[ev.payload.nation as string]} is at war with ${COUNTRY_NAME[flag]}`
+            : `${name} won't let you in: you are their enemy`;
+        courseNote = { text, kind: 'Port closed', icon: 'ui.icon.anchor', tone: 'warn', until: now + 5000 };
+      }
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
         courseNote = { text: `Plague at ${name}: the port is shut to shipping`, kind: 'Port shut', icon: 'ui.icon.anchor', tone: 'warn', until: now + 4000 };

@@ -36,6 +36,11 @@ export function legalTarget(content: ContentPack, state: WorldState, captain: Ca
   return captain?.marques?.find((issuer) => atWar(content, state, issuer, victim));
 }
 
+/** A new career's politics stream, from its seed: each career's wars and treaties go their own way. */
+export function withPolitics(world: WorldState, seed: number): WorldState {
+  return { ...world, rng: { ...world.rng, politics: rngStream(seedRng(seed, 'politics')).state() } };
+}
+
 /** Months since the career's start date, by calendar month. */
 function monthOf(content: ContentPack, startDate: string, tick: number) {
   const start = dateOf(startDate, 0);

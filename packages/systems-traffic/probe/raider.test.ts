@@ -9,11 +9,11 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim, inPort } from '@corsair/core';
-import type { Command, GameEvent, Ship } from '@corsair/core';
+import type { Command, GameEvent, Nation, Ship } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements, shipStats, upgradePrice } from '@corsair/data';
-import { crewOf, createEconomySystem, fleetBerths, foodDays, rationPerDay, withEconomy } from '@corsair/systems-economy';
+import { closedTo, crewOf, createEconomySystem, fleetBerths, foodDays, rationPerDay, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
-import { createPoliticsSystem } from '@corsair/systems-politics';
+import { createPoliticsSystem, withPolitics } from '@corsair/systems-politics';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { it } from 'vitest';
 import { createBattle } from '../../minigame-sea-battle/src';
@@ -32,13 +32,17 @@ const SEED = Number(process.env.SEED ?? 1);
 const OUT = process.env.OUT ?? '/dev/stdout';
 const say = (s: string) => appendFileSync(OUT, s + '\n');
 const HOME = 'town.port_royal';
-const MARKET = 'town.santiago_de_cuba';
+// The flag the career sails under (England's home is Port Royal), and where its opening sells luxuries: Santiago,
+// unless that port is closed to the flag (at war), then the nearest open port that wants them.
+const NATION = (process.env.NATION ?? 'england') as Nation;
+const MARKETS = ['town.santiago_de_cuba', 'town.ile_a_vache', 'town.tortuga'];
 const HAUNTS = ['town.ile_a_vache', 'town.tortuga'];
 
 it('raider', () => {
   const seed = SEED;
   const start = { ...createWorld(def), tick: Math.round((def.startHour / 24) * DAY) };
-  const world = withTraffic(withEconomy(withWeather(start, content, def, seed), content, settlements, seed), content, settlements, lanes, seed);
+  const begun = withTraffic(withEconomy(withWeather(start, content, def, seed), content, settlements, seed), content, settlements, lanes, seed);
+  const world = withPolitics({ ...begun, captain: { ...begun.captain!, nation: NATION, standing: { [NATION]: content.politics.flag.standing } } }, seed);
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
     createEconomySystem(content, settlements, map, windAt),
@@ -75,7 +79,16 @@ it('raider', () => {
     if (s.guns >= s.maxGuns) mark('full battery', ` (${s.guns} guns)`);
   };
 
-  const dock = (id: string) => send({ type: 'Dock', shipId: 'player', settlementId: id });
+  // What war means for her: enemy patrols that came after her, and ports that turned her away.
+  const war = { patrolsChasing: new Set<string>(), refused: 0, changes: [] as string[] };
+  const dock = (id: string) => {
+    const evs = send({ type: 'Dock', shipId: 'player', settlementId: id });
+    if (refusal(evs) === 'at-war') {
+      war.refused++;
+      log(`turned away at ${id}: at war`);
+    }
+    return evs;
+  };
   const sellAll = () => {
     for (const [good, n] of Object.entries(me().cargo)) if (n > 0 && good !== 'food') send({ type: 'Sell', shipId: 'player', good, quantity: n });
   };
@@ -138,8 +151,15 @@ it('raider', () => {
     let chasing: string | undefined;
     while (!me().docked && day() - left < 15 && day() < DAYS) {
       sim.step(30);
+      for (const s of Object.values(sim.state.ships)) {
+        if (s.ai?.role === 'patrol' && s.ai.chasing && !s.ai.target && !war.patrolsChasing.has(s.id)) {
+          war.patrolsChasing.add(s.id);
+          log(`a ${s.ai.nation} patrol (${s.classId.replace('ship.', '')}) comes after her`);
+        }
+      }
       while (seen < sim.events().length) {
         const e = sim.events()[seen++]!;
+        if (e.type === 'WarDeclared' || e.type === 'PeaceSigned') war.changes.push(`d${day()} ${e.type === 'WarDeclared' ? 'war' : 'peace'} ${e.entityIds.join('-')}`);
         if (e.type === 'BattleJoined') {
           fight(e.entityIds[1]!);
           chasing = undefined;
@@ -235,7 +255,9 @@ it('raider', () => {
     send({ type: 'Buy', shipId: 'player', good: 'food', quantity: 999 });
     log(`bought ${me().cargo.luxuries ?? 0} luxuries, food to ${foodDays(content, me()).toFixed(0)} days; gold ${gold()}`);
     send({ type: 'Undock', shipId: 'player' });
-    voyage(MARKET);
+    const market = MARKETS.find((id) => !closedTo(content, sim.state, byId.get(id)!)) ?? MARKETS[0]!;
+    log(`opening market: ${market}`);
+    voyage(market);
     sellAll();
     log(`sold at Santiago: gold ${gold()} (trade profit ${captain().record?.tradeProfit ?? 0})`);
     send({ type: 'Buy', shipId: 'player', good: 'tobacco', quantity: 999 });
@@ -286,6 +308,7 @@ it('raider', () => {
   say(
     `summary seed ${seed}: day ${day()}, gold ${gold()}, chest ${captain().chest ?? 0}, crew ${crewOf(content, me())}, guns ${shipStats(content, me()).guns}, fits ${JSON.stringify(me().upgrades ?? [])}, fleet ${(captain().fleet ?? []).length}; ` +
       `ships sold ${tally.shipsSold} for ${tally.prizeGold} vs trade profit ${tradeProfit} (opening) / ${captain().record?.tradeProfit ?? 0} (all); ` +
-      `fights won ${tally.won} lost ${tally.lost} other ${tally.other}; men recruited ${tally.recruited}, volunteers offered ${tally.volunteers}; morale ${Math.round(captain().morale ?? -1)}`,
+      `fights won ${tally.won} lost ${tally.lost} other ${tally.other}; men recruited ${tally.recruited}, volunteers offered ${tally.volunteers}; morale ${Math.round(captain().morale ?? -1)}; ` +
+      `flag ${NATION}: enemy patrols chasing ${war.patrolsChasing.size}, ports refused ${war.refused}, wars/peace ${JSON.stringify(war.changes)}`,
   );
 });

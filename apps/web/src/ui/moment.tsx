@@ -285,7 +285,14 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
 }
 
 /** What a war or a peace between two nations means for the captain, by the letters of marque he holds. */
-export function letterMeans(kind: 'war' | 'peace', a: string, b: string, marques: readonly string[]): string {
+export function letterMeans(kind: 'war' | 'peace', a: string, b: string, marques: readonly string[], flag?: string): string {
+  // Her own flag in it: the other side's ports and warships are what changes for her.
+  if (flag === a || flag === b) {
+    const foe = flag === a ? b : a;
+    return kind === 'war'
+      ? `${COUNTRY[foe]}'s ports are closed to you now, and her warships will hunt an ${ADJECTIVE[flag]} ship. ${ADJECTIVE[flag]} governors grant letters of marque against her.`.replace(/an (?=[^AEIOU])/, 'a ')
+      : `${COUNTRY[foe]}'s ports open to you again, and her warships leave your flag be. Taking her ships is piracy now.`;
+  }
   const mine = marques.includes(a) ? a : marques.includes(b) ? b : undefined;
   const other = mine === a ? b : a;
   if (kind === 'war')

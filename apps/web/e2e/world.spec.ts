@@ -389,6 +389,10 @@ test("sea chart: a port's card says what it means for you, with the prices last 
   await expect(page.locator('.chart-card')).toContainText('Prices unknown');
   await expect(page.locator('.chart-plan')).toBeHidden();
   await expect(page.locator('.chart-dot.picked')).toHaveAttribute('title', 'Havana');
+  // Spain is at war with England in 1660: her ports are closed to an English captain, and say so.
+  await expect(page.locator('.chart-card')).toContainText('Closed to you: Spain is at war with England');
+  await expect(page.locator('.chart-port.closed', { hasText: 'Havana' })).toHaveCount(1);
+  await expect(page.locator('.chart-port.closed', { hasText: 'Port Royal' })).toHaveCount(0);
   await expect(page.locator('.chart-days')).toContainText('days');
   expect(await page.locator('.chart-preview').getAttribute('points')).not.toBe('');
   // Enter sets the course; Esc goes back to the voyages.
@@ -654,7 +658,8 @@ test('moments: war comes as a letter in port, and a famous pirate seen the first
   await expect(letter.locator('.moment-who')).toHaveText('England and France are at war');
   // Port Royal's governor is party to the war: the letter offers the way in to him.
   await expect(letter.getByRole('button', { name: 'To the governor' })).toBeVisible();
-  await expect(letter.locator('.moment-means')).toContainText("England's governors will grant a letter of marque against France");
+  // An English captain's own war: France's ports close to her, and her warships hunt the English flag.
+  await expect(letter.locator('.moment-means')).toContainText("France's ports are closed to you now, and her warships will hunt an English ship");
   await page.screenshot({ path: 'test-results/moment-letter.png' });
   await page.keyboard.press('Enter');
   await expect(page.locator('.moment')).toHaveCount(0);

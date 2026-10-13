@@ -303,7 +303,9 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
   the chart clear: it is ringed in gold, the way there from her is drawn in dashed ink with "6 days" beside it, and
   its card takes the voyages' place beside the chart (the harbour painting in miniature, verdict lines with their
   age, news, every price folded away, and one big Set course · Enter; ← Voyages or Esc goes back). A double click
-  sets course at once. A crowded island's hidden name shows while the pointer is on its mark.
+  sets course at once. A crowded island's hidden name shows while the pointer is on its mark. A port at war with
+  the captain's flag is drawn in faded red ink with its mark struck through; its card says so, the voyages leave it
+  out, and its warships hunt her flag.
 - **Treasure map moment.** When you get a piece: the full screen goes to parchment, the new piece slides into
   place beside the ones you hold, the stranger's line ("That's all I know, captain"), and [Plot a course] [Later].
   When the map is whole, it is shown once complete.

@@ -8,6 +8,7 @@ import { createWeatherSystem, createWindField, withWeather } from '@corsair/syst
 import { describe, expect, it } from 'vitest';
 import {
   cargoUsed,
+  closedTo,
   crewOf,
   createEconomySystem,
   DOCK_RANGE,
@@ -452,6 +453,29 @@ describe('leaving port', () => {
     const heading = player(sim.state).headingDeg;
     const polar = content.polars[content.ships['ship.brig']!.polar]!;
     expect(polarAt(polar, angleOffWind(heading, wind.fromDeg))).toBeGreaterThanOrEqual(0.5);
+  });
+});
+
+describe('a flag at war', () => {
+  it("shuts an enemy nation's ports to the captain while the war lasts; a pirate haven takes anyone", () => {
+    const at = (port: (typeof settlements)[number], politics?: WorldState['politics']) => {
+      const sim = moored(port);
+      const flagged = { ...sim.state, captain: { ...sim.state.captain!, nation: 'england' as const }, ...(politics ? { politics } : {}) };
+      const run = createSim(flagged, [createEconomySystem(content, settlements)]);
+      run.send({ type: 'Dock', shipId: 'player', settlementId: port.id });
+      run.applyCommands();
+      return run;
+    };
+    // 1660: Spain is at war with England.
+    const spanish = settlements.find((x) => x.id === 'town.santo_domingo')!;
+    const refused = at(spanish);
+    expect(refused.events().at(-1)).toMatchObject({ type: 'TradeRefused', payload: { reason: 'at-war', nation: 'spain' } });
+    expect(closedTo(content, refused.state, spanish)).toBe('at-war');
+    const haven = settlements.find((x) => x.id === 'town.tortuga')!;
+    expect(player(at(haven).state).docked).toBe(haven.id);
+    // At peace, the same port lets her in.
+    const relations = Object.fromEntries(Object.entries(content.politics.start).map(([k, r]) => [k, { war: false, tension: r.tension }]));
+    expect(player(at(spanish, { relations, piracy: {}, month: 0 }).state).docked).toBe(spanish.id);
   });
 });
 

@@ -656,7 +656,9 @@ export function createTrafficSystem(
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
   const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
   const hunts = (state: WorldState, ship: Ship) =>
-    (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) || (ship.ai!.role === 'patrol' && standingWith(state, ship.ai!.nation) <= cb.standing.hostile);
+    (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) ||
+    (ship.ai!.role === 'patrol' &&
+      (standingWith(state, ship.ai!.nation) <= cb.standing.hostile || Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation))));
 
   /**
    * Close on the player: straight at them where the wind allows, close-hauled toward them where it
