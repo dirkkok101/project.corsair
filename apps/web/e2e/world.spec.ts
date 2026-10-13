@@ -246,12 +246,12 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   await expect(page.locator('tr', { hasText: 'Food' })).not.toContainText('made here');
   // A good's row says one verdict; clicking it says why, how much the market takes included.
   await expect(sugar.locator('.verdict')).not.toHaveText('');
-  // One button a row: the trade that fits now.
-  await expect(sugar.getByRole('button')).toHaveCount(1);
+  // Every trade on the row; the sells wait until some is in the hold.
+  await expect(sugar.getByRole('button')).toHaveCount(4);
+  await expect(sugar.getByRole('button', { name: 'Sell all' })).toBeDisabled();
   await sugar.click();
   await expect(page.locator('.ledger-why')).toContainText('He takes about');
-  // Its why box holds every trade in it; the row keeps the one that fits now.
-  await page.locator('.ledger-why').getByRole('button', { name: 'Buy max' }).click();
+  await sugar.getByRole('button', { name: 'Buy max' }).click();
   await expect(sugar.locator('.ledger-hint')).toContainText('you paid');
   const bought = await page.evaluate(() => (window.__corsair.state.get('ships.player.cargo') as Record<string, number>).sugar);
   expect(bought).toBeGreaterThan(10);

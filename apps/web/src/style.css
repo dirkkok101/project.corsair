@@ -908,10 +908,17 @@ body {
   opacity: 0.4;
 }
 
-.ledger-why-trades {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
+/* The four trades, in fixed columns so they line up from row to row. */
+.ledger-trades {
+  display: grid;
+  grid-template-columns: repeat(4, 62px);
+  gap: 4px;
+}
+
+.merchant .market .ledger-trades .k-btn {
+  margin-left: 0;
+  padding-inline: 4px;
+  width: 100%;
 }
 
 /* A good in the hold: what he charges and what he pays, each named. */

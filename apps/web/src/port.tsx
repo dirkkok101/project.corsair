@@ -330,22 +330,35 @@ function Merchant({
                   )}
                 </td>
                 <td class="actions" onClick={(e) => e.stopPropagation()}>
-                  {/* One button: the trade that fits now. The rest are in the good's why box. */}
-                  {r.held && r.g.id !== 'food' ? (
-                    <button class="k-btn small paper" {...hover(r.say, 'Sell', ALL)} onClick={() => trade('Sell', r.g.id, ALL)} disabled={!r.canSell}>
-                      Sell all
-                    </button>
-                  ) : (
+                  {/* Every trade on the row, in the same columns on every row; food is never bought up or sold off whole. */}
+                  <div class="ledger-trades">
                     <button class="k-btn small paper" {...hover(r.say, 'Buy', 10)} onClick={() => trade('Buy', r.g.id, 10)} disabled={!r.canBuy}>
                       Buy 10
                     </button>
-                  )}
+                    {r.g.id !== 'food' ? (
+                      <button class="k-btn small paper" {...hover(r.say, 'Buy', ALL)} onClick={() => trade('Buy', r.g.id, ALL)} disabled={!r.canBuy}>
+                        Buy max
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    <button class="k-btn small paper" {...hover(r.say, 'Sell', 10)} onClick={() => trade('Sell', r.g.id, 10)} disabled={!r.held || !r.canSell}>
+                      Sell 10
+                    </button>
+                    {r.g.id !== 'food' ? (
+                      <button class="k-btn small paper" {...hover(r.say, 'Sell', ALL)} onClick={() => trade('Sell', r.g.id, ALL)} disabled={!r.held || !r.canSell}>
+                        Sell all
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {/* Always there, so opening a good doesn't move the rows: why it costs what it does, and every trade in it. */}
+        {/* Always there, so opening a good doesn't move the rows: why it costs what it does. */}
         <div class="ledger-why">
           {opened ? (
             <>
@@ -353,29 +366,9 @@ function Merchant({
                 {opened.g.name}: why {opened.q.buy}?
               </b>{' '}
               {opened.why.join(' ')}
-              <div class="ledger-why-trades">
-                <button class="k-btn small paper" {...hover(opened.say, 'Buy', 10)} onClick={() => trade('Buy', opened.g.id, 10)} disabled={!opened.canBuy}>
-                  Buy 10
-                </button>
-                {opened.g.id !== 'food' ? (
-                  <button class="k-btn small paper" {...hover(opened.say, 'Buy', ALL)} onClick={() => trade('Buy', opened.g.id, ALL)} disabled={!opened.canBuy}>
-                    Buy max
-                  </button>
-                ) : null}
-                {opened.held ? (
-                  <button class="k-btn small paper" {...hover(opened.say, 'Sell', 10)} onClick={() => trade('Sell', opened.g.id, 10)} disabled={!opened.canSell}>
-                    Sell 10
-                  </button>
-                ) : null}
-                {opened.held && opened.g.id !== 'food' ? (
-                  <button class="k-btn small paper" {...hover(opened.say, 'Sell', ALL)} onClick={() => trade('Sell', opened.g.id, ALL)} disabled={!opened.canSell}>
-                    Sell all
-                  </button>
-                ) : null}
-              </div>
             </>
           ) : (
-            <span class="k-sub ink">Click a good to see why it costs what it does, and to buy or sell more of it.</span>
+            <span class="k-sub ink">Click a good to see why it costs what it does.</span>
           )}
         </div>
       </div>
