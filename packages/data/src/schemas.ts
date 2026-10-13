@@ -801,6 +801,8 @@ export const crewSchema = z.object({
   wagesPerManDay: z.number().min(0),
   /** Men looking for a berth in a port, by its size (a pirate haven's own): they come back over a week. */
   hands: z.object({ hamlet: z.number().min(0), town: z.number().min(0), city: z.number().min(0), haven: z.number().min(0) }),
+  /** Starving past graceDays, this share of the crew (one at least) dies each day. */
+  starving: z.object({ graceDays: z.number().min(0), diePerDay: share01 }),
   /** Of the men a fight costs, this share are wounded, not killed; healPerDay of the wounded mend each day at sea. */
   woundedShare: share01,
   healPerDay: share01,

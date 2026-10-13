@@ -479,12 +479,31 @@ describe('a flag at war', () => {
   });
 });
 
+describe('a starving crew', () => {
+  it('loses men each day once the grace days are past, and the count starts over when fed', () => {
+    const sim = moored();
+    const start = { ...sim.state, ships: { player: { ...player(sim.state), crew: 100, cargo: {} } } };
+    const sea = createSim(start, [createEconomySystem(content, settlements)]);
+    const day = content.calendar.ticksPerDay;
+    sea.step(content.crew.starving.graceDays * day);
+    expect(player(sea.state).crew).toBe(100);
+    sea.step(day);
+    const lost = Math.max(1, Math.round(100 * content.crew.starving.diePerDay));
+    expect(player(sea.state).crew).toBe(100 - lost);
+    expect(sea.events().some((e) => e.type === 'MenStarved')).toBe(true);
+    // Fed again, the hunger is forgotten.
+    const fed = createSim({ ...sea.state, ships: { player: { ...player(sea.state), cargo: { food: 100 } } } }, [createEconomySystem(content, settlements)]);
+    fed.step(day);
+    expect(fed.state.captain!.hungry).toBe(0);
+  });
+});
+
 describe('the wounded', () => {
   it('mend a few each day at sea, back to work as far as there are berths', () => {
     const sim = moored();
     const crew = 40;
     sim.send({ type: 'Undock', shipId: 'player' });
-    const start = { ...sim.state, ships: { player: { ...player(sim.state), crew, wounded: 20, cargo: { food: 50 } } } };
+    const start = { ...sim.state, ships: { player: { ...player(sim.state), crew, wounded: 20, cargo: { food: 500 } } } };
     const sea = createSim(start, [createEconomySystem(content, settlements)]);
     sea.step(content.calendar.ticksPerDay);
     const healed = Math.max(1, Math.round(20 * content.crew.healPerDay));

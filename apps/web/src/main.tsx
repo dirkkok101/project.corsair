@@ -406,6 +406,7 @@ async function main() {
     const me = player();
     const them = sim.state.ships[targetId];
     if (!them || fight) return;
+    followingBeforeFight = me.assist?.mode === 'course';
     const bearingDeg = ((Math.atan2(them.x - me.x, -(them.y - me.y)) * 180) / Math.PI + 360) % 360;
     const battle = createBattle(content, {
       map,
@@ -432,11 +433,23 @@ async function main() {
     sim.applyCommands();
     fight.report = sim.events().filter((e) => e.type === 'BattleOver').at(-1)?.payload as unknown as BattleReport;
   };
+  /** Back on the course she was following before the fight, and the HUD says so. */
+  const resumeCourse = () => {
+    const me = player();
+    if (!followingBeforeFight || !destination || me.docked) return;
+    followingBeforeFight = false;
+    const berth = lanes.berth(destination.id);
+    const route = berth ? lanes.path([me.x, me.y], berth) : undefined;
+    if (!route) return;
+    sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: destination.x, y: destination.y, portId: destination.id, route: route.slice(1) });
+    courseNote = { text: `Back on course for ${destination.name}: steer to take the helm`, kind: 'Course', icon: 'ui.icon.course', until: performance.now() + 4000 };
+  };
   /** Back to the sea; a prize must first be settled on the plunder screen. */
   const endBattle = () => {
     settleBattle();
     if (!fight?.report || sim.state.prize) return;
     fight = undefined;
+    resumeCourse();
   };
   /**
    * The voyage planner's trades, from what the captain has seen (PRD section 6): for each good, buying where
@@ -510,7 +523,11 @@ async function main() {
     const perTrip = (t: { daysToStart: number; days: number }) => Math.max(0.5, t.daysToStart + t.days);
     const sail = (c: Candidate) => {
       const length = laneLength(c.from.id, c.to.id);
-      return length === undefined ? undefined : { good: c.good, from: c.from, to: c.to, daysToStart: toStart(c.from), days: length / perDay, ...risk(c.from.id, c.to.id) };
+      // Her course goes where the buying is, unless it is done: she lies there, or has the cargo aboard.
+      const bought = me.docked === c.from.id || (me.cargo[c.good] ?? 0) > 0;
+      return length === undefined
+        ? undefined
+        : { good: c.good, from: c.from, to: c.to, go: bought ? c.to : c.from, daysToStart: toStart(c.from), days: length / perDay, ...risk(c.from.id, c.to.id) };
     };
     const trades = priced
       .sort((a, b) => b.score - a.score)
@@ -572,10 +589,13 @@ async function main() {
     const km = Math.round((Math.hypot(port.x - me.x, port.y - me.y) * kmPerTile) / 10) * 10;
     return `What now: your ship is hurt (hull ${Math.round(hull * 100)}%, sails ${Math.round(sails * 100)}%). The nearest shipwright is at ${port.name}, about ${km} km off: press M and pick it.`;
   };
+  // Following a course when a fight began: she takes it up again after.
+  let followingBeforeFight = false;
   const takePlunder = (choice: PlunderChoice) => {
     sim.send({ type: 'TakePlunder', shipId: player().id, ...choice });
     sim.applyCommands();
     fight = undefined;
+    resumeCourse();
   };
   let destination: PlacedSettlement | undefined;
   // The route plotted to it, and when it was last plotted.
@@ -1378,6 +1398,10 @@ async function main() {
             ? `${name} won't let ${({ england: 'an English', spain: 'a Spanish', france: 'a French', netherlands: 'a Dutch' } as Record<string, string>)[flag]} ship in: ${COUNTRY_NAME[ev.payload.nation as string]} is at war with ${COUNTRY_NAME[flag]}`
             : `${name} won't let you in: you are their enemy`;
         courseNote = { text, kind: 'Port closed', icon: 'ui.icon.anchor', tone: 'warn', until: now + 5000 };
+      }
+      if (ev.type === 'MenStarved') {
+        const n = ev.payload.count as number;
+        courseNote = { text: `${n} ${n === 1 ? 'man' : 'men'} died of hunger: make port, or hail a ship (H) and buy food`, kind: 'Starving', icon: 'ui.icon.food', tone: 'warn', until: now + 5000 };
       }
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';

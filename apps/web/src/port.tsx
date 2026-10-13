@@ -46,6 +46,7 @@ import {
   shipRepairCost,
   shipValue,
   handsAt,
+  rationPerDay,
   townOf,
   tradeLean,
   tradePreview,
@@ -103,6 +104,8 @@ const NATION: Record<PlacedSettlement['nation'], string> = {
 /** Services that work so far; the rest are drawn but marked "soon". */
 const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
+/** A full hold's buying first keeps this many days' food aboard, so a cargo never leaves the crew to starve. */
+const STORE_DAYS = 10;
 
 /** A port's people and trend, in a few words ("12,600 people, growing"). */
 function townLine(content: ContentPack, state: WorldState, town: PlacedSettlement) {
@@ -148,6 +151,13 @@ function Merchant({
   const purse = townOf(content, state, town).cash;
   const gold = state.captain?.gold ?? 0;
   const capacity = fleetHold(content, state, ship);
+  // Buying all she can of a cargo first tops up the food to STORE_DAYS: gold spent to the last coin on cargo
+  // left the crew starving at sea.
+  const shortFood = Math.max(0, Math.ceil((STORE_DAYS - foodDays(content, ship)) * rationPerDay(content, ship)));
+  const buyAll = (good: string) => {
+    if (good !== 'food' && shortFood > 0) trade('Buy', 'food', shortFood);
+    trade('Buy', good, ALL);
+  };
   const used = cargoUsed(ship);
   const room = capacity - used;
   const deals = (state.contracts ?? []).filter((c) => c.settlementId === town.id && c.endTick > state.tick);
@@ -290,11 +300,12 @@ function Merchant({
             </button>
           ) : null}
           {bestBuy ? (
-            <button class="k-btn" {...hover(bestBuy.say, 'Buy', ALL)} onClick={() => trade('Buy', bestBuy.g.id, ALL)}>
+            <button class="k-btn" {...hover(bestBuy.say, 'Buy', ALL)} onClick={() => buyAll(bestBuy.g.id)}>
               Fill the hold with {bestBuy.g.name.toLowerCase()} for {bestBuy.best!.name}
             </button>
           ) : null}
         </div>
+        {shortFood > 0 ? <div class="k-sub merchant-food">Buy max and the full-hold buy keep back gold for {STORE_DAYS} days' food first.</div> : null}
         <div class="merchant-preview">
           {preview ?? (!profitable.length && !bestBuy && start ? start : 'Point at a button to see what the trade comes to; click a good to see why it costs what it does.')}
         </div>
@@ -339,7 +350,7 @@ function Merchant({
                       Buy 10
                     </button>
                     {r.g.id !== 'food' ? (
-                      <button class="k-btn small paper" {...hover(r.say, 'Buy', ALL)} onClick={() => trade('Buy', r.g.id, ALL)} disabled={!r.canBuy}>
+                      <button class="k-btn small paper" {...hover(r.say, 'Buy', ALL)} onClick={() => buyAll(r.g.id)} disabled={!r.canBuy}>
                         Buy max
                       </button>
                     ) : (
@@ -429,6 +440,11 @@ function arrivalNews(
 ): { kind: string; icon: string; text: string } | undefined {
   const market = state.markets?.[town.id] ?? {};
   const name = (id: string) => content.goods.find((g) => g.id === id)?.name.toLowerCase() ?? id;
+  // Little or no food aboard comes first: she shouldn't sail without it.
+  const days = Math.floor(foodDays(content, ship));
+  if (days < 3) {
+    return { kind: 'Stores', icon: 'ui.icon.food', text: days < 1 ? 'No food aboard: buy food at the merchant before you sail.' : `Food for ${days === 1 ? 'one day' : `${days} days`}: buy more at the merchant before you sail.` };
+  }
   const held = Object.entries(ship.cargo).filter(([g, n]) => n > 0 && g !== 'food');
   const dear = held
     .map(([g]) => ({ g, story: priceStory(content, state, town, g), q: quote(content, town, g, market[g] ?? 0) }))

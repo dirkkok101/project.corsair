@@ -332,6 +332,8 @@ export interface Captain {
   morale?: number;
   paidTick?: number;
   mess?: number;
+  /** Days in a row the crew has gone without food (none: fed). */
+  hungry?: number;
   /**
    * The rest of her fleet (PRD section 7): ships sailing with the flagship, off the map, following her. Their
    * holds and berths join the flagship's (cargo and crew are counted for the fleet as a whole); only the

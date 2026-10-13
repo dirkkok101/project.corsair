@@ -813,12 +813,16 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     const hurt = ship.wounded ?? 0;
     const crew = crewOf(content, ship);
     const mended = Math.min(hurt, Math.max(0, fleetBerths(content, state, ship) - crew), hurt ? Math.max(1, Math.round(hurt * content.crew.healPerDay)) : 0);
-    const healed = mended ? { crew: crew + mended, wounded: hurt - mended } : {};
+    // Starving past a couple of days, men die: a share of the crew each day, one at least, never the last.
+    const hungry = starving ? (state.captain.hungry ?? 0) + 1 : 0;
+    const dead = hungry > content.crew.starving.graceDays ? Math.min(crew + mended - 1, Math.max(1, Math.round((crew + mended) * content.crew.starving.diePerDay))) : 0;
+    if (dead > 0) events.push({ type: 'MenStarved', entityIds: [ship.id], payload: { count: dead } });
+    const healed = mended || dead ? { crew: crew + mended - dead, ...(mended ? { wounded: hurt - mended } : {}) } : {};
     return {
       state: {
         ...state,
         ships: { ...state.ships, [ship.id]: { ...ship, cargo, ...(paid ? { paid } : {}), ...healed } },
-        captain: { ...state.captain, morale, mess: starving ? 0 : need - want },
+        captain: { ...state.captain, morale, mess: starving ? 0 : need - want, hungry },
       },
       events,
     };

@@ -52,9 +52,11 @@ export function voyageProbe(
     lanes,
     seed,
   );
+  // She never docks to buy food: her crew is kept from starving, so the attacks measured are on a steady crew.
+  const fed = { ...content, crew: { ...content.crew, starving: { ...content.crew.starving, graceDays: Infinity } } };
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
-    createEconomySystem(content, settlements, map),
+    createEconomySystem(fed, settlements, map),
     createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt, settlements),
   ]);
