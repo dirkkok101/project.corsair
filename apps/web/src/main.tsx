@@ -43,7 +43,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createSeaLanes, createTrafficSystem, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createSeaLanes, createTrafficSystem, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -1172,8 +1172,13 @@ async function main() {
                         : men < needs
                           ? `Too few men to sail her too: the fleet would need ${needs}, you have ${men}${prize.volunteers ? ' with her volunteers' : ''}.`
                           : undefined;
-                    const value = shipValue(content, { ...prize.ship, hull: prize.ship.hull ?? cls.hull, sailCondition: prize.ship.sailCondition ?? 100 });
-                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: fleetShipPace(content, prize.ship), fullSpeed: cls.speed, value, whyNot };
+                    // Her papers decide what a shipwright pays: full at the ports of the letter she was taken under.
+                    const papers = prizePapers(content, sim.state, prize.ship.ai?.nation ?? 'pirate');
+                    const value = shipValue(content, { ...prize.ship, hull: prize.ship.hull ?? cls.hull, sailCondition: prize.ship.sailCondition ?? 100, prize: papers });
+                    const where = papers.lawful
+                      ? `at ${{ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' }[papers.lawful as string] ?? papers.lawful} ports (your letter)`
+                      : 'at a pirate haven: no papers';
+                    return { hold: cls.cargo, minCrew: cls.minCrew, speed: fleetShipPace(content, prize.ship), fullSpeed: cls.speed, value, where, whyNot };
                   })(),
                   role: prize.ship.ai?.role ?? 'merchant',
                   nation: prize.ship.ai?.nation ?? 'pirate',

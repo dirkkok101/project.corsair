@@ -5,7 +5,7 @@ import { CareerCard } from "./career";
 import { cargoUsed, fleetBerths, fleetHold, fleetOf, fleetShipPace, hoardRing, shipValue } from "@corsair/systems-economy";
 import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { TopTen } from "./port";
+import { papersLine, TopTen } from "./port";
 import { Art, shipIcon, shipKind } from "./ui-art";
 
 /** The parchment's size on screen, in pixels. */
@@ -382,6 +382,7 @@ function Fleet({ content, state, settlements, shipId }: Pick<LogProps, 'content'
               <div class="fleet-what">
                 <b>{f.name}</b> <span class="book-sub">{shipKind(f.classId)}</span>
                 <div class="book-small">{condition(f)}</div>
+                {papersLine(f) ? <div class="book-small">{papersLine(f)}</div> : null}
               </div>
               <span class="book-small">worth about {shipValue(content, f).toLocaleString()}</span>
             </div>
@@ -417,7 +418,10 @@ function Fleet({ content, state, settlements, shipId }: Pick<LogProps, 'content'
         ) : null}
         <h3 class="book-heading">Selling</h3>
         <p class="book-small">
-          A shipwright pays {Math.round(content.combat.fleet.sellShare * 100)}% of her class's price, less for a holed hull and torn sails, and half what her fits cost. Sell her at any port's shipwright.
+          A shipwright pays {Math.round(content.combat.fleet.sellShare * 100)}% of her class's price, less for a holed hull and torn sails, and half what her fits cost. A prize taken under a
+          letter of marque is condemned at that nation's ports and fetches as much there; without papers she fetches{' '}
+          {Math.round(content.combat.fleet.prizeShare * 100)}%, or {Math.round(content.combat.fleet.havenShare * 100)}% at a pirate haven, where every nation
+          hears of it.
         </p>
       </div>
     </>

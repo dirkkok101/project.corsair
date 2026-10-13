@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { contentFingerprint, createSim, fromSave, toSave } from '@corsair/core';
-import type { WorldState } from '@corsair/core';
+import type { FleetShip, WorldState } from '@corsair/core';
 import { decodeRasterMap, gameplayContent, isLand, loadContent, placeSettlements, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import {
   cargoUsed,
+  crewOf,
   createEconomySystem,
   DOCK_RANGE,
   fleetBerths,
@@ -454,12 +455,36 @@ describe('leaving port', () => {
   });
 });
 
+describe('the wounded', () => {
+  it('mend a few each day at sea, back to work as far as there are berths', () => {
+    const sim = moored();
+    const crew = 40;
+    sim.send({ type: 'Undock', shipId: 'player' });
+    const start = { ...sim.state, ships: { player: { ...player(sim.state), crew, wounded: 20, cargo: { food: 50 } } } };
+    const sea = createSim(start, [createEconomySystem(content, settlements)]);
+    sea.step(content.calendar.ticksPerDay);
+    const healed = Math.max(1, Math.round(20 * content.crew.healPerDay));
+    expect(player(sea.state)).toMatchObject({ crew: crew + healed, wounded: 20 - healed });
+    sea.step(30 * content.calendar.ticksPerDay);
+    expect(player(sea.state)).toMatchObject({ crew: crew + 20, wounded: 0 });
+  });
+});
+
 describe('the shipwright, the tavern and a hostile port', () => {
   it('recruits men up to the berths, repairs as far as the purse reaches, and an enemy nation shuts its port', () => {
     const sim = moored(portRoyal);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
     sim.applyCommands();
     const cls = content.ships['ship.brig']!;
+    // Only the port's men look for a berth: a city's few dozen, then none until more come in over the week.
+    const before = crewOf(content, player(sim.state));
+    sim.send({ type: 'Recruit', shipId: 'player', count: 1000 });
+    sim.applyCommands();
+    expect(player(sim.state).crew).toBe(before + content.crew.hands.city);
+    sim.send({ type: 'Recruit', shipId: 'player', count: 1000 });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('no-hands');
+    sim.step(7 * content.calendar.ticksPerDay);
     sim.send({ type: 'Recruit', shipId: 'player', count: 1000 });
     sim.applyCommands();
     expect(player(sim.state).crew).toBe(cls.maxCrew);
@@ -576,9 +601,13 @@ describe('outfitting at the shipwright', () => {
     expect(stats.maxCrew).toBe(Math.round(cls.maxCrew * 1.25));
     // At her old full hull, the new planking is there to be made good.
     const yard = createSim({ ...sim.state, ships: { player: { ...player(sim.state), hull: cls.hull } } }, [createEconomySystem(content, settlements)]);
-    yard.send({ type: 'Recruit', shipId: 'player', count: 1000 });
     yard.send({ type: 'Repair', shipId: 'player' });
-    yard.applyCommands();
+    // The hammocks berth more men: signed on over the weeks, as the port's men come in.
+    for (let week = 0; week < 6; week++) {
+      yard.send({ type: 'Recruit', shipId: 'player', count: 1000 });
+      yard.applyCommands();
+      yard.step(7 * content.calendar.ticksPerDay);
+    }
     expect(player(yard.state).crew).toBe(stats.maxCrew);
     expect(player(yard.state).hull).toBe(stats.hullMax);
     // Copper sheathing is a city's trade: a town's shipwright doesn't sell it.
@@ -1075,7 +1104,7 @@ describe('famine, plague and contracts', () => {
 describe('the fleet', () => {
   const fluyt = { id: 'f1', name: 'Endeavour', classId: 'ship.fluyt', hull: 70, sailCondition: 100 };
   /** Docked at Port Royal with a fluyt in the fleet. */
-  const withFluyt = (fleet = [fluyt], extra: Partial<WorldState['ships'][string]> = {}) => {
+  const withFluyt = (fleet: FleetShip[] = [fluyt], extra: Partial<WorldState['ships'][string]> = {}) => {
     const sim = moored();
     const s = sim.state;
     const docked = createSim(
@@ -1194,6 +1223,36 @@ describe('the fleet', () => {
     laden.send({ type: 'SellShip', shipId: 'player', fleetId: 'f1' });
     laden.applyCommands();
     expect(laden.events().at(-1)!.payload.reason).toBe('cargo-wont-fit');
+  });
+
+  it('a prize sells by her papers: full at her letter\'s ports, little without, a little more at a haven, which costs standing', () => {
+    const lawful = { ...fluyt, prize: { from: 'spain' as const, lawful: 'england' as const } };
+    const none = { ...fluyt, prize: { from: 'pirate' as const } };
+    const fl = content.combat.fleet;
+    const at = (nation: string) => ({ nation }) as { nation: 'england' };
+    expect(shipValue(content, lawful, at('england'))).toBe(shipValue(content, fluyt));
+    expect(shipValue(content, lawful, at('france'))).toBe(Math.round(shipValue(content, fluyt) * (fl.prizeShare / fl.sellShare)));
+    expect(shipValue(content, none, at('england'))).toBeLessThan(shipValue(content, none, at('pirate')));
+    // Port Royal pays a prize without papers little, and no one minds.
+    const sim = withFluyt([none]);
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'SellShip', shipId: 'player', fleetId: 'f1' });
+    sim.applyCommands();
+    expect(sim.state.captain!.gold).toBe(gold + shipValue(content, none, portRoyal));
+    expect(sim.state.captain!.standing?.england ?? 0).toBe(0);
+  });
+
+  it('the flag shifting keeps each ship\'s papers', () => {
+    const papers = { from: 'pirate' as const, lawful: 'england' as const };
+    const sim = withFluyt([{ ...fluyt, prize: papers }]);
+    sim.send({ type: 'MakeFlagship', shipId: 'player', fleetId: 'f1' });
+    sim.applyCommands();
+    expect(player(sim.state).prize).toEqual(papers);
+    const back = sim.state.captain!.fleet![0]!.id;
+    sim.send({ type: 'MakeFlagship', shipId: 'player', fleetId: back });
+    sim.applyCommands();
+    expect(sim.state.captain!.fleet![0]!.prize).toEqual(papers);
+    expect(player(sim.state).prize).toBeUndefined();
   });
 
   it('shifts the flag: she becomes the flagship, and the old one sails in the fleet', () => {

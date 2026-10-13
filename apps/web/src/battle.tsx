@@ -89,7 +89,8 @@ export interface PlunderOffer {
   foodWith: number;
   /** Keeping her: her hold, the men she needs and her speed, and why she can't be kept, if not. */
   /** Her pace as she is (her damage slows her), and once a shipwright has mended her. */
-  keep: { hold: number; minCrew: number; speed: number; fullSpeed: number; value: number; whyNot?: string };
+  /** Her value is what she fetches where she sells best (`where`): her papers decide it. */
+  keep: { hold: number; minCrew: number; speed: number; fullSpeed: number; value: number; where: string; whyNot?: string };
   /**
    * A famous pirate taken prisoner: her name, the map pieces of her hoard already held (of `pieces`), the bounty
    * any governor pays and the standing it brings, and the morale setting her free gives.
@@ -269,7 +270,7 @@ function Plunder({ content, offer, name, report, onPlunder }: { content: Content
     {
       id: 'keep',
       label: 'Keep her',
-      what: `+${offer.keep.hold} tons, needs ${offer.keep.minCrew} men · sells for about ${offer.keep.value.toLocaleString()} in port`,
+      what: `+${offer.keep.hold} tons, needs ${offer.keep.minCrew} men · sells for about ${offer.keep.value.toLocaleString()} ${offer.keep.where}`,
       on: keep,
       pick: () => setKeep(true),
       ...(offer.keep.whyNot ? { why: offer.keep.whyNot } : {}),

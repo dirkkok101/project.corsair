@@ -11,6 +11,7 @@
     "e2e": "playwright test",
     "probe:battle": "cd packages/minigame-sea-battle/probe && vitest run --config vitest.config.ts",
     "probe:career": "cd packages/systems-traffic/probe && vitest run --config vitest.config.ts",
+    "probe:raider": "cd packages/systems-traffic/probe && vitest run --config vitest.config.ts raider",
     "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build apps/web && playwright test"
   },
   "devDependencies": {

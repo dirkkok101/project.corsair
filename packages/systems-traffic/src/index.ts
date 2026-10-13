@@ -1,5 +1,5 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
-import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
+import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, PrizePapers, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { atDifficulty, crewQualityOf, difficultyOf, hourOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
@@ -7,6 +7,15 @@ import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import { zoneAt } from '@corsair/systems-weather';
 import type { SeaLanes } from './lanes';
+
+/**
+ * A prize's papers as she is kept: a pirate is a lawful prize under any letter of marque the captain holds (any
+ * admiralty condemns a pirate), a nation's ship under a letter from a nation at war with hers; otherwise she has none.
+ */
+export function prizePapers(content: ContentPack, state: WorldState, from: Nation): PrizePapers {
+  const lawful = from === 'pirate' ? state.captain?.marques?.[0] : legalTarget(content, state, state.captain, from);
+  return lawful ? { from, lawful } : { from };
+}
 
 export { createSeaLanes } from './lanes';
 export { careerGoals } from './goals';
@@ -1073,6 +1082,8 @@ export function createTrafficSystem(
           hull: Math.max(beaten ? Math.ceil(cls.hull * 0.1) : 1, mine.hull),
           sailCondition: Math.max(beaten ? 20 : 0, mine.sailCondition),
           crew: Math.max(beaten ? Math.ceil(cls.minCrew / 2) : 1, crewBefore - menLost),
+          // Of the men she lost, some are only wounded: they mend at sea and come back to work.
+          wounded: (player.wounded ?? 0) + Math.round(menLost * content.crew.woundedShare),
         };
         if (lost.ship) {
           // Her prize crew: the men the rest of the fleet can't berth went with her.
@@ -1309,6 +1320,7 @@ export function createTrafficSystem(
                 ...(kept.guns !== undefined ? { guns: kept.guns } : {}),
                 // Her fits come with her.
                 ...(kept.upgrades?.length ? { upgrades: kept.upgrades } : {}),
+                prize: prizePapers(content, state, kept.ai!.nation),
               },
             ]
           : fleet;

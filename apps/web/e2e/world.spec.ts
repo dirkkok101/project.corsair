@@ -1107,8 +1107,9 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
   await page.evaluate(() => window.__corsair.sim.step(1));
   await openService(page, 'Tavern');
   await page.locator('.tavern-person', { hasText: 'Sailors' }).click();
-  // Signing on says what her guns want of her crew.
+  // Signing on says what her guns want of her crew, and how many men look for a berth in this port.
   await expect(page.locator('.recruit .k-tag')).not.toHaveText('');
+  await expect(page.locator('.recruit')).toContainText(/\d+ men look for a berth here/);
   // Nothing taken yet: the chest is empty, but three days' wages are owed.
   await expect(page.locator('.crew-pay').getByRole('button', { name: /Divide the plunder/ })).toBeDisabled();
   const pay = page.locator('.crew-pay').getByRole('button', { name: /Pay wages/ });

@@ -45,6 +45,7 @@ import {
   sellsUpgrade,
   shipRepairCost,
   shipValue,
+  handsAt,
   townOf,
   tradeLean,
   tradePreview,
@@ -402,6 +403,12 @@ function standingWord(n: number): string {
   return n >= 50 ? 'honoured' : n >= 20 ? 'friendly' : n > -20 ? 'neutral' : n > -50 ? 'unwelcome' : 'hunted';
 }
 
+/** A prize's papers in words: where she sells best, and why. Nothing for a ship bought at a yard. */
+export function papersLine(f: { prize?: { lawful?: string } }): string | undefined {
+  if (!f.prize) return undefined;
+  return f.prize.lawful ? `lawful prize: ${NATION[f.prize.lawful as PlacedSettlement['nation']]} ports pay full` : 'no papers: a pirate haven pays best';
+}
+
 /** A line said in port beside the news, with its icon and how it reads (gold good news, warn bad). */
 export interface PortNotice {
   text: string;
@@ -672,7 +679,10 @@ function Holdings({ content, state, shipId, service }: { content: ContentPack; s
   const food = Math.floor(foodDays(content, ship));
   const morale = moraleOf(content, state);
   const purse = <Stat icon="ui.icon.gold" value={`${gold.toLocaleString()} gold`} title="Gold in your purse" />;
-  const men = <Stat icon="ui.icon.crew" value={`${crew} of ${berths} men`} title={`Crew ${crew}, berths ${berths}`} low={crew < berths / 3} />;
+  const hurt = ship.wounded ?? 0;
+  const men = (
+    <Stat icon="ui.icon.crew" value={`${crew} of ${berths} men${hurt ? ` · ${hurt} hurt` : ''}`} title={`Crew ${crew}, berths ${berths}${hurt ? `; ${hurt} wounded, mending at sea` : ''}`} low={crew < berths / 3} />
+  );
   const plunder = <Stat icon="ui.icon.chest" value={`${chest.toLocaleString()} in the chest`} title="The plunder chest: the crew's, divided at the tavern" />;
   return (
     <div class="interior-holdings">
@@ -711,7 +721,8 @@ interface TavernProps {
 }
 
 /** Hands for the ship: men sign on at the tavern for a bounty each, up to her berths. */
-function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'> & { nation: PlacedSettlement['nation'] }) {
+function Recruit({ content, state, shipId, send, port }: Pick<TavernProps, 'content' | 'state' | 'shipId' | 'send'> & { port: PlacedSettlement }) {
+  const nation = port.nation;
   const ship = state.ships[shipId]!;
   const cls = content.ships[ship.classId]!;
   const crew = crewOf(content, ship);
@@ -719,7 +730,10 @@ function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'co
   const cut = perkPrice(content, state.captain, nation, 'recruit');
   const price = content.combat.port.recruitGold * cut;
   const berths = fleetBerths(content, state, ship);
-  const room = berths - crew;
+  // Only so many men look for a berth here; more come over the week.
+  const hands = handsAt(content, state, port);
+  const room = Math.min(berths - crew, hands);
+  const wounded = ship.wounded ?? 0;
   // Her guns want men: a broadside's crew to fire at all, and fullManning times that for her fastest reloads.
   const guns = shipStats(content, ship).guns;
   const broadside = Math.ceil((guns * content.combat.guns.crewPerGun) / 2);
@@ -736,7 +750,7 @@ function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'co
     <div class="k-wood tavern-sub recruit">
       <div class="tavern-sub-head">
         <span>
-          Crew <b>{crew}</b> of {berths} berths
+          Crew <b>{crew}</b> of {berths} berths{wounded ? ` · ${wounded} wounded, mending at sea` : ''}
         </span>
         <span class={`k-tag ${manned.tone}`}>{manned.word}</span>
       </div>
@@ -748,12 +762,16 @@ function Recruit({ content, state, shipId, send, nation }: Pick<TavernProps, 'co
           Sign on {Math.min(10, Math.max(room, 0))} · {Math.round(Math.min(10, Math.max(room, 0)) * price)} gold
         </button>
         <button class="k-btn small primary" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
-          Fill the berths · {Math.round(room * price)} gold
+          {room < berths - crew ? `Sign on all ${Math.max(room, 0)}` : 'Fill the berths'} · {Math.round(Math.max(room, 0) * price)} gold
         </button>
+      </div>
+      <div class="k-sub">
+        {hands > 0 ? `${hands} ${hands === 1 ? 'man looks' : 'men look'} for a berth here` : 'No one here looks for a berth: more come in over the week, or try another port'}
+        {hands > 0 && hands < berths - crew ? `: not enough to fill her, try another port for the rest` : ''}.
       </div>
       {cut < 1 ? <div class="k-sub">Your rank here: men sign on for {Math.round((1 - cut) * 100)}% less.</div> : null}
       <div class="k-sub">
-        {room > 0
+        {berths - crew > 0
           ? `Each 10 more men: food lasts ${Math.floor(foodDays(content, { ...ship, crew: crew + 10 }))} days instead of ${Math.floor(foodDays(content, ship))}, and wages rise ${10 * content.crew.wagesPerManDay} gold a day.`
           : 'Every berth is taken: a bigger ship, or hammocks at the shipwright, berths more.'}
       </div>
@@ -1222,7 +1240,7 @@ function Shipwright({
             {act ? <div class="tavern-replies">{act}</div> : null}
           </Speech>
           <RepairYard content={content} state={state} shipId={shipId} send={send} cost={cost} cut={cut} hamlet={hamlet} />
-          <YourShips content={content} state={state} shipId={shipId} send={send} cut={cut} fitOut={fitOut} />
+          <YourShips content={content} state={state} town={town} shipId={shipId} send={send} cut={cut} fitOut={fitOut} />
           <LaidUp content={content} state={state} shipId={shipId} send={send} />
         </>
       ) : yard === 'buy' ? (
@@ -1300,6 +1318,7 @@ function RepairYard({
 function YourShips({
   content,
   state,
+  town,
   shipId,
   send,
   cut,
@@ -1307,6 +1326,7 @@ function YourShips({
 }: {
   content: ContentPack;
   state: WorldState;
+  town: PlacedSettlement;
   shipId: string;
   send: PortProps['send'];
   cut: number;
@@ -1361,6 +1381,7 @@ function YourShips({
             <div class="yard-ship-what">
               <b>{f.name}</b> <span class="k-sub">{shipKind(f.classId)}</span>
               <div class="k-sub">{condition(f)}</div>
+              {papersLine(f) ? <div class={`k-sub yard-papers${f.prize?.lawful ? ' lawful' : ''}`}>{papersLine(f)}</div> : null}
             </div>
             <div class="yard-ship-orders">
               {mend(f.id, f)}
@@ -1371,7 +1392,7 @@ function YourShips({
                 Make flagship
               </button>
               <button class="k-btn small" disabled={Boolean(why)} title={why} onClick={() => send({ type: 'SellShip', shipId, fleetId: f.id })}>
-                Sell · {shipValue(content, f).toLocaleString()}
+                Sell · {shipValue(content, f, town).toLocaleString()}
               </button>
             </div>
           </div>
@@ -1729,7 +1750,7 @@ function Sailors({ content, state, here, shipId, send }: Pick<TavernProps, 'cont
   return (
     <Speech bust="bust.sailors" who="The sailors" line={line}>
       <div class="tavern-subs">
-        <Recruit content={content} state={state} shipId={shipId} send={send} nation={here.nation} />
+        <Recruit content={content} state={state} shipId={shipId} send={send} port={here} />
         <CrewPay content={content} state={state} shipId={shipId} send={send} />
       </div>
     </Speech>

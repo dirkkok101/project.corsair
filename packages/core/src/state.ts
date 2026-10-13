@@ -99,6 +99,8 @@ export interface Ship {
   powderUntil?: number;
   /** The player's flagship's name: the career's first ship's, or a prize's (her class's name when unset). */
   name?: string;
+  /** The player's flagship taken as a prize: her papers, kept when the flag shifts. */
+  prize?: PrizePapers;
   /** The player's flagship sailing with a fleet: the slowest of its ships' speeds, which she keeps to. */
   fleetSpeed?: number;
   /** Position in map tiles; y grows southward. */
@@ -138,6 +140,8 @@ export interface Ship {
   hull?: number;
   sailCondition?: number;
   crew?: number;
+  /** The player's men hurt in a fight: off the crew until they mend, a few each day at sea. */
+  wounded?: number;
   /** Outfitting (PRD section 7): guns mounted, absent meaning her class's full battery (AI ships, and
    * saves from before outfitting); and the shipwright's upgrades installed, by id. */
   guns?: number;
@@ -228,6 +232,18 @@ export interface FleetShip {
   sailCondition: number;
   guns?: number;
   upgrades?: string[];
+  /** A ship taken in a fight: whose she was, and her papers (absent for a ship bought at a yard). */
+  prize?: PrizePapers;
+}
+
+/**
+ * A prize's papers, stamped when she is taken and kept: whose she was, and the nation whose ports condemn her as a
+ * lawful prize (she was taken under its letter of marque). A later peace doesn't undo them. Without papers a
+ * shipwright pays little for her, more at a pirate haven, which no nation likes.
+ */
+export interface PrizePapers {
+  from: Nation;
+  lawful?: Nation;
 }
 
 /** A port that lives (PRD section 6): its people, the gold its merchant has to buy with, and its trend. */
@@ -239,6 +255,9 @@ export interface TownState {
   blockaded?: boolean;
   /** Plague: the port is shut to shipping until this tick. */
   plague?: number;
+  /** Men looking for a berth here, as last counted at `handsTick` (they come back over the week; absent: all). */
+  hands?: number;
+  handsTick?: number;
 }
 
 /**

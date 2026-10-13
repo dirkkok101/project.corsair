@@ -408,13 +408,38 @@ export function shipStandingNeeded(content: ContentPack, port: Pick<PlacedSettle
   return port.nation === 'pirate' ? 0 : (content.combat.shipyard.ships[classId]?.standing ?? 0);
 }
 
-/** What a shipwright pays for a ship of the fleet: a share of her class's price, by her hull and, less, her sails. */
-export function shipValue(content: ContentPack, f: Pick<FleetShip, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns'>): number {
+/**
+ * The share of her class's price a shipwright pays for a ship: full for a ship bought, or a prize at the ports of the
+ * nation that condemned her; a prize without papers there, less, and a little more at a pirate haven. With no port
+ * given, what she fetches where she sells best.
+ */
+export function saleShare(content: ContentPack, f: Pick<FleetShip, 'prize'>, port?: Pick<Settlement, 'nation'>): number {
+  const fl = content.combat.fleet;
+  if (!f.prize) return fl.sellShare;
+  if (f.prize.lawful) return !port || port.nation === f.prize.lawful ? fl.sellShare : fl.prizeShare;
+  return !port || port.nation === 'pirate' ? fl.havenShare : fl.prizeShare;
+}
+
+/** What a shipwright pays for a ship of the fleet: a share of her class's price (by her papers and the port), by her hull and, less, her sails. */
+export function shipValue(content: ContentPack, f: Pick<FleetShip, 'classId' | 'hull' | 'sailCondition' | 'upgrades' | 'guns' | 'prize'>, port?: Pick<Settlement, 'nation'>): number {
   const cls = content.ships[f.classId]!;
   const hull = Math.max(0, Math.min(1, f.hull / shipStats(content, f).hullMax));
-  // Her fits are worth half what they cost her class.
-  const fits = (f.upgrades ?? []).reduce((n, u) => n + (content.upgrades[u] ? upgradePrice(content, f.classId, u).price / 2 : 0), 0);
-  return Math.round((cls.price * content.combat.fleet.sellShare + fits) * hull * (0.75 + 0.25 * (f.sailCondition / 100)));
+  // Her fits are worth half what they cost her class, cut like her hull for a prize without papers.
+  const share = saleShare(content, f, port);
+  const fits = (f.upgrades ?? []).reduce((n, u) => n + (content.upgrades[u] ? upgradePrice(content, f.classId, u).price / 2 : 0), 0) * (share / content.combat.fleet.sellShare);
+  return Math.round((cls.price * share + fits) * hull * (0.75 + 0.25 * (f.sailCondition / 100)));
+}
+
+/**
+ * Men looking for a berth in a port now: the town's pool (crew.json hands, by its size, a haven's own), less those
+ * signed on lately, who are made good over a week.
+ */
+export function handsAt(content: ContentPack, state: WorldState, port: Pick<Settlement, 'id' | 'size' | 'nation'>): number {
+  const pool = content.crew.hands[port.nation === 'pirate' ? 'haven' : port.size];
+  const town = state.towns?.[port.id];
+  if (town?.hands === undefined) return pool;
+  const days = (state.tick - (town.handsTick ?? state.tick)) / content.calendar.ticksPerDay;
+  return Math.min(pool, Math.floor(town.hands + (pool * days) / 7));
 }
 
 /** Men aboard: a ship from before crews were counted sails with the career's starting crew. */
@@ -771,10 +796,15 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     const mood = crewMood(content, state, ship);
     const morale = Math.max(0, Math.min(100, before + (mood - before) * m.approachPerDay - (starving ? m.starvingPerDay : 0)));
     const events: EmittedEvent[] = starving ? [{ type: 'Starving', entityIds: [ship.id], payload: { tick } }] : [];
+    // The wounded mend a few a day, back to work as far as there are berths for them.
+    const hurt = ship.wounded ?? 0;
+    const crew = crewOf(content, ship);
+    const mended = Math.min(hurt, Math.max(0, fleetBerths(content, state, ship) - crew), hurt ? Math.max(1, Math.round(hurt * content.crew.healPerDay)) : 0);
+    const healed = mended ? { crew: crew + mended, wounded: hurt - mended } : {};
     return {
       state: {
         ...state,
-        ships: { ...state.ships, [ship.id]: { ...ship, cargo, ...(paid ? { paid } : {}) } },
+        ships: { ...state.ships, [ship.id]: { ...ship, cargo, ...(paid ? { paid } : {}), ...healed } },
         captain: { ...state.captain, morale, mess: starving ? 0 : need - want },
       },
       events,
@@ -1022,13 +1052,18 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const crew = crewOf(content, ship);
         // A captain of the port's nation finds men easier: they sign on for less.
         const price = content.combat.port.recruitGold * perkPrice(content, state.captain, byId.get(ship.docked)!.nation, 'recruit');
-        const count = Math.min(Math.floor(command.count), berths - crew, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
-        if (!(count > 0)) return refuse(state, ship, crew >= berths ? 'berths-full' : 'not-enough-gold');
+        // Only so many men look for a berth in one port: filling a big ship takes several.
+        const port = byId.get(ship.docked)!;
+        const hands = handsAt(content, state, port);
+        const count = Math.min(Math.floor(command.count), berths - crew, hands, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
+        if (!(count > 0)) return refuse(state, ship, crew >= berths ? 'berths-full' : hands <= 0 ? 'no-hands' : 'not-enough-gold');
+        const town = townOf(content, state, port);
         return {
           state: {
             ...state,
             ships: { ...state.ships, [ship.id]: { ...ship, crew: crew + count } },
             captain: { ...state.captain, gold: state.captain.gold - count * price },
+            towns: { ...state.towns, [port.id]: { ...town, hands: hands - count, handsTick: state.tick } },
           },
           events: [{ type: 'Recruited', entityIds: [ship.id, ship.docked], payload: { count, gold: count * price } }],
         };
@@ -1181,14 +1216,21 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           const after = { ...state, captain: { ...state.captain, fleet: rest } };
           if (fleetHold(content, after, ship) < cargoUsed(ship)) return refuse(state, ship, 'cargo-wont-fit');
           if (fleetBerths(content, after, ship) < crewOf(content, ship)) return refuse(state, ship, 'crew-wont-fit');
-          const gold = shipValue(content, sold);
+          const port = byId.get(ship.docked)!;
+          const gold = shipValue(content, sold, port);
+          // A prize without papers sold to pirates: every nation hears the captain deals with them.
+          const fenced = Boolean(sold.prize && !sold.prize.lawful && port.nation === 'pirate');
+          const hit = content.combat.fleet.havenStanding;
+          const standing = fenced
+            ? Object.fromEntries(NATIONS.map((n) => [n, Math.max(-100, (state.captain!.standing?.[n] ?? 0) - hit)]))
+            : state.captain.standing;
           return {
             state: {
               ...state,
               ships: { ...state.ships, [ship.id]: withFleetPace(content, ship, rest) },
-              captain: { ...state.captain, gold: state.captain.gold + gold, fleet: rest },
+              captain: { ...state.captain, gold: state.captain.gold + gold, fleet: rest, ...(standing ? { standing } : {}) },
             },
-            events: [{ type: 'ShipSold', entityIds: [ship.id, ship.docked], payload: { name: sold.name, classId: sold.classId, gold } }],
+            events: [{ type: 'ShipSold', entityIds: [ship.id, ship.docked], payload: { name: sold.name, classId: sold.classId, gold, papers: sold.prize ? (sold.prize.lawful ?? 'none') : 'built', fenced } }],
           };
         }
         // The flag shifts: she becomes the flagship (where the flagship lies), and the old flagship sails in the fleet.
@@ -1200,12 +1242,23 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           sailCondition: ship.sailCondition ?? 100,
           ...(ship.guns !== undefined ? { guns: ship.guns } : {}),
           ...(ship.upgrades ? { upgrades: ship.upgrades } : {}),
+          // Her papers go with her, under the flag or not.
+          ...(ship.prize ? { prize: ship.prize } : {}),
         };
         const fleetAfter = [...rest, old];
-        const { guns: _g, upgrades: _u, ...hull } = ship;
+        const { guns: _g, upgrades: _u, prize: _p, ...hull } = ship;
         const flagship = withFleetPace(
           content,
-          { ...hull, classId: sold.classId, name: sold.name, hull: sold.hull, sailCondition: sold.sailCondition, ...(sold.guns !== undefined ? { guns: sold.guns } : {}), ...(sold.upgrades ? { upgrades: sold.upgrades } : {}) },
+          {
+            ...hull,
+            classId: sold.classId,
+            name: sold.name,
+            hull: sold.hull,
+            sailCondition: sold.sailCondition,
+            ...(sold.guns !== undefined ? { guns: sold.guns } : {}),
+            ...(sold.upgrades ? { upgrades: sold.upgrades } : {}),
+            ...(sold.prize ? { prize: sold.prize } : {}),
+          },
           fleetAfter,
         );
         return {

@@ -166,8 +166,12 @@
     }
   },
   "fleet": {
+    "$comment": "A prize taken under a letter of marque (a pirate under any letter, a nation's ship under a letter against her) is condemned at the issuer's ports and sells for sellShare there; without papers she sells for prizeShare, or havenShare at a pirate haven, which costs havenStanding with every nation.",
     "maxShips": 8,
-    "sellShare": 0.35
+    "sellShare": 0.35,
+    "prizeShare": 0.15,
+    "havenShare": 0.25,
+    "havenStanding": 3
   },
   "shipyard": {
     "$comment": "Ships for sale at a shipwright (PRD section 7), by place and standing (slice 7 of docs/design/combat-model.md): each class is built at a town and up ('town'), only at a city ('city') or only at a nation's capital ('capital'), a hamlet builds none; 'nations' limits her to those nations' yards (a periagua only at a pirate haven, a pink at English and Dutch yards); 'standing' is what the captain's standing with the port's nation must be before its yard builds her for him (the light frigate), and 'rank' the rank he must hold with it (politics.json ranks: a frigate for a colonel, slice 8). The great ships (the ship of the line, the galleons) are built in Europe and the half-galley is the Spanish guarda costa's: the only way to one is to take her. A ship bought comes new, at her class's price, with 'gunsShare' of her battery mounted (more at 150 gold a gun).",

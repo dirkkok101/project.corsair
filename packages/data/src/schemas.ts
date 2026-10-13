@@ -536,6 +536,10 @@ export const combatSchema = z.object({
     maxShips: z.number().int().positive(),
     /** A shipwright pays this share of a ship's class price (by her condition): prizes help, they don't flood the purse. */
     sellShare: z.number().positive().max(1),
+    /** A prize without papers sells for this share instead; at a pirate haven for havenShare, which costs havenStanding with every nation. */
+    prizeShare: z.number().positive().max(1),
+    havenShare: z.number().positive().max(1),
+    havenStanding: z.number().min(0),
   }),
   /** Ships for sale at a shipwright, by port size, and the share of her battery a new ship comes with. */
   shipyard: z.object({
@@ -790,6 +794,11 @@ export const crewSchema = z.object({
   }),
   captainShare: share01,
   wagesPerManDay: z.number().min(0),
+  /** Men looking for a berth in a port, by its size (a pirate haven's own): they come back over a week. */
+  hands: z.object({ hamlet: z.number().min(0), town: z.number().min(0), city: z.number().min(0), haven: z.number().min(0) }),
+  /** Of the men a fight costs, this share are wounded, not killed; healPerDay of the wounded mend each day at sea. */
+  woundedShare: share01,
+  healPerDay: share01,
   /** Reload: manning is crew over the men a broadside needs; at fullManning it reloads reloadBonus faster. */
   manning: z.object({ fullManning: z.number().gt(1), reloadBonus: share01 }),
   /** Below a class's minimum crew, speed and turning scale down with the crew, to no less than this. */
