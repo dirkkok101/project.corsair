@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { decode } from 'fast-png';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { decodeRasterMap, isLand, loadContent, placeSettlements, startOf, Tile, tileAt, tileOf } from '../src';
+import { careerSettlements, decodeRasterMap, isLand, loadContent, placeSettlements, startOf, Tile, tileAt, tileOf } from '../src';
 
 const content = loadContent();
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -72,5 +72,27 @@ describe('caribbean map', () => {
   it('places every settlement', () => {
     const placed = placeSettlements(def, map, content.settlements);
     expect(placed).toHaveLength(content.settlements.length);
+  });
+
+  it('draws a career its pirate havens: Tortuga kept, one cove from each region, every site on the coast', () => {
+    const h = content.havens;
+    // Every site places on the map's coast, and every region has a choice of at least two.
+    const sites = h.sites.map((s) => ({ id: `haven.${s.id}`, name: s.id, nation: 'pirate' as const, type: 'haven' as const, size: 'hamlet' as const, lon: s.lon, lat: s.lat }));
+    expect(placeSettlements(def, map, sites)).toHaveLength(sites.length);
+    const regions = [...new Set(h.sites.map((s) => s.region))];
+    for (const r of regions) expect(h.sites.filter((s) => s.region === r).length).toBeGreaterThanOrEqual(2);
+    // A career: the kept havens and one cove a region, each named apart; the same seed, the same coves.
+    const career = careerSettlements(content, 7);
+    const havens = career.filter((s) => s.nation === 'pirate');
+    expect(havens.filter((s) => h.keep.includes(s.id))).toHaveLength(h.keep.length);
+    const coves = havens.filter((s) => s.id.startsWith('haven.'));
+    expect(coves).toHaveLength(regions.length);
+    expect(new Set(coves.map((s) => h.sites.find((x) => `haven.${x.id}` === s.id)!.region)).size).toBe(regions.length);
+    expect(new Set(coves.map((s) => s.name)).size).toBe(coves.length);
+    expect(careerSettlements(content, 7)).toEqual(career);
+    // Other seeds, other coves; every list places.
+    const draws = new Set([1, 2, 3, 4, 5].map((seed) => careerSettlements(content, seed).filter((s) => s.id.startsWith('haven.')).map((s) => s.id).join()));
+    expect(draws.size).toBeGreaterThan(1);
+    expect(placeSettlements(def, map, careerSettlements(content, 3))).toHaveLength(career.length);
   });
 });

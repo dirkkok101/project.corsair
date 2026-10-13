@@ -1682,7 +1682,7 @@ export function createTrafficSystem(
             : undefined;
         if (oath) {
           next = withFamous(next, oath.id, { ...(next.famous?.[oath.id] ?? { wealth: oath.wealth }), sworn: true, revenge: true, spared: undefined });
-          next = newsItem(next, oath.haven, 'famousHunts', tick, oath.name, 'pirate', { captain: oath.name });
+          next = newsItem(next, famousHaven(next, oath), 'famousHunts', tick, oath.name, 'pirate', { captain: oath.name });
           events.push({ type: 'FamousSworn', entityIds: [oath.id], payload: { pirateId: oath.id, fame: war } });
         }
       }
@@ -1694,7 +1694,7 @@ export function createTrafficSystem(
         for (const def of content.pirates.captains) {
           // Nor does one held in irons for a governor's bounty.
           if (afloat.has(def.id) || (next.famous?.[def.id]?.returnAt ?? 0) > tick || next.captain?.deeds?.some((d) => d.captive === def.id)) continue;
-          const home = byId.get(def.haven);
+          const home = byId.get(famousHaven(next, def));
           const at = home && lanes.mooring(home.id);
           if (!home || !at) continue;
           const made = spawnFamous({ ...next, ships }, def, home, at, tick);
@@ -1755,7 +1755,7 @@ export interface TopTenEntry {
 export function topTen(content: ContentPack, state: WorldState): TopTenEntry[] {
   const pirates: TopTenEntry[] = content.pirates.captains.map((c) => {
     const f = state.famous?.[c.id];
-    return { id: c.id, name: c.name, wealth: f?.wealth ?? c.wealth, haven: c.haven, ...(f?.returnAt !== undefined && f.returnAt > state.tick ? { returnAt: f.returnAt } : {}) };
+    return { id: c.id, name: c.name, wealth: f?.wealth ?? c.wealth, haven: famousHaven(state, c), ...(f?.returnAt !== undefined && f.returnAt > state.tick ? { returnAt: f.returnAt } : {}) };
   });
   const you: TopTenEntry = { name: 'You', wealth: Math.round((state.captain?.gold ?? 0) + (state.captain?.chest ?? 0)), player: true };
   return [...pirates, you].sort((a, b) => b.wealth - a.wealth || Number(Boolean(b.player)) - Number(Boolean(a.player)));
@@ -1904,5 +1904,21 @@ export function withTraffic(world: WorldState, content: ContentPack, settlements
       ships[made.ship.id] = made.ship;
     }
   }
-  return { ...state, ships, rng: { ...state.rng, traffic: rng.state() } };
+  // The famous pirates' havens this career: her own where it stands, else the haven nearest her hunting grounds.
+  const havens = settlements.filter(isHaven);
+  let famous = state.famous ?? {};
+  for (const c of content.pirates.captains) {
+    if (settlements.some((s) => s.id === c.haven)) continue;
+    const grounds = c.haunts.map((id) => settlements.find((s) => s.id === id)).filter((s): s is Settlement => Boolean(s));
+    const cx = grounds.reduce((n, s) => n + s.x, 0) / Math.max(1, grounds.length);
+    const cy = grounds.reduce((n, s) => n + s.y, 0) / Math.max(1, grounds.length);
+    const haven = [...havens].sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0];
+    if (haven) famous = { ...famous, [c.id]: { ...(famous[c.id] ?? { wealth: c.wealth }), haven: haven.id } };
+  }
+  return { ...state, ships, ...(Object.keys(famous).length ? { famous } : {}), rng: { ...state.rng, traffic: rng.state() } };
+}
+
+/** A famous pirate's haven this career: drawn per career, else pirates.json's own. */
+export function famousHaven(state: Pick<WorldState, 'famous'>, c: { id: string; haven: string }): string {
+  return state.famous?.[c.id]?.haven ?? c.haven;
 }

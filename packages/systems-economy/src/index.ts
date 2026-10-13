@@ -345,7 +345,7 @@ export function strangerOffer(
   const draw = rngStream(seedRng(week * 7919 + (h >>> 0) % 7907, 'stranger'));
   if (draw.float() >= (unfinished ? s.unfinishedChance : s.chance)) return undefined;
   const near = (c: (typeof open)[number]) =>
-    [c.haven, ...c.haunts].some((id) => {
+    [state.famous?.[c.id]?.haven ?? c.haven, ...c.haunts].some((id) => {
       const p = settlements.find((x) => x.id === id);
       return p !== undefined && Math.hypot(p.x - town.x, p.y - town.y) <= s.nearTiles;
     });

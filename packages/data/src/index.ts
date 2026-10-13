@@ -8,6 +8,7 @@ import goodsJson from '../content/goods.json';
 import musicJson from '../content/music.json';
 import caribbeanMap from '../content/maps/caribbean/map.json';
 import settlementsJson from '../content/maps/caribbean/settlements.json';
+import havensJson from '../content/maps/caribbean/havens.json';
 import weatherJson from '../content/maps/caribbean/weather.json';
 import windZonesJson from '../content/maps/caribbean/wind_zones.json';
 import placeholderMap from '../content/maps/placeholder.json';
@@ -33,6 +34,7 @@ import {
   proceduralMapSchema,
   rasterMapSchema,
   settlementSchema,
+  havensSchema,
   shipClassSchema,
   spriteSchema,
   trafficSchema,
@@ -66,6 +68,7 @@ import type {
 
 export * from './schemas';
 export * from './tilemap';
+export * from './havens';
 export * from './stats';
 
 export interface ContentPack {
@@ -75,6 +78,8 @@ export interface ContentPack {
   sprites: Record<string, SpriteDef>;
   maps: { placeholder: ProceduralMapDef; caribbean: RasterMapDef };
   settlements: Settlement[];
+  /** Pirate havens drawn per career (careerSettlements). */
+  havens: z.infer<typeof havensSchema>;
   windZones: WindZones;
   weather: Weather;
   calendar: Calendar;
@@ -111,6 +116,7 @@ export function loadContent(): ContentPack {
     sprites: z.record(z.string(), spriteSchema).parse(spritesJson),
     maps: { placeholder: proceduralMapSchema.parse(placeholderMap), caribbean: rasterMapSchema.parse(caribbeanMap) },
     settlements: z.array(settlementSchema).parse(settlementsJson),
+    havens: havensSchema.parse(havensJson),
     windZones: windZonesSchema.parse(windZonesJson),
     weather: weatherSchema.parse(weatherJson),
     calendar: calendarSchema.parse(calendarJson),

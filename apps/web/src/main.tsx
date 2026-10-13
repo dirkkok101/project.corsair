@@ -1,7 +1,7 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship, WorldState } from '@corsair/core';
-import { decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
+import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer, flagPicture } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
@@ -192,9 +192,11 @@ async function main() {
     elevation: await layer(def.layers.elevation, 0.35),
     zones: await layer(def.layers.zones, 0.5),
   });
-  const settlements = placeSettlements(def, map, content.settlements);
-  /** A nation's capital: where a career under its flag begins. */
-  const capitalOf = (n: string) => settlements.find((s) => s.nation === n && s.type === 'capital') ?? settlements.find((s) => s.id === def.start.port)!;
+  // The classic ports, for the start screen (the capitals, a saved career's port): a career's own list, with its
+  // pirate havens drawn from its seed, is placed once the seed is known.
+  const classic = placeSettlements(def, map, content.settlements);
+  /** A nation's capital: where a career under its flag begins (the same in every career's list). */
+  const capitalOf = (n: string) => classic.find((s) => s.nation === n && s.type === 'capital') ?? classic.find((s) => s.id === def.start.port)!;
   loading.progress(0.6, 'Placing the ports');
   // The start screen: continue a stored career, or pick a new one's difficulty.
   // Only gameplay content counts: new music or sprite framing shouldn't flag every old save.
@@ -215,7 +217,7 @@ async function main() {
           fingerprint,
           startDate: def.startDate,
           ticksPerDay: content.calendar.ticksPerDay,
-          settlements,
+          settlements: classic,
           levels: content.combat.difficulty.levels,
           defaultLevel: content.combat.difficulty.default,
           flags: (['england', 'spain', 'france', 'netherlands'] as const).map((n) => {
@@ -240,6 +242,8 @@ async function main() {
   loading.progress(0.7, 'Raising the wind');
   const resumed = 'save' in choice ? choice.save : undefined;
   const seed = resumed?.seed ?? (Number.isInteger(asked) ? asked >>> 0 : crypto.getRandomValues(new Uint32Array(1))[0]!);
+  // This career's ports: the havens drawn from its seed (havens.json), the same again when it is resumed.
+  const settlements = placeSettlements(def, map, careerSettlements(content, seed));
   const windAt = createWindField(content, def, map);
   // Sea lanes for the AI ships, found per port pair on demand.
   const lanes = createSeaLanes(map, settlements, content.traffic.laneCell);

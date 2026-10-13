@@ -126,6 +126,13 @@ export const settlementSchema = z.object({
   lat: z.number(),
 });
 
+/** Pirate havens drawn per career (havens.json): those always kept, the cove sites by region, and their names. */
+export const havensSchema = z.object({
+  keep: z.array(z.string()),
+  sites: z.array(z.object({ id: z.string(), region: z.string(), lon: z.number(), lat: z.number() })).min(1),
+  names: z.array(z.string()).min(1),
+});
+
 const seasonWind = z.object({ fromDeg: degrees, spreadDeg: z.number().min(0).max(180), strength: weights });
 
 export const windZonesSchema = z.object({

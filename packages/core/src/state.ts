@@ -491,6 +491,8 @@ export interface FamousPirate {
   revenge?: boolean;
   /** She swore to take the captain once her fame grew (pirates.json huntFame): hunting her as for revenge; once only. */
   sworn?: boolean;
+  /** Her haven this career, where the havens are drawn per career (absent: pirates.json's own). */
+  haven?: string;
 }
 
 /** A famous pirate's buried hoard (treasure.json): where it lies, what marks it, and what it holds. */

@@ -10,7 +10,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim, inPort } from '@corsair/core';
 import type { Command, GameEvent, Nation, Ship } from '@corsair/core';
-import { decodeRasterMap, loadContent, placeSettlements, shipStats, upgradePrice } from '@corsair/data';
+import { careerSettlements, decodeRasterMap, loadContent, placeSettlements, shipStats, upgradePrice } from '@corsair/data';
 import { closedTo, crewOf, createEconomySystem, fleetBerths, foodDays, rationPerDay, withEconomy } from '@corsair/systems-economy';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import { createPoliticsSystem, withPolitics } from '@corsair/systems-politics';
@@ -23,7 +23,8 @@ const content = loadContent();
 const def = content.maps.caribbean;
 const dir = fileURLToPath(new URL('../../data/content/maps/caribbean/', import.meta.url));
 const map = decodeRasterMap(def, { terrain: readFileSync(dir + def.layers.terrain), elevation: readFileSync(dir + def.layers.elevation), zones: readFileSync(dir + def.layers.zones) });
-const settlements = placeSettlements(def, map, content.settlements);
+// HAVENS=draw places a career's own ports, its pirate havens drawn from SEED (as the game does); else the classic set.
+const settlements = placeSettlements(def, map, process.env.HAVENS === 'draw' ? careerSettlements(content, Number(process.env.SEED ?? 1)) : content.settlements);
 const lanes = createSeaLanes(map, settlements, content.traffic.laneCell);
 const windAt = createWindField(content, def, map);
 const DAY = content.calendar.ticksPerDay;
@@ -36,7 +37,12 @@ const HOME = 'town.port_royal';
 // unless that port is closed to the flag (at war), then the nearest open port that wants them.
 const NATION = (process.env.NATION ?? 'england') as Nation;
 const MARKETS = ['town.santiago_de_cuba', 'town.ile_a_vache', 'town.tortuga'];
-const HAUNTS = ['town.ile_a_vache', 'town.tortuga'];
+// Where she hunts: the pirate havens nearest home (Tortuga always among them).
+const HAUNTS = settlements
+  .filter((s) => s.nation === 'pirate')
+  .sort((a, b) => Math.hypot(a.x - settlements.find((x) => x.id === 'town.port_royal')!.x, a.y - settlements.find((x) => x.id === 'town.port_royal')!.y) - Math.hypot(b.x - settlements.find((x) => x.id === 'town.port_royal')!.x, b.y - settlements.find((x) => x.id === 'town.port_royal')!.y))
+  .slice(0, 2)
+  .map((s) => s.id);
 
 it('raider', () => {
   const seed = SEED;
@@ -259,7 +265,7 @@ it('raider', () => {
     send({ type: 'Buy', shipId: 'player', good: 'food', quantity: 999 });
     log(`bought ${me().cargo.luxuries ?? 0} luxuries, food to ${foodDays(content, me()).toFixed(0)} days; gold ${gold()}`);
     send({ type: 'Undock', shipId: 'player' });
-    const market = MARKETS.find((id) => !closedTo(content, sim.state, byId.get(id)!)) ?? MARKETS[0]!;
+    const market = MARKETS.find((id) => byId.has(id) && !closedTo(content, sim.state, byId.get(id)!)) ?? MARKETS[0]!;
     log(`opening market: ${market}`);
     voyage(market);
     sellAll();

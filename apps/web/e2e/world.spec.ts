@@ -110,7 +110,8 @@ test('opens the sea chart with every port', async ({ page }) => {
   await boot(page);
   await page.keyboard.press('m');
   await expect(page.locator('.chart')).toBeVisible();
-  await expect(page.locator('.chart-port')).toHaveCount(45);
+  // The nations' ports, Tortuga, and a cove drawn from each region of the pirate havens (havens.json).
+  await expect(page.locator('.chart-port')).toHaveCount(50);
   await page.screenshot({ path: 'test-results/chart.png' });
   await page.keyboard.press('m');
   await expect(page.locator('.chart')).toBeHidden();
