@@ -28,7 +28,7 @@ import { cargoUsed, createEconomySystem, createLogbookSystem, hasGovernor, hoard
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
-import { loadStoredSave, storeSave } from './save';
+import { exportSave, loadStoredSave, storeSave } from './save';
 import { Ending } from './career';
 import { chooseCareer } from './start';
 import { crewLook, Hail, shipTitle } from './hail';
@@ -1517,7 +1517,7 @@ async function main() {
     stage.classList.toggle('hail-open', Boolean(hailing));
     render(
       sim.state.captain?.retired ? (
-        <Ending content={content} state={sim.state} again={() => location.reload()} />
+        <Ending content={content} state={sim.state} again={() => location.reload()} saveFile={(name) => exportSave(toSave(sim.state, seed, fingerprint, Date.now()), name)} />
       ) : town ? (
         <Port
           state={sim.state}

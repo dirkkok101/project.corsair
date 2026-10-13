@@ -3609,6 +3609,8 @@ body {
 .career-score {
   width: 100%;
   border-collapse: collapse;
+  /* The points close beside their labels, the why taking the rest. */
+  table-layout: fixed;
 }
 
 .career-score th {
@@ -3620,7 +3622,7 @@ body {
 .career-points {
   width: 50px;
   text-align: right;
-  font: 800 24px var(--k-body);
+  font: 800 26px var(--k-body);
   font-variant-numeric: lining-nums tabular-nums;
   color: #7a4a00;
 }
@@ -3663,16 +3665,28 @@ body {
   font: 700 22px var(--k-voice);
 }
 
-.career-ranks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-}
-
 .career-actions {
   display: flex;
   gap: 10px;
   margin-top: 16px;
+}
+
+/* Retiring: the harbour dimmed, the sheet near the top. */
+.port.port-retire {
+  place-items: start center;
+  padding-top: 36px;
+  background: rgb(8 10 16 / 0.6);
+}
+
+/* A grave choice, in ink rather than the gold that invites. */
+.k-btn.ink {
+  color: #f4ead6;
+  background: #3a2818;
+  border-color: #1d1210;
+}
+
+.k-btn.ink:hover {
+  background: #4d3520;
 }
 
 /* The end of the career (storyboard 7.2): the fate's painting, and what became of him at its side. */
@@ -3702,6 +3716,10 @@ body {
   flex-direction: column;
   gap: 12px;
   width: min(460px, 90vw);
+}
+
+.ending .moment-title {
+  font-size: clamp(40px, 5vw, 60px);
 }
 
 .ending-story {

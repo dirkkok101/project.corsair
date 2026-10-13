@@ -1318,6 +1318,9 @@ test('retiring in port scores the career, ends it, and the start screen says how
   await page.getByRole('button', { name: 'Retire…' }).click();
   await expect(page.locator('.career-score')).toContainText('Trade fame');
   await expect(page.locator('.career-total')).toContainText('the next fate at');
+  // Each part says his own figures, and what the next step brings.
+  await expect(page.locator('.career-score')).toContainText('0 so far');
+  await expect(page.locator('.career-score')).toContainText('a Baron gets 100 acres');
   await page.screenshot({ path: 'test-results/retire-confirm.png' });
   await page.getByRole('button', { name: 'Not yet' }).click();
   await expect(page.locator('.career-score')).toHaveCount(0);
@@ -1326,6 +1329,9 @@ test('retiring in port scores the career, ends it, and the start screen says how
   // The fate's painting, what became of him, and the score.
   await expect(page.locator('.ending .moment-title')).toHaveText('A beggar on the quays of Port Royal');
   await expect(page.locator('.ending-number')).toHaveText(/^\d+$/);
+  // The story opens with how long the career lasted; the finished career can be kept as a file.
+  await expect(page.locator('.ending-story')).toContainText('Not a month on the Main.');
+  await expect(page.locator('.ending').getByRole('button', { name: 'Save to a file' })).toBeVisible();
   await page.screenshot({ path: 'test-results/retired.png' });
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { retired?: unknown }).retired)).toBeTruthy();
   await expect(page.locator('.hud-saved')).toBeVisible();

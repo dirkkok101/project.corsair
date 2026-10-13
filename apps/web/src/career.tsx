@@ -2,7 +2,7 @@ import { dateOf, formatDate } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import { difficultyOf } from '@corsair/data';
 import type { ContentPack } from '@corsair/data';
-import { careerScore, landOf, rankOf } from '@corsair/systems-economy';
+import { careerScore } from '@corsair/systems-economy';
 import { NATIONS } from '@corsair/systems-politics';
 
 export const COUNTRY: Record<string, string> = { england: 'England', france: 'France', netherlands: 'the Netherlands', spain: 'Spain' };
@@ -26,12 +26,35 @@ const FATE_STORY = [
   'They sing of you in every tavern from Tortuga to Cartagena.',
 ];
 
+const NUMBER = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
+const count = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+/** "A nation, B or C". */
+const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}` : (xs[0] ?? ''));
+
+/** How long the career lasted, as its story opens ("Eight years on the Main."). */
+function onTheMain(days: number): string {
+  if (days < 30) return 'Not a month on the Main.';
+  if (days < 365) {
+    const months = Math.floor(days / 30);
+    return months === 1 ? 'A month on the Main.' : `${NUMBER[months] ?? months} months on the Main.`;
+  }
+  const years = Math.floor(days / 365);
+  return years === 1 ? 'A year on the Main.' : `${NUMBER[years] ?? years} years on the Main.`;
+}
+
 /** The career as it would score now (storyboard 7.1): each part with why, the total, the fate, and the next one. */
 export function CareerCard({ content, state, final }: { content: ContentPack; state: WorldState; final?: boolean }) {
   const s = careerScore(content, state);
   const c = content.politics.career;
   const ladder = content.politics.ranks.ladder;
   const next = c.fates.find((f) => f.score > s.total);
+  // His own figures beside each rule, so the points read as earned.
+  const record = state.captain?.record ?? {};
+  const pirates = Object.values(record.beaten ?? {}).reduce((n, k) => n + k, 0);
+  const hoards = content.pirates.captains.filter((x) => state.famous?.[x.id]?.hoard?.found).length;
+  const pieces = Object.values(state.captain?.mapPieces ?? {}).reduce((n, k) => n + k, 0);
+  const landed = ladder.find((r) => r.acres);
+  const unranked = NATIONS.filter((n) => !s.ranks.some((r) => r.nation === n)).map((n) => COUNTRY[n]!);
   const row = (label: string, points: number, why: string) => (
     <tr>
       <th>{label}</th>
@@ -43,12 +66,22 @@ export function CareerCard({ content, state, final }: { content: ContentPack; st
     <div class="career">
       <table class="career-score">
         <tbody>
-          {row('Trade fame', s.fames.trade, `a point for every ${c.fame.trade.goldPer.toLocaleString()} gold made trading`)}
-          {row('War fame', s.fames.war, `a point a prize and a pirate beaten, ${c.fame.war.famous} a famous pirate`)}
-          {row('Adventure fame', s.fames.adventure, `${c.fame.adventure.hoard} a hoard dug up, ${c.fame.adventure.mapPiece} a piece of a map`)}
+          {row('Trade fame', s.fames.trade, `a point for every ${c.fame.trade.goldPer.toLocaleString()} gold made trading: ${Math.max(0, record.tradeProfit ?? 0).toLocaleString()} so far`)}
+          {row(
+            'War fame',
+            s.fames.war,
+            `a point a prize and a pirate beaten, ${c.fame.war.famous} a famous pirate: ${count(record.prizes ?? 0, 'prize', 'prizes')}, ${count(pirates, 'pirate', 'pirates')}, ${count(record.famousBeaten ?? 0, 'famous pirate', 'famous pirates')}`,
+          )}
+          {row('Adventure fame', s.fames.adventure, `${c.fame.adventure.hoard} a hoard dug up, ${c.fame.adventure.mapPiece} a piece of a map: ${count(hoards, 'hoard', 'hoards')}, ${count(pieces, 'piece', 'pieces')}`)}
           {row('Wealth', s.wealth, `${s.gold.toLocaleString()} gold, yours and your share of the chest: a point every ${c.score.goldPer.toLocaleString()}`)}
-          {row('Land', s.land, s.acres ? `${s.acres} acres: a point every ${c.score.acresPer}` : 'no title yet: a Baron is given land')}
-          {row('Rank', s.rank, s.ranks.length ? s.ranks.map((r) => `${r.name} of ${COUNTRY[r.nation]} (${r.points})`).join(', ') : 'no rank with any nation: a letter of marque is the first')}
+          {row('Land', s.land, s.acres ? `${s.acres} acres: a point every ${c.score.acresPer}` : landed ? `no title yet: a ${landed.name} gets ${landed.acres} acres` : 'no title yet')}
+          {row(
+            'Rank',
+            s.rank,
+            s.ranks.length
+              ? `${s.ranks.map((r) => `${r.name} of ${COUNTRY[r.nation]} (${r.points})`).join(', ')}${unranked.length ? ` · no letter from ${list(unranked)}` : ''}`
+              : 'no rank with any nation: a letter of marque is the first',
+          )}
         </tbody>
       </table>
       <div class="career-total">
@@ -68,18 +101,6 @@ export function CareerCard({ content, state, final }: { content: ContentPack; st
           </div>
         )}
       </div>
-      <div class="book-sub career-ranks">
-        {NATIONS.map((n) => {
-          const r = rankOf(content, state.captain, n);
-          const acres = landOf(content, state.captain, n);
-          return (
-            <span key={n}>
-              {COUNTRY[n]}: {r < 0 ? 'no letter' : ladder[r]!.name}
-              {acres ? `, ${acres} acres` : ''}
-            </span>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -95,7 +116,7 @@ export function RetireConfirm({ content, state, retire, cancel }: { content: Con
       <div class="book-rule" />
       <CareerCard content={content} state={state} />
       <div class="career-actions">
-        <button class="k-btn primary" onClick={retire}>
+        <button class="k-btn ink" onClick={retire}>
           Retire now
         </button>
         <button class="k-btn paper" onClick={cancel}>
@@ -107,7 +128,7 @@ export function RetireConfirm({ content, state, retire, cancel }: { content: Con
 }
 
 /** The end of the career (storyboard 7.2): the fate's painting, what became of him, and his score. */
-export function Ending({ content, state, again }: { content: ContentPack; state: WorldState; again: () => void }) {
+export function Ending({ content, state, again, saveFile }: { content: ContentPack; state: WorldState; again: () => void; saveFile: (name: string) => void }) {
   const retired = state.captain!.retired!;
   const s = careerScore(content, state);
   const rung = Math.max(0, content.politics.career.fates.findIndex((f) => f.title === retired.fate));
@@ -118,7 +139,9 @@ export function Ending({ content, state, again }: { content: ContentPack; state:
       <div class="ending-text">
         <div class="moment-kicker">Retired {date}</div>
         <h2 class="moment-title">{retired.fate}</h2>
-        <p class="ending-story">{FATE_STORY[rung]}</p>
+        <p class="ending-story">
+          {onTheMain(retired.tick / content.calendar.ticksPerDay)} {FATE_STORY[rung]}
+        </p>
         <div class="book-rule light" />
         <div class="ending-score">
           <div>
@@ -133,12 +156,18 @@ export function Ending({ content, state, again }: { content: ContentPack; state:
               Wealth {s.wealth} · land {s.land} · rank {s.rank}
               {s.ranks.length ? ` (${s.ranks.map((r) => `${r.name} of ${COUNTRY[r.nation]}`).join(', ')})` : ''}
             </span>
-            {s.multiple !== 1 ? <span>× {s.multiple} for {difficultyOf(content, state.difficulty).name}</span> : null}
+            <span>
+              × {s.multiple} for {difficultyOf(content, state.difficulty).name}
+            </span>
           </div>
         </div>
         <div class="moment-actions flush">
           <button class="k-btn primary" onClick={again}>
             Start a new career
+          </button>
+          {/* A new career takes the slot at its first save: the finished one can be kept as a file. */}
+          <button class="k-btn" onClick={() => saveFile(`corsair-retired-${date.replace(/\s+/g, '-')}.json`)}>
+            Save to a file
           </button>
         </div>
       </div>

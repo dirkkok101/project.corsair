@@ -507,7 +507,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
 
   if (retiring)
     return (
-      <div class="port">
+      <div class="port port-retire">
         <RetireConfirm content={content} state={state} retire={() => send({ type: 'Retire', shipId })} cancel={() => setRetiring(false)} />
       </div>
     );
