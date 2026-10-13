@@ -112,6 +112,9 @@ test('opens the sea chart with every port', async ({ page }) => {
   await expect(page.locator('.chart')).toBeVisible();
   // The nations' ports, Tortuga, and a cove drawn from each region of the pirate havens (havens.json).
   await expect(page.locator('.chart-port')).toHaveCount(50);
+  // The coves are hidden until found: a new career knows only Tortuga among the havens.
+  await expect(page.locator('.chart-port.unknown')).toHaveCount(7);
+  await expect(page.locator('.chart-port', { hasText: 'Tortuga' })).toBeVisible();
   await page.screenshot({ path: 'test-results/chart.png' });
   await page.keyboard.press('m');
   await expect(page.locator('.chart')).toBeHidden();

@@ -3735,6 +3735,13 @@ body {
   margin-left: 0;
 }
 
+/* A pirate cove she hasn't found: not on her chart. */
+.chart-port.unknown,
+.chart-dot.unknown,
+.chart-waters.unknown {
+  display: none;
+}
+
 /* Closed to her flag (at war): red ink, faded, the mark struck through. */
 .chart-port.closed {
   color: #7a1f14;

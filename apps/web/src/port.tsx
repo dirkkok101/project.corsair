@@ -52,7 +52,7 @@ import {
   tradePreview,
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget } from '@corsair/systems-politics';
-import { topTen } from '@corsair/systems-traffic';
+import { havenKnown, topTen } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
 import { Bust, Key, Speech, Stat } from './ui/kit';
 import { ChartInset } from './ui/chart-inset';
@@ -1576,7 +1576,11 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
   const ranks = topTen(content, state);
   const place = ranks.findIndex((r) => r.player) + 1;
   const tpd = content.calendar.ticksPerDay;
-  const haven = (id?: string) => settlements.find((s) => s.id === id)?.name ?? id;
+  // A cove she hasn't found isn't named.
+  const haven = (id?: string) => {
+    const s = settlements.find((x) => x.id === id);
+    return s && !havenKnown(content, state, s) ? 'a cove you have not found' : (s?.name ?? id);
+  };
   const f = famesOf(content, state);
   const pieces = state.captain?.mapPieces ?? {};
   const jailed = new Set((state.captain?.deeds ?? []).flatMap((d) => (d.captive ? [d.captive] : [])));

@@ -305,7 +305,9 @@ Pirates! asks nation, name and difficulty; we ask the same, one step per screen,
   age, news, every price folded away, and one big Set course · Enter; ← Voyages or Esc goes back). A double click
   sets course at once. A crowded island's hidden name shows while the pointer is on its mark. A port at war with
   the captain's flag is drawn in faded red ink with its mark struck through; its card says so, the voyages leave it
-  out, and its warships hunt her flag.
+  out, and its warships hunt her flag. Pirate havens other than Tortuga are coves drawn per career (havens.json),
+  not on the chart until found: sighted, docked at, named by a pirate she hails or takes, or in tavern news. Until
+  then a voyage's risk says "passes pirate waters", and the Top Ten "a cove you have not found".
 - **Treasure map moment.** When you get a piece: the full screen goes to parchment, the new piece slides into
   place beside the ones you hold, the stranger's line ("That's all I know, captain"), and [Plot a course] [Later].
   When the map is whole, it is shown once complete.

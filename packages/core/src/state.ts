@@ -290,6 +290,8 @@ export interface CareerRecord {
 
 export interface Captain {
   gold: number;
+  /** The pirate coves she has found (havens drawn per career are hidden until found; absent in older saves: none). */
+  knownHavens?: string[];
   /** The flag the career sails under, chosen at its start (absent in older saves: none). */
   nation?: Nation;
   /** Prices the captain last saw in each port, so routes can be planned from memory. */

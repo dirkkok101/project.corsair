@@ -7,6 +7,7 @@ import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import { zoneAt } from '@corsair/systems-weather';
 import type { SeaLanes } from './lanes';
+export { createHavensSystem, havenKnown } from './havens';
 
 /**
  * A prize's papers as she is kept: a pirate is a lawful prize under any letter of marque the captain holds (any

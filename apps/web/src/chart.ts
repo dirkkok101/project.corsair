@@ -141,6 +141,8 @@ export interface ChartMarket {
   card: (settlementId: string) => { painting?: string; days?: number; lines: CardLine[] };
   /** The course by the lanes from where she is to a port, to show before it is set. */
   route: (settlementId: string) => [number, number][] | undefined;
+  /** A pirate cove she hasn't found: not on her chart at all (pin, name, or its waters). */
+  hidden: (settlementId: string) => boolean;
   /** Whether a port is closed to her flag (at war): drawn faded in red ink, its mark struck through. */
   closed: (settlementId: string) => boolean;
   /** The one thing a port has for you, shown by its name (plague, a good price for your hold), if any. */
@@ -235,6 +237,7 @@ export function createCharts(
   for (const h of settlements.filter((s) => s.nation === 'pirate')) {
     const waters = watersLayer.appendChild(document.createElement('div'));
     waters.className = 'chart-waters';
+    waters.dataset.haven = h.id;
     waters.style.left = `${(h.x / map.width) * 100}%`;
     waters.style.top = `${(h.y / map.height) * 100}%`;
     waters.style.width = `${((2 * market.pirateRangeTiles) / map.width) * 100}%`;
@@ -491,7 +494,11 @@ export function createCharts(
       const shut = market.closed(s.id);
       label.classList.toggle('closed', shut);
       pin(s.id)?.dot.classList.toggle('closed', shut);
+      const unknown = market.hidden(s.id);
+      label.classList.toggle('unknown', unknown);
+      pin(s.id)?.dot.classList.toggle('unknown', unknown);
     }
+    for (const w of watersLayer.querySelectorAll<HTMLElement>('.chart-waters')) w.classList.toggle('unknown', market.hidden(w.dataset.haven ?? ''));
     layoutLabels(pins, sheet.getBoundingClientRect());
   };
 

@@ -43,7 +43,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createSeaLanes, createTrafficSystem, prizePapers, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createHavensSystem, createSeaLanes, createTrafficSystem, havenKnown, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -277,6 +277,8 @@ async function main() {
     createPoliticsSystem(content, def.startDate, settlements),
     createTrafficSystem(content, settlements, lanes, map, windAt),
     createNavigationSystem(content, map, windAt, settlements),
+    // Finding the pirate coves, from what the others did.
+    createHavensSystem(content, settlements),
     // Last, so it writes up what the others did.
     createLogbookSystem(content, settlements),
   ]);
@@ -484,7 +486,7 @@ async function main() {
       for (const p of r) {
         for (const h of havens) {
           const d = Math.hypot(h.x - p[0], h.y - p[1]);
-          if (d < near) [near, haven] = [d, h.name];
+          if (d < near) [near, haven] = [d, havenKnown(content, sim.state, h) ? h.name : 'pirate waters'];
         }
       }
       return { risk: near < reach * 0.35 ? 'high' : near < reach * 0.7 ? 'some' : 'low', haven };
@@ -497,10 +499,10 @@ async function main() {
     const priced: Candidate[] = [];
     const unpriced: Candidate[] = [];
     const worth = (id: string) => content.goods.find((x) => x.id === id)?.basePrice ?? 0;
-    // Ports closed to her (at war with her flag, or that she made an enemy of) are no voyage.
+    // Ports closed to her (at war with her flag, or that she made an enemy of) are no voyage, nor a cove she hasn't found.
     const open = settlements.filter((s) => {
       const why = closedTo(content, sim.state, s);
-      return why !== 'at-war' && why !== 'hostile';
+      return why !== 'at-war' && why !== 'hostile' && havenKnown(content, sim.state, s);
     });
     for (const g of content.goods.filter((x) => !x.staple)) {
       for (const from of open) {
@@ -595,6 +597,8 @@ async function main() {
     const km = Math.round((Math.hypot(port.x - me.x, port.y - me.y) * kmPerTile) / 10) * 10;
     return `What now: your ship is hurt (hull ${Math.round(hull * 100)}%, sails ${Math.round(sails * 100)}%). The nearest shipwright is at ${port.name}, about ${km} km off: press M and pick it.`;
   };
+  // Coves she knew of last frame, to say when she finds another.
+  let havensKnown = sim.state.captain?.knownHavens?.length ?? 0;
   // Famous pirates first seen close together: only the first stops the world; the next within the gap is a line.
   const FAMOUS_GAP_DAYS = 3;
   let lastFamousMoment = -Infinity;
@@ -692,6 +696,10 @@ async function main() {
       const perDay = content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
       const days = me.docked === id ? 0 : (Math.hypot(s.x - me.x, s.y - me.y) * 1.3) / perDay;
       return { painting: sceneUrl(harbourId(s)), days, lines: lines.slice(0, 4) };
+    },
+    hidden: (id) => {
+      const port = settlements.find((s) => s.id === id);
+      return Boolean(port && !havenKnown(content, sim.state, port));
     },
     closed: (id) => {
       const port = settlements.find((s) => s.id === id);
@@ -1435,6 +1443,13 @@ async function main() {
         const port = portInReach();
         if (port && port.id === destination?.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
         else courseNote = { text: 'Aground: no way through there. Take the helm', kind: 'Aground', icon: 'ui.icon.hull', tone: 'warn', until: now + 3500 };
+      }
+      // A pirate cove found (sighted, docked at, given up by a pirate or a tavern): said, and on the chart from now.
+      const known = sim.state.captain?.knownHavens ?? [];
+      if (known.length > havensKnown) {
+        const cove = settlements.find((s) => s.id === known.at(-1));
+        if (cove) courseNote = { text: `A pirate haven: ${cove.name}. It's on your chart now.`, kind: 'Haven found', icon: 'ui.icon.anchor', tone: 'gold', until: now + 6000 };
+        havensKnown = known.length;
       }
       // Two ships falling on each other in her sight: who, and where, and that she may take a hand.
       if (ev.type === 'SkirmishBegun') {
