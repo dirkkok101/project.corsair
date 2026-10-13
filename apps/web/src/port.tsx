@@ -1598,7 +1598,9 @@ export function TopTen({ content, state, settlements }: { content: ContentPack; 
     const doing = jailed.has(r.id!)
       ? 'your prisoner, for a governor'
       : state.famous?.[r.id!]?.revenge
-        ? 'hunting you, for his hoard'
+        ? state.famous?.[r.id!]?.sworn && !state.famous?.[r.id!]?.hoard?.found
+          ? 'hunting you, for your fame'
+          : 'hunting you, for his hoard'
         : r.returnAt
           ? `beaten; back in about ${months} month${months === 1 ? '' : 's'}`
           : whereabouts(r);

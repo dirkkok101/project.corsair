@@ -487,6 +487,8 @@ export interface FamousPirate {
   hoard?: Hoard;
   /** The captain dug up her hoard before ever beating her: she hunts the captain, at any odds, until beaten. */
   revenge?: boolean;
+  /** She swore to take the captain once her fame grew (pirates.json huntFame): hunting her as for revenge; once only. */
+  sworn?: boolean;
 }
 
 /** A famous pirate's buried hoard (treasure.json): where it lies, what marks it, and what it holds. */

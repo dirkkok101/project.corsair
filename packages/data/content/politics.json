@@ -172,6 +172,7 @@
     "warPrize": "The {nation} {ship} was taken by a {other} ship off {town}.",
     "famousTaken": "{captain} has taken the {nation} {ship} off {town}.",
     "hoardDug": "{captain}'s buried hoard has been dug up on the coast near {town}. Someone sails richer for it.",
+    "famousHunts": "{captain} has sworn to take the captain whose name is on every tongue. He means to hunt them down.",
     "famousRevenge": "{captain} swears revenge on whoever dug up his hoard near {town}. He means to hunt them down.",
     "famousBeaten": "{captain} was beaten off {town}. They say he has gone to ground and his crew have scattered."
   },

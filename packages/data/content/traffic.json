@@ -114,12 +114,12 @@
   ],
   "pirateRangeTiles": 210,
   "nearPlayer": { "tiles": 220, "weight": 1.4 },
+  "seek": { "chance": 0.3 },
   "biggerPirates": {
     "classId": "ship.brig",
     "maxShare": 0.35,
     "from": 150,
-    "full": 420
-  },
+    "full": 420, "fameFrom": 5, "fameFull": 40 },
   "convoys": {
     "entry": [
       2391,

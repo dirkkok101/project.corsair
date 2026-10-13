@@ -2,7 +2,7 @@ import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, PrizePapers, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { atDifficulty, crewQualityOf, difficultyOf, hourOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
-import { crewOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
+import { crewOf, famesOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import { zoneAt } from '@corsair/systems-weather';
@@ -118,6 +118,17 @@ export function createTrafficSystem(
       return { to: marks.find((s) => s.id === pick), good: undefined };
     }
     if (ai.role === 'patrol') {
+      // A nation she has wronged herself sends some of its patrols to the port nearest her. (At war with her flag
+      // alone, its warships take her when they meet her: sent after a new captain from the first days, they
+      // finished her before she had a fighting chance.)
+      const me = Object.values(state.ships).find((s) => !s.ai);
+      const wronged = me && !me.docked && (state.captain?.standing?.[ai.nation] ?? 0) <= content.combat.standing.hostile;
+      if (wronged && rng.float() < t.seek.chance) {
+        const nearHer = settlements
+          .filter((s) => !isHaven(s) && reachable(s) && !atWar(content, state, ai.nation, s.nation))
+          .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
+        if (nearHer) return { to: nearHer, good: undefined };
+      }
       // At war, a patrol may go to blockade the nearest enemy port within reach.
       const enemy = settlements
         .filter((s) => s.nation !== 'pirate' && !isHaven(s) && reachable(s) && atWar(content, state, ai.nation, s.nation))
@@ -1551,6 +1562,27 @@ export function createTrafficSystem(
         }
       }
 
+      // Her war fame reaches a rung of the famous (pirates.json huntFame): one of them swears to take her, and
+      // hunts her as for revenge, until beaten. One at a time, each once.
+      if (tick % tpd === 0 && next.captain) {
+        const r = content.pirates.rules;
+        const war = famesOf(content, next).war;
+        const hunting = content.pirates.captains.some((c) => next.famous?.[c.id]?.revenge);
+        const rung = Math.max(0, ...r.huntFame.map((f, i) => (war >= f ? i + 2 : 0)));
+        const taken = (id: string) => next.captain?.deeds?.some((d) => d.captive === id);
+        const oath =
+          !hunting && rung
+            ? content.pirates.captains
+                .filter((c) => c.rung <= rung && !next.famous?.[c.id]?.sworn && !next.famous?.[c.id]?.spared && (next.famous?.[c.id]?.returnAt ?? 0) <= tick && !taken(c.id))
+                .sort((a, b) => b.rung - a.rung)[0]
+            : undefined;
+        if (oath) {
+          next = withFamous(next, oath.id, { ...(next.famous?.[oath.id] ?? { wealth: oath.wealth }), sworn: true, revenge: true, spared: undefined });
+          next = newsItem(next, oath.haven, 'famousHunts', tick, oath.name, 'pirate', { captain: oath.name });
+          events.push({ type: 'FamousSworn', entityIds: [oath.id], payload: { pirateId: oath.id, fame: war } });
+        }
+      }
+
       // The famous pirates, over and above the population: each sails from her haven on the first day, and again
       // once she has lain low long enough after a beating.
       if (tick % tpd === 0) {
@@ -1703,7 +1735,11 @@ function spawn(
   const big = t.biggerPirates;
   const player = Object.values(state.ships).find((s) => !s.ai);
   const grown = player ? crewOf(content, player) * (1 + shipStats(content, player).guns / 10) : 0;
-  const bigShare = big.maxShare * Math.max(0, Math.min(1, (grown - big.from) / (big.full - big.from)));
+  // The more the Main talks of her, the bigger the pirates that come out: by her strength or her war fame.
+  const fame = state.captain ? famesOf(content, state).war : 0;
+  const byStrength = (grown - big.from) / (big.full - big.from);
+  const byFame = (fame - big.fameFrom) / (big.fameFull - big.fameFrom);
+  const bigShare = big.maxShare * Math.max(0, Math.min(1, Math.max(byStrength, byFame)));
   const shipClass = role === 'pirate' && rngStream(seedRng(n, 'bigger')).float() < bigShare ? big.classId : classId;
   const cls = content.ships[shipClass]!;
   const ship: Ship = {

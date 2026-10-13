@@ -1411,6 +1411,11 @@ async function main() {
             : `${name} won't let you in: you are their enemy`;
         courseNote = { text, kind: 'Port closed', icon: 'ui.icon.anchor', tone: 'warn', until: now + 5000 };
       }
+      // Her fame has made her a famous pirate's quarry: she should know he is coming.
+      if (ev.type === 'FamousSworn') {
+        const name = content.pirates.captains.find((c) => c.id === ev.payload.pirateId)?.name ?? (ev.payload.pirateId as string);
+        courseNote = { text: `Word is ${name} has sworn to take you: he is hunting you now`, kind: 'Famous pirate', icon: 'ui.icon.cannon_loaded', tone: 'warn', until: now + 6000 };
+      }
       if (ev.type === 'MenStarved') {
         const n = ev.payload.count as number;
         courseNote = { text: `${n} ${n === 1 ? 'man' : 'men'} died of hunger: make port, or hail a ship (H) and buy food`, kind: 'Starving', icon: 'ui.icon.food', tone: 'warn', until: now + 5000 };

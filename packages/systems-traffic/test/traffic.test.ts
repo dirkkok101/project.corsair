@@ -880,6 +880,24 @@ describe('the famous pirates', () => {
     expect(ranks.find((r) => r.player)!.wealth).toBe(sim.state.captain!.gold);
   }, 30_000);
 
+  it('as her war fame grows, a famous pirate of that rung swears to take her and hunts her; one at a time, each once', () => {
+    const sim = world(3);
+    sim.step(day);
+    const [low] = content.pirates.rules.huntFame;
+    // Famous enough for the bottom rung: one of its pirates swears, and the word goes out from his haven.
+    const famed = createSim({ ...sim.state, captain: { ...sim.state.captain!, record: { ...sim.state.captain!.record, prizes: low } } }, [traffic()]);
+    famed.step(day);
+    const sworn = content.pirates.captains.filter((c) => famed.state.famous?.[c.id]?.sworn);
+    expect(sworn).toHaveLength(1);
+    expect(sworn[0]!.rung).toBe(2);
+    expect(famed.state.famous![sworn[0]!.id]).toMatchObject({ sworn: true, revenge: true });
+    expect(famed.events().some((e) => e.type === 'FamousSworn')).toBe(true);
+    expect((famed.state.news ?? []).some((n) => n.kind === 'famousHunts')).toBe(true);
+    // While he hunts her, no other swears.
+    famed.step(day);
+    expect(content.pirates.captains.filter((c) => famed.state.famous?.[c.id]?.sworn)).toHaveLength(1);
+  }, 30_000);
+
   it('a prize makes her richer, and her deed is news by her name', () => {
     const sim = world(9);
     sim.step(day);

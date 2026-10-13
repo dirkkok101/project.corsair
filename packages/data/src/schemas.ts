@@ -711,7 +711,17 @@ export const trafficSchema = z.object({
    * Bigger pirates as the player grows: a new pirate sails `classId` instead of her role's class with a
    * chance rising from 0 at the player's strength `from` to `maxShare` at `full` (crew x (1 + guns / 10)).
    */
-  biggerPirates: z.object({ classId: z.string(), maxShare: z.number().min(0).max(1), from: z.number().min(0), full: z.number().positive() }),
+  biggerPirates: z.object({
+    classId: z.string(),
+    maxShare: z.number().min(0).max(1),
+    from: z.number().min(0),
+    full: z.number().positive(),
+    /** And by her war fame: from fameFrom to fameFull. */
+    fameFrom: z.number().min(0),
+    fameFull: z.number().positive(),
+  }),
+  /** A nation the captain has wronged (standing hostile) sends a patrol, at this chance a sailing, to the port nearest her. */
+  seek: z.object({ chance: z.number().min(0).max(1) }),
   names: z.record(nation, z.array(z.string()).min(1)),
 });
 
@@ -824,6 +834,8 @@ export type CrewConfig = z.infer<typeof crewSchema>;
 /** The famous pirates (pirates.json): ten named captains the world keeps, and the rules for beating one. */
 export const piratesSchema = z.object({
   rules: z.object({
+    /** War fame at which a famous pirate of rung 2, 3 and 4 swears to take the captain and comes for her. */
+    huntFame: z.tuple([z.number(), z.number(), z.number()]),
     /** Share of her wealth that goes to the player's plunder chest when the player beats her. */
     wealthShare: share01,
     /** Share of what is left that she keeps, beaten by anyone. */

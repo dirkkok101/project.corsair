@@ -80,7 +80,7 @@ it('raider', () => {
   };
 
   // What war means for her: enemy patrols that came after her, and ports that turned her away.
-  const war = { patrolsChasing: new Set<string>(), refused: 0, changes: [] as string[] };
+  const war = { patrolsChasing: new Set<string>(), refused: 0, changes: [] as string[], sworn: [] as string[] };
   const dock = (id: string) => {
     const evs = send({ type: 'Dock', shipId: 'player', settlementId: id });
     if (refusal(evs) === 'at-war') {
@@ -160,6 +160,10 @@ it('raider', () => {
       while (seen < sim.events().length) {
         const e = sim.events()[seen++]!;
         if (e.type === 'WarDeclared' || e.type === 'PeaceSigned') war.changes.push(`d${day()} ${e.type === 'WarDeclared' ? 'war' : 'peace'} ${e.entityIds.join('-')}`);
+        if (e.type === 'FamousSworn') {
+          war.sworn.push(`d${day()} ${e.payload.pirateId}`);
+          log(`${e.payload.pirateId} swears to take her (war fame ${e.payload.fame})`);
+        }
         if (e.type === 'BattleJoined') {
           fight(e.entityIds[1]!);
           chasing = undefined;
@@ -309,6 +313,6 @@ it('raider', () => {
     `summary seed ${seed}: day ${day()}, gold ${gold()}, chest ${captain().chest ?? 0}, crew ${crewOf(content, me())}, guns ${shipStats(content, me()).guns}, fits ${JSON.stringify(me().upgrades ?? [])}, fleet ${(captain().fleet ?? []).length}; ` +
       `ships sold ${tally.shipsSold} for ${tally.prizeGold} vs trade profit ${tradeProfit} (opening) / ${captain().record?.tradeProfit ?? 0} (all); ` +
       `fights won ${tally.won} lost ${tally.lost} other ${tally.other}; men recruited ${tally.recruited}, volunteers offered ${tally.volunteers}; morale ${Math.round(captain().morale ?? -1)}; ` +
-      `flag ${NATION}: enemy patrols chasing ${war.patrolsChasing.size}, ports refused ${war.refused}, wars/peace ${JSON.stringify(war.changes)}`,
+      `flag ${NATION}: enemy patrols chasing ${war.patrolsChasing.size}, ports refused ${war.refused}, wars/peace ${JSON.stringify(war.changes)}; famous sworn ${JSON.stringify(war.sworn)}`,
   );
 });
