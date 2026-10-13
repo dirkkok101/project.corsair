@@ -94,10 +94,10 @@ Each screen lists **Purpose**, **Layout** (a wireframe at 16:9), **Elements**, *
 
 Pirates! asks nation, name and difficulty; we ask the same, one step per screen, each with a painted card.
 
-1. **Your nation** (new). Four cards side by side, each a small painting of its capital's harbour (reuse the
-   `harbour.*.large` scenes, cropped) with the nation's name and one line: "England: Port Royal, a free port for
-   buccaneers." The nation sets the starting port and the first friendly governor. (Today every career starts as
-   England in Port Royal; this needs the start port per nation.)
+1. **Under whose flag** (built; storyboard board 1.3a). Four cards alike in size, their parts in the same rows:
+   the flag, the nation's name, its capital with a small painting of its harbour, what it is good for, and its wars
+   as the career opens. The picked card is ringed, never moved. The flag sets the starting port (the capital) and
+   the captain's standing there (`politics.json flag`); it is kept on the captain for what war will mean later.
 2. **Your name** (new). A parchment ship's register: "Captain ____ of the brig ____", with a dice button for a
    period name.
 3. **How hard a sea** (built in slice 6). Five cards Apprentice to Swashbuckler, each a small painting of a rising

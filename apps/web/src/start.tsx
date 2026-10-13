@@ -15,21 +15,38 @@ const SEAS = Object.entries(import.meta.glob<string>('../../../art/game/scenes/d
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([, url]) => url);
 
+/** A flag a new career can sail under (storyboard 1.3a): its home port and island, what it is good for, its wars now. */
+export interface Flag {
+  nation: string;
+  name: string;
+  port: string;
+  island: string;
+  about: string;
+  /** "At war with Spain", or "At peace with all" (peace true). */
+  wars: string;
+  peace: boolean;
+  /** The home port's harbour painting, small. */
+  art?: string;
+}
+
 export interface StartOptions {
   /** What the browser holds for the career slot, before any checks; undefined when nothing is stored. */
   raw: unknown;
   /** The difficulty levels a new career can pick (easiest first), and the one picked unless the player changes it. */
   levels: DifficultyLevel[];
   defaultLevel: string;
+  /** The flags a new career can choose, and the one picked unless the player changes it. */
+  flags: Flag[];
+  defaultFlag: string;
   fingerprint: string;
   startDate: string;
   ticksPerDay: number;
   settlements: PlacedSettlement[];
 }
 
-export type Choice = { save: Save } | { difficulty: string };
+export type Choice = { save: Save } | { difficulty: string; nation: string };
 
-/** The start screen: resolves to the save to continue, or a new career at the difficulty picked. */
+/** The start screen: resolves to the save to continue, or a new career under the flag and at the difficulty picked. */
 export function chooseCareer(root: HTMLElement, opts: StartOptions): Promise<Choice> {
   // Its own element: rendered into `root` itself, Preact would take over the fading loading screen's element,
   // and the title would go when that is removed.
@@ -53,12 +70,16 @@ function read(raw: unknown, fingerprint: string): { save: Save } | { reason: str
   }
 }
 
-function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, defaultLevel, done }: StartOptions & { done: (choice: Choice) => void }) {
+function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, defaultLevel, flags, defaultFlag, done }: StartOptions & { done: (choice: Choice) => void }) {
   const [career, setCareer] = useState(() => ({ raw, ...read(raw, fingerprint) }));
   const [error, setError] = useState<string>();
   // Nothing stored: straight to the new career's difficulty.
   const [picking, setPicking] = useState(raw === undefined);
   const [level, setLevel] = useState(defaultLevel);
+  // A new career is two short steps: the flag, then the sea.
+  const [step, setStep] = useState<'flag' | 'sea'>('flag');
+  const [nation, setNation] = useState(defaultFlag);
+  const flag = flags.find((f) => f.nation === nation) ?? flags[0]!;
 
   const load = () =>
     pickSaveFile()
@@ -80,12 +101,60 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, 
   const fileName = `corsair-${date ? date.replace(/\s+/g, '-') : 'unreadable'}.json`;
 
   const picked = levels.find((l) => l.id === level) ?? levels[0]!;
+  if (picking && step === 'flag')
+    return (
+      <div class="start start-pick" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
+        <div class="start-head">
+          <div class="moment-kicker">
+            A new career <span class="k-tag gold">1 of 2</span>
+          </div>
+          <h2 class="start-h2">Under whose flag?</h2>
+        </div>
+        {/* Four cards alike in size, their parts in the same rows; the one picked is ringed, not moved. */}
+        <div class="flag-cards">
+          {flags.map((f) => (
+            <button key={f.nation} class={`k-wood flag-card${f.nation === nation ? ' picked' : ''}`} aria-pressed={f.nation === nation} onClick={() => setNation(f.nation)}>
+              <span class={`flag-swatch flag-${f.nation}`} aria-hidden="true">
+                {f.nation === 'france' ? <span class="flag-lilies">⚜ ⚜ ⚜</span> : null}
+              </span>
+              <span class="flag-name">{f.name}</span>
+              <span class="flag-home">
+                <span class="flag-thumb" style={f.art ? { backgroundImage: `url(${f.art})` } : undefined} />
+                <span>
+                  <b>{f.port}</b>, {f.island}
+                </span>
+              </span>
+              <span class="flag-about">{f.about}</span>
+              <span class={`flag-wars${f.peace ? ' peace' : ''}`}>{f.wars}</span>
+            </button>
+          ))}
+        </div>
+        <div class="start-foot">
+          <div class="start-actions">
+            {raw !== undefined ? (
+              <button class="k-btn" onClick={() => setPicking(false)}>
+                Back
+              </button>
+            ) : null}
+            <button class="k-btn primary start-go" onClick={() => setStep('sea')}>
+              Next: how hard a sea
+            </button>
+          </div>
+          <div class="start-note">Your flag's governors know you; its enemies' ships may hunt you.</div>
+        </div>
+      </div>
+    );
   if (picking)
     return (
       <div class="start start-pick" style={titleArt ? { backgroundImage: `url(${titleArt})` } : undefined}>
         <div class="start-head">
-          <div class="moment-kicker">A new career</div>
+          <div class="moment-kicker">
+            A new career <span class="k-tag gold">2 of 2</span>
+          </div>
           <h2 class="start-h2">How hard a sea?</h2>
+          <span class="k-tag flag-chip">
+            Under {flag.name}'s flag · {flag.port}
+          </span>
         </div>
         <div class="level-cards">
           {levels.map((l, i) => (
@@ -101,12 +170,10 @@ function Start({ raw, fingerprint, startDate, ticksPerDay, settlements, levels, 
         </div>
         <div class="start-foot">
           <div class="start-actions">
-            {raw !== undefined ? (
-              <button class="k-btn" onClick={() => setPicking(false)}>
-                Back
-              </button>
-            ) : null}
-            <button class="k-btn primary start-go" onClick={() => done({ difficulty: picked.id })}>
+            <button class="k-btn" onClick={() => setStep('flag')}>
+              Back
+            </button>
+            <button class="k-btn primary start-go" onClick={() => done({ difficulty: picked.id, nation })}>
               Set sail
             </button>
           </div>

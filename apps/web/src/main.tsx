@@ -1,6 +1,6 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
-import type { Nation, Ship } from '@corsair/core';
+import type { Nation, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer, flagPicture } from '@corsair/render3d';
@@ -103,6 +103,8 @@ function interiorFor(s: PlacedSettlement, service: Service): HarbourScene | unde
 const harbourId = (s: PlacedSettlement) =>
   s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${{ hamlet: 'small', town: 'medium', city: 'large' }[s.size]}`;
 
+const COUNTRY_NAME: Record<string, string> = { england: 'England', spain: 'Spain', france: 'France', netherlands: 'The Netherlands' };
+
 /** The scene for a settlement: havens have their own; other towns go by nation and size. */
 function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots']; anchor: [number, number] } | undefined {
   const defs = (Object.values(harbourDefs)[0] ?? {}) as Record<string, HarbourDef>;
@@ -191,6 +193,8 @@ async function main() {
     zones: await layer(def.layers.zones, 0.5),
   });
   const settlements = placeSettlements(def, map, content.settlements);
+  /** A nation's capital: where a career under its flag begins. */
+  const capitalOf = (n: string) => settlements.find((s) => s.nation === n && s.type === 'capital') ?? settlements.find((s) => s.id === def.start.port)!;
   loading.progress(0.6, 'Placing the ports');
   // The start screen: continue a stored career, or pick a new one's difficulty.
   // Only gameplay content counts: new music or sprite framing shouldn't flag every old save.
@@ -214,8 +218,24 @@ async function main() {
           settlements,
           levels: content.combat.difficulty.levels,
           defaultLevel: content.combat.difficulty.default,
+          flags: (['england', 'spain', 'france', 'netherlands'] as const).map((n) => {
+            const home = capitalOf(n);
+            // Its wars as the career opens (the politics of the start date).
+            const foes = enemiesOf(content, {} as WorldState, n).filter((x) => x !== 'pirate');
+            return {
+              nation: n,
+              name: COUNTRY_NAME[n]!,
+              port: home.name.replace(/ \(.*\)$/, ''),
+              island: content.politics.flag.nations[n]?.island ?? '',
+              about: content.politics.flag.nations[n]?.about ?? '',
+              wars: foes.length ? `At war with ${foes.map((x) => COUNTRY_NAME[x]).join(' and ')}` : 'At peace with all',
+              peace: !foes.length,
+              art: sceneUrl(harbourId(home)),
+            };
+          }),
+          defaultFlag: 'england',
         })
-      : { difficulty: difficultyOf(content, params.get('difficulty') ?? undefined).id };
+      : { difficulty: difficultyOf(content, params.get('difficulty') ?? undefined).id, nation: params.get('nation') ?? 'england' };
   if (titled) loading = showLoading(stage, sceneUrl('loading.dawn'));
   loading.progress(0.7, 'Raising the wind');
   const resumed = 'save' in choice ? choice.save : undefined;
@@ -225,17 +245,28 @@ async function main() {
   const lanes = createSeaLanes(map, settlements, content.traffic.laneCell);
   // The clock starts at the map's start hour; the date is unchanged (still day 0).
   const startTick = Math.round((def.startHour / 24) * content.calendar.ticksPerDay);
+  // The flag a new career sails under: she starts at its capital (England's is the map's own start), and its
+  // governors know her.
+  const nation = ('nation' in choice ? choice.nation : 'england') as Nation;
+  const home = capitalOf(nation);
+  const begun = createWorld(def);
+  if (home.id !== def.start.port) {
+    const [x, y] = lanes.berth(home.id) ?? [home.x + 1, home.y + 1];
+    begun.ships[def.start.shipId] = { ...begun.ships[def.start.shipId]!, x, y };
+  }
   // A restored state already carries its markets, weather and RNG streams; seeding them again would reset them.
   // A save from before ships sailed gets its population topped up a ship a day.
-  const world =
-    resumed?.state ??
-    withTraffic(
-      withEconomy(withWeather({ ...createWorld(def), tick: startTick, ...('difficulty' in choice ? { difficulty: choice.difficulty } : {}) }, content, def, seed), content, settlements, seed),
+  const fresh = (): WorldState => {
+    const w = withTraffic(
+      withEconomy(withWeather({ ...begun, tick: startTick, ...('difficulty' in choice ? { difficulty: choice.difficulty } : {}) }, content, def, seed), content, settlements, seed),
       content,
       settlements,
       lanes,
       seed,
     );
+    return { ...w, captain: { ...w.captain!, nation, standing: { ...w.captain!.standing, [nation]: content.politics.flag.standing } } };
+  };
+  const world = resumed?.state ?? fresh();
   const sim = createSim(world, [
     createWeatherSystem(content, def, map),
     createEconomySystem(content, settlements, map, windAt),
@@ -247,7 +278,7 @@ async function main() {
   ]);
   // A new career begins in port, so the ship can be outfitted before she first sails.
   if (!resumed && def.start.port) {
-    sim.send({ type: 'Dock', shipId: def.start.shipId, settlementId: def.start.port });
+    sim.send({ type: 'Dock', shipId: def.start.shipId, settlementId: home.id });
     sim.applyCommands();
   }
   const breezes = createBreezeField(content, def, map);
@@ -308,7 +339,7 @@ async function main() {
   // tests and replays, goes straight in).
   if (!resumed && titled && def.start.port) {
     const me = sim.state.ships[def.start.shipId]!;
-    const town = settlements.find((s) => s.id === def.start.port)!;
+    const town = home;
     const at = enemiesOf(content, sim.state, town.nation).filter((n) => n !== 'pirate');
     const goal = careerGoals(content, sim.state, settlements).find((g) => !g.done);
     // Where the first goal gets done ("the shipwright at Port Royal"), else what it brings.

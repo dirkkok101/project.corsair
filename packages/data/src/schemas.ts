@@ -617,6 +617,11 @@ export const politicsSchema = z.object({
   ),
   piracy: z.object({ perTaken: z.number().min(0), decay: share, plague: z.number().min(0) }),
   marque: z.object({ price: z.number().min(0), freeAt: z.number(), standingGain: z.number() }),
+  /** A new career's flag: the standing it starts with at home, and each nation's island and what it is good for. */
+  flag: z.object({
+    standing: z.number(),
+    nations: z.record(z.string(), z.object({ island: z.string(), about: z.string() })),
+  }),
   bounty: z.object({ merchant: z.number(), patrol: z.number(), pirate: z.number(), piracyScale: z.number().positive() }),
   news: z.record(z.string(), z.string()),
   /** Ranks per nation: the ladder by merit, each perk's rung and size, land and its rent. */

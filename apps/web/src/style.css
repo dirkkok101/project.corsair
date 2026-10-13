@@ -3364,6 +3364,115 @@ body {
   color: #f4ead6;
 }
 
+/* The flags (storyboard 1.3a): four cards alike, their parts in fixed rows so every card lines up; the one
+   picked is ringed, never moved or resized. */
+.flag-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  width: min(1150px, 100%);
+}
+
+.flag-card {
+  display: grid;
+  grid-template-rows: 130px 34px 40px 44px 22px;
+  gap: 10px;
+  padding: 14px;
+  font: inherit;
+  text-align: left;
+  color: var(--k-cream);
+  cursor: pointer;
+  border-color: #6b4d2c;
+}
+
+.flag-card.picked {
+  border-color: #f2d58f;
+  box-shadow: 0 0 0 3px var(--k-gold), 0 12px 30px rgb(0 0 0 / 0.5);
+}
+
+.flag-swatch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #2b1d12;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #f4f1ea;
+}
+
+/* St George's cross. */
+.flag-england {
+  background:
+    linear-gradient(#b3261e, #b3261e) center / 100% 26px no-repeat,
+    linear-gradient(#b3261e, #b3261e) center / 26px 100% no-repeat,
+    #f4f1ea;
+}
+
+/* Red, gold, red. */
+.flag-spain {
+  background: linear-gradient(#b3261e 0 25%, #e8b62c 25% 75%, #b3261e 75%);
+}
+
+.flag-france {
+  background: #f4f1ea;
+}
+
+.flag-lilies {
+  font-size: 40px;
+  letter-spacing: 6px;
+  color: #c99a2e;
+}
+
+/* Orange, white, blue. */
+.flag-netherlands {
+  background: linear-gradient(#e07a1f 0 33.3%, #f4f1ea 33.3% 66.6%, #2c4d73 66.6%);
+}
+
+.flag-name {
+  font: 400 30px var(--k-display);
+  line-height: 34px;
+  color: var(--k-gold);
+}
+
+.flag-home {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.flag-thumb {
+  flex: none;
+  width: 56px;
+  height: 36px;
+  border: 1px solid var(--k-brass);
+  border-radius: 3px;
+  background: #2b1d12 center / cover;
+  image-rendering: pixelated;
+}
+
+.flag-about {
+  font-size: 15px;
+  line-height: 22px;
+  color: #e3d5b4;
+}
+
+.flag-wars {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ff9a7a;
+}
+
+.flag-wars.peace {
+  color: var(--k-gold);
+}
+
+.flag-chip {
+  display: inline-block;
+  margin-top: 10px;
+}
+
 .level-cards {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

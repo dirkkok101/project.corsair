@@ -16,6 +16,8 @@ async function openService(page: Page, name: string) {
 /** Without a seed a new career opens on the difficulty pick: take the default, and read the governor's letter. */
 async function setSail(page: Page, url: string) {
   if (url.includes('seed=')) return;
+  // A new career: the flag (England unless changed), then the sea.
+  await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
   await page.keyboard.press('Enter');
@@ -155,15 +157,16 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
 
 test('the title stays up after the loading screen has faded, until a career is chosen', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Set sail' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next: how hard a sea' })).toBeVisible();
   // Well past the loading screen's fade, which once took the title away with it.
   await page.waitForTimeout(1500);
   await expect(page.locator('.loading')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Set sail' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next: how hard a sea' })).toBeVisible();
 });
 
 test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
   // Nothing pressed in the game yet: the sound waits.
@@ -317,7 +320,16 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
 
   await page.reload();
   await page.getByRole('button', { name: 'New career' }).click();
-  // A new career picks its difficulty, each level saying what it changes.
+  // A new career picks its flag first: four cards alike in size, each its home port and its wars.
+  const flags = page.locator('.flag-card');
+  await expect(flags).toHaveCount(4);
+  const sizes = await flags.evaluateAll((cards) => cards.map((c) => `${Math.round(c.getBoundingClientRect().width)}x${Math.round(c.getBoundingClientRect().height)}`));
+  expect(new Set(sizes).size).toBe(1);
+  await expect(page.locator('.flag-card.picked')).toContainText('Port Royal');
+  await expect(page.locator('.flag-card.picked')).toContainText('At war with Spain');
+  await page.screenshot({ path: 'test-results/start-flag.png' });
+  await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
+  // Then its difficulty, each level saying what it changes.
   await page.getByRole('button', { name: 'Rogue' }).click();
   await expect(page.locator('.level-card.picked')).toContainText('the wind shifts in battle');
   await page.screenshot({ path: 'test-results/start-difficulty.png' });
@@ -338,6 +350,8 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   await expect(page.locator('.moment')).toHaveCount(0);
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { gold: number }).gold)).toBe(1000);
   expect(await page.evaluate(() => window.__corsair.state.get('difficulty'))).toBe('rogue');
+  // The flag is the career's, and its governors know her.
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { nation: string; standing: Record<string, number> }))).toMatchObject({ nation: 'england', standing: { england: 20 } });
   expect(errors).toEqual([]);
 });
 
@@ -913,9 +927,10 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   expect(await page.evaluate(() => window.__corsair.log.query({ type: 'BattleOver' }).length)).toBe(1);
-  // Firing on an English ship cost standing with England (less the goodwill for letting a prize go).
+  // Firing on an English ship cost standing with England (less the goodwill for letting a prize go), from the
+  // 20 an English captain starts with.
   const england = await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing.england);
-  expect(england).toBe(outcome === 'struck' || outcome === 'boarded' ? -20 + 2 : -20);
+  expect(england).toBe(20 + (outcome === 'struck' || outcome === 'boarded' ? -20 + 2 : -20));
   expect(errors).toEqual([]);
 });
 

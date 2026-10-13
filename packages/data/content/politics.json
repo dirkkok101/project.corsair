@@ -142,6 +142,16 @@
     "decay": 0.75,
     "plague": 40
   },
+  "flag": {
+    "$comment": "A new career picks a flag: it starts at that nation's capital, with 'standing' there (its governors know the captain).",
+    "standing": 20,
+    "nations": {
+      "england": { "island": "Jamaica", "about": "Privateers and the richest pirate hunting" },
+      "spain": { "island": "Hispaniola", "about": "Treasure fleets and the most ports" },
+      "france": { "island": "St. Christophe", "about": "The windward isles and the buccaneers" },
+      "netherlands": { "island": "Curaçao", "about": "Traders: the best prices and merchant ships" }
+    }
+  },
   "marque": {
     "price": 800,
     "freeAt": 30,

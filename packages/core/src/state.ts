@@ -290,6 +290,8 @@ export interface CareerRecord {
 
 export interface Captain {
   gold: number;
+  /** The flag the career sails under, chosen at its start (absent in older saves: none). */
+  nation?: Nation;
   /** Prices the captain last saw in each port, so routes can be planned from memory. */
   knownPrices: Record<string, KnownPrices>;
   /** Ids of news items the captain has heard (in a tavern), oldest first. */
