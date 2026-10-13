@@ -49,6 +49,9 @@ const player = (page: Page) =>
 test('a new career starts docked in port, under-gunned, and the shipwright outfits her', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
+  // The arrival line says what kind of news it is; the ships lying here are said by the date.
+  await expect(page.locator('.harbour-news b').first()).toHaveText(/^(Prices|News|Trade):$/);
+  await expect(page.locator('.harbour-date')).toContainText('in harbour');
   await openService(page, 'Shipwright');
   // Beside the way out, what there is to spend and to fill: the purse, her guns, her men, the fleet.
   await expect(page.locator('.interior-holdings')).toContainText('1,000 gold');

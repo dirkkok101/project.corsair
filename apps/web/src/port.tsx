@@ -71,8 +71,8 @@ export interface PortProps {
   hotspots: Partial<Record<Service | 'docks', { left: number; top: number; width: number; height: number }>>;
   /** Told which service is open (undefined for the harbour view), so its interior can be shown. */
   onOpen: (service: Service | undefined) => void;
-  /** Said once on arrival: men who deserted as she made port. */
-  notice?: string;
+  /** Said on arrival, beneath the news: prizes brought in (gold), men who deserted, plague, a refused order (warn). */
+  notice?: PortNotice;
   /** Today's date: the clock stands still in port. */
   date: string;
   /** The sea, for the tavern's chart of where news is from. */
@@ -402,12 +402,24 @@ function standingWord(n: number): string {
   return n >= 50 ? 'honoured' : n >= 20 ? 'friendly' : n > -20 ? 'neutral' : n > -50 ? 'unwelcome' : 'hunted';
 }
 
+/** A line said in port beside the news, with its icon and how it reads (gold good news, warn bad). */
+export interface PortNotice {
+  text: string;
+  icon: string;
+  tone: 'gold' | 'warn';
+}
+
 /**
- * The one line said on arrival (storyboard 2.1): a notice first (men deserted, a promotion), then the best price
- * here for something in the hold, then news the captain hasn't heard, then what the town makes cheap.
+ * The news said on arrival (storyboard 2.1), with its kind and icon: the best price here for something in the hold,
+ * else news the captain hasn't heard, else what the town makes cheap.
  */
-function arrivalNews(content: ContentPack, state: WorldState, town: PlacedSettlement, settlements: PlacedSettlement[], ship: import('@corsair/core').Ship, notice?: string): string | undefined {
-  if (notice) return notice;
+function arrivalNews(
+  content: ContentPack,
+  state: WorldState,
+  town: PlacedSettlement,
+  settlements: PlacedSettlement[],
+  ship: import('@corsair/core').Ship,
+): { kind: string; icon: string; text: string } | undefined {
   const market = state.markets?.[town.id] ?? {};
   const name = (id: string) => content.goods.find((g) => g.id === id)?.name.toLowerCase() ?? id;
   const held = Object.entries(ship.cargo).filter(([g, n]) => n > 0 && g !== 'food');
@@ -415,11 +427,11 @@ function arrivalNews(content: ContentPack, state: WorldState, town: PlacedSettle
     .map(([g]) => ({ g, story: priceStory(content, state, town, g), q: quote(content, town, g, market[g] ?? 0) }))
     .filter((x) => x.story.level === 'dear')
     .sort((a, b) => b.q.sell - a.q.sell)[0];
-  if (dear) return `Your ${name(dear.g)} sells well here: ${dear.q.sell} each.`;
+  if (dear) return { kind: 'Prices', icon: `ui.icon.good.${dear.g}`, text: `Your ${name(dear.g)} sells well here: ${dear.q.sell} each.` };
   const fresh = newsAt(content, state, settlements, town.id).find((n) => !(state.captain?.heard ?? []).includes(n.id));
-  if (fresh) return `News in the tavern: ${newsText(content, fresh, settlements.find((x) => x.id === fresh.settlementId)?.name ?? town.name)}`;
+  if (fresh) return { kind: 'News', icon: 'ui.icon.morale', text: `${newsText(content, fresh, settlements.find((x) => x.id === fresh.settlementId)?.name ?? town.name)} The tavern has more.` };
   const made = portTrade(content, town).exports[0];
-  return made ? `${town.name} makes ${name(made)}: it is cheap here at ${quote(content, town, made, market[made] ?? 0).buy}.` : undefined;
+  return made ? { kind: 'Trade', icon: `ui.icon.good.${made}`, text: `${town.name} makes ${name(made)}: it is cheap here at ${quote(content, town, made, market[made] ?? 0).buy}.` } : undefined;
 }
 
 /** The port screen: the harbour scene with its buildings to click, and the merchant's market over it. */
@@ -516,7 +528,17 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     const berths = fleetBerths(content, state, ship);
     const food = Math.floor(foodDays(content, ship));
     const morale = moraleOf(content, state);
-    const news = arrivalNews(content, state, town, settlements, ship, notice);
+    const news = arrivalNews(content, state, town, settlements, ship);
+    // The ships lying here, by the date: how many, and whose.
+    const moored = Object.values(state.ships).filter((s) => inPort(s) && s.ai!.from === town.id);
+    const flags = [...new Set(moored.map((s) => s.ai!.nation))];
+    const whose = flags.length === 1 ? (flags[0] === 'pirate' ? 'pirates' : NATION[flags[0]!]) : undefined;
+    const n = moored.length;
+    const lying = !n
+      ? 'no other ships in harbour'
+      : n === 1
+        ? `a ship in harbour${whose ? `, ${whose}` : ''}`
+        : `${n} ships in harbour${whose ? `, ${n === 2 ? 'both' : 'all'} ${whose}` : ''}`;
     const dockSpot = hotspots.docks;
     return (
       <div class="port port-scene">
@@ -538,7 +560,24 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             ) : null}
           </div>
         </div>
-        {news ? <div class="hud-toast harbour-news">{news}</div> : null}
+        {news || notice ? (
+          <div class="harbour-news">
+            {news ? (
+              <div class="hud-toast">
+                <Art id={news.icon} class="hud-toast-icon" />
+                <span>
+                  <b>{news.kind}:</b> {news.text}
+                </span>
+              </div>
+            ) : null}
+            {notice ? (
+              <div class={`hud-toast ${notice.tone}`}>
+                <Art id={notice.icon} class="hud-toast-icon" />
+                <span>{notice.text}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {docks ? (
           <div class="k-wood harbour-docks">
             <div class="k-who">The docks</div>
@@ -560,7 +599,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             <Stat icon="ui.icon.food" value={`${food} ${food === 1 ? 'day' : 'days'}`} title="Food aboard, in days for this crew" low={food <= 3} />
             <Stat icon="ui.icon.morale" value={moraleWord(content, morale)} title="The crew's morale" low={morale < 40} />
           </div>
-          <span class="harbour-date">{date}</span>
+          <span class="harbour-date">
+            {date} · {lying}
+          </span>
           {openLog ? (
             <button class="k-btn" onClick={openLog}>
               Log <Key k="L" />
@@ -587,7 +628,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             </button>
           </div>
         </div>
-        {notice ? <div class="hud-toast interior-notice">{notice}</div> : null}
+        {notice ? <div class={`hud-toast interior-notice ${notice.tone}`}>{notice.text}</div> : null}
 
         {open === 'governor' ? (
           <Governor content={content} state={state} town={town} shipId={shipId} send={send} />

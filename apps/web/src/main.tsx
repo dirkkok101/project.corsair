@@ -23,7 +23,7 @@ import { compassProps, Hud } from './hud';
 import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
-import type { Service } from './port';
+import type { PortNotice, Service } from './port';
 import { cargoUsed, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
@@ -802,7 +802,7 @@ async function main() {
   let stripSeen = '';
   let stripChanged = 0;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
-  let portNotice: string | undefined;
+  let portNotice: PortNotice | undefined;
   // The fleet as she last sailed: a ship not in it on making port is a prize brought in, and the harbour says where
   // she is dealt with.
   let fleetSailed = new Set(fleetOf(sim.state).map((f) => f.id));
@@ -1264,15 +1264,15 @@ async function main() {
     for (let i = eventsSeen; i < evs.length; i++) {
       const ev = evs[i]!;
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
-      if (ev.type === 'Deserted') portNotice = `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`;
+      if (ev.type === 'Deserted') portNotice = { text: `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`, icon: 'ui.icon.crew', tone: 'warn' };
       if (ev.type === 'Undocked') {
         portNotice = undefined;
         fleetSailed = new Set(fleetOf(sim.state).map((f) => f.id));
       }
       if (ev.type === 'Docked') {
         const brought = fleetOf(sim.state).filter((f) => !fleetSailed.has(f.id));
-        if (brought.length === 1) portNotice = `Your prize, the ${shipKind(brought[0]!.classId)} ${brought[0]!.name}, lies here: mend, fit or sell her at the shipwright.`;
-        if (brought.length > 1) portNotice = `Your ${brought.length} prizes lie here: mend, fit or sell them at the shipwright.`;
+        if (brought.length === 1) portNotice = { text: `Your prize, the ${shipKind(brought[0]!.classId)} ${brought[0]!.name}, lies here: mend, fit or sell her at the shipwright.`, icon: 'ui.icon.anchor', tone: 'gold' };
+        if (brought.length > 1) portNotice = { text: `Your ${brought.length} prizes lie here: mend, fit or sell them at the shipwright.`, icon: 'ui.icon.anchor', tone: 'gold' };
       }
       // A promotion from the governor, as his commission; a title brings land.
       if (ev.type === 'Promoted') {
@@ -1312,14 +1312,14 @@ async function main() {
       // Retired: the career is over; keep it, so the start screen shows how it ended.
       if (ev.type === 'Retired') void save();
       // Plague breaks out in the port she lies in: no other ship will come in until it passes.
-      if (ev.type === 'Plague' && ev.entityIds[0] === player().docked) portNotice = 'Plague has broken out here. No ship will put in until it passes, and you may not come back in once you sail.';
+      if (ev.type === 'Plague' && ev.entityIds[0] === player().docked) portNotice = { text: 'Plague has broken out here. No ship will put in until it passes, and you may not come back in once you sail.', icon: 'ui.icon.fire', tone: 'warn' };
       // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.
       if (ev.type === 'CourseArrived' && ev.payload.portId) {
         const port = portInReach();
         if (port?.id === ev.payload.portId) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
       }
       // An order refused in port: say why, rather than nothing happening.
-      if (ev.type === 'TradeRefused' && player().docked && REFUSED[ev.payload.reason as string]) portNotice = REFUSED[ev.payload.reason as string];
+      if (ev.type === 'TradeRefused' && player().docked && REFUSED[ev.payload.reason as string]) portNotice = { text: REFUSED[ev.payload.reason as string]!, icon: 'ui.icon.gold', tone: 'warn' };
       if (ev.type === 'MapPieceBought') moments.push({ kind: 'map', pirateId: ev.payload.pirateId as string, line: "That's all I know, captain. The rest is with men who'd sooner cut your throat." });
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';

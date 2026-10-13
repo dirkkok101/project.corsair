@@ -1376,20 +1376,37 @@ body {
   color: #ffe7da;
 }
 
+/* The news on arrival, and beneath it a notice (prizes in gold, trouble in red), as the storyboard stacks them. */
 .harbour-news {
   position: absolute;
   top: 24px;
   right: 24px;
-  max-width: 520px;
+  /* Narrow enough to stay clear of the buildings' labels (the governor's sits high in some harbours). */
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   font-size: 17px;
 }
 
+.harbour-news b {
+  color: var(--k-gold);
+}
+
+.harbour-news .hud-toast.gold {
+  box-shadow: inset 0 0 0 1px var(--k-gold);
+}
+
+.harbour-news .hud-toast.warn {
+  box-shadow: inset 0 0 0 1px #ff9a7a;
+}
+
+/* Beside the Docks, above the strip: the buildings stay in sight. */
 .harbour-docks {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(560px, 90vw);
+  right: 24px;
+  bottom: 124px;
+  width: min(460px, 90vw);
   padding: 18px;
   display: flex;
   flex-direction: column;
