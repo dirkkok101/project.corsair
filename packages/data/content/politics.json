@@ -138,8 +138,8 @@
     }
   ],
   "piracy": {
-    "perTaken": 8,
-    "decay": 0.75,
+    "perTaken": 6,
+    "decay": 0.6,
     "plague": 40
   },
   "flag": {

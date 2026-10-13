@@ -107,7 +107,10 @@ export function createTrafficSystem(
       // And waters that fit her ship (traffic.json danger): sloops haunt the quiet coasts, brigantines the Main.
       const rung = Math.min(4, t.danger.classRung[ship.classId] ?? 2);
       const fit = (s: Settlement) => 1 / (1 + 1.5 * Math.abs(dangerAt(s.x, s.y) - rung));
-      const weights = Object.fromEntries(marks.map((s) => [s.id, (size[s.size] * fit(s)) / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.pirateRangeTiles)]));
+      // The ports near the captain draw them more, so the sea's fights fall where she can see them.
+      const player = Object.values(state.ships).find((x) => !x.ai);
+      const near = (s: Settlement) => (player && Math.hypot(s.x - player.x, s.y - player.y) <= t.nearPlayer.tiles ? t.nearPlayer.weight : 1);
+      const weights = Object.fromEntries(marks.map((s) => [s.id, (size[s.size] * fit(s) * near(s)) / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.pirateRangeTiles)]));
       // A famous pirate keeps to her own waters: the lanes toward her haunts.
       const haunts = ai.famous ? famousDef(ai.famous)?.haunts.filter((id) => marks.some((s) => s.id === id)) : undefined;
       if (haunts?.length) return { to: byId.get(haunts[Math.floor(rng.float() * haunts.length)]!), good: undefined };

@@ -113,6 +113,7 @@
     5
   ],
   "pirateRangeTiles": 210,
+  "nearPlayer": { "tiles": 220, "weight": 1.4 },
   "biggerPirates": {
     "classId": "ship.brig",
     "maxShare": 0.35,

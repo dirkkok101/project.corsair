@@ -678,6 +678,8 @@ export const trafficSchema = z.object({
   lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** Pirates' interest in a port halves this far (in tiles) from their haven. */
   pirateRangeTiles: z.number().positive(),
+  /** A pirate's mark within `tiles` of the player is `weight` times as likely: the sea's fights happen where she sails. */
+  nearPlayer: z.object({ tiles: z.number().positive(), weight: z.number().min(1) }),
   /** Convoys from Europe and the treasure ship, on a timetable (PRD section 6, slice 2). */
   convoys: z.object({
     /** Where convoys come in from the Atlantic and go home to: a tile off the map's east edge. */

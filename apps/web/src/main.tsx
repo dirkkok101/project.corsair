@@ -589,6 +589,9 @@ async function main() {
     const km = Math.round((Math.hypot(port.x - me.x, port.y - me.y) * kmPerTile) / 10) * 10;
     return `What now: your ship is hurt (hull ${Math.round(hull * 100)}%, sails ${Math.round(sails * 100)}%). The nearest shipwright is at ${port.name}, about ${km} km off: press M and pick it.`;
   };
+  // Famous pirates first seen close together: only the first stops the world; the next within the gap is a line.
+  const FAMOUS_GAP_DAYS = 3;
+  let lastFamousMoment = -Infinity;
   // Following a course when a fight began: she takes it up again after.
   let followingBeforeFight = false;
   const takePlunder = (choice: PlunderChoice) => {
@@ -1349,7 +1352,16 @@ async function main() {
         moments.push({ kind: 'promotion', ...p, town: settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '' });
       }
       // A famous pirate in sight for the first time.
-      if (ev.type === 'FamousSighted') moments.push({ kind: 'famous', pirateId: ev.payload.pirateId as string });
+      if (ev.type === 'FamousSighted') {
+        const id = ev.payload.pirateId as string;
+        if (sim.state.tick - lastFamousMoment >= FAMOUS_GAP_DAYS * content.calendar.ticksPerDay) {
+          moments.push({ kind: 'famous', pirateId: id });
+          lastFamousMoment = sim.state.tick;
+        } else {
+          const name = content.pirates.captains.find((c) => c.id === id)?.name ?? id;
+          courseNote = { text: `${name} sighted: the Top Ten in the log (L) says more`, kind: 'Famous pirate', icon: 'ui.icon.cannon_loaded', tone: 'warn', until: now + 5000 };
+        }
+      }
       // A piece of a treasure map from a beaten pirate's men is on the victory screen's report; one from her in
       // irons was chosen there: a note on the sea says where to see it, not another screen.
       const captive = ev.type === 'PlunderTaken' ? (ev.payload.captive as { id: string; choice: string } | null) : null;

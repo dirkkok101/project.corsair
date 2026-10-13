@@ -965,7 +965,7 @@ describe('the famous pirates', () => {
     expect(famous(later.state).some((s) => s.ai!.famous === 'morgan')).toBe(false);
     later.step(1);
     const again = famous(later.state).find((s) => s.ai!.famous === 'morgan')!;
-    expect(again).toMatchObject({ classId: 'ship.frigate', ai: { from: 'town.ile_a_vache', name: 'Henry Morgan' } });
+    expect(again).toMatchObject({ classId: 'ship.frigate', ai: { from: 'town.bluefields', name: 'Henry Morgan' } });
     expect(later.state.famous!.morgan!.returnAt).toBeUndefined();
   });
 
@@ -1032,15 +1032,15 @@ describe('the famous pirates', () => {
     expect(fight.state.famous!.morgan!.spared).toBe(true);
     const later = dueDay(fight.state);
     const morgan = famous(later.state).find((s) => s.ai!.famous === 'morgan')!;
-    // Alongside him on the open sea: he doesn't give chase.
-    const sea = { x: morgan.x, y: morgan.y };
+    // Alongside him on the open sea (east of his haven on the Mosquito Coast): he doesn't give chase.
+    const sea = { x: morgan.x + 15, y: morgan.y };
     const meet = (state: WorldState) => ({
         ...state,
         ships: {
           ...later.state.ships,
           // In a frigate: Morgan's rung of the career.
           player: { ...later.state.ships.player!, classId: 'ship.frigate', guns: 32, crew: 250, docked: undefined, x: sea.x + 3, y: sea.y },
-          [morgan.id]: { ...morgan, ai: { ...morgan.ai!, waitUntil: undefined, route: [[sea.x, sea.y], [sea.x + 1, sea.y]], along: 0, calmUntil: undefined } },
+          [morgan.id]: { ...morgan, x: sea.x, y: sea.y, ai: { ...morgan.ai!, waitUntil: undefined, route: [[sea.x, sea.y], [sea.x + 1, sea.y]], along: 0, calmUntil: undefined } },
         },
       }) as WorldState;
     // Not spared, he would come for her.
