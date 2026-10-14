@@ -681,7 +681,7 @@ async function main() {
       if (!s || s.nation === 'pirate') return undefined;
       const flag = sim.state.captain?.nation;
       if (flag && closedTo(content, sim.state, s) === 'at-war') {
-        return `Closed to you: ${COUNTRY_NAME[s.nation]} is at war with ${COUNTRY_NAME[flag]}, and her warships hunt your flag.`;
+        return `Closed to you: ${COUNTRY_NAME[s.nation]} is at war with ${COUNTRY_NAME[flag]}, and once you attack her ships, her warships hunt you.`;
       }
       const standing = sim.state.captain?.standing?.[s.nation] ?? 0;
       if (standing <= content.combat.standing.refused) return `They would not let you in: your standing with them is ${standing}.`;
@@ -1130,8 +1130,14 @@ async function main() {
       until: now + 9000,
     };
   };
-  const portInReach = () => {
+  /**
+   * The nearest port in docking reach; or `bound`, the port her course is for, when it is in reach too: two towns
+   * across a narrow channel (Tortuga and Port-de-Paix) are both in reach of one berth.
+   */
+  const portInReach = (bound?: string) => {
     const ship = player();
+    const mine = settlements.find((s) => s.id === bound);
+    if (mine && Math.hypot(mine.x - ship.x, mine.y - ship.y) <= DOCK_RANGE) return mine;
     let best: { s: PlacedSettlement; d: number } | undefined;
     for (const s of settlements) {
       const d = Math.hypot(s.x - ship.x, s.y - ship.y);
@@ -1448,7 +1454,7 @@ async function main() {
       if (ev.type === 'Plague' && ev.entityIds[0] === player().docked) portNotice = { text: 'Plague has broken out here. No ship will put in until it passes, and you may not come back in once you sail.', icon: 'ui.icon.fire', tone: 'warn' };
       // A course to a port docks her on arrival; one that ran aground says so and hands back the helm.
       if (ev.type === 'CourseArrived' && ev.payload.portId) {
-        const port = portInReach();
+        const port = portInReach(ev.payload.portId as string);
         if (port?.id === ev.payload.portId) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
       }
       // An order refused in port: say why, rather than nothing happening.
@@ -1478,7 +1484,7 @@ async function main() {
       }
       if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') {
         // Pressed onto the shore within reach of the port she was bound for: she goes in all the same.
-        const port = portInReach();
+        const port = portInReach(destination?.id);
         if (port && port.id === destination?.id) sim.send({ type: 'Dock', shipId: player().id, settlementId: port.id });
         else courseNote = { text: 'Aground: no way through there. Take the helm', kind: 'Aground', icon: 'ui.icon.hull', tone: 'warn', until: now + 3500 };
       }
