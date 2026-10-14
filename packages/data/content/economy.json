@@ -415,7 +415,7 @@
       "max": 2
     },
     "purse": {
-      "perPerson": 0.4,
+      "perPerson": 0.8,
       "refill": 0.12
     },
     "coasters": {

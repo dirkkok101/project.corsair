@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createSim } from '@corsair/core';
+import { createSim, dateOf } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import { decodeRasterMap, loadContent, placeSettlements } from '@corsair/data';
 import { createWorld } from '@corsair/systems-navigation';
@@ -26,14 +26,24 @@ const run = (days: number, seed = 1) => {
 };
 
 describe('nations at war', () => {
-  it('opens in 1660 with Spain at war with England and France beyond the line, and pirates at war with everyone', () => {
+  it('opens in 1660 with Spain at war with England beyond the line, France at peace, and pirates at war with everyone', () => {
     const s = world();
     expect(atWar(content, s, 'england', 'spain')).toBe(true);
-    expect(atWar(content, s, 'france', 'spain')).toBe(true);
+    expect(atWar(content, s, 'france', 'spain')).toBe(false);
     expect(atWar(content, s, 'england', 'france')).toBe(false);
     expect(atWar(content, s, 'pirate', 'spain')).toBe(true);
     expect(enemiesOf(content, s, 'netherlands')).toEqual(['pirate']);
+    expect(enemiesOf(content, s, 'france').filter((n) => n !== 'pirate')).toEqual([]);
   });
+
+  it('the War of Devolution puts France and Spain at war in May 1667, and not before', () => {
+    const days = Math.round((Date.UTC(1667, 4, 1) - Date.UTC(1660, 2, 1)) / 86_400_000);
+    const sim = run(days);
+    expect(atWar(content, sim.state, 'france', 'spain')).toBe(true);
+    const news = sim.state.news!.filter((n) => n.kind === 'war' && n.nation === 'france' && n.other === 'spain');
+    expect(news).toHaveLength(1);
+    expect(dateOf(def.startDate, Math.floor(news[0]!.tick / day))).toMatchObject({ year: 1667, month: 5 });
+  }, 90_000);
 
   it('declares the Second Anglo-Dutch War in March 1665 and makes peace at Breda in 1667, as news', () => {
     // 1 March 1660 to 1 April 1665: just past the declaration.
