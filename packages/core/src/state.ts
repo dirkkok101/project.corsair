@@ -571,7 +571,8 @@ export type Command =
   /** Take back a ship of the player's laid up in this port. */
   | { type: 'ReclaimShip'; shipId: string; laidUpId: string }
   /** In port: sign on men in the tavern, or pay the shipwright to make good hull and sails. */
-  | { type: 'Recruit'; shipId: string; count: number }
+  /** `shares`: for a share of the plunder instead of a bounty, only when her gold won't pay for the men (crew.json shares). */
+  | { type: 'Recruit'; shipId: string; count: number; shares?: boolean }
   /** Mend the fleet at the shipwright: one ship (`fleetId` a fleet ship's id, or `shipId` for the flagship), or all. */
   | { type: 'Repair'; shipId: string; only?: string }
   /** At the shipwright: mount or sell back cannon, or install an upgrade. */

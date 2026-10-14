@@ -247,6 +247,8 @@ it('raider', () => {
     const count = Math.min(berths - crew, Math.floor((gold() - foodGold) / content.combat.port.recruitGold));
     const evs = count > 0 ? send({ type: 'Recruit', shipId: 'player', count }) : send({ type: 'Recruit', shipId: 'player', count: berths - crew });
     const why = refusal(evs);
+    // Broke: men on shares, up to half her berths (refused while she can pay).
+    if (crewOf(content, me()) < Math.floor(berths * content.crew.shares.upTo)) send({ type: 'Recruit', shipId: 'player', count: berths, shares: true });
     tally.recruited += Math.max(0, crewOf(content, me()) - crew);
     log(`recruit: crew ${crew} -> ${crewOf(content, me())} of ${fleetBerths(content, sim.state, me())} berths${why ? ` (refused: ${why})` : ''}; gold ${gold()}`);
     food(10);

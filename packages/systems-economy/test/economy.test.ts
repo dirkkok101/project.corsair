@@ -514,6 +514,31 @@ describe('the wounded', () => {
 });
 
 describe('the shipwright, the tavern and a hostile port', () => {
+  it('a broke captain signs men on for a share of the plunder, up to half her berths, at some morale; one who can pay may not', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const berths = content.ships['ship.brig']!.maxCrew;
+    const upTo = Math.floor(berths * content.crew.shares.upTo);
+    const at = (gold: number) =>
+      createSim({ ...sim.state, captain: { ...sim.state.captain!, gold, morale: 70 }, ships: { player: { ...player(sim.state), crew: upTo - 30 } } }, [createEconomySystem(content, settlements)]);
+    const broke = at(0);
+    broke.send({ type: 'Recruit', shipId: 'player', count: 1000, shares: true });
+    broke.applyCommands();
+    expect(player(broke.state).crew).toBe(upTo);
+    expect(broke.state.captain!.gold).toBe(0);
+    expect(broke.state.captain!.morale).toBeCloseTo(70 - 30 * content.crew.shares.moraleEach);
+    broke.send({ type: 'Recruit', shipId: 'player', count: 10, shares: true });
+    broke.applyCommands();
+    expect(broke.events().at(-1)!.payload.reason).toBe('shares-full');
+    // Gold enough for the men: they want a bounty.
+    const rich = at(10_000);
+    rich.send({ type: 'Recruit', shipId: 'player', count: 1000, shares: true });
+    rich.applyCommands();
+    expect(rich.events().at(-1)!.payload.reason).toBe('can-pay');
+    expect(player(rich.state).crew).toBe(upTo - 30);
+  });
+
   it('recruits men up to the berths, repairs as far as the purse reaches, and an enemy nation shuts its port', () => {
     const sim = moored(portRoyal);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });

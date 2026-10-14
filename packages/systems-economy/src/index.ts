@@ -1071,6 +1071,24 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         // Only so many men look for a berth in one port: filling a big ship takes several.
         const port = byId.get(ship.docked)!;
         const hands = handsAt(content, state, port);
+        if (command.shares) {
+          // Her gold won't pay them: men still sign on for a share of the plunder, up to half her berths, and they
+          // expect a prize soon. A captain who can pay signs them on for a bounty.
+          const upTo = Math.floor(berths * content.crew.shares.upTo);
+          if (state.captain.gold >= price * Math.max(1, upTo - crew)) return refuse(state, ship, 'can-pay');
+          const count = Math.min(Math.floor(command.count), upTo - crew, hands);
+          if (!(count > 0)) return refuse(state, ship, crew >= upTo ? 'shares-full' : 'no-hands');
+          const town = townOf(content, state, port);
+          return {
+            state: {
+              ...state,
+              ships: { ...state.ships, [ship.id]: { ...ship, crew: crew + count } },
+              captain: { ...state.captain, morale: Math.max(0, moraleOf(content, state) - count * content.crew.shares.moraleEach) },
+              towns: { ...state.towns, [port.id]: { ...town, hands: hands - count, handsTick: state.tick } },
+            },
+            events: [{ type: 'Recruited', entityIds: [ship.id, ship.docked], payload: { count, gold: 0, shares: true } }],
+          };
+        }
         const count = Math.min(Math.floor(command.count), berths - crew, hands, price > 0 ? Math.floor(state.captain.gold / price) : Infinity);
         if (!(count > 0)) return refuse(state, ship, crew >= berths ? 'berths-full' : hands <= 0 ? 'no-hands' : 'not-enough-gold');
         const town = townOf(content, state, port);

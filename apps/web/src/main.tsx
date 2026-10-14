@@ -928,6 +928,7 @@ async function main() {
   /** What a refused order in port means, in words (the rest say so on their own button). */
   const REFUSED: Record<string, string> = {
     'not-enough-gold': 'Not enough gold for that.',
+    'shares-full': 'No more men sign on for shares: half her berths are manned. The rest want a bounty.',
     'not-sold-here': 'Not to be had in this port.',
     'map-whole': 'You already hold the whole of that map.',
     'no-offer': 'The stranger has gone.',

@@ -771,6 +771,12 @@ function Recruit({ content, state, shipId, send, port }: Pick<TavernProps, 'cont
   // Only so many men look for a berth here; more come over the week.
   const hands = handsAt(content, state, port);
   const room = Math.min(berths - crew, hands);
+  // A purse that won't pay for the men she needs: they sign on for a share of the plunder, up to half her berths.
+  const upTo = Math.floor(berths * content.crew.shares.upTo);
+  const onShares = Math.min(upTo - crew, hands);
+  const broke = (state.captain?.gold ?? 0) < price * Math.max(1, upTo - crew);
+  // Gold for one man at least: else the bounty buttons can do nothing.
+  const canPay = (state.captain?.gold ?? 0) >= price;
   const wounded = ship.wounded ?? 0;
   // Her guns want men: a broadside's crew to fire at all, and fullManning times that for her fastest reloads.
   const guns = shipStats(content, ship).guns;
@@ -796,13 +802,23 @@ function Recruit({ content, state, shipId, send, port }: Pick<TavernProps, 'cont
         <span style={{ width: `${Math.round((crew / Math.max(1, berths)) * 100)}%` }} />
       </div>
       <div class="tavern-replies">
-        <button class="k-btn small" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: Math.min(10, room) })}>
+        <button class="k-btn small" disabled={room <= 0 || !canPay} onClick={() => send({ type: 'Recruit', shipId, count: Math.min(10, room) })}>
           Sign on {Math.min(10, Math.max(room, 0))} · {Math.round(Math.min(10, Math.max(room, 0)) * price)} gold
         </button>
-        <button class="k-btn small primary" disabled={room <= 0} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
+        <button class={`k-btn small${broke && onShares > 0 ? '' : ' primary'}`} disabled={room <= 0 || !canPay} onClick={() => send({ type: 'Recruit', shipId, count: room })}>
           {room < berths - crew ? `Sign on all ${Math.max(room, 0)}` : 'Fill the berths'} · {Math.round(Math.max(room, 0) * price)} gold
         </button>
+        {broke && onShares > 0 ? (
+          <button class="k-btn small primary" onClick={() => send({ type: 'Recruit', shipId, count: onShares, shares: true })}>
+            Sign on {onShares} for shares · no gold
+          </button>
+        ) : null}
       </div>
+      {broke && onShares > 0 ? (
+        <div class="k-sub">
+          Your purse can't pay them, but men will sign on for a share of the plunder, up to {upTo}. They'll expect a prize soon: morale −{Math.round(onShares * content.crew.shares.moraleEach)}.
+        </div>
+      ) : null}
       <div class="k-sub">
         {hands > 0 ? `${hands} ${hands === 1 ? 'man looks' : 'men look'} for a berth here` : 'No one here looks for a berth: more come in over the week, or try another port'}
         {hands > 0 && hands < berths - crew ? `: not enough to fill her, try another port for the rest` : ''}.
