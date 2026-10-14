@@ -818,10 +818,19 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     const dead = hungry > content.crew.starving.graceDays ? Math.min(crew + mended - 1, Math.max(1, Math.round((crew + mended) * content.crew.starving.diePerDay))) : 0;
     if (dead > 0) events.push({ type: 'MenStarved', entityIds: [ship.id], payload: { count: dead } });
     const healed = mended || dead ? { crew: crew + mended - dead, ...(mended ? { wounded: hurt - mended } : {}) } : {};
+    // A jury rig: her crew patch canvas and plug shot holes at sea, enough to limp to a shipwright.
+    const jr = content.combat.juryRig;
+    const hullMax = shipStats(content, ship).hullMax;
+    const sails = ship.sailCondition ?? 100;
+    const hull = ship.hull ?? hullMax;
+    const rigged = {
+      ...(sails < jr.sails ? { sailCondition: Math.min(jr.sails, sails + jr.sailsPerDay) } : {}),
+      ...(hull < hullMax * jr.hull ? { hull: Math.min(hullMax * jr.hull, hull + hullMax * jr.hullPerDay) } : {}),
+    };
     return {
       state: {
         ...state,
-        ships: { ...state.ships, [ship.id]: { ...ship, cargo, ...(paid ? { paid } : {}), ...healed } },
+        ships: { ...state.ships, [ship.id]: { ...ship, cargo, ...(paid ? { paid } : {}), ...healed, ...rigged } },
         captain: { ...state.captain, morale, mess: starving ? 0 : need - want, hungry },
       },
       events,

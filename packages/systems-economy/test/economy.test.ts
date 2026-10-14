@@ -513,6 +513,26 @@ describe('the wounded', () => {
   });
 });
 
+describe('a jury rig', () => {
+  it('at sea her crew patch a beaten ship up each day, to the jury rig and no further; in port they leave it to the yard', () => {
+    const sim = moored(portRoyal);
+    const jr = content.combat.juryRig;
+    const max = content.ships['ship.brig']!.hull;
+    const beaten = { ...sim.state, ships: { player: { ...player(sim.state), docked: undefined, sailCondition: 0, hull: 1, cargo: { food: 500 } } } };
+    const sea = createSim(beaten, [createEconomySystem(content, settlements)]);
+    sea.step(content.calendar.ticksPerDay);
+    expect(player(sea.state).sailCondition).toBe(jr.sailsPerDay);
+    expect(player(sea.state).hull).toBeCloseTo(1 + max * jr.hullPerDay);
+    sea.step(10 * content.calendar.ticksPerDay);
+    expect(player(sea.state).sailCondition).toBe(jr.sails);
+    expect(player(sea.state).hull).toBeCloseTo(max * jr.hull);
+    // In port: no jury rig (the shipwright mends her).
+    const moored2 = createSim({ ...beaten, ships: { player: { ...beaten.ships.player!, docked: portRoyal.id } } }, [createEconomySystem(content, settlements)]);
+    moored2.step(2 * content.calendar.ticksPerDay);
+    expect(player(moored2.state).sailCondition).toBe(0);
+  });
+});
+
 describe('the shipwright, the tavern and a hostile port', () => {
   it('a broke captain signs men on for a share of the plunder, up to half her berths, at some morale; one who can pay may not', () => {
     const sim = moored(portRoyal);

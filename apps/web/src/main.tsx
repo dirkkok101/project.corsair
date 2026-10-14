@@ -1586,15 +1586,25 @@ async function main() {
     const days = foodDays(content, ship);
     const mood = moraleOf(content, sim.state);
     const left = Math.floor(days);
+    // Beaten to a crawl: canvas below the jury rig's, or a hull that drags (under 30%).
+    const hullMax = shipStats(content, ship).hullMax;
+    const crippled = (ship.sailCondition ?? 100) < content.combat.juryRig.sails || (ship.hull ?? hullMax) < hullMax * 0.3;
     const crewWarning: Toast | undefined = ship.docked
       ? undefined
       : days < 1
         ? { text: 'The food is gone: the crew is starving. Make port, or hail a passing ship (H) and buy food from her', kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
         : days <= 3
           ? { text: `Food for ${left === 1 ? 'one more day' : `${left} days`}: buy food in port, or from a passing ship (H)`, kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
-          : mood < content.crew.morale.grumbling
-            ? { text: `The crew is ${moraleWord(content, mood).toLowerCase()}: divide the plunder or pay wages in a tavern`, kind: 'Warning: the crew', icon: 'ui.icon.morale', tone: 'warn' }
-            : undefined;
+          : crippled
+            ? {
+                text: `Badly damaged (sails ${Math.round(ship.sailCondition ?? 100)}%, hull ${Math.round(((ship.hull ?? hullMax) / hullMax) * 100)}%): she sails slowly. Her crew rig jury sails as she goes, but only a shipwright mends her properly`,
+                kind: 'Warning: damage',
+                icon: 'ui.icon.hull',
+                tone: 'warn',
+              }
+            : mood < content.crew.morale.grumbling
+              ? { text: `The crew is ${moraleWord(content, mood).toLowerCase()}: divide the plunder or pay wages in a tavern`, kind: 'Warning: the crew', icon: 'ui.icon.morale', tone: 'warn' }
+              : undefined;
     // Autosave on arriving in port, whichever way the Dock command came in.
     if (ship.docked && !wasDocked) {
       // Made port: the destination is reached (or another port suited better); the route goes.

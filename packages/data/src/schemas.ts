@@ -502,6 +502,8 @@ export const combatSchema = z.object({
   boarding: z.object({ player: z.number().positive(), merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
   /** A fight between two AI ships: strength is crew x (1 + guns / 10) x the role's factor; the winner loses `losses` of her crew. */
   autoResolve: z.object({ merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
+  /** At sea her crew patch a beaten ship up a little each day: sails to `sails` (percent), hull to `hull` of its max. */
+  juryRig: z.object({ sails: z.number().min(0).max(100), sailsPerDay: z.number().min(0), hull: share, hullPerDay: share }),
   /** Steering style per AI role. */
   personality: z.record(z.enum(['merchant', 'patrol', 'pirate']), z.enum(['runner', 'cautious', 'aggressive'])),
   /** What each role fires (round at the hull; chain at the rigging; pirate: chain, then grape, to take her whole), and patrols' ways by nation. */

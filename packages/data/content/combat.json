@@ -249,6 +249,7 @@
     "yourShipRetaken": "A {nation} patrol took your {vessel} back from the pirate {ship}. She lies at {town} for you to collect.",
     "prizeFreed": "The {nation} {vessel} was freed from the pirate {ship} off {town}."
   },
+  "juryRig": { "$comment": "A beaten ship's crew patch her up at sea: each day sailsPerDay points of canvas back, up to 'sails', and hullPerDay of her hull, up to 'hull' of it. Enough to limp to a shipwright, who mends the rest.", "sails": 40, "sailsPerDay": 20, "hull": 0.3, "hullPerDay": 0.1 },
   "autoResolve": {
     "merchant": 0.9,
     "patrol": 1.4,
