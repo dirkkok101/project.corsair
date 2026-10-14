@@ -222,9 +222,11 @@ function Plunder({ content, offer, name, report, onPlunder }: { content: Content
   const [take, setTake] = useState(() => bestTake(content, offer.theirs, offer.capacity - used));
   const [jettison, setJettison] = useState<Record<string, number>>({});
   const [volunteers, setVolunteers] = useState(offer.volunteers > 0);
-  // A pirate is best sunk; a merchant let go (her nation hears of it either way).
+  // Keeping her is the better bargain when she would sell for more than her hold is worth: then Enter keeps her.
+  const keepBest = !offer.keep.whyNot && offer.keep.value > worth(content, offer.theirs);
+  // Else a pirate is best sunk; a merchant let go (her nation hears of it either way).
   const [release, setRelease] = useState(offer.nation !== 'pirate');
-  const [keep, setKeep] = useState(false);
+  const [keep, setKeep] = useState(keepBest);
   const [byHand, setByHand] = useState(false);
   // A famous prisoner: his map piece is the best of it, while his map is not yet whole.
   const [captive, setCaptive] = useState<CaptiveChoice>(offer.captive && offer.captive.held >= offer.captive.pieces ? 'bounty' : 'hoard');
@@ -251,8 +253,6 @@ function Plunder({ content, offer, name, report, onPlunder }: { content: Content
   const taken = keep ? offer.theirs : take;
   const go = keep ? 'Take her into the fleet' : `${herUnits ? 'Take the best and ' : ''}${release ? 'let her go' : 'sink her'}`;
   const nation = COUNTRY[offer.nation] ?? offer.nation;
-  // Keeping her is the better bargain when she would sell for more than her hold is worth.
-  const keepBest = !offer.keep.whyNot && offer.keep.value > worth(content, offer.theirs);
   const fates: { id: 'release' | 'sink' | 'keep'; label: string; what: string; on: boolean; pick: () => void; why?: string }[] = [
     {
       id: 'release',

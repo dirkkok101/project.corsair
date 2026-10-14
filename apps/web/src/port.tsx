@@ -179,7 +179,7 @@ function Merchant({
         ? { word: `${Math.floor(foodDays(content, ship))} days aboard`, tone: '' }
         : stock < 1
           ? { word: 'none for sale', tone: 'bad' }
-          : held && (story.level === 'dear' || (cost !== undefined && q.sell > cost) || plunder)
+          : held && (plunder || (cost !== undefined ? q.sell > cost : story.level === 'dear'))
             ? { word: 'sells well here', tone: 'good' }
             : story.level === 'cheap'
               ? { word: 'cheap here', tone: 'good' }
@@ -214,11 +214,11 @@ function Merchant({
       `He takes about ${depth >= 999 ? 'any amount' : depth} before its price falls by a quarter; each unit you buy raises it, each you sell lowers it.`,
       edge ? `Your rank here: you buy ${Math.round(edge * 100)}% cheaper and sell ${Math.round(edge * 100)}% dearer.` : '',
     ].filter(Boolean);
-    const say = (s: 'Buy' | 'Sell', qty: number) => {
-      const t = tradePreview(content, town, g.id, stock, s, qty, { gold, room, held, cash: purse }, edge);
+    const say = (s: 'Buy' | 'Sell', qty: number, cash = purse) => {
+      const t = tradePreview(content, town, g.id, stock, s, qty, { gold, room, held, cash }, edge);
       if (!t.units) {
         if (s === 'Buy') return room < 1 ? 'Your hold is full.' : stock < 1 ? `The merchant has no ${name} left.` : `Not enough gold for one ${name}.`;
-        return held < 1 ? `You have no ${name} to sell.` : `The merchant is out of gold (${purse} left): his purse fills again day by day, or sell elsewhere.`;
+        return held < 1 ? `You have no ${name} to sell.` : `The merchant is out of gold (${cash} left): his purse fills again day by day, or sell elsewhere.`;
       }
       if (s === 'Buy') {
         return `Buy ${t.units} ${name} for ${t.total.toLocaleString()} gold (${Math.round(t.total / t.units)} each); the price here rises to ${t.after}.${
@@ -241,16 +241,30 @@ function Merchant({
   });
   const hover = (say: (s: 'Buy' | 'Sell', qty: number) => string, s: 'Buy' | 'Sell', qty: number) => ({ onMouseEnter: () => setPreview(say(s, qty)), onMouseLeave: () => setPreview(undefined) });
   // What sells here at a profit (or is plunder), and the best buy for a port you know.
-  const profitable = rows.filter((r) => r.g.id !== 'food' && r.canSell && (r.plunder || (r.cost !== undefined && r.q.sell > r.cost) || r.verdict.word === 'sells well here'));
+  // The best gain a unit first: his purse may run out, and it should go on what pays most.
+  const gainOf = (r: (typeof rows)[number]) => r.q.sell - (r.plunder || r.cost === undefined ? 0 : r.cost);
+  const profitable = rows
+    .filter((r) => r.g.id !== 'food' && r.canSell && (r.plunder || (r.cost !== undefined && r.q.sell > r.cost) || r.verdict.word === 'sells well here'))
+    .sort((a, b) => gainOf(b) - gainOf(a));
+  // The one-click sale good by good, his purse emptying as it goes: what it says, and what he can't pay for.
+  let cash = purse;
+  const sale = profitable.map((r) => {
+    const t = tradePreview(content, town, r.g.id, r.stock, 'Sell', ALL, { gold, room, held: r.held, cash }, edge);
+    const said = r.say('Sell', ALL, cash);
+    cash -= t.total;
+    return { r, units: t.units, said };
+  });
+  const unpaid = sale.filter((s) => s.units < s.r.held);
   const bestBuy = rows.filter((r) => r.g.id !== 'food' && r.canBuy && r.margin > 0).sort((a, b) => b.margin - a.margin)[0];
   // His one line: the dearest thing he'd buy from you, and what he has too much of.
   const dear = rows.filter((r) => r.g.id !== 'food' && r.story.level === 'dear').sort((a, b) => b.q.sell - a.q.sell)[0];
-  const glut = rows.filter((r) => r.g.id !== 'food' && r.story.level === 'cheap').sort((a, b) => a.q.buy - b.q.buy)[0];
+  const glut = rows.filter((r) => r.g.id !== 'food' && r.verdict.word === 'cheap here').sort((a, b) => a.q.buy - b.q.buy)[0];
+  const isDear = dear ? `${dear.g.name} ${dear.g.name.endsWith('s') ? 'are' : 'is'} dear here` : '';
   const line =
     dear && glut
-      ? `"${dear.g.name}'s dear here, captain, and I've more ${glut.g.name.toLowerCase()} than I can sell."`
+      ? `"${isDear}, captain, and I've more ${glut.g.name.toLowerCase()} than I can sell."`
       : dear
-        ? `"${dear.g.name}'s dear here, captain: bring me ${dear.g.name.toLowerCase()} and I'll pay for it."`
+        ? `"${isDear}, captain: bring me ${dear.g.name.toLowerCase()} and I'll pay for it."`
         : glut
           ? `"I've more ${glut.g.name.toLowerCase()} than I can sell, captain: it's yours cheap."`
           : `"Prices are fair today, captain. What'll it be?"`;
@@ -292,12 +306,17 @@ function Merchant({
           {profitable.length ? (
             <button
               class="k-btn primary"
-              onMouseEnter={() => setPreview(profitable.map((r) => r.say('Sell', ALL)).join(' '))}
+              onMouseEnter={() => setPreview(sale.map((s) => s.said).join(' '))}
               onMouseLeave={() => setPreview(undefined)}
               onClick={() => profitable.forEach((r) => trade('Sell', r.g.id, ALL))}
             >
               Sell what sells well: {profitable.map((r) => r.g.name.toLowerCase()).join(', ')}
             </button>
+          ) : null}
+          {unpaid.length ? (
+            <div class="k-sub merchant-short">
+              His purse ({purse.toLocaleString()} gold) won't pay for {unpaid.map((s) => `${s.r.held - s.units} of your ${s.r.held} ${s.r.g.name.toLowerCase()}`).join(' or ')}: it fills again day by day, or a bigger port pays for the rest.
+            </div>
           ) : null}
           {bestBuy ? (
             <button class="k-btn" {...hover(bestBuy.say, 'Buy', ALL)} onClick={() => buyAll(bestBuy.g.id)}>
@@ -447,10 +466,11 @@ function arrivalNews(
   }
   const held = Object.entries(ship.cargo).filter(([g, n]) => n > 0 && g !== 'food');
   const dear = held
-    .map(([g]) => ({ g, story: priceStory(content, state, town, g), q: quote(content, town, g, market[g] ?? 0) }))
-    .filter((x) => x.story.level === 'dear')
+    .map(([g, n]) => ({ g, story: priceStory(content, state, town, g), q: quote(content, town, g, market[g] ?? 0), cost: ship.paid?.[g] !== undefined ? ship.paid[g]! / n : undefined }))
+    // Dear here, and dearer than she paid (the merchant's 'sells well here').
+    .filter((x) => x.story.level === 'dear' && (x.cost === undefined || x.q.sell > x.cost))
     .sort((a, b) => b.q.sell - a.q.sell)[0];
-  if (dear) return { kind: 'Prices', icon: `ui.icon.good.${dear.g}`, text: `Your ${name(dear.g)} sells well here: ${dear.q.sell} each.` };
+  if (dear) return { kind: 'Prices', icon: `ui.icon.good.${dear.g}`, text: `Your ${name(dear.g)} ${name(dear.g).endsWith('s') ? 'sell' : 'sells'} well here: ${dear.q.sell} each.` };
   const fresh = newsAt(content, state, settlements, town.id).find((n) => !(state.captain?.heard ?? []).includes(n.id));
   if (fresh) return { kind: 'News', icon: 'ui.icon.morale', text: `${newsText(content, fresh, settlements.find((x) => x.id === fresh.settlementId)?.name ?? town.name)} The tavern has more.` };
   const made = portTrade(content, town).exports[0];

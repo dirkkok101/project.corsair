@@ -24,7 +24,7 @@ import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { PortNotice, Service } from './port';
-import { cargoUsed, closedTo, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, closedTo, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -495,10 +495,12 @@ async function main() {
     // Candidates are ranked on the straight-line distance first; only the best few have their lanes found
     // (finding a lane is the slow part), then they are ranked again on the real days at sea.
     const straight = (a: PlacedSettlement, b: PlacedSettlement) => Math.hypot(a.x - b.x, a.y - b.y) / perDay;
-    type Candidate = { good: string; from: PlacedSettlement; to: PlacedSettlement; buy?: number; sell?: number; profit?: number; score: number };
+    type Candidate = { good: string; from: PlacedSettlement; to: PlacedSettlement; buy?: number; sell?: number; profit?: number; pays?: number; score: number };
     const priced: Candidate[] = [];
     const unpriced: Candidate[] = [];
     const worth = (id: string) => content.goods.find((x) => x.id === id)?.basePrice ?? 0;
+    // The merchant buys only what his purse covers: a full one, by the port's people (its size is common knowledge).
+    const purseAt = (s: PlacedSettlement) => purseFull(content, townOf(content, sim.state, s).people);
     // Ports closed to her (at war with her flag, or that she made an enemy of) are no voyage, nor a cove she hasn't found.
     const open = settlements.filter((s) => {
       const why = closedTo(content, sim.state, s);
@@ -507,23 +509,28 @@ async function main() {
     for (const g of content.goods.filter((x) => !x.staple)) {
       for (const from of open) {
         for (const to of open) {
-          if (from === to) continue;
+          // Selling where she lies is the merchant's business, not a voyage.
+          if (from === to || to.id === me.docked) continue;
           const buy = known[from.id]?.prices[g.id]?.buy;
           const seen = known[to.id]?.prices[g.id];
           const days = Math.max(0.5, toStart(from) + straight(from, to));
           if (buy !== undefined && seen?.sell !== undefined) {
-            const units = Math.min(room, Math.floor(gold / buy));
+            const carried = Math.min(room, Math.floor(gold / buy));
+            const paid = Math.floor(purseAt(to) / seen.sell);
+            const units = Math.min(carried, paid);
             if (units < 1 || seen.sell <= buy) continue;
             const sag = 0.125 * Math.min(1, units / Math.max(1, seen.depth ?? 99));
             const profit = Math.round((units * (seen.sell * (1 - sag) - buy)) / 10) * 10;
-            if (profit > 0) priced.push({ good: g.id, from, to, buy, sell: seen.sell, profit, score: profit / days });
+            if (profit > 0) priced.push({ good: g.id, from, to, buy, sell: seen.sell, profit, ...(paid < carried ? { pays: paid } : {}), score: profit / days });
           } else if (
             // Leads (prices unseen) only within a few days' sail, so the list stays near enough to act on.
             straight(from, to) * perDay <= 360 &&
             tradeLean(content, from, g.id) === 'exports' &&
             tradeLean(content, to, g.id) === 'wants'
           ) {
-            unpriced.push({ good: g.id, from, to, score: worth(g.id) / days });
+            // Ranked on what a full hold would fetch there, as far as his purse goes.
+            const paid = Math.floor(purseAt(to) / Math.max(1, worth(g.id)));
+            unpriced.push({ good: g.id, from, to, ...(paid < room ? { pays: paid } : {}), score: (Math.min(room, paid) * worth(g.id)) / days });
           }
         }
       }
@@ -535,7 +542,7 @@ async function main() {
       const bought = me.docked === c.from.id || (me.cargo[c.good] ?? 0) > 0;
       return length === undefined
         ? undefined
-        : { good: c.good, from: c.from, to: c.to, go: bought ? c.to : c.from, daysToStart: toStart(c.from), days: length / perDay, ...risk(c.from.id, c.to.id) };
+        : { good: c.good, from: c.from, to: c.to, go: bought ? c.to : c.from, daysToStart: toStart(c.from), days: length / perDay, ...(c.pays !== undefined ? { pays: c.pays } : {}), ...risk(c.from.id, c.to.id) };
     };
     const trades = priced
       .sort((a, b) => b.score - a.score)

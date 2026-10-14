@@ -923,7 +923,12 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   await expect(page.locator('.battle-ledger')).toContainText('Your ship: hull');
   await page.screenshot({ path: 'test-results/battle-report.png' });
   if (outcome === 'struck' || outcome === 'boarded') {
-    // One button does the sensible thing, a merchant let go by default, saying what that means.
+    // One button does the sensible thing, saying what that means: she is kept when keeping her is best, else a
+    // merchant is let go.
+    if (await page.locator('.fate-keep.best').count()) {
+      await expect(page.locator('.plunder-go')).toContainText(/into the fleet · Enter/i);
+      await page.locator('.fate-release').click();
+    }
     await expect(page.locator('.plunder-go')).toContainText(/let her go · Enter/i);
     await expect(page.locator('.plunder')).toContainText('thinks a little better of you');
     // Each fate is a card that says what it costs.

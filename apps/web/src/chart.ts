@@ -165,6 +165,8 @@ export interface PlannedTrade {
   /** Days to sail there from here, then on to sell. */
   daysToStart: number;
   days: number;
+  /** How many his purse pays for at `to`, when it is fewer than she would carry. */
+  pays?: number;
   /** Pirate waters along the way, and the haven whose waters they are. */
   risk: 'low' | 'some' | 'high';
   haven: string;
@@ -417,12 +419,14 @@ export function createCharts(
     `<span class="risk-${t.risk}">${PIRATES[t.risk]}${t.risk === 'low' ? '' : `: ${t.risk === 'high' ? 'passes' : 'skirts'} ${t.haven}`}</span>`;
   // Set course names where it goes: to buy, or (the buying done) to sell.
   const go = (to: PlacedSettlement) => `<span class="chart-plan-go">Set course: ${to.name}</span>`;
+  // A small port's merchant can't pay for a whole hold: said, so the voyage isn't a surprise.
+  const purse = (t: { pays?: number }) => (t.pays !== undefined ? ` · <span class="risk-some">his purse pays for about ${t.pays}</span>` : '');
   const showPlan = () => {
     const plan = market.plan();
     const rows = plan.trades
       .map(
         (t) =>
-          `<button class="chart-plan-row" data-port="${t.go.id}" title="Sets your course to ${t.go.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)} · ${pirates(t)}</span>${go(t.go)}</button>`,
+          `<button class="chart-plan-row" data-port="${t.go.id}" title="Sets your course to ${t.go.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)}${purse(t)} · ${pirates(t)}</span>${go(t.go)}</button>`,
       )
       .join('');
     const contracts = plan.contracts
@@ -435,7 +439,7 @@ export function createCharts(
     const leads = plan.leads
       .map(
         (t) =>
-          `<button class="chart-plan-row lead" data-port="${t.go.id}" title="Sets your course to ${t.go.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)} · ${pirates(t)} · call to learn the prices</span>${go(t.go)}</button>`,
+          `<button class="chart-plan-row lead" data-port="${t.go.id}" title="Sets your course to ${t.go.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: made at ${t.from.name}, needed at ${t.to.name}<br>${days(t.daysToStart + t.days)}${purse(t)} · ${pirates(t)} · call to learn the prices</span>${go(t.go)}</button>`,
       )
       .join('');
     planner.innerHTML =
