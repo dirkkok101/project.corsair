@@ -699,6 +699,12 @@ export async function createSeaRenderer(
       worldShips.visible = false;
       fx.object.visible = true;
       fx.reset();
+      // The smoke of the map's distant fights ages only on the map: left, it would hang frozen over this one.
+      for (const p of smokes) {
+        smokeLayer.remove(p.sprite);
+        p.sprite.material.dispose();
+      }
+      smokes.length = 0;
       sinkingFrom = undefined;
       falls.clear();
       fallsSeen = -Infinity;
