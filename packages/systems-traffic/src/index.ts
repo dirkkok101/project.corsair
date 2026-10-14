@@ -119,9 +119,9 @@ export function createTrafficSystem(
       return { to: marks.find((s) => s.id === pick), good: undefined };
     }
     if (ai.role === 'patrol') {
-      // A nation she has wronged herself sends some of its patrols to the port nearest her. (At war with her flag
-      // alone, its warships take her when they meet her: sent after a new captain from the first days, they
-      // finished her before she had a fighting chance.)
+      // A nation she has wronged herself sends some of its patrols to the port nearest her. (At war with her flag,
+      // its warships take her when they meet her only once she has attacked its ships: sent after a new captain
+      // from the first days, they finished her before she had a fighting chance.)
       const me = Object.values(state.ships).find((s) => !s.ai);
       const wronged = me && !me.docked && (state.captain?.standing?.[ai.nation] ?? 0) <= content.combat.standing.hostile;
       if (wronged && rng.float() < t.seek.chance) {
@@ -761,7 +761,9 @@ export function createTrafficSystem(
   const hunts = (state: WorldState, ship: Ship) =>
     (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) ||
     (ship.ai!.role === 'patrol' &&
-      (standingWith(state, ship.ai!.nation) <= cb.standing.hostile || Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation))));
+      (standingWith(state, ship.ai!.nation) <= cb.standing.hostile ||
+        // At war with her flag, only once she has made herself its enemy: a new captain they let pass.
+        (Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation)) && standingWith(state, ship.ai!.nation) <= cb.standing.warHunt)));
 
   /**
    * Close on the player: straight at them where the wind allows, close-hauled toward them where it

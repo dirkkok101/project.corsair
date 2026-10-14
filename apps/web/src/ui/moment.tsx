@@ -290,7 +290,7 @@ export function letterMeans(kind: 'war' | 'peace', a: string, b: string, marques
   if (flag === a || flag === b) {
     const foe = flag === a ? b : a;
     return kind === 'war'
-      ? `${COUNTRY[foe]}'s ports are closed to you now, and her warships will hunt an ${ADJECTIVE[flag]} ship. ${ADJECTIVE[flag]} governors grant letters of marque against her.`.replace(/an (?=[^AEIOU])/, 'a ')
+      ? `${COUNTRY[foe]}'s ports are closed to you now, and once you attack her ships, her warships will hunt you. ${ADJECTIVE[flag]} governors grant letters of marque against her.`
       : `${COUNTRY[foe]}'s ports open to you again, and her warships leave your flag be. Taking her ships is piracy now.`;
   }
   const mine = marques.includes(a) ? a : marques.includes(b) ? b : undefined;

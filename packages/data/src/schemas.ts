@@ -586,6 +586,11 @@ export const combatSchema = z.object({
     attack: z.number(),
     pirate: z.number(),
     hostile: z.number(),
+    /**
+     * At war with her flag, a nation's warships hunt her only once her standing with it is this low (she has
+     * attacked its ships): a new captain they let pass. At `hostile`, its warships hunt her whatever her flag.
+     */
+    warHunt: z.number(),
     refused: z.number(),
     /** Nations at war with a ship's nation approve when the player beats her; twice for a warship taken. */
     enemyWin: z.number(),

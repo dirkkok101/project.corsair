@@ -220,6 +220,7 @@
     "attack": -20,
     "pirate": 3,
     "hostile": -30,
+    "warHunt": -10,
     "refused": -50,
     "enemyWin": 5,
     "warshipTaken": 2,

@@ -662,8 +662,8 @@ test('moments: war comes as a letter in port, and a famous pirate seen the first
   await expect(letter.locator('.moment-who')).toHaveText('England and France are at war');
   // Port Royal's governor is party to the war: the letter offers the way in to him.
   await expect(letter.getByRole('button', { name: 'To the governor' })).toBeVisible();
-  // An English captain's own war: France's ports close to her, and her warships hunt the English flag.
-  await expect(letter.locator('.moment-means')).toContainText("France's ports are closed to you now, and her warships will hunt an English ship");
+  // An English captain's own war: France's ports close to her, and her warships hunt her once she attacks France's ships.
+  await expect(letter.locator('.moment-means')).toContainText("France's ports are closed to you now, and once you attack her ships, her warships will hunt you");
   await page.screenshot({ path: 'test-results/moment-letter.png' });
   await page.keyboard.press('Enter');
   await expect(page.locator('.moment')).toHaveCount(0);

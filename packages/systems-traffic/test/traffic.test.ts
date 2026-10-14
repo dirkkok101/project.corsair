@@ -416,7 +416,8 @@ describe('plague at sea', () => {
     expect(next.state.towns![to]!.plague).toBeGreaterThan(next.state.tick);
     expect(next.events().some((e) => e.type === 'Plague' && e.entityIds[0] === to && e.payload.ship === carrier.id)).toBe(true);
     expect(next.state.ships[carrier.id]!.ai!.carries).toBeUndefined();
-  });
+    // Four days of the whole world: past vitest's 5 s default on a busy machine.
+  }, 60_000);
 });
 
 describe('choosing a target at sea', () => {
@@ -451,7 +452,8 @@ describe('choosing a target at sea', () => {
     const merchant = (k: number, cargo: Record<string, number> = { sugar: 20 }): Ship => ({ ...on(merchant0, k), cargo });
     const patrol = (k: number): Ship => on(patrol0, k);
     const player = (k: number, outfit: Partial<Ship> = {}): Ship => ({ ...sim.state.ships.player!, ...along(k), guns: 10, crew: 75, docked: undefined, ...outfit });
-    const alone = (ships: Ship[]) => createSim({ ...sim.state, ships: Object.fromEntries(ships.map((x) => [x.id, x])) }, [traffic()]);
+    const alone = (ships: Ship[], captain: Partial<NonNullable<WorldState['captain']>> = {}) =>
+      createSim({ ...sim.state, captain: { ...sim.state.captain!, ...captain }, ships: Object.fromEntries(ships.map((x) => [x.id, x])) }, [traffic()]);
     return { pirate, merchant, patrol, player, alone, along };
   };
   const ARMED = { guns: 18, crew: 150 };
@@ -526,6 +528,19 @@ describe('choosing a target at sea', () => {
     };
     expect(chased((harbour + reach) / 2)).toBe(false);
     expect(chased(reach + 3)).toBe(true);
+  });
+
+  it('at war with her flag, a warship lets a new captain pass, and hunts her once she has attacked its ships', () => {
+    const t = setting();
+    // An English patrol, and a Spanish captain (Spain is at war with England in 1660).
+    const chased = (england: number) => {
+      const pat = t.patrol(12);
+      const sim = t.alone([pat, t.player(8)], { nation: 'spain', standing: { england } });
+      sim.step(30);
+      return Boolean(sim.state.ships[pat.id]!.ai!.chasing);
+    };
+    expect(chased(0)).toBe(false);
+    expect(chased(content.combat.standing.attack)).toBe(true);
   });
 
   it('a patrol that sights a pirate gives chase', () => {
