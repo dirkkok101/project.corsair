@@ -45,6 +45,16 @@ const SHIP_SCALE = 1.6;
 const MODEL_SCALE = (96 / 3.7 / 24) * SHIP_SCALE;
 /** Camera distance from the ship, in tiles: from close aboard to the whole region. */
 const ZOOM = { min: 9, max: 630, start: 32 };
+/** The chase camera holds its heading while hers stays within this of it, so small helm corrections don't swing it. */
+const CHASE_SLACK_DEG = 20;
+/** Past the slack it catches up over about this (s); on a steady course it settles back astern over this. */
+const CHASE_CATCH_S = 0.35;
+const CHASE_SETTLE_S = 3;
+/** It rises to keep this much (tiles) above the land between it and her, trees and roofs included: fast, and settles slowly; never steeper than this. */
+const CHASE_CLEAR = 3.5;
+const CHASE_RISE_S = 0.25;
+const CHASE_FALL_S = 1.5;
+const CHASE_MAX_PITCH = (62 * Math.PI) / 180;
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
 const CLOUDS_FROM = [70, 160];
 /** Town names show within this many tiles of the camera's target. */
@@ -280,6 +290,40 @@ export async function createSeaRenderer(
   let chase = false;
   /** The heading the camera from astern looks along (the player's, at sea or in battle). */
   let viewHeading = 0;
+  // The chase camera's own heading and lift: it follows her lazily, and rises over land between it and her.
+  let camYaw: number | undefined;
+  let camLift = 0;
+  /**
+   * The chase camera's heading: held while hers stays within CHASE_SLACK_DEG of it (a helm's small corrections
+   * don't swing the view); past that, turned just enough to bring her back to the edge, smoothly; and on a steady
+   * course drifting back to dead astern.
+   */
+  const chaseYaw = (heading: number, dt: number) => {
+    if (camYaw === undefined) camYaw = heading;
+    const diff = ((heading - camYaw + 540) % 360) - 180;
+    const beyond = Math.abs(diff) - CHASE_SLACK_DEG;
+    camYaw += beyond > 0 ? Math.sign(diff) * beyond * Math.min(1, dt / CHASE_CATCH_S) : diff * Math.min(1, dt / CHASE_SETTLE_S);
+    camYaw = (camYaw + 360) % 360;
+    return camYaw;
+  };
+  /**
+   * The pitch that keeps the line from her to the camera clear of the land behind her by CHASE_CLEAR tiles, eased
+   * up fast and down slowly so a passing headland doesn't set it bobbing.
+   */
+  const chasePitch = (pitch: number, view: number, yawDeg: number, dt: number) => {
+    const back = (yawDeg * Math.PI) / 180;
+    // Astern of her along the boom: her heading's opposite.
+    const [bx, bz] = [-Math.sin(back), Math.cos(back)];
+    let need = pitch;
+    const reach = view * Math.cos(pitch);
+    for (let d = 1; d <= reach + 3; d += 1) {
+      const h = Math.max(0, ground.heightAt(target.x + bx * d, target.z + bz * d));
+      if (h > 0) need = Math.max(need, Math.atan2(h + CHASE_CLEAR - 0.6, d));
+    }
+    const lift = Math.min(CHASE_MAX_PITCH, need) - pitch;
+    camLift += (lift - camLift) * Math.min(1, dt / (lift > camLift ? CHASE_RISE_S : CHASE_FALL_S));
+    return pitch + Math.max(0, camLift);
+  };
   const target = new THREE.Vector3();
   const sunDir = new THREE.Vector3();
   const zenith = new THREE.Color();
@@ -686,9 +730,10 @@ export async function createSeaRenderer(
     // Camera: overhead (steeper the further out) or from astern, following the player.
     target.set(me.x, 0, me.y);
     const zt = Math.log(distance / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const pitch = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
-    viewHeading = me.headingDeg;
-    finishFrame(distance, pitch, chase ? (-me.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
+    const base = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
+    viewHeading = chase ? chaseYaw(me.headingDeg, dt) : me.headingDeg;
+    const pitch = chase ? chasePitch(base, distance, viewHeading, dt) : base;
+    finishFrame(distance, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt);
   };
 
   /** The sea battle, on the same sea as the map (its positions are world tiles). */
@@ -842,9 +887,11 @@ export async function createSeaRenderer(
     if (chase) target.set(player.x, 0, player.y);
     // The sea's camera angle for this zoom.
     const zt = Math.log(Math.max(ZOOM.min, battleView * SHIP_SCALE) / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const pitch = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
-    viewHeading = player.headingDeg;
-    finishFrame(chase ? Math.min(battleView, 30) : battleView, pitch, chase ? (-player.headingDeg * Math.PI) / 180 : 0, wind, sea, t, dt);
+    const base = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
+    const span = chase ? Math.min(battleView, 30) : battleView;
+    viewHeading = chase ? chaseYaw(player.headingDeg, dt) : player.headingDeg;
+    const pitch = chase ? chasePitch(base, span, viewHeading, dt) : base;
+    finishFrame(span, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt);
   };
 
   return {
