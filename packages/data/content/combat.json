@@ -215,6 +215,7 @@
     "patrolOdds": 0.6,
     "rescueBonus": 3,
     "skirmishHours": 18,
+    "skirmishWear": { "$comment": "Over a whole fight in her sight, against a foe with all the strength: the share of her hull, sails and men she loses (by her foe's share of their strength, so two equals each lose half this). Joining part way, she finds them as worn as the fight has made them.", "hull": 0.6, "sails": 0.6, "crew": 0.3 },
     "rescueStanding": 10
   },
   "standing": {

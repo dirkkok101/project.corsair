@@ -886,11 +886,31 @@ export function createTrafficSystem(
    * winner is mauled and leaves off hunting a while, and it is news from the nearest port. Pirates
    * taking a nation's merchant raise its pirate pressure.
    */
+  /** An AI ship's strength in a fight between AI ships: men, guns, her role's odds, her captain, and her hull still sound. */
+  const fightStrength = (s: Ship) =>
+    (s.crew ?? content.ships[s.classId]!.minCrew) *
+    (1 + content.ships[s.classId]!.guns / 10) *
+    cb.autoResolve[s.ai!.role] *
+    fighting(content, s) *
+    ((s.hull ?? shipStats(content, s).hullMax) / shipStats(content, s).hullMax);
+  /** Hove to in a fight in her sight: worn down as far as the fight has gone, by her foe's share of their strength. */
+  const worn = (ship: Ship, tick: number): Ship => {
+    const k = ship.ai?.skirmish;
+    if (!k?.start || k.from === undefined || k.foeShare === undefined) return ship;
+    const w = cb.hunt.skirmishWear;
+    const gone = Math.min(1, (tick - k.from) / Math.max(1, k.until - k.from)) * k.foeShare;
+    const max = shipStats(content, ship).hullMax;
+    return {
+      ...ship,
+      hull: Math.max(max * 0.1, k.start.hull - max * w.hull * gone),
+      sailCondition: Math.max(10, k.start.sails - 100 * w.sails * gone),
+      crew: Math.max(content.ships[ship.classId]!.minCrew, Math.round(k.start.crew * (1 - w.crew * gone))),
+    };
+  };
   const seaFight = (state: WorldState, ships: Record<string, Ship>, a: Ship, b: Ship, tick: number, rng: Rng) => {
     const ar = cb.autoResolve;
-    const strength = (s: Ship) => (s.crew ?? content.ships[s.classId]!.minCrew) * (1 + content.ships[s.classId]!.guns / 10) * ar[s.ai!.role] * fighting(content, s);
-    const sa = strength(a);
-    const sb = strength(b);
+    const sa = fightStrength(a);
+    const sb = fightStrength(b);
     const [winner, loser] = rng.float() < sa / (sa + sb) ? [a, b] : [b, a];
     const out = { ...ships };
     delete out[loser.id];
@@ -1531,7 +1551,7 @@ export function createTrafficSystem(
             next = fought.state;
             ships = fought.ships;
             events.push(...fought.events);
-          } else ships = { ...ships, [id]: { ...ship, speed: 0 } };
+          } else ships = { ...ships, [id]: { ...worn(ship, tick), speed: 0 } };
           continue;
         }
         // The hunt (pirates and patrols): a chase of the player closes to a sea battle; a chase of another
@@ -1577,10 +1597,14 @@ export function createTrafficSystem(
             } else if (p && Math.hypot(prey.x - p.x, prey.y - p.y) <= t.sightTiles) {
               // Within the player's sight the fight plays out on the map for a while, and she can take a hand.
               const until = tick + Math.round((cb.hunt.skirmishHours / 24) * tpd);
+              // Each wears down as the fight goes, by the other's share of their strength.
+              const [hs, ps] = [fightStrength(ship), fightStrength(prey)];
+              const stood = (s: Ship) => ({ hull: s.hull ?? shipStats(content, s).hullMax, sails: s.sailCondition ?? 100, crew: s.crew ?? content.ships[s.classId]!.minCrew });
+              const fight = (s: Ship, foe: string, foeShare: number) => ({ with: foe, until, from: tick, start: stood(s), foeShare });
               ships = {
                 ...ships,
-                [id]: { ...ship, speed: 0, ai: { ...ship.ai, target: undefined, skirmish: { with: prey.id, until } } },
-                [prey.id]: { ...prey, speed: 0, ai: { ...prey.ai!, target: undefined, skirmish: { with: id, until } } },
+                [id]: { ...ship, speed: 0, ai: { ...ship.ai, target: undefined, skirmish: fight(ship, prey.id, ps / (hs + ps)) } },
+                [prey.id]: { ...prey, speed: 0, ai: { ...prey.ai!, target: undefined, skirmish: fight(prey, id, hs / (hs + ps)) } },
               };
               events.push({ type: 'SkirmishBegun', entityIds: [id, prey.id], payload: { x: prey.x, y: prey.y } });
             } else {

@@ -584,6 +584,8 @@ export const combatSchema = z.object({
     patrolOdds: z.number().positive(),
     rescueBonus: z.number().positive(),
     skirmishHours: z.number().positive(),
+    /** Over a whole fight in sight against all the strength: the share of hull, sails and men a ship loses (scaled by her foe's share). */
+    skirmishWear: z.object({ hull: z.number().min(0).max(1), sails: z.number().min(0).max(1), crew: z.number().min(0).max(1) }),
     rescueStanding: z.number(),
   }),
   /** Standing: attacking a nation's ship costs `attack`; sinking or taking a pirate earns `pirate` with every nation. */

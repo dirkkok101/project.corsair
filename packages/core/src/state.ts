@@ -87,7 +87,14 @@ export interface AiCaptain {
    * Hove to and fighting another AI ship within the player's sight, until `until`: the player can watch,
    * or sail in and take a hand.
    */
-  skirmish?: { with: string; until: number };
+  skirmish?: {
+    with: string;
+    until: number;
+    /** When it began, how she stood then, and her foe's share of their strength: she wears down by it as it goes. */
+    from?: number;
+    start?: { hull: number; sails: number; crew: number };
+    foeShare?: number;
+  };
 }
 
 export interface Ship {

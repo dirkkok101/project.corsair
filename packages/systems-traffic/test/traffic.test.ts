@@ -551,6 +551,30 @@ describe('choosing a target at sea', () => {
     expect(sim.state.ships[pat.id]!.ai!.target).toBe(t.pirate().id);
   });
 
+  it('a fight in her sight wears both ships down as it goes, the weaker the more: joining, she finds them as the fight has left them', () => {
+    const t = setting();
+    const seen = t.alone([t.pirate(), t.merchant(1.5), t.player(14, ARMED)]);
+    seen.step(30);
+    const [pirate, merchant] = [t.pirate().id, t.merchant(1.5).id];
+    const start = { pirate: seen.state.ships[pirate]!, merchant: seen.state.ships[merchant]! };
+    expect(start.pirate.ai!.skirmish).toBeDefined();
+    // Half way through.
+    seen.step(Math.round((content.combat.hunt.skirmishHours / 24 / 2) * day));
+    const lost = (id: string, s: Ship) => {
+      const now = seen.state.ships[id]!;
+      const max = shipStats(content, s).hullMax;
+      return { hull: ((s.hull ?? max) - now.hull!) / max, crew: (s.crew! - now.crew!) / s.crew! };
+    };
+    const p = lost(pirate, start.pirate);
+    const m = lost(merchant, start.merchant);
+    expect(p.hull).toBeGreaterThan(0);
+    expect(m.hull).toBeGreaterThan(0);
+    expect(seen.state.ships[merchant]!.sailCondition).toBeLessThan(100);
+    // The pirate is the stronger: the merchant loses the larger share.
+    expect(m.hull).toBeGreaterThan(p.hull);
+    expect(m.crew).toBeGreaterThan(p.crew);
+  });
+
   it("a fight within the player's sight plays out: both heave to until it is settled, and out of sight at once", () => {
     const t = setting();
     const seen = t.alone([t.pirate(), t.merchant(1.5), t.player(14, ARMED)]);
