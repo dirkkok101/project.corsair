@@ -236,7 +236,9 @@ function Merchant({
           : ''
       }${fromPlunder ? ` ${fromPlunder} are plunder: their gold goes to the crew's chest.` : ''}`;
     };
-    const margin = best ? best.sell - q.buy : 0;
+    // The full hold's margin: each unit bought raises his price, so it is the average paid that must sell for more.
+    const fill = tradePreview(content, town, g.id, stock, 'Buy', ALL, { gold, room, held, cash: purse }, edge);
+    const margin = best ? best.sell - (fill.units ? fill.total / fill.units : q.buy) : 0;
     return { g, stock, q, held, tag, story, cost, plunder, best, depth, verdict, hint, why, say, margin, canBuy: stock >= 1 && gold >= q.buy && room > 0, canSell: held >= 1 && purse >= q.sell };
   });
   const hover = (say: (s: 'Buy' | 'Sell', qty: number) => string, s: 'Buy' | 'Sell', qty: number) => ({ onMouseEnter: () => setPreview(say(s, qty)), onMouseLeave: () => setPreview(undefined) });

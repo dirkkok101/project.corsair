@@ -167,6 +167,11 @@ export interface PlannedTrade {
   days: number;
   /** How many his purse pays for at `to`, when it is fewer than she would carry. */
   pays?: number;
+  /**
+   * Cargo already aboard: how much. Then `buy` is what she paid a unit (0 for plunder), the voyage starts where she
+   * is, and `from` is only where she lies.
+   */
+  held?: number;
   /** Pirate waters along the way, and the haven whose waters they are. */
   risk: 'low' | 'some' | 'high';
   haven: string;
@@ -426,7 +431,7 @@ export function createCharts(
     const rows = plan.trades
       .map(
         (t) =>
-          `<button class="chart-plan-row" data-port="${t.go.id}" title="Sets your course to ${t.go.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: buy at ${t.from.name} (${t.buy}), sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold a hold</span> · ${days(t.daysToStart + t.days)}${purse(t)} · ${pirates(t)}</span>${go(t.go)}</button>`,
+          `<button class="chart-plan-row" data-port="${t.go.id}" title="Sets your course to ${t.go.name}">${keyMark(`ui.icon.good.${t.good}`)}<span><b>${goodName(t.good)}</b>: ${t.held ? `${t.held} in your hold (paid ${t.buy})` : `buy at ${t.from.name} (${t.buy})`}, sell at ${t.to.name} (${t.sell})<br><span class="gain">about +${t.profit.toLocaleString()} gold${t.held ? '' : ' a hold'}</span> · ${days(t.daysToStart + t.days)}${purse(t)} · ${pirates(t)}</span>${go(t.go)}</button>`,
       )
       .join('');
     const contracts = plan.contracts

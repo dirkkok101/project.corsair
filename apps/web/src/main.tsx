@@ -478,9 +478,9 @@ async function main() {
     };
     const havens = settlements.filter((s) => s.nation === 'pirate');
     const reach = content.traffic.pirateRangeTiles;
-    const risk = (a: string, b: string): { risk: 'low' | 'some' | 'high'; haven: string } => {
-      const r = lanes.route(a, b) ?? [];
-      // The lane's nearest pass by a haven: how near, and whose.
+    const risk = (a: string, b: string) => riskAlong(lanes.route(a, b) ?? []);
+    const riskAlong = (r: [number, number][]): { risk: 'low' | 'some' | 'high'; haven: string } => {
+      // The way's nearest pass by a haven: how near, and whose.
       let near = Infinity;
       let haven = '';
       for (const p of r) {
@@ -552,6 +552,37 @@ async function main() {
         return t ? [{ ...t, buy: c.buy!, sell: c.sell!, profit: c.profit! }] : [];
       })
       .sort((a, b) => b.profit / perTrip(b) - a.profit / perTrip(a));
+    // Cargo aboard (her gold spent on it): where it sells above what she paid, as far as the merchant's purse goes,
+    // sailing from where she is. Plunder cost nothing.
+    const length = (r: [number, number][] | undefined) => (r ? r.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - r[i]![0], p[1] - r[i]![1]), 0) : undefined);
+    const aboard = content.goods
+      .filter((g) => !g.staple && (me.cargo[g.id] ?? 0) > 0)
+      .flatMap((g) => {
+        const held = me.cargo[g.id]!;
+        const cost = (me.paid?.[g.id] ?? 0) / held;
+        return open.flatMap((to) => {
+          const sell = known[to.id]?.prices[g.id]?.sell;
+          if (to.id === me.docked || sell === undefined || sell <= cost) return [];
+          const paid = Math.floor(purseAt(to) / sell);
+          const units = Math.min(held, paid);
+          const sag = 0.125 * Math.min(1, units / Math.max(1, known[to.id]!.prices[g.id]!.depth ?? 99));
+          const profit = Math.round((units * (sell * (1 - sag) - cost)) / 10) * 10;
+          return units > 0 && profit > 0 ? [{ good: g.id, to, cost, sell, profit, held, ...(paid < held ? { pays: paid } : {}), straight: Math.hypot(to.x - me.x, to.y - me.y) / perDay }] : [];
+        });
+      })
+      .sort((a, b) => b.profit / Math.max(0.5, b.straight) - a.profit / Math.max(0.5, a.straight))
+      // The best port for each good aboard.
+      .filter((c, i, all) => all.findIndex((o) => o.good === c.good) === i)
+      .flatMap((c) => {
+        const here = settlements.find((s) => s.id === me.docked);
+        const way = here ? lanes.route(here.id, c.to.id) : lanes.path([me.x, me.y], lanes.berth(c.to.id) ?? [c.to.x, c.to.y]);
+        const miles = length(way);
+        if (miles === undefined) return [];
+        // `from` is where she lies (at sea, the port she sells at: the row names no buying port).
+        return [{ good: c.good, from: here ?? c.to, to: c.to, go: c.to, daysToStart: 0, days: miles / perDay, buy: Math.round(c.cost), sell: c.sell, profit: c.profit, held: c.held, ...(c.pays !== undefined ? { pays: c.pays } : {}), ...riskAlong(way!) }];
+      });
+    trades.push(...aboard);
+    trades.sort((a, b) => b.profit / perTrip(b) - a.profit / perTrip(a));
     // One lead a good, so the leads are worth reading.
     const leads = unpriced
       .sort((a, b) => b.score - a.score)
