@@ -29,6 +29,15 @@ const CONFIG = {
   hillsAbove: 250,
   mountainAbove: 800,
   elevationBands: [0, 50, 150, 300, 600, 1000, 1500, 2200], // band i starts at this height
+  // Small islands moved off a neighbour where the map's channel is too narrow to sail (a game liberty): the island
+  // holding (lon, lat) shifts dx, dy tiles; `south` of a latitude only, where the map joins it to its neighbour.
+  // A settlement on one moves with it in settlements.json, by hand.
+  islandMoves: [
+    // Tortuga lies 2 tiles off Hispaniola at this scale: 8 tiles of channel lets a ship work between them.
+    { name: 'Tortuga', lon: -72.78, lat: 20.05, dx: 0, dy: -6 },
+    // Nevis is joined to St Kitts by a tile of land here (the Narrows are 3 km): parted by a channel she can sail.
+    { name: 'Nevis', lon: -62.59, lat: 17.14, dx: 1, dy: 4, south: 17.217 },
+  ] as { name: string; lon: number; lat: number; dx: number; dy: number; south?: number }[],
 };
 
 // Indices must match `Tile` in packages/data/src/tilemap.ts; colours are corsair.gpl, for viewing only.
@@ -113,6 +122,45 @@ for (let ty = 0; ty < H; ty++) {
     height[i] = landCount ? landSum / landCount : 0;
     depth[i] = landCount < s * s ? waterSum / (s * s - landCount) : 0;
   }
+}
+
+// Islands moved (CONFIG.islandMoves): the land holding the point, flood-filled, shifted with its heights; open sea
+// where it was.
+for (const move of CONFIG.islandMoves) {
+  const sx = Math.floor((move.lon - bounds.lonMin) / dLon);
+  const sy = Math.floor((bounds.latMax - move.lat) / dLat);
+  const island: number[] = [];
+  const seen = new Uint8Array(W * H);
+  const queue = [sy * W + sx];
+  if (!land[queue[0]!]) throw new Error(`${move.name}: (${move.lon}, ${move.lat}) is not on land`);
+  seen[queue[0]!] = 1;
+  while (queue.length) {
+    const i = queue.pop()!;
+    island.push(i);
+    if (island.length > 5000) throw new Error(`${move.name}: the land there is no small island`);
+    const [x, y] = [i % W, Math.floor(i / W)];
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]] as const) {
+      const j = ny * W + nx;
+      const inside = move.south === undefined || bounds.latMax - (ny + 0.5) * dLat <= move.south;
+      if (nx >= 0 && ny >= 0 && nx < W && ny < H && land[j] && !seen[j] && inside) {
+        seen[j] = 1;
+        queue.push(j);
+      }
+    }
+  }
+  const heights = island.map((i) => height[i]!);
+  for (const i of island) {
+    land[i] = 0;
+    height[i] = 0;
+    depth[i] = -100;
+  }
+  island.forEach((i, k) => {
+    const j = i + move.dy * W + move.dx;
+    land[j] = 1;
+    height[j] = heights[k]!;
+    depth[j] = 0;
+  });
+  console.log(`moved ${move.name} (${island.length} tiles) by ${move.dx}, ${move.dy}`);
 }
 
 const isLand = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && land[y * W + x] === 1;
