@@ -415,5 +415,10 @@ describe('oars', () => {
     const rowed = { ...content, ships: { ...content.ships, 'ship.sloop': { ...content.ships['ship.sloop']!, oars: 0.2 } } };
     const pace = content.ships['ship.sloop']!.speed * content.navigation.tilesPerSecondPerSpeedPoint * 0.2;
     expect(targetSpeed(rowed, sloop, wind)).toBeCloseTo(pace);
+    // Oars want men: full pace with crew.json rowers' share of her full crew, half with half that, none with none.
+    const rowers = content.ships['ship.sloop']!.maxCrew * content.crew.rowers.share;
+    expect(targetSpeed(rowed, { ...sloop, crew: rowers }, wind)).toBeCloseTo(pace);
+    expect(targetSpeed(rowed, { ...sloop, crew: rowers / 2 }, wind)).toBeCloseTo(pace / 2);
+    expect(targetSpeed(rowed, { ...sloop, crew: 0 }, wind)).toBe(0);
   });
 });

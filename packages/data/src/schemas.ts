@@ -50,6 +50,8 @@ export const navigationSchema = z.object({
   accelPerSecond: z.number().positive(),
   /** How fast a ship loses way toward a lower speed (as through a tack); accelPerSecond when unset. */
   decelPerSecond: z.number().positive().optional(),
+  /** Sails shot to nothing still draw this share (rags, a jury rig): she is slowed, never stopped. */
+  tornSailsFloor: z.number().min(0).max(1),
   sailSettings: z.record(z.enum(['furled', 'half', 'full']), z.number().min(0).max(1)),
   rigTurnFactor: z.record(rig, z.number().positive()),
   /**
@@ -347,6 +349,9 @@ export const combatSchema = z.object({
      * her way through a tack instead of stopping dead. */
     accelPerSecond: z.number().positive(),
     decelPerSecond: z.number().positive(),
+    /** In a fight, sails shot to nothing draw only this share: chain shot that strips her canvas all but stops her
+     * (oars aside). The world map keeps navigation's tornSailsFloor, so a beaten ship can still limp home. */
+    tornSailsFloor: z.number().min(0).max(1),
     /** How far apart the ships start, in battle tiles. */
     startApart: z.number().positive(),
     /** A fair start (attacked under way): both ships under way at least at this speed. */
@@ -856,6 +861,8 @@ export const crewSchema = z.object({
   manning: z.object({ fullManning: z.number().gt(1), reloadBonus: share01 }),
   /** Below a class's minimum crew, speed and turning scale down with the crew, to no less than this. */
   shortHandedFloor: share01,
+  /** She rows at full oared pace with `share` of her full crew at the oars, slower in proportion with fewer. */
+  rowers: z.object({ share: share01 }),
   /** Boarding strength times this, from morale 0 to morale 100. */
   boarding: z.object({ at0: z.number().positive(), at100: z.number().positive() }),
   /** AI crews' morale in a fight, by role. */

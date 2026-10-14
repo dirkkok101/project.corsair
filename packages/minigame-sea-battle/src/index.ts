@@ -2,7 +2,7 @@ import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
 import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, DifficultyLevel, TileMap } from '@corsair/data';
-import { angleOffWind, bestUpwindDeg, createNavigationSystem, normalizeDeg, rowingSpeed, sailingSpeed } from '@corsair/systems-navigation';
+import { angleOffWind, atTheOars, bestUpwindDeg, createNavigationSystem, normalizeDeg } from '@corsair/systems-navigation';
 
 // The sea battle (PRD section 9.1): two ships on a local map cut from the world where they met, in
 // the world's wind. The player steers and fires broadsides; the enemy is steered by her captain's
@@ -192,6 +192,26 @@ const EFFECT_SECONDS = 0.6;
  * The weather gauge: the ship to windward of the other (by more than `margin` of the distance between them) can
  * choose when to close; within it, neither has it.
  */
+/** Sailing in a fight: battle pace and handling, and torn sails that all but stop her. */
+function battleNavigation(content: ContentPack): ContentPack {
+  const b = content.combat.battle;
+  return {
+    ...content,
+    navigation: {
+      ...content.navigation,
+      tilesPerSecondPerSpeedPoint: b.tilesPerSecondPerSpeedPoint,
+      accelPerSecond: b.accelPerSecond,
+      decelPerSecond: b.decelPerSecond,
+      tornSailsFloor: b.tornSailsFloor,
+    },
+  };
+}
+
+/** Whether a side is making her way at the oars (her sails can't drive her as fast on this wind). */
+export function rowing(content: ContentPack, state: Pick<BattleState, 'wind' | 'ships'>, side: 'player' | 'enemy'): boolean {
+  return atTheOars(battleNavigation(content), state.ships[side] as unknown as Ship, state.wind);
+}
+
 export function weatherGauge(state: Pick<BattleState, 'wind' | 'ships'>, margin = 0.35): 'player' | 'enemy' | undefined {
   const { player, enemy } = state.ships;
   const rad = (state.wind.fromDeg * Math.PI) / 180;
@@ -207,15 +227,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const c = content.combat;
   // Battle pace and handling: the same sailing model, slower, so a crossing takes long enough to fight
   // in, and a ship that keeps her way through a tack.
-  const battleContent: ContentPack = {
-    ...content,
-    navigation: {
-      ...content.navigation,
-      tilesPerSecondPerSpeedPoint: c.battle.tilesPerSecondPerSpeedPoint,
-      accelPerSecond: c.battle.accelPerSecond,
-      decelPerSecond: c.battle.decelPerSecond,
-    },
-  };
+  const battleContent = battleNavigation(content);
   // The fight's own wind: the world's where they met, veering through the fight on the harder levels.
   const nav = createNavigationSystem(battleContent, setup.map, () => state.wind);
   const water = (x: number, y: number) => !isLand(tileAt(setup.map, x, y));
@@ -347,7 +359,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const m = content.crew.manning;
     const factor = manning < 1 ? 1 / manning : 1 - m.reloadBonus * Math.min(1, (manning - 1) / (m.fullManning - 1));
     // Her men at the sweeps aren't at the guns; bronze guns fired three times running must cool.
-    const rowing = rowingSpeed(content, ship) > sailingSpeed(content, ship, state.wind) ? c.upgrades.rowingReload : 1;
+    const rowing = atTheOars(battleContent, ship, state.wind) ? c.upgrades.rowingReload : 1;
     const hot = ship.overheats && ship.firedAt.filter((t) => seconds() - t <= c.upgrades.overheatSeconds).length >= 3 ? c.upgrades.overheatReload : 1;
     return c.guns.reloadSeconds * ship.reloadMult * factor * rowing * hot;
   };

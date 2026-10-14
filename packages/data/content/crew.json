@@ -26,6 +26,7 @@
   "healPerDay": 0.15,
   "manning": { "fullManning": 3, "reloadBonus": 0.25 },
   "shortHandedFloor": 0.4,
+  "rowers": { "$comment": "Oars want men: she rows at her full oared pace with 'share' of her full crew, slower with fewer (grape that cuts her crew down slows her at the oars), and not at all with none.", "share": 0.5 },
   "boarding": { "at0": 0.7, "at100": 1.2 },
   "enemyMorale": { "merchant": 45, "patrol": 65, "pirate": 70 },
   "volunteers": { "pirate": 0.25, "other": 0.1 }

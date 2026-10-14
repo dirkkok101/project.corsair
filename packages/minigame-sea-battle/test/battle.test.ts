@@ -508,6 +508,18 @@ describe('sea battle', () => {
     expect(landed(at(2.5, 270)).some((e) => e.place?.rake)).toBe(true);
   });
 
+  it('sails shot away all but stop her in a fight: a fluyt running from a frigate is caught', () => {
+    const near = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 5 } } };
+    const chase = createBattle(near, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.fluyt', undefined, 0.5), enemy: ship('ship.frigate', 'patrol', 0.9), seed: 4, bearingDeg: 0 });
+    for (let i = 0; i < 30 * 90 && !chase.result(); i++) chase.step(1, 'runner');
+    expect(chase.result()?.outcome).toBe('lost');
+    const her = chase.state.ships.player;
+    expect(her.sailCondition).toBe(0);
+    // Her rags draw only combat.json's battle floor (her point of sail takes more off, never adds): with the world
+    // map's floor she would still make 0.29 here.
+    expect(her.speed).toBeLessThan(content.ships['ship.fluyt']!.speed * content.combat.battle.tilesPerSecondPerSpeedPoint * content.combat.battle.tornSailsFloor * 1.5);
+  });
+
   it('swivels sweep the deck close in; chasers fire along her heading', () => {
     const swivelled = { ...content, ships: { ...content.ships, 'ship.sloop': { ...content.ships['ship.sloop']!, swivels: 4 } } };
     const close = createBattle({ ...swivelled, combat: { ...swivelled.combat, battle: { ...swivelled.combat.battle, startApart: 2.5 } } }, {
@@ -521,7 +533,9 @@ describe('sea battle', () => {
     close.step(30 * 3);
     expect(close.state.ships.player.crew).toBeLessThan(100);
     // A frigate in chase, her bow on the brig running from her: her bow chasers speak (a ball from her very head).
-    const near = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 5 } } };
+    // Her canvas holding as on the world map (navigation's floor), so the chase lasts until the chasers speak:
+    // with the battle's own floor her shot-away sails stop her first, and she is caught under the frigate's broadside.
+    const near = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 5, tornSailsFloor: content.navigation.tornSailsFloor } } };
     const chase = createBattle(near, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.fluyt', undefined, 0.5), enemy: ship('ship.frigate', 'patrol', 0.9), seed: 4, bearingDeg: 0 });
     const half = content.ships['ship.frigate']!.size.length / 2;
     let chased = false;

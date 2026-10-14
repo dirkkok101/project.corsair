@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BattleResult, Command, SailSetting } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
-import { weatherGauge } from '@corsair/minigame-sea-battle';
+import { rowing, weatherGauge } from '@corsair/minigame-sea-battle';
 import { Compass, Help } from './hud';
 import type { CompassProps } from './hud';
 import { bandOf, Key } from './ui/kit';
@@ -475,7 +475,7 @@ function Bar({ label, share, word, men }: { label: string; share: number; word: 
 const MAST_NAMES: Record<number, string[]> = { 1: ['mast'], 2: ['foremast', 'mainmast'], 3: ['foremast', 'mainmast', 'mizzen'] };
 
 /** A ship's card (storyboard 5.1): her flag, name, what she is, and hull, sails and men as named bands. */
-function ShipCard({ ship, tag, gold, name, what, wavering }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; wavering?: boolean }) {
+function ShipCard({ ship, tag, gold, name, what, wavering, oars }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; wavering?: boolean; oars?: boolean }) {
   const up = ship.masts.filter((m) => m > 0).length;
   const hull = ship.hull / ship.hullMax;
   const sails = ship.sailCondition / 100;
@@ -486,6 +486,8 @@ function ShipCard({ ship, tag, gold, name, what, wavering }: { ship: BattleShip;
         <span class={`k-tag${gold ? ' gold' : ''}`}>{tag}</span>
         <b class="battle-name">{name}</b>
         {wavering ? <span class="k-tag gold">wavering</span> : null}
+        {/* At the oars she goes where her sails can't take her, even into the wind: cut her off, don't chase. */}
+        {oars ? <span class="k-tag" title="Rowing: she can row into the wind, where you must tack. Cut her off rather than chase, and grape thins her rowers.">rowing</span> : null}
       </div>
       <div class="battle-title">
         {what}
@@ -606,8 +608,8 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     <div class="battle">
       {state.result ? null : (
         <div class="battle-cards">
-          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} />
-          <ShipCard ship={enemy} tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'} name={enemyName} what={`${enemyTitle} · ${enemy.guns} guns`} wavering={wavering} />
+          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} oars={rowing(content, state, 'player')} />
+          <ShipCard ship={enemy} tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'} name={enemyName} what={`${enemyTitle} · ${enemy.guns} guns`} wavering={wavering} oars={rowing(content, state, 'enemy')} />
         </div>
       )}
       {state.result ? null : <Compass {...compass} className="battle-compass" />}

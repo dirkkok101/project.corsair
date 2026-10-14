@@ -33,7 +33,8 @@ export function pointOfSail(content: ContentPack, offWindDeg: number) {
  */
 /** How a ship's condition slows her (PRD section 7): shot-through sails draw less, and a hull below 30% drags. */
 export function conditionFactor(content: ContentPack, ship: Pick<Ship, 'classId' | 'sailCondition' | 'hull' | 'crew' | 'guns' | 'upgrades' | 'fouling'>): number {
-  const sails = 0.3 + 0.7 * ((ship.sailCondition ?? 100) / 100);
+  const floor = content.navigation.tornSailsFloor;
+  const sails = floor + (1 - floor) * ((ship.sailCondition ?? 100) / 100);
   const hull = ship.hull !== undefined && ship.hull < shipStats(content, ship).hullMax * 0.3 ? 0.8 : 1;
   // A foul bottom drags (economy.json fouling): careening cleans it.
   return sails * hull * handsFactor(content, ship) * (1 - (ship.fouling ?? 0));
@@ -67,10 +68,20 @@ export function targetSpeed(content: ContentPack, ship: Ship, wind: Wind): numbe
   return Math.max(sailing, rowingSpeed(content, ship));
 }
 
-/** Her pace under oars (her class's, or sweeps): a share of her top speed, as many men as she has for them. */
+/**
+ * Her pace under oars (her class's, or sweeps): a share of her top speed, with full pace wanting crew.json rowers'
+ * share of her full crew at the oars, slower in proportion with fewer (none: she can't row).
+ */
 export function rowingSpeed(content: ContentPack, ship: Ship): number {
   const stats = shipStats(content, ship);
-  return stats.oars ? stats.speed * content.navigation.tilesPerSecondPerSpeedPoint * stats.oars * handsFactor(content, ship) : 0;
+  if (!stats.oars) return 0;
+  const rowers = Math.min(1, (ship.crew ?? stats.maxCrew) / Math.max(1, stats.maxCrew * content.crew.rowers.share));
+  return stats.speed * content.navigation.tilesPerSecondPerSpeedPoint * stats.oars * rowers;
+}
+
+/** Whether she is making her way at the oars: they drive her faster than her sails on this wind. */
+export function atTheOars(content: ContentPack, ship: Ship, wind: Wind): boolean {
+  return rowingSpeed(content, ship) > sailingSpeed(content, ship, wind);
 }
 
 /** Her pace under sail alone on this wind (rowing aside): whether her men are at the sweeps rather than the guns. */

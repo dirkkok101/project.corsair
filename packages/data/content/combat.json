@@ -4,6 +4,7 @@
     "tilesPerSecondPerSpeedPoint": 0.3,
     "accelPerSecond": 1,
     "decelPerSecond": 0.35,
+    "tornSailsFloor": 0.1,
     "startApart": 24,
     "fairSpeed": 4,
     "fairApart": 10,
