@@ -1857,7 +1857,9 @@ async function main() {
                   : intercepting?.ai
                       ? `Intercepting the ${intercepting.ai.name} · I to stop`
                       : ship.assist?.mode === 'course'
-                        ? `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
+                        ? ship.assist.towing
+                          ? 'The wind is foul for the harbour: her boats tow her in · steer to take the helm'
+                          : `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
                         : undefined
         }
         hour={hour}

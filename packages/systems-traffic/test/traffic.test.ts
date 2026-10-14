@@ -1402,3 +1402,30 @@ describe('fits at sea', () => {
     expect(hard.fits).toBeGreaterThan(tuned.fits);
   });
 });
+
+describe('the course autopilot, sailed like a seaman', () => {
+  it('dead to windward she beats on boards near the way, and her boats tow her into the harbour she cannot beat into', () => {
+    // Bridgetown to Port Royal into a west wind: the whole way upwind, and Port Royal's berth upwind in its harbour.
+    const wind = { fromDeg: 270, strength: 'fresh' as const };
+    const from = lanes.berth('town.bridgetown')!;
+    const to = settlements.find((s) => s.id === 'town.port_royal')!;
+    const route = lanes.path(from, lanes.berth(to.id)!)!;
+    const w = createWorld(def);
+    const start = { ...w, wind, ships: { player: { ...w.ships.player!, x: from[0], y: from[1], speed: 0, docked: undefined, assist: { mode: 'course' as const, x: to.x, y: to.y, portId: to.id, route: route.slice(1), tack: 'starboard' as const } } } };
+    const sim = createSim(start, [createNavigationSystem(content, map, () => wind, settlements)]);
+    // Off the straight way, and whether her boats ever took her in.
+    let widest = 0;
+    let towed = false;
+    for (let s = 0; s < 900 && !sim.events().some((e) => e.type === 'CourseArrived'); s++) {
+      sim.step(30);
+      const p = sim.state.ships.player!;
+      const [lx, ly] = [to.x - from[0], to.y - from[1]];
+      widest = Math.max(widest, Math.abs(lx * (p.y - from[1]) - ly * (p.x - from[0])) / Math.hypot(lx, ly));
+      towed ||= Boolean(p.assist?.towing);
+    }
+    expect(sim.events().some((e) => e.type === 'CourseArrived')).toBe(true);
+    expect(towed).toBe(true);
+    // Her boards keep near the way: a corridor either side, plus her last board's overshoot.
+    expect(widest).toBeLessThan(content.navigation.course!.corridorTiles * 2);
+  }, 120_000);
+});

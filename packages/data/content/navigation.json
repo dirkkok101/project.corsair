@@ -10,6 +10,7 @@
     "full": 1
   },
   "hull": { "bowTiles": 2, "beamTiles": 0.5, "harbourTiles": 12 },
+  "course": { "$comment": "The course autopilot sails like a seaman. Beating, she goes about once she is corridorTiles off the line the wind makes through her mark, so her boards keep near the way instead of ranging across the sea. In her destination's harbour with the berth upwind, where a ship can't beat in the tight water, her boats tow her in at towTilesPerSecond. Running before the wind she broad-reaches and gybes, the best way down for her rig. In her last approachTiles to a port she shortens sail, coming in at approachShare of her speed. A fight turns this off.", "corridorTiles": 60, "towTilesPerSecond": 1.2, "approachTiles": 10, "approachShare": 0.4 },
   "rigTurnFactor": {
     "square": 0.85,
     "mixed": 0.92,

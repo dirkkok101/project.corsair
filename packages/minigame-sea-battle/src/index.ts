@@ -203,6 +203,8 @@ function battleNavigation(content: ContentPack): ContentPack {
       accelPerSecond: b.accelPerSecond,
       decelPerSecond: b.decelPerSecond,
       tornSailsFloor: b.tornSailsFloor,
+      // A fight's click-to-sail goes where she is told, as it was tuned.
+      course: undefined,
     },
   };
 }

@@ -107,6 +107,16 @@ export function bestUpwindDeg(polar: Polar): number {
   return best.deg;
 }
 
+/** Her best angle off the wind for making way dead downwind (VMG): a broad reach, gybing, beats a dead run. */
+export function bestDownwindDeg(polar: Polar): number {
+  let best = { deg: 180, vmg: 0 };
+  for (let deg = 90; deg <= 180; deg += 0.5) {
+    const vmg = polarAt(polar, deg) * -Math.cos((deg * Math.PI) / 180);
+    if (vmg > best.vmg) best = { deg, vmg };
+  }
+  return best.deg;
+}
+
 /** Which tack a ship is on in this wind. */
 export function tackOf(headingDeg: number, windFromDeg: number): Tack {
   const rel = normalizeDeg(windFromDeg - headingDeg);
@@ -162,6 +172,11 @@ export function createNavigationSystem(
 ): System {
   const nav = content.navigation;
   const bestUpwind = new Map<string, number>();
+  const bestDownwind = new Map<string, number>();
+  const downwindOf = (polarId: string) => {
+    if (!bestDownwind.has(polarId)) bestDownwind.set(polarId, bestDownwindDeg(content.polars[polarId]!));
+    return bestDownwind.get(polarId)!;
+  };
   const upwindOf = (polarId: string) => {
     if (!bestUpwind.has(polarId)) bestUpwind.set(polarId, bestUpwindDeg(content.polars[polarId]!));
     return bestUpwind.get(polarId)!;
@@ -175,12 +190,34 @@ export function createNavigationSystem(
     return true;
   };
 
+  /** Within her destination's harbour, its berth (her route's end) upwind of her in clear water: no beating in there. */
+  const berthOf = (ship: Ship): [number, number] | undefined => {
+    const a = ship.assist;
+    return a?.x === undefined || a.y === undefined ? undefined : (a.route?.at(-1) ?? [a.x, a.y]);
+  };
+  const towedIn = (ship: Ship, wind: Wind) => {
+    const a = ship.assist;
+    if (a?.mode !== 'course' || !a.portId || a.x === undefined || a.y === undefined) return false;
+    if (Math.hypot(a.x - ship.x, a.y - ship.y) > nav.hull.harbourTiles) return false;
+    const [bx, by] = berthOf(ship)!;
+    const off = Math.max(0, upwindOf(content.ships[ship.classId]!.polar) - shipStats(content, ship).upwindDeg);
+    // Towed straight in: only with clear water all the way (round a point, she sails her route).
+    return angleOffWind(bearingTo(ship, bx, by), wind.fromDeg) < off && lineClear(ship, [bx, by]);
+  };
+
   const sail = (ship: Ship, state: WorldState, dt: number): { ship: Ship; events: EmittedEvent[] } => {
     // A ship in port stays put until it undocks.
     if (ship.docked) return { ship, events: [] };
     const cls = content.ships[ship.classId]!;
     const wind = windAt(state, ship.x, ship.y);
-    const target = targetSpeed(content, ship, wind);
+    // Bound for a port whose berth lies upwind in its harbour: her boats tow her in (she can't beat in tight water).
+    const course = nav.course;
+    const towing = Boolean(course && towedIn(ship, wind));
+    // Coming in to her port she shortens sail: down to approachShare of her speed at the berth (navigation.json course).
+    const a = ship.assist;
+    const toPort = course && a?.mode === 'course' && a.portId && a.x !== undefined && a.y !== undefined ? Math.hypot(a.x - ship.x, a.y - ship.y) : Infinity;
+    const shortened = course && toPort < course.approachTiles ? course.approachShare + (1 - course.approachShare) * (toPort / course.approachTiles) : 1;
+    const target = towing ? course!.towTilesPerSecond : targetSpeed(content, ship, wind) * shortened;
     // Way is gathered at accelPerSecond and, where set, lost more slowly: a ship carries her way.
     const rate = target < ship.speed ? (nav.decelPerSecond ?? nav.accelPerSecond) : nav.accelPerSecond;
     const speed = ship.speed + (target - ship.speed) * Math.min(1, rate * dt);
@@ -197,6 +234,8 @@ export function createNavigationSystem(
       let goal: number | undefined = closeHauled(assist.tack);
       // Where an intercept or a course wants to go, and how near counts as there.
       let want: number | undefined;
+      // The point she is making for, where she has one (a corridor is measured to it).
+      let aimAt: [number, number] | undefined;
       let left = Infinity;
       if (assist.mode === 'intercept') {
         const them = assist.targetId ? state.ships[assist.targetId] : undefined;
@@ -220,15 +259,19 @@ export function createNavigationSystem(
         let route = assist.route ?? [];
         // The last waypoint (a port's berth) must be reached, not just neared: from there the town is in reach.
         const passed = (n: number) => (n > 1 ? WAYPOINT_TILES : LAST_WAYPOINT_TILES);
+        // The leg she is on began at the waypoint she last passed, or where she was when the course was set.
+        let from = assist.from ?? ([ship.x, ship.y] as [number, number]);
         while (route.length && (Math.hypot(route[0]![0] - ship.x, route[0]![1] - ship.y) <= passed(route.length) || (route.length > 1 && lineClear(ship, route[1]!)))) {
+          from = route[0]!;
           route = route.slice(1);
         }
-        if (route !== assist.route) assist = { ...assist, route };
+        if (route !== assist.route || from !== assist.from) assist = { ...assist, route, from };
         left = Math.hypot(tx - ship.x, ty - ship.y);
         // Bound for a port, she has arrived the moment it's in reach, whatever waypoints are left: beating up
         // to a berth to windward she may pass it on every board without ever touching it.
         if (portId && left <= PORT_ARRIVE_TILES) route = [];
         if (route.length) {
+          aimAt = route[0]!;
           want = bearingTo(ship, route[0]![0], route[0]![1]);
           // Past a waypoint lies more sea, so the coast watch looks a little beyond it; past a port's berth
           // lies the town, which isn't a coast to steer off.
@@ -239,7 +282,10 @@ export function createNavigationSystem(
           events.push({ type: 'CourseArrived', entityIds: [ship.id], payload: { x: tx, y: ty, portId } });
           assist = undefined;
           goal = undefined;
-        } else want = bearingTo(ship, tx, ty);
+        } else {
+          aimAt = [tx, ty];
+          want = bearingTo(ship, tx, ty);
+        }
       }
       if (assist && want !== undefined) {
         const aim = want;
@@ -251,19 +297,43 @@ export function createNavigationSystem(
           for (let k = 1; k <= look; k++) if (isLand(tileAt(map, ship.x + Math.sin(r) * k, ship.y - Math.cos(r) * k))) return false;
           return true;
         };
-        if (angleOffWind(aim, wind.fromDeg) >= off) goal = aim;
-        else {
-          // Upwind of us: beat, holding the tack until the way lies well over on the other side of the wind
-          // (about 20 degrees past dead upwind), so a near target doesn't set her tacking back and forth;
-          // and, as any sailor would, go about early when the coast closes in ahead and the other tack is open.
-          const apart = (h: number) => Math.abs(((h - aim + 540) % 360) - 180);
-          const other: Tack = assist.tack === 'port' ? 'starboard' : 'port';
-          // (Never onto a tack the shore already blocks: that would fight the shore rule and leave her in irons.)
-          const better = apart(closeHauled(other)) + 40 < apart(closeHauled(assist.tack)) && clear(closeHauled(other));
-          const shoreAhead = !clear(closeHauled(assist.tack)) && clear(closeHauled(other));
-          const tack = better || shoreAhead ? other : assist.tack;
-          assist = { ...assist, tack };
-          goal = closeHauled(tack);
+        if (towing) {
+          const [bx, by] = berthOf(ship)!;
+          goal = bearingTo(ship, bx, by);
+        } else {
+          // Running before the wind on a course, a seaman broad-reaches and gybes (the best way down for her rig);
+          // only out of a harbour's tight water.
+          const harbour = harbours.some((h) => Math.hypot(h.x - ship.x, h.y - ship.y) <= nav.hull.harbourTiles);
+          const down = downwindOf(cls.polar);
+          const running = Boolean(course) && assist.mode === 'course' && !harbour && angleOffWind(aim, wind.fromDeg) > down;
+          if (!running && angleOffWind(aim, wind.fromDeg) >= off) goal = aim;
+          else {
+            // Beating (or running): on the tack she holds, at her best angle to the wind, until the way lies well
+            // over on the other side (about 20 degrees past dead up- or downwind), so a near mark doesn't set her
+            // tacking back and forth; as any sailor would, she goes about early when the coast closes in ahead and the
+            // other tack is open (never onto a tack the shore already blocks: that would fight the shore rule and
+            // leave her in irons).
+            const edge = running ? down : off;
+            const onTack = (t: Tack) => normalizeDeg(t === 'starboard' ? wind.fromDeg - edge : wind.fromDeg + edge);
+            const apart = (h: number) => Math.abs(((h - aim + 540) % 360) - 180);
+            const other: Tack = assist.tack === 'port' ? 'starboard' : 'port';
+            // Or a corridor's width off the leg she is on (navigation.json course), when the tack she is on carries her
+            // further off it and the other brings her back: her boards keep near the way.
+            const leg = assist.from;
+            let wide = false;
+            if (course && aimAt && leg) {
+              const [lx, ly] = [aimAt[0] - leg[0], aimAt[1] - leg[1]];
+              // Signed: which side of the leg she lies, and which way a heading carries her across it.
+              const side = (lx * (ship.y - leg[1]) - ly * (ship.x - leg[0])) / Math.max(1, Math.hypot(lx, ly));
+              const drift = (h: number) => lx * -Math.cos((h * Math.PI) / 180) - ly * Math.sin((h * Math.PI) / 180);
+              wide = Math.abs(side) > course.corridorTiles && Math.sign(drift(onTack(assist.tack))) === Math.sign(side) && Math.sign(drift(onTack(other))) === -Math.sign(side);
+            }
+            const better = (apart(onTack(other)) + 40 < apart(onTack(assist.tack)) || wide) && clear(onTack(other));
+            const shoreAhead = !clear(onTack(assist.tack)) && clear(onTack(other));
+            const tack = better || shoreAhead ? other : assist.tack;
+            assist = { ...assist, tack };
+            goal = onTack(tack);
+          }
         }
         if (goal !== undefined && !clear(goal)) {
           // The nearest heading either way that is clear and that she can sail (never into irons).
@@ -281,6 +351,8 @@ export function createNavigationSystem(
         headingDeg = normalizeDeg(ship.headingDeg + Math.max(-step, Math.min(step, diff)));
       }
     }
+    // The HUD says when her boats have her in tow.
+    if (assist && Boolean(assist.towing) !== towing) assist = towing ? { ...assist, towing } : (({ towing: _t, ...rest }) => rest)(assist);
     const steered: Ship = assist ? { ...ship, assist } : (({ assist: _a, ...rest }) => rest)(ship);
 
     const rad = (headingDeg * Math.PI) / 180;

@@ -135,6 +135,10 @@ export interface Ship {
     route?: [number, number][];
     /** Ticks a course has been pressed against land; past a few seconds she gives the helm back. */
     aground?: number;
+    /** Where this leg of the course began (her last waypoint, or where it was set): beating keeps near the leg. */
+    from?: [number, number];
+    /** Her boats are towing her in: her berth lies upwind in the harbour, where she can't beat (navigation.json course). */
+    towing?: boolean;
   };
   /** Units of each good in the hold. */
   cargo: Record<string, number>;
