@@ -55,8 +55,21 @@ const CHASE_CLEAR = 3.5;
 const CHASE_RISE_S = 0.25;
 const CHASE_FALL_S = 1.5;
 const CHASE_MAX_PITCH = (62 * Math.PI) / 180;
+/**
+ * The chase camera's pitch (degrees) at the closest zoom, and how much it steepens out to the furthest: low, so
+ * the horizon and the sky stand over her (at the default zoom about 18 degrees).
+ */
+const CHASE_PITCH = { min: 9, span: 30 };
+/** The chase camera looks this share of its distance ahead of her, so she sits low in the frame and the sea ahead shows. */
+const CHASE_AHEAD = 0.3;
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
 const CLOUDS_FROM = [70, 160];
+/**
+ * The haze: clear out to the camera's target (or, in battle, to the far edge of a fight), then thickening over this
+ * many tiles of depth to all haze; wider zoomed out (by the square root of the zoom), narrower under cloud. At the
+ * chase camera's default zoom a sail at the edge of sight ahead is a tenth hazed and land 100 tiles off three quarters.
+ */
+const HAZE_BAND = 150;
 /** Town names show within this many tiles of the camera's target. */
 const NAMES_WITHIN = 240;
 /** Far out, ships grow so they stay readable (as Pirates! draws them), up to this many times life. */
@@ -179,6 +192,9 @@ export async function createSeaRenderer(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
+  // One haze on everything (land, towns, ships; the sea's shader follows the same rule), in the sky's horizon colour.
+  const haze = new THREE.Fog(new THREE.Color(), 0, 1);
+  scene.fog = haze;
   const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 4000);
   // Mouse picks: a ray from the camera onto the sea's mean level.
   const pickRay = new THREE.Raycaster();
@@ -337,7 +353,8 @@ export async function createSeaRenderer(
     level: 1,
     overcast: 0,
     fog: new THREE.Color(),
-    fogDensity: 0.002,
+    fogNear: 0,
+    fogFar: 1,
   };
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
@@ -353,7 +370,7 @@ export async function createSeaRenderer(
   const rides = new Map<string, { bob: number; pitch: number; roll: number; lean: number; heading: number }>();
 
   /** The frame's clock and the hour's light: sun, sky, sea and sails blend smoothly by the sun's height. */
-  const beginFrame = (nowMs: number, view: number) => {
+  const beginFrame = (nowMs: number, view: number, battle = false) => {
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
     const hour = hourOf(content.calendar, skyTick + skyShift);
@@ -397,7 +414,11 @@ export async function createSeaRenderer(
     light.ambient.copy(fill.color).multiplyScalar(fill.intensity);
     renderer.toneMappingExposure = (0.7 + level * 0.3) * (1 - 0.12 * g);
     // The horizon closes in under the cloud, and the clouds themselves darken.
-    light.fogDensity = 0.0016 * (ZOOM.start / Math.max(ZOOM.start, view)) ** 0.5 * (1 + 2.2 * g);
+    light.fogNear = battle ? Math.max(view, BATTLE_VIEW.max) : view;
+    light.fogFar = light.fogNear + (HAZE_BAND * Math.sqrt(Math.max(1, view / ZOOM.start))) / (1 + 2.2 * g);
+    haze.color.copy(light.fog);
+    haze.near = light.fogNear;
+    haze.far = light.fogFar;
     cloudMat.color.setScalar(1 - 0.55 * g);
     sky.setOvercast(g, nowMs / 1000);
     return dt;
@@ -490,13 +511,16 @@ export async function createSeaRenderer(
       const want = keep.has(n) ? 1 : 0;
       n.shown = dt ? n.shown + (want - n.shown) * step : want;
       if (Math.abs(want - n.shown) < 0.01) n.shown = want;
-      n.sprite.visible = n.shown > 0;
-      (n.sprite.material as THREE.SpriteMaterial).opacity = n.shown;
+      // A name fades into the haze with its town.
+      const depth = -n.sprite.getWorldPosition(bannerAt).applyMatrix4(camera.matrixWorldInverse).z;
+      const clear = 1 - THREE.MathUtils.smoothstep(depth, haze.near, haze.far);
+      n.sprite.visible = n.shown * clear > 0.01;
+      (n.sprite.material as THREE.SpriteMaterial).opacity = n.shown * clear;
     }
   };
 
   /** Clouds drifting downwind (shown only from afar), the camera, and the frame drawn. */
-  const finishFrame = (view: number, pitch: number, yaw: number, wind: Wind, sea: SeaState, t: number, dt: number) => {
+  const finishFrame = (view: number, pitch: number, yaw: number, wind: Wind, sea: SeaState, t: number, dt: number, ahead = 0) => {
     cloudMat.opacity = shown('clouds') ? 0.85 * THREE.MathUtils.smoothstep(view, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!) : 0;
     const drift = strengthOf(wind) * CLOUD_SPEED * dt;
     const to = ((wind.fromDeg + 180) * Math.PI) / 180;
@@ -507,7 +531,9 @@ export async function createSeaRenderer(
     const back = new THREE.Vector3(0, Math.sin(pitch), Math.cos(pitch)).multiplyScalar(view);
     back.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     camera.position.copy(target).add(back);
-    camera.lookAt(target.x, 0.6, target.z);
+    // Looking `ahead` tiles past the target, away from the camera.
+    const run = Math.hypot(back.x, back.z) || 1;
+    camera.lookAt(target.x - (back.x / run) * ahead, 0.6, target.z - (back.z / run) * ahead);
     declutterBanners(dt);
     // Heavy weather: rain round the camera, lightning, spray off the bows; a strike lights the whole scene.
     const flash = storm.update({
@@ -538,7 +564,8 @@ export async function createSeaRenderer(
     sun.target.position.copy(target);
     ground.update(camera.position, target);
     ocean.update(target, sea, t, light);
-    sky.update(camera.position, zenith, light.sky, sunDir, light.sun);
+    // The sky meets the sea in the haze's own colour, so the horizon is one line of haze.
+    sky.update(camera.position, zenith, light.fog, sunDir, light.sun);
     towns.update(t);
     composer.render(dt);
   };
@@ -730,10 +757,10 @@ export async function createSeaRenderer(
     // Camera: overhead (steeper the further out) or from astern, following the player.
     target.set(me.x, 0, me.y);
     const zt = Math.log(distance / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const base = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
+    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : 30 + zt * 45);
     viewHeading = chase ? chaseYaw(me.headingDeg, dt) : me.headingDeg;
     const pitch = chase ? chasePitch(base, distance, viewHeading, dt) : base;
-    finishFrame(distance, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt);
+    finishFrame(distance, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt, chase ? distance * CHASE_AHEAD : 0);
   };
 
   /** The sea battle, on the same sea as the map (its positions are world tiles). */
@@ -767,7 +794,7 @@ export async function createSeaRenderer(
     // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
     gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
     stormShare = battleStorm;
-    const dt = beginFrame(nowMs, battleView || want);
+    const dt = beginFrame(nowMs, battleView || want, true);
     const t = nowMs / 1000;
     battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;
 
@@ -887,11 +914,11 @@ export async function createSeaRenderer(
     if (chase) target.set(player.x, 0, player.y);
     // The sea's camera angle for this zoom.
     const zt = Math.log(Math.max(ZOOM.min, battleView * SHIP_SCALE) / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const base = THREE.MathUtils.degToRad(chase ? 16 + zt * 30 : 30 + zt * 45);
+    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : 30 + zt * 45);
     const span = chase ? Math.min(battleView, 30) : battleView;
     viewHeading = chase ? chaseYaw(player.headingDeg, dt) : player.headingDeg;
     const pitch = chase ? chasePitch(base, span, viewHeading, dt) : base;
-    finishFrame(span, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt);
+    finishFrame(span, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt, chase ? span * CHASE_AHEAD : 0);
   };
 
   return {

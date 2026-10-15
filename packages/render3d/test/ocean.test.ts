@@ -9,7 +9,8 @@ const light: SeaLight = {
   sky: new THREE.Color('#9fd3f0'),
   level: 1,
   fog: new THREE.Color('#9fd3f0'),
-  fogDensity: 0.001,
+  fogNear: 0,
+  fogFar: 1000,
 };
 
 function ocean() {

@@ -44,7 +44,9 @@ export interface SeaLight {
   /** 0 clear .. 1 a storm's overcast: the water greys under the cloud. */
   overcast?: number;
   fog: THREE.Color;
-  fogDensity: number;
+  /** The haze, by depth from the camera (tiles): clear to fogNear, thickening to all haze at fogFar. */
+  fogNear: number;
+  fogFar: number;
 }
 
 export interface Ocean {
@@ -138,6 +140,7 @@ uniform float uShowSwell;
 varying vec3 vWorld;
 varying vec2 vParam;
 varying float vRadius;
+varying float vDepth;
 void main() {
   vec2 xz = position.xz + uCenter;
   float r = length(position.xz);
@@ -165,7 +168,10 @@ void main() {
   vWorld = world;
   vParam = xz;
   vRadius = r;
-  gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+  vec4 view = viewMatrix * vec4(world, 1.0);
+  // Depth from the camera, as three's fog measures it on the land and the ships, so the sea hazes with them.
+  vDepth = -view.z;
+  gl_Position = projectionMatrix * view;
 }
 `;
 
@@ -195,12 +201,14 @@ uniform vec3 uAmbient;
 uniform vec3 uZenith;
 uniform vec3 uHorizon;
 uniform vec3 uFogColor;
-uniform float uFogDensity;
+uniform float uFogNear;
+uniform float uFogFar;
 // Layers, for review: swell, ripples (the fine chop), flecks (whitecaps), shadows, surf, waves, wakes.
 uniform float uShowSwell, uShowRipples, uShowFlecks, uShowShadows, uShowSurf, uShowWaves, uShowWakes;
 varying vec3 vWorld;
 varying vec2 vParam;
 varying float vRadius;
+varying float vDepth;
 
 void main() {
   vec2 xz = vParam;
@@ -373,9 +381,7 @@ void main() {
   col = mix(col, uFoam * min(lit * 0.5, vec3(1.15)) * uFoamLight, clamp(foam, 0.0, 1.0));
 
   // Haze toward the horizon.
-  float dist = length(cameraPosition - vWorld);
-  float fog = 1.0 - exp(-pow(dist * uFogDensity, 2.0));
-  col = mix(col, uFogColor, fog);
+  col = mix(col, uFogColor, smoothstep(uFogNear, uFogFar, vDepth));
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -457,7 +463,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
     uZenith: { value: new THREE.Color(0.1, 0.3, 0.7) },
     uHorizon: { value: new THREE.Color(0.6, 0.75, 0.9) },
     uFogColor: { value: new THREE.Color() },
-    uFogDensity: { value: 0 },
+    uFogNear: { value: 0 },
+    uFogFar: { value: 1 },
     uShowSwell: { value: show('swell') },
     uShowRipples: { value: show('ripples') },
     uShowFlecks: { value: show('flecks') },
@@ -588,7 +595,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       uniforms.uZenith.value.copy(light.zenith ?? light.sky.clone().multiplyScalar(0.5));
       uniforms.uAmbient.value.copy(light.ambient ?? light.sky);
       uniforms.uFogColor.value.copy(light.fog);
-      uniforms.uFogDensity.value = light.fogDensity;
+      uniforms.uFogNear.value = light.fogNear;
+      uniforms.uFogFar.value = light.fogFar;
       uniforms.uFoamLight.value = THREE.MathUtils.lerp(0.35, 1, THREE.MathUtils.smoothstep(light.level, 0.6, 0.95));
     },
     ships(ships) {
