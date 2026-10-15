@@ -144,15 +144,29 @@ describe('fights at sea', () => {
     const haven = settlements.find((s) => s.id === 'town.tortuga')!;
     const { id } = spawnAlongside(sim, 'pirate', haven.id, 'town.port_royal');
     const pirate = sim.state.ships[id]!;
-    // Put the player within sight, six tiles ahead on her own lane (open water), and let her come on.
-    const [[x0, y0], [x1, y1]] = pirate.ai!.route as [[number, number], [number, number]];
-    const len = Math.hypot(x1 - x0, y1 - y0);
-    const ahead = Math.min(6, len);
-    const at = { x: x0 + ((x1 - x0) / len) * ahead, y: y0 + ((y1 - y0) / len) * ahead };
-    const start = { ...sim.state, ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, ...at } } };
-    const chase = createSim(start, [traffic()]);
-    chase.step(30 * 20);
-    expect(chase.events().some((e) => e.type === 'BattleJoined' && e.entityIds[1] === id)).toBe(true);
+    // A point `k` tiles down her lane from the haven.
+    const along = (k: number) => {
+      const route = pirate.ai!.route;
+      let left = k;
+      for (let i = 1; i < route.length; i++) {
+        const [[x0, y0], [x1, y1]] = [route[i - 1]!, route[i]!];
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        if (left <= len) return { x: x0 + ((x1 - x0) / len) * left, y: y0 + ((y1 - y0) / len) * left };
+        left -= len;
+      }
+      throw new Error('lane too short');
+    };
+    // Off her haven the brethren keep a truce: the player six tiles ahead there is let be.
+    const truce = content.combat.chase.havenTruceTiles;
+    const at = (pk: number, mk: number) => {
+      const s0 = { ...sim.state, ships: { ...sim.state.ships, [id]: { ...pirate, ...along(pk) }, player: { ...sim.state.ships.player!, ...along(mk) } } };
+      const sea = createSim(s0, [traffic()]);
+      sea.step(30 * 20);
+      return sea.events().some((e) => e.type === 'BattleJoined' && e.entityIds[1] === id);
+    };
+    expect(at(2, 8)).toBe(false);
+    // Past it, within sight on her own lane (open water), she gives chase and closes to battle.
+    expect(at(truce + 10, truce + 16)).toBe(true);
   });
 
   it("a pirate won't follow the player under a port's guns: she gives up the chase and leaves her be", () => {
