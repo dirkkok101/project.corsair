@@ -85,14 +85,17 @@ export function createTrafficSystem(
   /** How dangerous the waters are at a spot (traffic.json danger, by sea area): 1 quiet to 4 the treasure routes. */
   const dangerAt = (x: number, y: number) => t.danger.zones[zoneAt(content, map, x, y).id] ?? 2;
   /**
-   * Under the guns of a port pirates fear (every port but a haven): within its harbour reach by size, and a
-   * capital's further still. Pirates won't chase, fight or lie in wait there.
+   * Waters pirates keep the peace in: under the guns of a port (within its harbour reach by size, and a capital's
+   * further still), and off a haven, where the brethren keep a truce so ships still come to trade (combat.json
+   * havenTruceTiles). Pirates won't chase, fight or lie in wait there.
    */
   const piratesFear = (x: number, y: number) =>
     settlements.some(
       (s) =>
-        !isHaven(s) &&
-        Math.hypot(s.x - x, s.y - y) <= Math.max(content.combat.chase.harbourTiles[s.size] ?? 0, s.type === 'capital' ? content.combat.chase.capitalTiles : 0),
+        Math.hypot(s.x - x, s.y - y) <=
+        (isHaven(s)
+          ? content.combat.chase.havenTruceTiles
+          : Math.max(content.combat.chase.harbourTiles[s.size] ?? 0, s.type === 'capital' ? content.combat.chase.capitalTiles : 0)),
     );
   const bestUpwind = new Map(Object.entries(content.polars).map(([id, p]) => [id, bestUpwindDeg(p)]));
 

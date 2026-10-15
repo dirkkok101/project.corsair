@@ -108,10 +108,7 @@
       "Satisfaction"
     ]
   },
-  "lurkDays": [
-    2,
-    5
-  ],
+  "lurkDays": [1, 3],
   "pirateRangeTiles": 210,
   "nearPlayer": { "tiles": 220, "weight": 1.4 },
   "seek": { "chance": 0.3 },

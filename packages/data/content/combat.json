@@ -163,6 +163,7 @@
     "contactTiles": 2.5,
     "calmDays": 2,
     "capitalTiles": 14,
+    "havenTruceTiles": 15,
     "prizeCalmDays": 7,
     "harbourTiles": {
       "hamlet": 0,

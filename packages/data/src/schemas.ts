@@ -547,6 +547,8 @@ export const combatSchema = z.object({
     calmDays: z.number().min(0),
     /** A capital's guns reach this far: pirates won't chase, fight or lie in wait within it. */
     capitalTiles: z.number().min(0),
+    /** Off a pirate haven the brethren keep a truce this far out: no pirate chases, fights or lies in wait there. */
+    havenTruceTiles: z.number().min(0),
     /** A pirate with a prize heads home and leaves off hunting this long. */
     prizeCalmDays: z.number().min(0),
     /** Under a port's guns: within this many tiles of a port the hunter fears (by the port's size), she
