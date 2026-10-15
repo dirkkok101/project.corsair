@@ -3,8 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { createSim, inPort } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
-import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
-import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
+import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, seawardHeading, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
+import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather, zoneAt } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import { atWar } from '@corsair/systems-politics';
@@ -1441,5 +1441,53 @@ describe('the course autopilot, sailed like a seaman', () => {
     expect(towed).toBe(true);
     // Her boards keep near the way: a corridor either side, plus her last board's overshoot.
     expect(widest).toBeLessThan(content.navigation.course!.corridorTiles * 2);
+  }, 120_000);
+
+  it('before the wind she gybes on boards near the way, never ranging behind the islands', () => {
+    // Île-à-Vache to Port Royal with the wind astern: on one long board she ran up behind the land south of Hispaniola,
+    // past her waypoint, and circled there for good.
+    const wind = { fromDeg: 90, strength: 'fresh' as const };
+    const from = lanes.berth('town.ile_a_vache')!;
+    const to = settlements.find((s) => s.id === 'town.port_royal')!;
+    const route = lanes.path(from, lanes.berth(to.id)!)!;
+    const w = createWorld(def);
+    const start = { ...w, wind, ships: { player: { ...w.ships.player!, x: from[0], y: from[1], speed: 0, docked: undefined, assist: { mode: 'course' as const, x: to.x, y: to.y, portId: to.id, route: route.slice(1), tack: 'starboard' as const } } } };
+    const sim = createSim(start, [createNavigationSystem(content, map, () => wind, settlements)]);
+    // Off the leg she is on (from the last waypoint passed to the next).
+    let widest = 0;
+    for (let s = 0; s < 900 && !sim.events().some((e) => e.type === 'CourseArrived'); s++) {
+      sim.step(30);
+      const p = sim.state.ships.player!;
+      const [a, b] = [p.assist?.from, p.assist?.route?.[0]];
+      if (!a || !b) continue;
+      const [lx, ly] = [b[0] - a[0], b[1] - a[1]];
+      widest = Math.max(widest, Math.abs(lx * (p.y - a[1]) - ly * (p.x - a[0])) / Math.max(1, Math.hypot(lx, ly)));
+    }
+    expect(sim.events().some((e) => e.type === 'CourseArrived')).toBe(true);
+    expect(widest).toBeLessThan(content.navigation.course!.corridorTiles / 2);
+  }, 120_000);
+
+  it('out of a harbour mouth with the wind dead ahead and no room to beat, her boats tow her clear', () => {
+    // Cumaná to Margarita into a west wind: her cast-off heading runs before it into the Gulf of Cariaco, a dead end
+    // too narrow to beat back out of; the way out lies upwind.
+    const wind = { fromDeg: 270, strength: 'fresh' as const };
+    const town = settlements.find((s) => s.id === 'town.cumana')!;
+    const from = lanes.berth(town.id)!;
+    const to = settlements.find((s) => s.id === 'town.margarita')!;
+    const route = lanes.path(from, lanes.berth(to.id)!)!;
+    const w = createWorld(def);
+    const polar = content.polars[content.ships[w.ships.player!.classId]!.polar]!;
+    const headingDeg = seawardHeading(map, { x: from[0], y: from[1] }, town, 0, (deg) => polarAt(polar, angleOffWind(deg, wind.fromDeg)) >= 0.5);
+    const start = { ...w, wind, ships: { player: { ...w.ships.player!, x: from[0], y: from[1], headingDeg, speed: 0, docked: undefined, assist: { mode: 'course' as const, x: to.x, y: to.y, portId: to.id, route: route.slice(1), tack: 'starboard' as const } } } };
+    const sim = createSim(start, [createNavigationSystem(content, map, () => wind, settlements)]);
+    let towed = 0;
+    for (let s = 0; s < 300 && !sim.events().some((e) => e.type === 'CourseArrived' || e.type === 'AssistEnded'); s++) {
+      sim.step(30);
+      if (sim.state.ships.player!.assist?.towing) towed++;
+    }
+    expect(sim.events().some((e) => e.type === 'CourseArrived')).toBe(true);
+    // Towed only through the mouth, a few seconds: then she sails.
+    expect(towed).toBeGreaterThan(0);
+    expect(towed).toBeLessThan(20);
   }, 120_000);
 });

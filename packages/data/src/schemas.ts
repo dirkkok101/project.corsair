@@ -61,11 +61,12 @@ export const navigationSchema = z.object({
   hull: z.object({ bowTiles: z.number().min(0), beamTiles: z.number().min(0), harbourTiles: z.number().min(0) }),
   /**
    * A course sailed like a seaman (off in a fight): beating, she goes about once she is corridorTiles off the
-   * wind's line through her mark; in her destination's harbour with the berth upwind, her boats tow her in at
-   * towTilesPerSecond; and in her last approachTiles to a port she shortens sail, to approachShare of her speed.
+   * wind's line through her mark, and running she gybes once runCorridorTiles off; in her destination's harbour with
+   * the berth upwind, or leaving one where land closes both tacks, her boats tow her at towTilesPerSecond; and in her
+   * last approachTiles to a port she shortens sail, to approachShare of her speed.
    */
   course: z
-    .object({ corridorTiles: z.number().positive(), towTilesPerSecond: z.number().positive(), approachTiles: z.number().positive(), approachShare: z.number().min(0).max(1) })
+    .object({ corridorTiles: z.number().positive(), runCorridorTiles: z.number().positive(), towTilesPerSecond: z.number().positive(), approachTiles: z.number().positive(), approachShare: z.number().min(0).max(1) })
     .optional(),
   windStrength: z.record(windStrength, z.number().min(0)),
   // Ids name the sprite states too (art pipeline section 4), so they are a closed set.
