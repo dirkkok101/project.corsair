@@ -5,7 +5,7 @@
     { "id": "ile_a_vache", "region": "hispaniola", "lon": -73.62, "lat": 18.07 },
     { "id": "navassa", "region": "hispaniola", "lon": -75.01, "lat": 18.4 },
     { "id": "beata", "region": "hispaniola", "lon": -71.52, "lat": 17.6 },
-    { "id": "grand_cayman", "region": "cayman", "lon": -81.3, "lat": 19.33 },
+    { "id": "grand_cayman", "region": "cayman", "lon": -81.384, "lat": 19.298 },
     { "id": "cayman_brac", "region": "cayman", "lon": -79.8, "lat": 19.7 },
     { "id": "matecumbe", "region": "bahamas", "lon": -80.7, "lat": 24.9 },
     { "id": "inagua", "region": "bahamas", "lon": -73.6, "lat": 21.05 },
@@ -15,7 +15,7 @@
     { "id": "roatan", "region": "mosquito", "lon": -86.53, "lat": 16.32 },
     { "id": "bluefields", "region": "mosquito", "lon": -83.67, "lat": 12.01 },
     { "id": "gracias_a_dios", "region": "mosquito", "lon": -83.17, "lat": 14.98 },
-    { "id": "isla_tortuga", "region": "main", "lon": -65.3, "lat": 10.93 },
+    { "id": "isla_tortuga", "region": "main", "lon": -65.166, "lat": 10.906 },
     { "id": "los_roques", "region": "main", "lon": -66.75, "lat": 11.85 },
     { "id": "anegada", "region": "antilles", "lon": -64.33, "lat": 18.73 },
     { "id": "barbuda", "region": "antilles", "lon": -61.8, "lat": 17.62 }

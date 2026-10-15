@@ -38,6 +38,12 @@ const CONFIG = {
     // Nevis is joined to St Kitts by a tile of land here (the Narrows are 3 km): parted by a channel she can sail.
     { name: 'Nevis', lon: -62.59, lat: 17.14, dx: 1, dy: 4, south: 17.217 },
   ] as { name: string; lon: number; lat: number; dx: number; dy: number; south?: number }[],
+  // Straits widened to a sailable channel (a game liberty): water carved `halfWidth` tiles either side of the line
+  // through `path` ([lon, lat] points), land outside it untouched.
+  channels: [
+    // The Tablazo strait into Lake Maracaibo is 3 to 5 tiles at this scale, cluttered with islets at its mouth.
+    { name: 'Maracaibo strait', halfWidth: 4, path: [[-71.51, 11.044], [-71.48, 10.869], [-71.496, 10.636], [-71.51, 10.433]] },
+  ] as { name: string; halfWidth: number; path: [number, number][] }[],
 };
 
 // Indices must match `Tile` in packages/data/src/tilemap.ts; colours are corsair.gpl, for viewing only.
@@ -161,6 +167,30 @@ for (const move of CONFIG.islandMoves) {
     depth[j] = 0;
   });
   console.log(`moved ${move.name} (${island.length} tiles) by ${move.dx}, ${move.dy}`);
+}
+
+// Straits widened (CONFIG.channels): every tile within halfWidth of the line becomes open water.
+for (const channel of CONFIG.channels) {
+  const pts = channel.path.map(([lon, lat]) => [(lon - bounds.lonMin) / dLon, (bounds.latMax - lat) / dLat] as const);
+  let carved = 0;
+  for (let k = 1; k < pts.length; k++) {
+    const [[ax, ay], [bx, by]] = [pts[k - 1]!, pts[k]!];
+    const len = Math.hypot(bx - ax, by - ay);
+    const r = channel.halfWidth;
+    for (let y = Math.floor(Math.min(ay, by) - r); y <= Math.ceil(Math.max(ay, by) + r); y++) {
+      for (let x = Math.floor(Math.min(ax, bx) - r); x <= Math.ceil(Math.max(ax, bx) + r); x++) {
+        // Distance from the tile's centre to the segment.
+        const t = Math.max(0, Math.min(1, ((x + 0.5 - ax) * (bx - ax) + (y + 0.5 - ay) * (by - ay)) / (len * len)));
+        if (Math.hypot(x + 0.5 - (ax + t * (bx - ax)), y + 0.5 - (ay + t * (by - ay))) > r) continue;
+        const i = y * W + x;
+        if (land[i]) carved++;
+        land[i] = 0;
+        height[i] = 0;
+        depth[i] = Math.min(depth[i]! || -20, -20);
+      }
+    }
+  }
+  console.log(`widened ${channel.name} (${carved} tiles of land to water)`);
 }
 
 const isLand = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && land[y * W + x] === 1;
