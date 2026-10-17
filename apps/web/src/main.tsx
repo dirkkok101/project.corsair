@@ -3,7 +3,7 @@ import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SE
 import type { Nation, Ship, WorldState } from '@corsair/core';
 import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
-import { createSeaRenderer, flagPicture } from '@corsair/render3d';
+import { createSeaRenderer, flagPicture, sightTiles } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
@@ -399,6 +399,8 @@ async function main() {
       }
     | undefined;
   let eventsSeen = 0;
+  // Fights begun out of her sight, hunter by prey: told when they come into it.
+  const unseenFights = new Map<string, string>();
   // When each ship in a skirmish within sight fires next.
   const nextVolley = new Map<string, number>();
   // Space held in battle: fire each broadside as it bears. Released (or the window loses focus), it stops.
@@ -1059,10 +1061,10 @@ async function main() {
     const reply = sim.events().slice(since).find((ev) => ev.type === 'Hailed');
     if (reply) hailing = { targetId: other.id, news: (reply.payload.news as string[]) ?? [] };
   };
-  /** An AI ship at sea under a tile (within a tile and a half), nearest first. */
+  /** An AI ship at sea under a tile (within a tile and a half) and in her sight (the view draws no other), nearest first. */
   const shipAt = (x: number, y: number) =>
     Object.values(sim.state.ships)
-      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5)
+      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5 && Math.hypot(s.x - player().x, s.y - player().y) <= sightTiles(content, sim.state.tick))
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   /** A port under a tile (its town within two and a half tiles). */
   const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 3.75);
@@ -1496,20 +1498,8 @@ async function main() {
         if (cove) courseNote = { text: `A pirate haven: ${cove.name}. It's on your chart now.`, kind: 'Haven found', icon: 'ui.icon.anchor', tone: 'gold', until: now + 6000 };
         havensKnown = known.length;
       }
-      // Two ships falling on each other in her sight: who, and where, and that she may take a hand.
-      if (ev.type === 'SkirmishBegun') {
-        const me = player();
-        const [hunter, prey] = [sim.state.ships[ev.entityIds[0]!], sim.state.ships[ev.entityIds[1]!]];
-        if (hunter?.ai && prey?.ai && Math.hypot(prey.x - me.x, prey.y - me.y) <= content.traffic.sightTiles) {
-          const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : `a ${({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' } as Record<string, string>)[ship.ai!.nation] ?? ''}`} ${shipKind(ship.classId)}`;
-          courseNote = {
-            text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: I to close, H to hail`.replace(/^./, (c) => c.toUpperCase()),
-            kind: 'Sea fight',
-            icon: 'ui.icon.cannon_loaded',
-            until: now + 6000,
-          };
-        }
-      }
+      // Two ships falling on each other: told once the fight is in her sight (below).
+      if (ev.type === 'SkirmishBegun') unseenFights.set(ev.entityIds[1]!, ev.entityIds[0]!);
       // A fight between other ships within sight: smoke on the water and the thud of distant guns.
       if (ev.type === 'SeaFight') {
         const me = player();
@@ -1523,6 +1513,24 @@ async function main() {
       }
     }
     eventsSeen = evs.length;
+    // A fight come into her sight (begun there, or come up over the horizon): who, and where, and that she may take a hand.
+    for (const [preyId, hunterId] of unseenFights) {
+      const [hunter, prey] = [sim.state.ships[hunterId], sim.state.ships[preyId]];
+      if (!hunter?.ai?.skirmish || !prey?.ai) {
+        unseenFights.delete(preyId);
+        continue;
+      }
+      const me = player();
+      if (Math.hypot(prey.x - me.x, prey.y - me.y) > content.traffic.sightTiles) continue;
+      unseenFights.delete(preyId);
+      const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : `a ${({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' } as Record<string, string>)[ship.ai!.nation] ?? ''}`} ${shipKind(ship.classId)}`;
+      courseNote = {
+        text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: I to close, H to hail`.replace(/^./, (c) => c.toUpperCase()),
+        kind: 'Sea fight',
+        icon: 'ui.icon.cannon_loaded',
+        until: now + 6000,
+      };
+    }
     // Ships hove to fighting within sight (a skirmish): broadsides back and forth until it's settled.
     for (const s of Object.values(sim.state.ships)) {
       const foe = s.ai?.skirmish ? sim.state.ships[s.ai.skirmish.with] : undefined;

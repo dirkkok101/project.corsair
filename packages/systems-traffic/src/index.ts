@@ -1597,8 +1597,9 @@ export function createTrafficSystem(
             if (Math.hypot(prey.x - ship.x, prey.y - ship.y) > cb.chase.contactTiles) {
               const chased = pursue(next, ship, prey, dt);
               ships = { ...ships, [id]: { ...chased, ai: { ...chased.ai!, target: prey.id } } };
-            } else if (p && Math.hypot(prey.x - p.x, prey.y - p.y) <= t.sightTiles) {
-              // Within the player's sight the fight plays out on the map for a while, and she can take a hand.
+            } else if (p && Math.hypot(prey.x - p.x, prey.y - p.y) <= t.sightTiles * 1.1) {
+              // Within the player's sight (and a little past it, so one she sees come up over the horizon is still being
+              // fought) the fight plays out on the map for a while, and she can take a hand.
               const until = tick + Math.round((cb.hunt.skirmishHours / 24) * tpd);
               // Each wears down as the fight goes, by the other's share of their strength.
               const [hs, ps] = [fightStrength(ship), fightStrength(prey)];
@@ -1686,8 +1687,12 @@ export function createTrafficSystem(
             0,
           );
           if (have >= target(role)) continue;
-          const home = homePorts(settlements, lanes, role);
-          if (!home.length) continue;
+          const all = homePorts(settlements, lanes, role);
+          if (!all.length) continue;
+          // From a port out of her sight, where she won't see a ship appear at the quay (any, if all are in sight).
+          const me = ships.player;
+          const unseen = me ? all.filter((s) => Math.hypot(s.x - me.x, s.y - me.y) > t.sightTiles) : all;
+          const home = unseen.length ? unseen : all;
           const port = home[Math.floor(rng.float() * home.length)]!;
           const made = spawn(content, { ...next, ships }, role, port, lanes.mooring(port.id)!, rng, tick);
           next = made.state;

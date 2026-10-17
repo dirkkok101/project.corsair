@@ -70,6 +70,19 @@ const CLOUDS_FROM = [70, 160];
  * chase camera's default zoom a sail at the edge of sight ahead is a tenth hazed and land 100 tiles off three quarters.
  */
 const HAZE_BAND = 150;
+/**
+ * Fog of war: a ship is drawn only within the player's sight (traffic.json sightTiles, from her ship). Over the last
+ * HULL_DOWN_TILES of it she comes up over the horizon (or goes down below it), sunk by up to her own height.
+ */
+const HULL_DOWN_TILES = 5;
+/** Zoomed out this far (camera distance in tiles) a ship crossing the edge of sight just shows or goes, and ships out of sight leave a mark where last seen. */
+const MARKS_FROM = 120;
+/** A ship new to the sea within sight (a debug spawn, a fleet ship rejoining) comes up over this many seconds. */
+const RISE_SECONDS = 2;
+/** A ship gone from the sea within sight (sunk or taken) settles by the stern and goes down over this many seconds. */
+const GHOST_SECONDS = 5;
+/** A last-seen mark fades over this many days. */
+const MARK_DAYS = 1;
 /** Town names show within this many tiles of the camera's target. */
 const NAMES_WITHIN = 240;
 /** Far out, ships grow so they stay readable (as Pirates! draws them), up to this many times life. */
@@ -278,6 +291,18 @@ export async function createSeaRenderer(
   const smokes: { sprite: THREE.Sprite; at: number; size: number; drift: number }[] = [];
   let smokeClock = 0;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
+  // Fog of war (HULL_DOWN_TILES): how much of each ship showed last frame; ships new to the sea in sight, by when they
+  // came; ships gone from it in sight, going down; and frames drawn at sea since the view (re)started, as on the first
+  // frame, or back from a battle, nothing is new or gone.
+  const shownLast = new Map<string, number>();
+  const born = new Map<string, number>();
+  let knownIds = new Set<string>();
+  const ghosts: { root: THREE.Object3D; at: number; len: number }[] = [];
+  let seaFrames = 0;
+  // Last-seen marks, by ship id.
+  const marks = new Map<string, THREE.Sprite>();
+  const markLayer = new THREE.Group();
+  scene.add(markLayer);
   const shipFor = (s: Ship) => {
     let m = ships.get(s.id);
     if (m && m.classId !== s.classId) {
@@ -610,6 +635,7 @@ export async function createSeaRenderer(
   /** Back to the sea map: the fight's ships and its wreckage go; the world's ships return. */
   const leaveBattle = () => {
     inBattle = false;
+    seaFrames = 0;
     for (const [side, f] of fighters) {
       scene.remove(f.built.root);
       rides.delete(`battle.${side}`);
@@ -618,6 +644,7 @@ export async function createSeaRenderer(
     fx.object.visible = false;
     fx.reset();
     worldShips.visible = true;
+    markLayer.visible = true;
   };
 
   /** The overcast at a point: the wind's strength there, deepest within a storm. */
@@ -694,9 +721,28 @@ export async function createSeaRenderer(
     // Ships: each at her place, her sails for the wind; far out they grow so they stay readable.
     const farScale = THREE.MathUtils.clamp(distance / 140, 1, FAR_SHIP_SCALE);
     const seen = new Set<string>();
+    const sight = sightTiles(content, state.tick);
+    const zoomedOut = distance >= MARKS_FROM;
+    const wakes = new Set<string>();
     for (const s of Object.values(state.ships)) {
-      const m = shipFor(s);
       seen.add(s.id);
+      if (seaFrames > 0 && !knownIds.has(s.id)) born.set(s.id, t);
+      let shown = s.id === options.playerId ? 1 : hullDown(Math.hypot(s.x - me.x, s.y - me.y), sight);
+      if (zoomedOut && s.id !== options.playerId) shown = shown > 0.5 ? 1 : 0;
+      const from = born.get(s.id);
+      if (from !== undefined) {
+        if (t - from >= RISE_SECONDS) born.delete(s.id);
+        else shown = Math.min(shown, THREE.MathUtils.smoothstep(t - from, 0, RISE_SECONDS));
+      }
+      shownLast.set(s.id, shown);
+      if (shown <= 0) {
+        // Out of sight: not drawn (built only once she first comes into it).
+        const m = ships.get(s.id);
+        if (m) m.root.visible = false;
+        continue;
+      }
+      const m = shipFor(s);
+      m.root.visible = true;
       const w = options.windAt(state, s.x, s.y);
       m.setSails(sailAnim(content, s, w, nowMs));
       // Her men on deck, as many as she has hands for (a full complement shows a full deck).
@@ -724,18 +770,67 @@ export async function createSeaRenderer(
       if (battery) m.built.setGuns((s.guns ?? battery) / battery);
       const pace = s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP;
       const len = placeShip(s.id, m.root, s, w, dt, farScale, pace);
+      // Hull down: below the horizon by the share of her not yet shown (about her height: a ship's masts stand about as high as she is long).
+      m.root.position.y -= (1 - shown) * len * 1.3;
+      if (shown < 0.5) continue;
+      wakes.add(s.id);
       if (Math.hypot(s.x - me.x, s.y - me.y) < 30 + distance * 0.6) sprayShips.push(bowOf(s.id, m.root, s.headingDeg, len, Math.min(1, pace * 1.4), dt));
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
-      worldShips.remove(m.root);
       ships.delete(id);
       rides.delete(id);
+      born.delete(id);
+      // Gone from the sea in her sight (sunk, or taken and broken up): she goes down rather than vanish.
+      if (seaFrames > 0 && (shownLast.get(id) ?? 0) > 0.5 && m.root.visible) ghosts.push({ root: m.root, at: t, len: SHIP_LENGTH * farScale });
+      else worldShips.remove(m.root);
+      shownLast.delete(id);
+    }
+    for (let i = ghosts.length - 1; i >= 0; i--) {
+      const g = ghosts[i]!;
+      const k = (t - g.at) / GHOST_SECONDS;
+      if (k >= 1) {
+        worldShips.remove(g.root);
+        ghosts.splice(i, 1);
+        continue;
+      }
+      // Settling by the stern and heeling, then gone under.
+      g.root.rotateX((-0.35 * dt) / GHOST_SECONDS);
+      g.root.rotateZ((0.9 * k * dt) / GHOST_SECONDS);
+      g.root.position.y -= ((2 * k * dt) / GHOST_SECONDS) * g.len * 1.6;
+    }
+    knownIds = seen;
+    // Zoomed out, where each ship out of sight was last seen, fading over MARK_DAYS.
+    const keepMarks = new Set<string>();
+    if (zoomedOut) {
+      const tpd = content.calendar.ticksPerDay;
+      for (const [id, seenAt] of Object.entries(state.captain?.sightings ?? {})) {
+        if ((shownLast.get(id) ?? 0) > 0) continue;
+        const age = (state.tick - seenAt.tick) / (tpd * MARK_DAYS);
+        if (age >= 1) continue;
+        let mark = marks.get(id);
+        if (!mark) {
+          mark = new THREE.Sprite(new THREE.SpriteMaterial({ map: lastSeenMark(), sizeAttenuation: false, depthTest: false, fog: false, transparent: true }));
+          mark.scale.set(0.028, 0.028, 1);
+          mark.renderOrder = 9;
+          marks.set(id, mark);
+          markLayer.add(mark);
+        }
+        mark.position.set(seenAt.x, 0.5, seenAt.y);
+        mark.material.opacity = 0.8 * (1 - age);
+        keepMarks.add(id);
+      }
+    }
+    for (const [id, mark] of marks) {
+      if (keepMarks.has(id)) continue;
+      markLayer.remove(mark);
+      mark.material.dispose();
+      marks.delete(id);
     }
     // Wakes behind the ships near the camera (far out they'd be finer than a pixel).
     ocean.ships(
       Object.values(state.ships)
-        .filter((s) => Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
+        .filter((s) => wakes.has(s.id) && Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
         .map((s) => ({
           id: s.id,
           x: s.x,
@@ -761,6 +856,7 @@ export async function createSeaRenderer(
     viewHeading = chase ? chaseYaw(me.headingDeg, dt) : me.headingDeg;
     const pitch = chase ? chasePitch(base, distance, viewHeading, dt) : base;
     finishFrame(distance, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt, chase ? distance * CHASE_AHEAD : 0);
+    seaFrames++;
   };
 
   /** The sea battle, on the same sea as the map (its positions are world tiles). */
@@ -769,6 +865,7 @@ export async function createSeaRenderer(
       // A fresh fight: the world's ships give way to the two fighting, the camera starts framing them.
       inBattle = true;
       worldShips.visible = false;
+      markLayer.visible = false;
       fx.object.visible = true;
       fx.reset();
       // The smoke of the map's distant fights ages only on the map: left, it would hang frozen over this one.
@@ -997,6 +1094,53 @@ interface Banner {
   /** Sets the line under the name (redrawn only when it changes). */
   setLine(line: string): void;
 }
+
+/** How far her lookouts see (tiles): traffic.json sightTiles, times nightSight after dark, as the traffic system has it. */
+export function sightTiles(content: ContentPack, tick: number): number {
+  const hour = hourOf(content.calendar, tick);
+  return content.traffic.sightTiles * (hour < 6 || hour >= 19 ? content.traffic.nightSight : 1);
+}
+
+/** How much of a ship shows at this distance (tiles) from the player: all within sight, none beyond, rising over its last HULL_DOWN_TILES. */
+export function hullDown(distance: number, sight: number): number {
+  return 1 - THREE.MathUtils.smoothstep(distance, sight - HULL_DOWN_TILES, sight);
+}
+
+/** A ship last seen here: a small sail, as the chart marks one. */
+function lastSeenMark(): THREE.Texture {
+  if (LAST_SEEN) return LAST_SEEN;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d')!;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(30, 24, 18, 0.9)';
+  ctx.fillStyle = '#f3e6c8';
+  // Hull.
+  ctx.beginPath();
+  ctx.moveTo(12, 44);
+  ctx.lineTo(52, 44);
+  ctx.lineTo(44, 54);
+  ctx.lineTo(20, 54);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Sail.
+  ctx.beginPath();
+  ctx.moveTo(32, 8);
+  ctx.lineTo(32, 40);
+  ctx.lineTo(12, 40);
+  ctx.closePath();
+  ctx.moveTo(35, 12);
+  ctx.lineTo(52, 40);
+  ctx.lineTo(35, 40);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  LAST_SEEN = new THREE.CanvasTexture(c);
+  LAST_SEEN.colorSpace = THREE.SRGBColorSpace;
+  return LAST_SEEN;
+}
+let LAST_SEEN: THREE.Texture | undefined;
 
 /** A flag as the sea flies it, as a picture for the page (a famous pirate's demand shows hers). */
 export function flagPicture(nation: string, design?: FlagDesign): string {
