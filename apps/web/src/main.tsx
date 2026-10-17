@@ -142,20 +142,27 @@ const MOUSE_CONTROLS = false;
 
 /**
  * Playtest switches, for feeling out the sailing before tuning navigation.json: `?pace=0.4` sails every ship at sea
- * at that share of her speed (picking up and losing way in the same time, the boats towing as much slower); `?turn=0.5`
- * turns every ship that much slower, in battle too (the battle's own pace is untouched by `pace`). The world's
- * distances and clock are unchanged, so a voyage takes more days. Saves keep their fingerprint.
+ * at that share of her speed (picking up and losing way in the same time, the boats towing as much slower), the day
+ * as much longer so a voyage takes the same days (calendar.json's own rule); `?turn=0.5` turns every ship that much
+ * slower, in battle too (the battle's own pace is untouched by `pace`). Saves keep their fingerprint; `?pace=1&turn=1`
+ * is the game as tuned (the browser tests sail it).
+ *
+ * The playtest now (PLAYTEST): ships at sea at about the battle's pace (combat.json battle 0.3 against 0.7 tiles a
+ * second per speed point), so a ship is about as quick for her size at sea as in a fight, and turning at half the
+ * rate, so a tack or a turn takes a ship's time.
  */
+const PLAYTEST = { pace: 0.45, turn: 0.5 };
 function playtestPace(content: ContentPack, params: URLSearchParams): ContentPack {
-  const share = (name: string) => {
+  const share = (name: 'pace' | 'turn') => {
     const v = Number(params.get(name));
-    return v > 0 ? v : 1;
+    return v > 0 ? v : PLAYTEST[name];
   };
   const [pace, turn] = [share('pace'), share('turn')];
   if (pace === 1 && turn === 1) return content;
   const nav = content.navigation;
   return {
     ...content,
+    calendar: { ...content.calendar, ticksPerDay: Math.round(content.calendar.ticksPerDay / pace) },
     navigation: {
       ...nav,
       tilesPerSecondPerSpeedPoint: nav.tilesPerSecondPerSpeedPoint * pace,

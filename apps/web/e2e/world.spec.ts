@@ -29,7 +29,8 @@ async function boot(page: Page, url = '/', { inPort = false } = {}) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto(url);
+  // The game as tuned (navigation.json), not the playtest's defaults (main.tsx PLAYTEST).
+  await page.goto(`${url}${url.includes('?') ? '&' : '?'}pace=1&turn=1`);
   await setSail(page, url);
   await page.waitForFunction(() => Boolean(window.__corsair));
   // The loading screen has faded once the first frames are drawn.
