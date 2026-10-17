@@ -14,7 +14,7 @@ import {
   withWeather,
   zoneAt,
 } from '@corsair/systems-weather';
-import type { PlacedSettlement } from '@corsair/data';
+import type { ContentPack, PlacedSettlement } from '@corsair/data';
 import { angleOffWind, pointOfSail, speedPoints } from '@corsair/systems-navigation';
 import { render } from 'preact';
 import { createDebugApi } from './debug';
@@ -139,6 +139,33 @@ const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/c
 
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
+
+/**
+ * Playtest switches, for feeling out the sailing before tuning navigation.json: `?pace=0.4` sails every ship at sea
+ * at that share of her speed (picking up and losing way in the same time, the boats towing as much slower); `?turn=0.5`
+ * turns every ship that much slower, in battle too (the battle's own pace is untouched by `pace`). The world's
+ * distances and clock are unchanged, so a voyage takes more days. Saves keep their fingerprint.
+ */
+function playtestPace(content: ContentPack, params: URLSearchParams): ContentPack {
+  const share = (name: string) => {
+    const v = Number(params.get(name));
+    return v > 0 ? v : 1;
+  };
+  const [pace, turn] = [share('pace'), share('turn')];
+  if (pace === 1 && turn === 1) return content;
+  const nav = content.navigation;
+  return {
+    ...content,
+    navigation: {
+      ...nav,
+      tilesPerSecondPerSpeedPoint: nav.tilesPerSecondPerSpeedPoint * pace,
+      accelPerSecond: nav.accelPerSecond * pace,
+      ...(nav.decelPerSecond !== undefined ? { decelPerSecond: nav.decelPerSecond * pace } : {}),
+      turnDegPerSecondPerPoint: nav.turnDegPerSecondPerPoint * turn,
+      ...(nav.course ? { course: { ...nav.course, towTilesPerSecond: nav.course.towTilesPerSecond * pace } } : {}),
+    },
+  };
+}
 /** Which way `to` lies from `from`, as one of eight points of the compass (y grows southward). */
 /** Where a ship lies from her own bow, as the lookout calls it ("off the starboard bow"). */
 function fromTheBow(from: { x: number; y: number; headingDeg: number }, to: { x: number; y: number }): string {
@@ -178,7 +205,8 @@ async function main() {
   const stage = document.getElementById('stage')!;
   // The loading screen at once, while the map loads and decodes (storyboard 1.1).
   let loading = showLoading(stage, sceneUrl('loading.dawn'));
-  const content = loadContent();
+  const unpaced = loadContent();
+  const content = playtestPace(unpaced, new URLSearchParams(location.search));
   const def = content.maps.caribbean;
   const layer = async (name: string, share: number) => {
     const url = Object.entries(mapFiles).find(([path]) => path.endsWith(`/${name}`))?.[1];
@@ -200,7 +228,7 @@ async function main() {
   loading.progress(0.6, 'Placing the ports');
   // The start screen: continue a stored career, or pick a new one's difficulty.
   // Only gameplay content counts: new music or sprite framing shouldn't flag every old save.
-  const fingerprint = contentFingerprint(gameplayContent(content));
+  const fingerprint = contentFingerprint(gameplayContent(unpaced));
   // Whatever is stored goes to the start screen, readable or not, so a bad save is never silently replaced.
   const stored = await loadStoredSave();
   // A new game gets a random seed; with the input log it replays the run exactly (PRD section 16).
