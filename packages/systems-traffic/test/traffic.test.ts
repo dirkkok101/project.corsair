@@ -4,7 +4,7 @@ import { createSim, inPort } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
 import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, sightTiles, tileAt } from '@corsair/data';
 import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, seawardHeading, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
-import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
+import { angleOffWind, createNavigationSystem, createWorld, polarAt, targetSpeed } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather, zoneAt } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import { atWar } from '@corsair/systems-politics';
@@ -167,6 +167,29 @@ describe('fights at sea', () => {
     expect(at(2, 8)).toBe(false);
     // Past it, within sight on her own lane (open water), she gives chase and closes to battle.
     expect(at(truce + 10, truce + 16)).toBe(true);
+  });
+
+  it('a pirate leads the player across her bow, and gathers way from rest as the player does', () => {
+    const sim = world(5);
+    const { id } = spawnAlongside(sim, 'pirate', 'town.tortuga', 'town.port_royal');
+    // Open water south of Jamaica; the player 10 tiles dead downwind of the pirate (an easy run, no tacking),
+    // crossing at a good pace.
+    const here = { x: 1320, y: 1060 };
+    const down = windAt(sim.state, here.x, here.y).fromDeg + 180;
+    const rad = (down * Math.PI) / 180;
+    const player = { ...sim.state.ships.player!, docked: undefined, x: here.x + Math.sin(rad) * 10, y: here.y - Math.cos(rad) * 10, headingDeg: (down + 90) % 360, speed: 4 };
+    const pirate = { ...sim.state.ships[id]!, ...here, headingDeg: down, speed: 0, ai: { ...sim.state.ships[id]!.ai!, waitUntil: undefined, route: [[here.x, here.y], [here.x - 0.5, here.y]] as [number, number][], along: 0 } };
+    const sea = createSim({ ...sim.state, ships: { ...sim.state.ships, player, [id]: pirate } }, [traffic()]);
+    sea.step(30);
+    const early = sea.state.ships[id]!;
+    expect(early.ai!.chasing).toBe(true);
+    // A second on she is still gathering way, as the player's ship would be.
+    expect(early.speed).toBeGreaterThan(0);
+    expect(early.speed).toBeLessThan(targetSpeed(content, { ...early, sails: 'full' }, windAt(sea.state, early.x, early.y)) * 0.6);
+    // She steers ahead of the player, toward where she'll be, not at where she is.
+    const bearing = (Math.atan2(player.x - early.x, -(player.y - early.y)) * 180) / Math.PI;
+    const ahead = (((early.headingDeg - bearing) % 360) + 540) % 360 - 180;
+    expect(ahead).toBeGreaterThan(10);
   });
 
   it("a pirate won't follow the player under a port's guns: she gives up the chase and leaves her be", () => {

@@ -35,6 +35,8 @@ type Role = AiCaptain['role'];
 const ROLES: Role[] = ['merchant', 'patrol', 'pirate'];
 /** A chaser changes tack only when the other tack points this much nearer the player. */
 const TACK_MARGIN_DEG = 25;
+/** A hunter leads her quarry by where it will be, looking no further ahead than this (seconds). */
+const LEAD_SECONDS = 20;
 /** Hunters look about for prey every this many ticks. */
 const LOOKOUT_TICKS = 10;
 /** Pirates lurk somewhere in this stretch of the lane toward their mark (as shares of it), then turn for home. */
@@ -583,6 +585,12 @@ export function createTrafficSystem(
     const cls = content.ships[ship.classId]!;
     return cls.turn * content.navigation.turnDegPerSecondPerPoint * content.navigation.rigTurnFactor[cls.rig]!;
   };
+  /** Way gathered and lost as the player's ship does (navigation.json accelPerSecond, and decelPerSecond where set). */
+  const gather = (now: number, target: number, dt: number) => {
+    const nav = content.navigation;
+    const rate = target < now ? (nav.decelPerSecond ?? nav.accelPerSecond) : nav.accelPerSecond;
+    return now + (target - now) * Math.min(1, rate * dt);
+  };
   /** Swing from one heading toward another, no faster than `maxStep` degrees. */
   const steerToward = (from: number, to: number, maxStep: number) => {
     const diff = ((to - from + 540) % 360) - 180;
@@ -620,7 +628,7 @@ export function createTrafficSystem(
       desired = normalizeDeg(lane.deg - Math.sign(offset) * 20);
     }
     const heading = steerToward(ship.headingDeg, desired, turnRate(ship) * dt);
-    const speed = targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind);
+    const speed = gather(ship.speed, targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind), dt);
     const rel = ((heading - lane.deg) * Math.PI) / 180;
     const along = Math.min(total, ai.along + Math.max(0, Math.cos(rel)) * speed * dt);
     offset += Math.sin(rel) * speed * dt;
@@ -775,15 +783,23 @@ export function createTrafficSystem(
         (Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation)) && standingWith(state, ship.ai!.nation) <= cb.standing.warHunt)));
 
   /**
-   * Close on the player: straight at them where the wind allows, close-hauled toward them where it
-   * doesn't. She holds her tack until the other is clearly better (no flip-flopping), turns at her
-   * class's rate, and never sails onto land.
+   * Close on the player (or a ship she hunts): toward where they will be when she gets there (led by their way,
+   * up to LEAD_SECONDS ahead), straight where the wind allows, close-hauled toward it where it doesn't. She holds
+   * her tack until the other is clearly better (no flip-flopping), turns at her class's rate, and never sails onto land.
    */
   const pursue = (state: WorldState, ship: Ship, player: Ship, dt: number): Ship => {
     const ai = ship.ai!;
     const wind = windAt(state, ship.x, ship.y);
     const best = bestUpwind.get(content.ships[ship.classId]!.polar) ?? 45;
-    const toPlayer = normalizeDeg((Math.atan2(player.x - ship.x, -(player.y - ship.y)) * 180) / Math.PI);
+    // Her own pace toward them: what she makes now, or would make running straight at them (at least a little).
+    const straight = normalizeDeg((Math.atan2(player.x - ship.x, -(player.y - ship.y)) * 180) / Math.PI);
+    const pace = Math.max(0.5, ship.speed, targetSpeed(content, { ...ship, headingDeg: straight, sails: 'full' }, wind));
+    const [vx, vy] = [Math.sin((player.headingDeg * Math.PI) / 180) * player.speed, -Math.cos((player.headingDeg * Math.PI) / 180) * player.speed];
+    // Where they'll be when she can reach it (twice refined: the lead moves the meeting, the meeting the lead).
+    let lead = 0;
+    for (let i = 0; i < 2; i++) lead = Math.min(LEAD_SECONDS, Math.hypot(player.x + vx * lead - ship.x, player.y + vy * lead - ship.y) / pace);
+    const [ax, ay] = [player.x + vx * lead, player.y + vy * lead];
+    const toPlayer = normalizeDeg((Math.atan2(ax - ship.x, -(ay - ship.y)) * 180) / Math.PI);
     const apart = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
     let tackSign = ai.tackSign;
     let desired = toPlayer;
@@ -801,7 +817,7 @@ export function createTrafficSystem(
       }
     }
     const heading = steerToward(ship.headingDeg, desired, turnRate(ship) * dt);
-    const speed = targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind);
+    const speed = gather(ship.speed, targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind), dt);
     const r = (heading * Math.PI) / 180;
     const x = ship.x + Math.sin(r) * speed * dt;
     const y = ship.y - Math.cos(r) * speed * dt;
