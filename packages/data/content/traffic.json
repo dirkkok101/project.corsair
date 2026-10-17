@@ -46,7 +46,7 @@
   "voyageUnits": 20,
   "minMargin": 0.3,
   "maxPerRoute": 2,
-  "sightTiles": 30,
+  "sightTiles": 40,
   "sightByWind": { "calm": 1.3, "light": 1.3, "fresh": 1.1, "strong": 0.85, "gale": 0.6 },
   "stormSight": 0.5,
   "nightSight": 1,

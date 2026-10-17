@@ -67,19 +67,20 @@ const CHASE_AHEAD = 0.3;
 const CLOUDS_FROM = [70, 160];
 /**
  * At sea the haze is her sight (sightTiles in @corsair/data: by the weather and the hour), ringed round her ship:
- * clear to this share of it, thickening to all haze at its edge, so what she can't see the player can't either, and
- * a sail comes up out of the haze as she closes it. Zoomed out the ring stays, the map showing through the haze past
- * it (HAZE_RING: all haze to MARKS_FROM, thinning to `least` at twice that).
+ * clear to this share of it, thickening to all haze at its edge, so the haze lies on the horizon, what she can't see
+ * the player can't either, and a sail comes up out of it as she closes it. Zoomed out the haze lifts (HAZE_RING: all
+ * of it to MARKS_FROM, thinning to `least` by `to`), so the map reads clearly, a faint tint past her sight marking
+ * the fog of war.
  */
-const HAZE_CLEAR = 0.3;
-const HAZE_RING = { least: 0.4 };
+const HAZE_CLEAR = 0.75;
+const HAZE_RING = { to: 140, least: 0.12 };
 /**
  * In battle the haze is by depth from the camera: clear to the far edge of the fight, then thickening over this many
  * tiles (narrower under cloud).
  */
 const HAZE_BAND = 150;
 /** Zoomed out this far (camera distance in tiles) the map shows through the haze, and ships out of sight leave a mark where last seen. */
-const MARKS_FROM = 80;
+const MARKS_FROM = 60;
 /** A ship new to the sea within sight (a debug spawn, a fleet ship rejoining) comes up over this many seconds. */
 const RISE_SECONDS = 2;
 /** A ship gone from the sea within sight (sunk or taken) settles by the stern and goes down over this many seconds. */
@@ -447,7 +448,7 @@ export async function createSeaRenderer(
       // Her sight (the weather has already closed it in).
       light.fogNear = around.sight * HAZE_CLEAR;
       light.fogFar = around.sight;
-      Object.assign(HAZE_AROUND, { x: around.x, z: around.z, w: 1, y: 1 - (1 - HAZE_RING.least) * THREE.MathUtils.smoothstep(view, MARKS_FROM, MARKS_FROM * 2) });
+      Object.assign(HAZE_AROUND, { x: around.x, z: around.z, w: 1, y: 1 - (1 - HAZE_RING.least) * THREE.MathUtils.smoothstep(view, MARKS_FROM, HAZE_RING.to) });
     } else {
       light.fogNear = Math.max(view, BATTLE_VIEW.max);
       light.fogFar = light.fogNear + HAZE_BAND / (1 + 2.2 * g);

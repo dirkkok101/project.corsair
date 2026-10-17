@@ -723,11 +723,19 @@ export function createTrafficSystem(
     if (!way) return undefined;
     const prey = spawn(content, state, preyRole, preyHome, spot, rng, tick);
     const preyShip: Ship = { ...prey.ship, sails: 'full', ai: { ...prey.ship.ai!, from: preyHome.id, to: bound.id, route: way, along: 0, waitUntil: undefined } };
-    // Further out than her prey, and to one side (the other, if that's land), so she too is beyond sight.
+    // Further out than her prey, and to one side (the other, or nearer in, where that's land), so she too is beyond
+    // sight; no fight if all of it is land.
     const [ox, oy] = out;
-    const hunterAt: [number, number] = [spot[0] + ox * 5 - oy * 3, spot[1] + oy * 5 + ox * 3];
-    const otherSide: [number, number] = [spot[0] + ox * 5 + oy * 3, spot[1] + oy * 5 - ox * 3];
-    const hunter = spawn(content, prey.state, hunterRole, hunterHome, isLand(tileAt(map, hunterAt[0], hunterAt[1])) ? otherSide : hunterAt, rng, tick);
+    const hunterAt = [
+      [5, 3],
+      [5, -3],
+      [3, 3],
+      [3, -3],
+    ]
+      .map(([o, side]): [number, number] => [spot![0] + ox * o! - oy * side!, spot![1] + oy * o! + ox * side!])
+      .find(([x, y]) => !isLand(tileAt(map, x, y)));
+    if (!hunterAt) return undefined;
+    const hunter = spawn(content, prey.state, hunterRole, hunterHome, hunterAt, rng, tick);
     const home = lanes.berth(hunterHome.id);
     const back = home ? lanes.path([hunter.ship.x, hunter.ship.y], home) : undefined;
     const hunterShip: Ship = {
