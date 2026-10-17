@@ -1,78 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import type { Ship } from '@corsair/core';
-import { decodeRasterMap, difficultyOf, loadContent, shipStats } from '@corsair/data';
+import { difficultyOf } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
 import { createBattle, weatherGauge } from '../src';
-
-const content = loadContent();
-const def = content.maps.caribbean;
-const dir = fileURLToPath(new URL('../../data/content/maps/caribbean/', import.meta.url));
-const world = decodeRasterMap(def, {
-  terrain: readFileSync(dir + def.layers.terrain),
-  elevation: readFileSync(dir + def.layers.elevation),
-  zones: readFileSync(dir + def.layers.zones),
-});
-// Fights are sailed on the world map itself.
-const map = world;
-// Open water south of Jamaica, so fights here are about seamanship, not coastlines.
-const SEA = { x: 1320, y: 1020 };
-
-const ship = (classId: string, role?: 'merchant' | 'patrol' | 'pirate', crewShare?: number): Ship => {
-  const cls = content.ships[classId]!;
-  return {
-    id: 'x',
-    classId,
-    ...SEA,
-    headingDeg: 90,
-    speed: 0,
-    helm: 0,
-    sails: 'full',
-    blocked: false,
-    cargo: {},
-    crew: crewShare === undefined ? undefined : Math.round(cls.maxCrew * crewShare),
-    ai: role ? { nation: 'pirate', role, name: 'Test', from: 'a', to: 'b', route: [], along: 0, offset: 0, tackSign: 1, news: [] } : undefined,
-  };
-};
-
-/**
- * One fight to the end: the player's brig sails under `autopilot` (by default a gunner keeping her range),
- * with `outfit` (guns mounted, upgrades) when given, else her class's full battery.
- */
-function fight(enemy: Ship, seed: number, autopilot: 'runner' | 'cautious' | 'aggressive' = 'cautious', outfit: Partial<Ship> = {}) {
-  const battle = createBattle(content, {
-    map,
-    wind: { fromDeg: 70, strength: 'fresh' },
-    player: { ...ship('ship.brig', undefined, 0.5), ...outfit },
-    enemy,
-    seed,
-    bearingDeg: 45 + seed * 37,
-  });
-  // Feel metrics: when the player's first broadside goes off, and how many she fires in all.
-  // Tension: broadsides before the hulls first meet, and grapples thrown and cut free.
-  let volleys = 0;
-  let firstVolley: number | undefined;
-  let beforeGrapple: number | undefined;
-  let grapples = 0;
-  let broken = 0;
-  let guard = 0;
-  while (!battle.result() && guard++ < 30 * 60 * 10) {
-    const before = battle.state.ships.player.reload;
-    const held = battle.state.grappling;
-    battle.step(1, autopilot);
-    const after = battle.state.ships.player.reload;
-    if (after.port > before.port || after.starboard > before.starboard) {
-      volleys++;
-      firstVolley ??= battle.state.tick / 30;
-    }
-    if (held === 0 && battle.state.grappling > 0) {
-      grapples++;
-      beforeGrapple ??= volleys;
-    }
-    if (held > 0 && battle.state.grappling === 0 && !battle.result()) broken++;
-  }
-  return Object.assign(battle, { volleys, firstVolley, beforeGrapple: beforeGrapple ?? volleys, grapples, broken });
-}
+import { content, fight, map, SEA, ship } from './fixtures';
 
 describe('a fair start', () => {
   // A pirate sloop falls on the brig. Fair: across the wind, converging. Not: bows-on from dead to windward.
@@ -367,7 +297,7 @@ describe('sea battle', () => {
     expect(done.result()!.player.guns).toBeLessThanOrEqual(12);
   });
 
-  it('who sails her: a regular crew under a captain of 50 fights as one with none; veterans under a good captain beat green men under a poor one', () => {
+  it('who sails her: a regular crew under a captain of 50 fights as one with none', () => {
     const pirate = (crew?: 'green' | 'regular' | 'veteran', skill?: number): Ship => {
       const s = ship('ship.brigantine', 'pirate', 0.9);
       return { ...s, ai: { ...s.ai!, temperament: 'bold', ...(crew ? { crew } : {}), ...(skill !== undefined ? { captain: { gunnery: skill, seamanship: skill, boarding: skill, resolve: skill } } : {}) } };
@@ -379,15 +309,7 @@ describe('sea battle', () => {
       expect(ordinary.result()).toEqual(none.result());
       expect(ordinary.state.tick).toBe(none.state.tick);
     }
-    const losses = (crew: 'green' | 'veteran', skill: number) => {
-      let n = 0;
-      for (let seed = 1; seed <= 30; seed++) if (fight(pirate(crew, skill), seed).result()!.outcome === 'lost') n++;
-      return n;
-    };
-    const easy = losses('green', 20);
-    const hard = losses('veteran', 90);
-    expect(hard).toBeGreaterThan(easy + 5);
-  }, 120_000);
+  });
 
   it('doctrine: a French patrol fires chain at the rigging, an English one round shot, and Spanish soldiers are hard to board', () => {
     const patrol = (nation: 'england' | 'france' | 'spain'): Ship => {
@@ -405,19 +327,6 @@ describe('sea battle', () => {
       createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.5), enemy: patrol(nation), seed: 1, bearingDeg: 0 }).boardingOdds();
     expect(odds('spain')).toBeLessThan(odds('england'));
   });
-
-  it('surrender: a captain of resolve holds out longer than a faint-hearted one', () => {
-    const sloop = (resolve: number): Ship => {
-      const s = ship('ship.sloop', 'pirate', 0.85);
-      return { ...s, ai: { ...s.ai!, temperament: 'cautious', captain: { gunnery: 50, seamanship: 50, boarding: 50, resolve } } };
-    };
-    const struck = (resolve: number) => {
-      let n = 0;
-      for (let seed = 1; seed <= 30; seed++) if (fight(sloop(resolve), seed).result()!.outcome === 'struck') n++;
-      return n;
-    };
-    expect(struck(5)).toBeGreaterThan(struck(95));
-  }, 120_000);
 
   it('a famous pirate calls on the player to strike when her boarders would lose; striking yields, and only then', () => {
     const morgan = (famous?: string): Ship => {
@@ -441,41 +350,6 @@ describe('sea battle', () => {
     famous.step(1);
     expect(famous.result()!.outcome).toBe('yielded');
   }, 60_000);
-
-  it('ten famous captains, each his own: harder by tier against an armed brig, and no two of a class alike', () => {
-    const asHeSails = (c: (typeof content.pirates.captains)[number]): Ship => {
-      const s = ship(c.classId, 'pirate');
-      return {
-        ...s,
-        upgrades: c.upgrades,
-        crew: shipStats(content, { classId: c.classId, upgrades: c.upgrades }).maxCrew,
-        ai: { ...s.ai!, temperament: c.temperament, famous: c.id, crew: c.crew, captain: c.captain, ...(c.doctrine ? { doctrine: c.doctrine } : {}), ...(c.terror ? { terror: c.terror } : {}) },
-      };
-    };
-    const losses = new Map<string, number>();
-    const ends = new Map<string, string>();
-    for (const c of content.pirates.captains) {
-      let lost = 0;
-      const seen: string[] = [];
-      for (let seed = 1; seed <= 16; seed++) {
-        const b = fight(asHeSails(c), seed, 'cautious', { crew: 120 });
-        seen.push(`${b.result()!.outcome}:${b.state.tick}`);
-        if (b.result()!.outcome === 'lost') lost++;
-      }
-      losses.set(c.id, lost);
-      ends.set(c.id, seen.join(','));
-    }
-    const mean = (ids: string[]) => ids.reduce((n, id) => n + losses.get(id)!, 0) / ids.length;
-    const top = mean(['morgan', 'lolonnais', 'mansvelt']);
-    const middle = mean(['braziliano', 'degraaf', 'grammont']);
-    const bottom = mean(['portugues', 'willems', 'coxon', 'legrand']);
-    expect(top).toBeGreaterThan(middle);
-    expect(middle).toBeGreaterThan(bottom);
-    // Captains of one class no longer fight seed for seed alike.
-    expect(ends.get('morgan')).not.toBe(ends.get('lolonnais'));
-    expect(ends.get('braziliano')).not.toBe(ends.get('grammont'));
-    expect(ends.get('willems')).not.toBe(ends.get('coxon'));
-  }, 300_000);
 
   it('guns and range: a ball is full force close in and weaker at long shot; a ball down her length rakes her', () => {
     const at = (apart: number, enemyHeading: number) => {
@@ -574,86 +448,6 @@ describe('sea battle', () => {
     bare.step(1);
     expect(netted.boardingOdds()).toBeLessThan(bare.boardingOdds());
   });
-
-  it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
-    const wins = (outfit: Partial<Ship>) => {
-      let n = 0;
-      for (let seed = 1; seed <= 40; seed++) {
-        const o = fight(ship('ship.sloop', 'pirate', 0.85), seed, 'cautious', outfit).result()!.outcome;
-        if (o === 'sunk' || o === 'struck' || o === 'boarded') n++;
-      }
-      return n;
-    };
-    const stock = wins({ guns: 10 });
-    const full = wins({});
-    const fitted = wins({ upgrades: Object.keys(content.upgrades) });
-    console.log('OUTFIT brig vs pirate sloop wins of 40: 10 guns', stock, '18 guns', full, 'fully fitted', fitted);
-    expect(full).toBeGreaterThanOrEqual(stock);
-    expect(fitted).toBeGreaterThanOrEqual(full);
-  }, 120_000);
-
-  it('a famous pirate is a hard fight: her veterans beat a stock 10-gun brig most times (the top of the list nearly always)', () => {
-    const famous = (classId: string, temperament: string) => {
-      const s = ship(classId, 'pirate', 1);
-      return { ...s, ai: { ...s.ai!, famous: 'test', temperament } };
-    };
-    const tally: Record<string, number> = {};
-    for (const c of content.pirates.captains) {
-      let lost = 0;
-      for (let seed = 1; seed <= 6; seed++) if (fight(famous(c.classId, c.temperament), seed, 'cautious', { guns: 10 }).result()!.outcome === 'lost') lost++;
-      tally[c.id] = lost;
-    }
-    console.log('FAMOUS stock brig losses of 6 against each', JSON.stringify(tally));
-    const losses = Object.values(tally).reduce((a, b) => a + b, 0);
-    expect(losses).toBeGreaterThan(content.pirates.captains.length * 6 * 0.5);
-  }, 300_000);
-
-  it('plays matchups with the outcomes the design intends (headless runner)', () => {
-    const tally = (enemy: () => Ship, n = 40) => {
-      const outcomes: Record<string, number> = {};
-      let seconds = 0;
-      let volleys = 0;
-      let beforeGrapple = 0;
-      let grapples = 0;
-      let broken = 0;
-      const firsts: number[] = [];
-      for (let seed = 1; seed <= n; seed++) {
-        const b = fight(enemy(), seed);
-        outcomes[b.result()!.outcome] = (outcomes[b.result()!.outcome] ?? 0) + 1;
-        seconds += b.state.tick / 30;
-        volleys += b.volleys;
-        beforeGrapple += b.beforeGrapple;
-        grapples += b.grapples;
-        broken += b.broken;
-        if (b.firstVolley !== undefined) firsts.push(b.firstVolley);
-      }
-      firsts.sort((a, b) => a - b);
-      return {
-        outcomes,
-        seconds: Math.round(seconds / n),
-        // Feel: seconds to the first broadside (median), and broadsides a minute across the fights.
-        firstVolley: Math.round(firsts[Math.floor(firsts.length / 2)] ?? -1),
-        volleysPerMinute: Math.round((volleys / (seconds / 60)) * 10) / 10,
-        // Tension: broadsides before the first grapple (mean), and grapples thrown and cut free in all.
-        volleysBeforeGrapple: Math.round((beforeGrapple / n) * 10) / 10,
-        grapples,
-        broken,
-      };
-    };
-    const merchant = tally(() => ship('ship.fluyt', 'merchant', 0.55));
-    const pirate = tally(() => ship('ship.sloop', 'pirate', 0.85));
-    const frigate = tally(() => ship('ship.frigate', 'patrol', 0.85));
-    console.log('BATTLE brig vs merchant fluyt', JSON.stringify(merchant));
-    console.log('BATTLE brig vs pirate sloop', JSON.stringify(pirate));
-    console.log('BATTLE brig vs frigate', JSON.stringify(frigate));
-    const wins = (o: Record<string, number>) => (o.sunk ?? 0) + (o.struck ?? 0) + (o.boarded ?? 0);
-    // A merchant is prey: the brig takes most of them; some run clear.
-    expect(wins(merchant.outcomes)).toBeGreaterThanOrEqual(20);
-    // A pirate sloop is a real fight, but a well-handled brig wins more often than not.
-    expect(wins(pirate.outcomes)).toBeGreaterThanOrEqual(15);
-    // A frigate outguns a brig: attacking one is a mistake.
-    expect(frigate.outcomes.lost ?? 0).toBeGreaterThan(wins(frigate.outcomes));
-  }, 120_000);
 
   it('places every hit on her, and rigging hits bring masts down: canvas and men go with them', () => {
     // The brig keeps her range and pounds a big merchantman with round shot until a mast goes.

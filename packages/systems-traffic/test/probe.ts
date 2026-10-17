@@ -40,11 +40,14 @@ export interface VoyageMeasures {
   margin: { good: string; now: number; normal: number };
 }
 
+/** The wind of the tuned content, made once for every run that sails it. */
+const baseWind = createWindField(base, def, map);
+
 export function voyageProbe(
   route: [string, string],
   { days = 60, seed = 1, outfit = {}, content = base }: { days?: number; seed?: number; outfit?: Partial<Ship>; content?: ContentPack } = {},
 ): VoyageMeasures {
-  const windAt = createWindField(content, def, map);
+  const windAt = content === base ? baseWind : createWindField(content, def, map);
   const start = createWorld(def);
   const home = lanes.berth(route[0])!;
   const player = { ...start.ships.player!, x: home[0], y: home[1], guns: 10, crew: 75, ...outfit };

@@ -5,6 +5,10 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: 'apps/web/e2e',
   timeout: 60_000,
+  // Each test is its own career in its own browser context (its own IndexedDB), so they run side by side. They share
+  // the Mac's GPU; six keep headroom for a busy machine (eight ran a few seconds faster).
+  fullyParallel: true,
+  workers: 6,
   use: {
     baseURL: 'http://localhost:5299',
     viewport: { width: 1920, height: 1080 },

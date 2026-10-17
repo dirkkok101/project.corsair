@@ -46,6 +46,12 @@ async function boot(page: Page, url = '/', { inPort = false } = {}) {
   return errors;
 }
 
+/** Let the page draw `n` frames: the renderer and the HUD catch up with a clock the test holds. */
+const frames = (page: Page, n = 2) =>
+  page.evaluate(async (k) => {
+    for (let i = 0; i < k; i++) await new Promise((r) => requestAnimationFrame(r));
+  }, n);
+
 const player = (page: Page) =>
   page.evaluate(() => window.__corsair.state.get('ships.player') as { x: number; y: number; headingDeg: number; speed: number });
 
@@ -163,14 +169,13 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
 test('the title stays up after the loading screen has faded, until a career is chosen', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Next: how hard a sea' })).toBeVisible();
-  // Well past the loading screen's fade, which once took the title away with it.
-  await page.waitForTimeout(1500);
+  // Past the loading screen's fade (it is gone once faded), which once took the title away with it.
   await expect(page.locator('.loading')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Next: how hard a sea' })).toBeVisible();
 });
 
 test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?pace=1&turn=1');
   await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
@@ -190,12 +195,11 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/');
+  await page.goto('/?pace=1&turn=1');
   await setSail(page, '/');
   await page.waitForFunction(() => Boolean(window.__corsair));
-  // A career opens in port, where the clock stands still: set sail so it runs, and let her get under way.
+  // A career opens in port, where the clock stands still: set sail so it runs, and the band strikes up once she is under way.
   await page.keyboard.press('e');
-  await page.waitForTimeout(4000);
   await page.keyboard.press('Shift');
   await page.waitForFunction(() => Boolean(window.__corsair.audio.levels().nowPlaying), undefined, { timeout: 20_000 });
   const title = await page.evaluate(() => window.__corsair.audio.levels().nowPlaying);
@@ -205,22 +209,24 @@ test('the band plays audibly while the game keeps running, and N silences the mu
   const tick0 = await page.evaluate(() => window.__corsair.state.get('tick') as number);
   // Meter the band's own bus, not the whole mix: the sea alone drifts between two windows by as much as
   // a gentle tune adds to it, so comparing the whole mix with music on and off was flaky.
-  const bandLevel = async () => {
+  // The meter is real sound, so real time must pass: a second's samples ride over the rests in a tune.
+  const bandLevel = async (samples: number) => {
     let sum = 0;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < samples; i++) {
       sum += await page.evaluate(() => window.__corsair.audio.levels().musicRms);
       await page.waitForTimeout(100);
     }
-    return sum / 15;
+    return sum / samples;
   };
   // Tunes measure 0.05 to 0.12 here; a band too quiet to hear would be well under this.
-  expect(await bandLevel()).toBeGreaterThan(0.02);
+  expect(await bandLevel(10)).toBeGreaterThan(0.02);
   expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBeGreaterThan(tick0 + 20);
 
   await page.keyboard.press('n');
   expect(await page.evaluate(() => window.__corsair.audio.levels().music)).toBe(false);
-  await page.waitForTimeout(1200);
-  expect(await bandLevel()).toBeLessThan(0.001);
+  // The music fades out over a moment; once it has, it stays silent.
+  await page.waitForFunction(() => window.__corsair.audio.levels().musicRms < 0.001);
+  expect(await bandLevel(5)).toBeLessThan(0.001);
   expect(errors).toEqual([]);
 });
 
@@ -417,7 +423,9 @@ test("sea chart: a port's card says what it means for you, with the prices last 
 });
 
 test('harbour scenes: a pirate haven has its own scene, and night falls on it too', async ({ page }) => {
-  const errors = await boot(page);
+  // Night is some 23,000 ticks of the time of day's slow clock away (calendar.json daylight); ?sky shows the harbour
+  // at that hour without running the world there.
+  const errors = await boot(page, '/?sky=22');
   await page.evaluate(() => {
     const port = window.__corsair.ports().find((p) => p.name === 'Tortuga')!;
     for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [0, 2], [-2, 0], [0, -2]]) {
@@ -428,9 +436,7 @@ test('harbour scenes: a pirate haven has its own scene, and night falls on it to
     }
   });
   await page.keyboard.press('e');
-  // On from mid-morning into the night (calendar.json daylight: night falls about 13 minutes of game time in);
-  // the debug step runs the clock even in port.
-  await page.evaluate(() => window.__corsair.sim.step(30 * 820));
+  await page.evaluate(() => window.__corsair.sim.step(1));
   await expect(page.locator('.port-name')).toHaveText('Tortuga');
   await page.keyboard.press('Escape');
   // A haven has no governor: merchant, tavern and shipwright, and the docks.
@@ -531,15 +537,14 @@ test('the Top Ten: the log ranks the famous pirates by wealth, and the captain b
   expect(errors).toEqual([]);
 });
 
-test("treasure maps: the tavern stranger sells a piece, the log draws the map, and the chart rings the search", async ({ page }) => {
-  test.setTimeout(120_000);
+test("treasure maps: the tavern stranger sells a piece, the log draws the map, the chart rings the search, and G digs it up", async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await openService(page, 'Tavern');
-  // He sits in the corner some weeks: wait them out in port.
+  // He sits in the corner some weeks (the town and the week decide which): wait them out in port.
   const stranger = page.locator('.tavern-person', { hasText: 'Stranger' });
   for (let w = 0; w < 16 && !(await stranger.count()); w++) {
     await page.evaluate(() => window.__corsair.sim.step(7 * 771));
-    await page.waitForTimeout(50);
+    await frames(page);
   }
   await stranger.click();
   await expect(page.locator('.stranger')).toBeVisible();
@@ -573,24 +578,9 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, a
   await page.keyboard.press('m');
   await expect(page.locator('.chart-ring')).toHaveCount(1);
   await page.screenshot({ path: 'test-results/treasure-chart.png' });
-  expect(errors).toEqual([]);
-});
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart')).toBeHidden();
 
-test('digging: off the hoard\'s coast G puts the men ashore, and the gold comes up', async ({ page }) => {
-  test.setTimeout(120_000);
-  const errors = await boot(page, '/?seed=3', { inPort: true });
-  await openService(page, 'Tavern');
-  const stranger = page.locator('.tavern-person', { hasText: 'Stranger' });
-  for (let w = 0; w < 16 && !(await stranger.count()); w++) {
-    await page.evaluate(() => window.__corsair.sim.step(7 * 771));
-    await page.waitForTimeout(50);
-  }
-  await stranger.click();
-  await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
-  await expect(page.locator('.moment-map')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.moment')).toHaveCount(0);
-  await page.keyboard.press('e');
   // Off the hoard's own beach (the test knows where it is; the captain only has the ring).
   const hoard = await page.evaluate(() => {
     const famous = window.__corsair.state.get('famous') as Record<string, { hoard?: { landing: [number, number]; value: number } }>;
@@ -693,7 +683,7 @@ test('moments: war comes as a letter in port, and a famous pirate seen the first
   await expect(moment).toContainText('on the Top Ten');
   await page.screenshot({ path: 'test-results/moment-famous.png' });
   const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
-  await page.waitForTimeout(300);
+  await frames(page, 10);
   expect(await page.evaluate(() => window.__corsair.state.get('tick') as number)).toBe(tick);
   await page.keyboard.press('Enter');
   await expect(moment).toHaveCount(0);
@@ -747,7 +737,7 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
 
 test('leaving port: E sets sail back to the sea view, pointing out of the harbour', async ({ page }) => {
   // The game runs here (no pause), as a player has it. A new career opens docked in Port Royal.
-  await page.goto('/?seed=3');
+  await page.goto('/?seed=3&pace=1&turn=1');
   await page.waitForFunction(() => Boolean(window.__corsair));
   await expect(page.locator('.port-name')).toHaveText('Port Royal');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('harbour');
@@ -777,8 +767,7 @@ test('sea life and gun smoke on the 3D sea: dolphins, flying fish, a whale and g
     const me = window.__corsair.state.get('ships.player') as { x: number; y: number };
     (window as unknown as { __corsair3d: { seaFight(x: number, y: number): void } }).__corsair3d.seaFight(me.x + 4, me.y + 2);
   });
-  await page.waitForTimeout(1500);
-  expect(await page.evaluate(() => window.__corsair.wildlife.count)).toBeGreaterThan(5);
+  await expect.poll(() => page.evaluate(() => window.__corsair.wildlife.count)).toBeGreaterThan(5);
   await page.screenshot({ path: 'test-results/wildlife.png' });
   expect(errors).toEqual([]);
 });
@@ -995,7 +984,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   // The report, or the victory screen when she was taken: Enter through to the sea.
   for (let i = 0; i < 3 && (await page.evaluate(() => window.__corsair.view())) === 'battle'; i++) {
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(150);
+    await frames(page);
   }
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   const standing = await page.evaluate(() => (window.__corsair.state.get('captain') as { standing: Record<string, number> }).standing);
@@ -1247,7 +1236,9 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
     for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
     return window.__corsair.battle.result()?.outcome;
   });
-  test.skip(outcome !== 'boarded' && outcome !== 'struck', `no prize this run (${outcome})`);
+  // The fight is the same every run (a fixed world, a held clock, a battle seeded from both), and it ends with her
+  // taken: were it ever to end otherwise, this test would say so rather than skip.
+  expect(outcome).toMatch(/^(boarded|struck)$/);
   await page.locator('.fate-keep').click();
   await expect(page.locator('.plunder')).toContainText('joins your fleet');
   await page.keyboard.press('Enter');
@@ -1293,10 +1284,10 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   expect(errors).toEqual([]);
 });
 
-test('ships change hands: a pirate takes your fleet ship, shows her in tow, and taking her wins her back', async ({ page }) => {
+test('ships change hands: a pirate takes your fleet ship, and hailing him says she is yours in his tow', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // Fights are settled straight through the sim here (the battle itself has its own tests): one won to keep a
-  // merchant, one lost to a pirate, one won back.
+  // merchant, one lost to a pirate. Winning her back is the traffic system's (hunt.test.ts).
   const alongside = (role: string, from: string, to: string) =>
     page.evaluate(
       ({ role, from, to }) => {
@@ -1350,9 +1341,7 @@ test('ships change hands: a pirate takes your fleet ship, shows her in tow, and 
   await expect(page.locator('.hail')).toContainText(`your fluyt ${kept}`);
   await page.screenshot({ path: 'test-results/prize-in-tow.png' });
   await page.keyboard.press('h');
-
-  await settle(pirate, 'boarded');
-  expect(await fleet()).toEqual([kept]);
+  await expect(page.locator('.hail')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

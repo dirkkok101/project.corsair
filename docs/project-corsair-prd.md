@@ -958,6 +958,8 @@ In the browser this is `window.__corsair`. In Node it is the `corsair` CLI with 
 
 There is no CI. A merge to main is gated on a local `pnpm verify` run: typecheck, unit tests (including the determinism and replay tests), production build, and Playwright end-to-end tests that drive the game through `window.__corsair`. The end-to-end tests run on the Mac's GPU (Metal, set in `playwright.config.ts`), since the game is drawn in 3D.
 
+The balance suite (`pnpm verify:balance`, `packages/*/balance`) is kept out of it: how the game comes out over many seeds and long runs (pirate pressure per voyage, a year's economy, the trade winds, battle odds). It is slow and statistical, so it runs before merging a change to the tuning (traffic, combat, economy, navigation or weather settings, or the systems that use them), not on every merge. Tests in the gate check behaviour deterministically and stay short.
+
 ### Invariants (checked every tick in debug builds)
 
 - No negative gold, crew, stock, hull or food.

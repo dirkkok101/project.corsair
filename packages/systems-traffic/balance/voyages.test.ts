@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { voyageProbe } from './probe';
+import { voyageProbe } from '../test/probe';
 
 // The voyage probe's targets (PRD section 6, traffic): the lanes between Jamaica and Hispaniola are
 // dangerous in the starting brig, a brig with her full battery and berths filled still meets her own kind, the Leewards

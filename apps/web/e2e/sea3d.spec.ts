@@ -1,4 +1,11 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+/** Let the 3D view draw `n` frames before a screenshot: the clock is held, but the camera eases and the smoke drifts. */
+const frames = (page: Page, n: number) =>
+  page.evaluate(async (k) => {
+    for (let i = 0; i < k; i++) await new Promise((r) => requestAnimationFrame(r));
+  }, n);
 
 // The 3D sea map: it draws at sea, zooms on the wheel and switches to a view from astern on C, and goes away
 // in port (behind the harbour scene).
@@ -6,7 +13,7 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/?seed=3');
+  await page.goto('/?seed=3&pace=1&turn=1');
   await page.waitForFunction(() => Boolean(window.__corsair));
   await page.evaluate(() => window.__corsair.sim.pause());
   const sea = page.locator('canvas.sea3d');
@@ -17,15 +24,15 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
   await expect(sea).toBeVisible();
   // Out of the harbour a little way, under sail.
   await page.evaluate(() => window.__corsair.sim.step(300));
-  await page.waitForTimeout(500);
+  await frames(page, 10);
   await page.screenshot({ path: 'test-results/sea3d-near.png' });
   await page.mouse.move(960, 540);
   for (let i = 0; i < 8; i++) await page.mouse.wheel(0, 300);
-  await page.waitForTimeout(300);
+  await frames(page, 10);
   await page.screenshot({ path: 'test-results/sea3d-far.png' });
   for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -300);
   await page.keyboard.press('c');
-  await page.waitForTimeout(300);
+  await frames(page, 10);
   await page.screenshot({ path: 'test-results/sea3d-astern.png' });
   expect(errors).toEqual([]);
 });
@@ -34,12 +41,12 @@ test('the 3D sky keeps its own slow day: sunset and a moonlit night, for review'
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   for (const hour of [17.8, 23]) {
-    await page.goto(`/?seed=3&sky=${hour}`);
+    await page.goto(`/?seed=3&sky=${hour}&pace=1&turn=1`);
     await page.waitForFunction(() => Boolean(window.__corsair));
     await page.evaluate(() => window.__corsair.sim.pause());
     await page.keyboard.press('e');
     await page.evaluate(() => window.__corsair.sim.step(300));
-    await page.waitForTimeout(500);
+    await frames(page, 10);
     await page.screenshot({ path: `test-results/sea3d-sky-${hour}.png` });
   }
   // The HUD shows the date only in 3D: the sky's hour isn't the game clock's.
@@ -51,7 +58,7 @@ test('the 3D sea battle: both ships on the same sea, shot in flight and smoke, t
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/?seed=3');
+  await page.goto('/?seed=3&pace=1&turn=1');
   await page.waitForFunction(() => Boolean(window.__corsair));
   await page.evaluate(() => window.__corsair.sim.pause());
   await page.keyboard.press('e');
@@ -76,18 +83,18 @@ test('the 3D sea battle: both ships on the same sea, shot in flight and smoke, t
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   const sea = page.locator('canvas.sea3d');
   await expect(sea).toBeVisible();
-  await page.waitForTimeout(500);
+  await frames(page, 10);
   await page.screenshot({ path: 'test-results/battle3d-start.png' });
   // Close and fight until the first broadside goes off, then let it draw.
   const fired = await page.evaluate(() => {
     for (let i = 0; i < 30 * 120 && !window.__corsair.battle.state()!.shots.length; i += 5) window.__corsair.battle.step(5, 'cautious');
     return window.__corsair.battle.state()!.shots.length > 0;
   });
-  await page.waitForTimeout(300);
+  await frames(page, 10);
   expect(fired).toBe(true);
   await page.screenshot({ path: 'test-results/battle3d-broadside.png' });
   await page.evaluate(() => window.__corsair.battle.step(12, 'cautious'));
-  await page.waitForTimeout(400);
+  await frames(page, 10);
   await page.screenshot({ path: 'test-results/battle3d-smoke.png' });
   expect(errors).toEqual([]);
 });

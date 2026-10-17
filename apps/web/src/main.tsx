@@ -1,7 +1,7 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship, WorldState } from '@corsair/core';
-import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, sightTiles, tileAt } from '@corsair/data';
+import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, sightTiles, tickAtHour, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer, flagPicture } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
@@ -357,9 +357,11 @@ async function main() {
   const shipLabels = createShipLabels(viewport);
   // For review and tests: the 3D renderer's showcase and sky controls.
   (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
-  // ?sky=17.5 starts the 3D sky at that hour, for reviewing sunrise, sunset and night.
+  // ?sky=17.5 starts the 3D sky and the harbour paintings at that hour, for reviewing sunrise, sunset and night.
   const skyHour = Number(new URLSearchParams(location.search).get('sky'));
   if (Number.isFinite(skyHour) && skyHour > 0) sea3d.setSkyHour(skyHour);
+  // The harbour keeps the game's clock, so it is shown that far ahead of it (the clock itself is untouched).
+  const harbourSkyShift = Number.isFinite(skyHour) && skyHour > 0 ? tickAtHour(content.calendar, skyHour, sim.state.tick) - sim.state.tick : 0;
   // At sea the wheel and the trackpad's pinch zoom the map, from anywhere on the screen (the HUD too).
   window.addEventListener('wheel', (e) => {
     if (sea3d.canvas.style.display === 'none') return;
@@ -1581,7 +1583,7 @@ async function main() {
     }
     // In port the harbour scene (2D, illustrated) covers the screen; at sea the 3D view does.
     const atSea = !fight && !renderer.harbour.visible;
-    if (!atSea && !fight) renderer.render(sim.state, now);
+    if (!atSea && !fight) renderer.render(harbourSkyShift ? { ...sim.state, tick: sim.state.tick + harbourSkyShift } : sim.state, now);
     sea3d.canvas.style.display = atSea || fight ? '' : 'none';
     if (atSea) sea3d.render(sim.state, now);
     shipLabels.update(sim.state, def.start.shipId, (x, y) => sea3d.project(x, y), atSea);
