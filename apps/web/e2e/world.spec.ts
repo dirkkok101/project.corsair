@@ -1155,10 +1155,11 @@ test('crew: the food goes day by day at sea, and the tavern pays the wages owed'
 test('a pirate falls on a merchant within sight: they heave to and fight it out, and the HUD calls it', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // The player in open water south of Jamaica; a merchant and a pirate put down further south, the pirate
-  // beyond seeing the player but in sight of the merchant.
+  // beyond seeing the player but in sight of the merchant. The merchant runs north past her, so they meet within
+  // her sight whatever the weather (a fight past it is settled out of sight).
   const ids = await page.evaluate(() => {
     const last = () => Object.keys(window.__corsair.state.get('ships') as object).filter((k) => k.startsWith('ai.')).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1035 });
     // Hove to, so she watches from where she is.
     window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'furled' });
     window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });

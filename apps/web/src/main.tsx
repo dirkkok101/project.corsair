@@ -1,9 +1,9 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
 import type { Nation, Ship, WorldState } from '@corsair/core';
-import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
+import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, sightTiles, tileAt } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
-import { createSeaRenderer, flagPicture, sightTiles } from '@corsair/render3d';
+import { createSeaRenderer, flagPicture } from '@corsair/render3d';
 import type { HarbourScene } from '@corsair/render';
 import { createNavigationSystem, createWorld } from '@corsair/systems-navigation';
 import {
@@ -900,9 +900,8 @@ async function main() {
       const me = player();
       if (me.assist?.mode === 'intercept') sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
       else {
-        const sight = content.traffic.sightTiles;
         const target = Object.values(sim.state.ships)
-          .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - me.x, s.y - me.y) <= sight)
+          .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - me.x, s.y - me.y) <= sight())
           .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
         if (target) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: target.id });
       }
@@ -1026,6 +1025,8 @@ async function main() {
     },
   };
   const player = () => sim.state.ships[def.start.shipId]!;
+  /** How far she sees now (the haze's edge), by the weather and the hour where she is. */
+  const sight = () => sightTiles(content, sim.state.tick, windAt(sim.state, player().x, player().y), player(), sim.state.weather?.storms);
   // The keys steer the battle while one is on, the world otherwise; the debug wind keys only at sea.
   bindInput(
     () => {
@@ -1064,7 +1065,7 @@ async function main() {
   /** An AI ship at sea under a tile (within a tile and a half) and in her sight (the view draws no other), nearest first. */
   const shipAt = (x: number, y: number) =>
     Object.values(sim.state.ships)
-      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5 && Math.hypot(s.x - player().x, s.y - player().y) <= sightTiles(content, sim.state.tick))
+      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5 && Math.hypot(s.x - player().x, s.y - player().y) <= sight())
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   /** A port under a tile (its town within two and a half tiles). */
   const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 3.75);
@@ -1506,7 +1507,7 @@ async function main() {
         const x = ev.payload.x as number;
         const y = ev.payload.y as number;
         const d = Math.hypot(x - me.x, y - me.y);
-        if (d <= content.traffic.sightTiles) {
+        if (d <= sight()) {
           sea3d.seaFight(x, y);
           audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
         }
@@ -1521,7 +1522,7 @@ async function main() {
         continue;
       }
       const me = player();
-      if (Math.hypot(prey.x - me.x, prey.y - me.y) > content.traffic.sightTiles) continue;
+      if (Math.hypot(prey.x - me.x, prey.y - me.y) > sight()) continue;
       unseenFights.delete(preyId);
       const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : `a ${({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' } as Record<string, string>)[ship.ai!.nation] ?? ''}`} ${shipKind(ship.classId)}`;
       courseNote = {
@@ -1537,7 +1538,7 @@ async function main() {
       if (!foe) continue;
       const me = player();
       const d = Math.hypot(s.x - me.x, s.y - me.y);
-      if (d > content.traffic.sightTiles || loop.paused || now < (nextVolley.get(s.id) ?? 0)) continue;
+      if (d > sight() || loop.paused || now < (nextVolley.get(s.id) ?? 0)) continue;
       // Each side fires every couple of seconds, staggered so the guns answer each other.
       nextVolley.set(s.id, now + VOLLEY_MS * (0.8 + 0.4 * Math.random()));
       sea3d.seaFight(s.x, s.y);
@@ -1587,7 +1588,7 @@ async function main() {
     const intercepting = ship.assist?.mode === 'intercept' && ship.assist.targetId ? sim.state.ships[ship.assist.targetId] : undefined;
     // A pirate fallen on a merchant within sight: the player can sail in and take a hand.
     const raider = Object.values(sim.state.ships).find(
-      (s) => s.ai?.role === 'pirate' && s.ai.skirmish && Math.hypot(s.x - ship.x, s.y - ship.y) <= content.traffic.sightTiles,
+      (s) => s.ai?.role === 'pirate' && s.ai.skirmish && Math.hypot(s.x - ship.x, s.y - ship.y) <= sight(),
     );
     const raided = raider?.ai?.skirmish ? sim.state.ships[raider.ai.skirmish.with] : undefined;
     // The crew's needs, when they press: food running out, or a grumbling crew.

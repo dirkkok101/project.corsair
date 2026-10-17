@@ -8,7 +8,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Ship, Wind, WorldState } from '@corsair/core';
-import { hourOf, shipStats, tickAtHour } from '@corsair/data';
+import { hourOf, shipStats, sightTiles, tickAtHour } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from './battleView';
 
@@ -17,6 +17,7 @@ export { renderShipCard } from './card';
 import { sailAnim } from './sails';
 import { normalizeDeg } from '@corsair/systems-navigation';
 import { CLOUD_SPEED, createOcean } from './sea/ocean';
+import { HAZE_AROUND, installHaze } from './haze';
 import type { SeaState, WakeShip } from './sea/ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
@@ -65,18 +66,20 @@ const CHASE_AHEAD = 0.3;
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
 const CLOUDS_FROM = [70, 160];
 /**
- * The haze: clear out to the camera's target (or, in battle, to the far edge of a fight), then thickening over this
- * many tiles of depth to all haze; wider zoomed out (by the square root of the zoom), narrower under cloud. At the
- * chase camera's default zoom a sail at the edge of sight ahead is a tenth hazed and land 100 tiles off three quarters.
+ * At sea the haze is her sight (sightTiles in @corsair/data: by the weather and the hour), ringed round her ship:
+ * clear to this share of it, thickening to all haze at its edge, so what she can't see the player can't either, and
+ * a sail comes up out of the haze as she closes it. Zoomed out the ring stays, the map showing through the haze past
+ * it (HAZE_RING: all haze to MARKS_FROM, thinning to `least` at twice that).
+ */
+const HAZE_CLEAR = 0.3;
+const HAZE_RING = { least: 0.4 };
+/**
+ * In battle the haze is by depth from the camera: clear to the far edge of the fight, then thickening over this many
+ * tiles (narrower under cloud).
  */
 const HAZE_BAND = 150;
-/**
- * Fog of war: a ship is drawn only within the player's sight (traffic.json sightTiles, from her ship). Over the last
- * HULL_DOWN_TILES of it she comes up over the horizon (or goes down below it), sunk by up to her own height.
- */
-const HULL_DOWN_TILES = 5;
-/** Zoomed out this far (camera distance in tiles) a ship crossing the edge of sight just shows or goes, and ships out of sight leave a mark where last seen. */
-const MARKS_FROM = 120;
+/** Zoomed out this far (camera distance in tiles) the map shows through the haze, and ships out of sight leave a mark where last seen. */
+const MARKS_FROM = 80;
 /** A ship new to the sea within sight (a debug spawn, a fleet ship rejoining) comes up over this many seconds. */
 const RISE_SECONDS = 2;
 /** A ship gone from the sea within sight (sunk or taken) settles by the stern and goes down over this many seconds. */
@@ -203,6 +206,7 @@ export async function createSeaRenderer(
   const canvas = renderer.domElement;
   canvas.className = 'sea3d';
 
+  installHaze();
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
   // One haze on everything (land, towns, ships; the sea's shader follows the same rule), in the sky's horizon colour.
@@ -291,7 +295,7 @@ export async function createSeaRenderer(
   const smokes: { sprite: THREE.Sprite; at: number; size: number; drift: number }[] = [];
   let smokeClock = 0;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
-  // Fog of war (HULL_DOWN_TILES): how much of each ship showed last frame; ships new to the sea in sight, by when they
+  // Fog of war: how much of each ship showed last frame; ships new to the sea in sight, by when they
   // came; ships gone from it in sight, going down; and frames drawn at sea since the view (re)started, as on the first
   // frame, or back from a battle, nothing is new or gone.
   const shownLast = new Map<string, number>();
@@ -395,7 +399,7 @@ export async function createSeaRenderer(
   const rides = new Map<string, { bob: number; pitch: number; roll: number; lean: number; heading: number }>();
 
   /** The frame's clock and the hour's light: sun, sky, sea and sails blend smoothly by the sun's height. */
-  const beginFrame = (nowMs: number, view: number, battle = false) => {
+  const beginFrame = (nowMs: number, view: number, around?: { x: number; z: number; sight: number }) => {
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
     const hour = hourOf(content.calendar, skyTick + skyShift);
@@ -439,8 +443,16 @@ export async function createSeaRenderer(
     light.ambient.copy(fill.color).multiplyScalar(fill.intensity);
     renderer.toneMappingExposure = (0.7 + level * 0.3) * (1 - 0.12 * g);
     // The horizon closes in under the cloud, and the clouds themselves darken.
-    light.fogNear = battle ? Math.max(view, BATTLE_VIEW.max) : view;
-    light.fogFar = light.fogNear + (HAZE_BAND * Math.sqrt(Math.max(1, view / ZOOM.start))) / (1 + 2.2 * g);
+    if (around) {
+      // Her sight (the weather has already closed it in).
+      light.fogNear = around.sight * HAZE_CLEAR;
+      light.fogFar = around.sight;
+      Object.assign(HAZE_AROUND, { x: around.x, z: around.z, w: 1, y: 1 - (1 - HAZE_RING.least) * THREE.MathUtils.smoothstep(view, MARKS_FROM, MARKS_FROM * 2) });
+    } else {
+      light.fogNear = Math.max(view, BATTLE_VIEW.max);
+      light.fogFar = light.fogNear + HAZE_BAND / (1 + 2.2 * g);
+      Object.assign(HAZE_AROUND, { w: 0, y: 1 });
+    }
     haze.color.copy(light.fog);
     haze.near = light.fogNear;
     haze.far = light.fogFar;
@@ -537,8 +549,9 @@ export async function createSeaRenderer(
       n.shown = dt ? n.shown + (want - n.shown) * step : want;
       if (Math.abs(want - n.shown) < 0.01) n.shown = want;
       // A name fades into the haze with its town.
-      const depth = -n.sprite.getWorldPosition(bannerAt).applyMatrix4(camera.matrixWorldInverse).z;
-      const clear = 1 - THREE.MathUtils.smoothstep(depth, haze.near, haze.far);
+      n.sprite.getWorldPosition(bannerAt);
+      const far = HAZE_AROUND.w ? Math.hypot(bannerAt.x - HAZE_AROUND.x, bannerAt.z - HAZE_AROUND.z) : -bannerAt.applyMatrix4(camera.matrixWorldInverse).z;
+      const clear = 1 - THREE.MathUtils.smoothstep(far, haze.near, haze.far) * HAZE_AROUND.y;
       n.sprite.visible = n.shown * clear > 0.01;
       (n.sprite.material as THREE.SpriteMaterial).opacity = n.shown * clear;
     }
@@ -674,7 +687,8 @@ export async function createSeaRenderer(
       skyShift = tickAtHour(content.calendar, skyWant, skyTick) - skyTick;
       skyWant = undefined;
     }
-    const dt = beginFrame(nowMs, distance);
+    const sight = sightTiles(content, state.tick, options.windAt(state, me.x, me.y), me, state.weather?.storms);
+    const dt = beginFrame(nowMs, distance, { x: me.x, z: me.y, sight });
     wildlife.update(me, dt, hourOf(content.calendar, skyTick + skyShift));
     // The smoke of distant fights: swelling, rising downwind, thinning to nothing.
     smokeClock += dt;
@@ -721,14 +735,13 @@ export async function createSeaRenderer(
     // Ships: each at her place, her sails for the wind; far out they grow so they stay readable.
     const farScale = THREE.MathUtils.clamp(distance / 140, 1, FAR_SHIP_SCALE);
     const seen = new Set<string>();
-    const sight = sightTiles(content, state.tick);
     const zoomedOut = distance >= MARKS_FROM;
     const wakes = new Set<string>();
     for (const s of Object.values(state.ships)) {
       seen.add(s.id);
       if (seaFrames > 0 && !knownIds.has(s.id)) born.set(s.id, t);
-      let shown = s.id === options.playerId ? 1 : hullDown(Math.hypot(s.x - me.x, s.y - me.y), sight);
-      if (zoomedOut && s.id !== options.playerId) shown = shown > 0.5 ? 1 : 0;
+      // Within her sight she shows (out of the haze as she closes it); beyond it, not at all.
+      let shown = s.id === options.playerId || Math.hypot(s.x - me.x, s.y - me.y) <= sight ? 1 : 0;
       const from = born.get(s.id);
       if (from !== undefined) {
         if (t - from >= RISE_SECONDS) born.delete(s.id);
@@ -770,7 +783,8 @@ export async function createSeaRenderer(
       if (battery) m.built.setGuns((s.guns ?? battery) / battery);
       const pace = s.speed / content.navigation.tilesPerSecondPerSpeedPoint / FAST_SHIP;
       const len = placeShip(s.id, m.root, s, w, dt, farScale, pace);
-      // Hull down: below the horizon by the share of her not yet shown (about her height: a ship's masts stand about as high as she is long).
+      // New to the sea in sight: she comes up from below, by the share of her not yet shown (about her height: a
+      // ship's masts stand about as high as she is long).
       m.root.position.y -= (1 - shown) * len * 1.3;
       if (shown < 0.5) continue;
       wakes.add(s.id);
@@ -891,7 +905,7 @@ export async function createSeaRenderer(
     // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
     gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
     stormShare = battleStorm;
-    const dt = beginFrame(nowMs, battleView || want, true);
+    const dt = beginFrame(nowMs, battleView || want);
     const t = nowMs / 1000;
     battleView = battleView ? battleView + (want - battleView) * (1 - Math.exp(-dt * 1.5)) : want;
 
@@ -1093,17 +1107,6 @@ interface Banner {
   sprite: THREE.Sprite;
   /** Sets the line under the name (redrawn only when it changes). */
   setLine(line: string): void;
-}
-
-/** How far her lookouts see (tiles): traffic.json sightTiles, times nightSight after dark, as the traffic system has it. */
-export function sightTiles(content: ContentPack, tick: number): number {
-  const hour = hourOf(content.calendar, tick);
-  return content.traffic.sightTiles * (hour < 6 || hour >= 19 ? content.traffic.nightSight : 1);
-}
-
-/** How much of a ship shows at this distance (tiles) from the player: all within sight, none beyond, rising over its last HULL_DOWN_TILES. */
-export function hullDown(distance: number, sight: number): number {
-  return 1 - THREE.MathUtils.smoothstep(distance, sight - HULL_DOWN_TILES, sight);
 }
 
 /** A ship last seen here: a small sail, as the chart marks one. */

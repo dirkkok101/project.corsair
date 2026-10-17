@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HAZE_AROUND } from '../haze';
 import { chopTexture, coastTexture, detailTexture } from './textures';
 import { createWakes, WAKE_MARGIN, WAKE_WIDENING } from './wakes';
 import type { WakeShip } from './wakes';
@@ -44,7 +45,7 @@ export interface SeaLight {
   /** 0 clear .. 1 a storm's overcast: the water greys under the cloud. */
   overcast?: number;
   fog: THREE.Color;
-  /** The haze, by depth from the camera (tiles): clear to fogNear, thickening to all haze at fogFar. */
+  /** The haze (tiles), measured as HAZE_AROUND says: clear to fogNear, thickening to all haze at fogFar. */
   fogNear: number;
   fogFar: number;
 }
@@ -169,7 +170,7 @@ void main() {
   vParam = xz;
   vRadius = r;
   vec4 view = viewMatrix * vec4(world, 1.0);
-  // Depth from the camera, as three's fog measures it on the land and the ships, so the sea hazes with them.
+  // Depth from the camera, for the haze in battle (at sea it is measured from her ship, as on the land and ships).
   vDepth = -view.z;
   gl_Position = projectionMatrix * view;
 }
@@ -203,6 +204,7 @@ uniform vec3 uHorizon;
 uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
+uniform vec4 uHazeAround;
 // Layers, for review: swell, ripples (the fine chop), flecks (whitecaps), shadows, surf, waves, wakes.
 uniform float uShowSwell, uShowRipples, uShowFlecks, uShowShadows, uShowSurf, uShowWaves, uShowWakes;
 varying vec3 vWorld;
@@ -381,7 +383,8 @@ void main() {
   col = mix(col, uFoam * min(lit * 0.5, vec3(1.15)) * uFoamLight, clamp(foam, 0.0, 1.0));
 
   // Haze toward the horizon.
-  col = mix(col, uFogColor, smoothstep(uFogNear, uFogFar, vDepth));
+  float hazeAt = uHazeAround.w > 0.5 ? length(vWorld.xz - uHazeAround.xz) : vDepth;
+  col = mix(col, uFogColor, smoothstep(uFogNear, uFogFar, hazeAt) * uHazeAround.y);
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -465,6 +468,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
     uFogColor: { value: new THREE.Color() },
     uFogNear: { value: 0 },
     uFogFar: { value: 1 },
+    uHazeAround: { value: HAZE_AROUND },
     uShowSwell: { value: show('swell') },
     uShowRipples: { value: show('ripples') },
     uShowFlecks: { value: show('flecks') },

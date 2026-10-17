@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSim, inPort } from '@corsair/core';
 import type { BattleResult, Prize, Ship, WorldState } from '@corsair/core';
-import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, tileAt } from '@corsair/data';
+import { decodeRasterMap, isLand, loadContent, placeSettlements, shipStats, sightTiles, tileAt } from '@corsair/data';
 import { cargoUsed, createEconomySystem, fleetBerths, fleetHold, fleetShipPace, hoardRing, newsText, normalStock, placeHoard, seawardHeading, shipValue, stockCap, withEconomy } from '@corsair/systems-economy';
 import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
 import { createWeatherSystem, createWindField, withWeather, zoneAt } from '@corsair/systems-weather';
@@ -339,9 +339,15 @@ describe('fights at sea', () => {
 
 describe('ships that carry the world', () => {
   it('the English convoy sails on her timetable: lands luxuries and settlers at Port Royal, loads sugar and rum, and goes home', () => {
-    // No pirates: this is the convoy's timetable, not her luck (pirates take convoys, and keep them).
+    // No pirates, and no hunters sighting her: this is the convoy's timetable, not her luck (pirates and an enemy's
+    // patrols take convoys).
     const roles = content.traffic.roles;
-    const calm = { ...content, traffic: { ...content.traffic, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } }, pirates: { ...content.pirates, captains: [] } };
+    const calm = {
+      ...content,
+      traffic: { ...content.traffic, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } },
+      pirates: { ...content.pirates, captains: [] },
+      combat: { ...content.combat, chase: { ...content.combat.chase, chaseTiles: 0.1 } },
+    };
     const sim = world(2, createWorld(def), calm);
     const line = content.traffic.convoys.lines.find((l) => l.id === 'english')!;
     const royal = 'town.port_royal';
@@ -909,7 +915,7 @@ describe('ships that change hands', () => {
 });
 
 describe('a quiet sea', () => {
-  it('stages a fight in her sight once she has seen none a while: a hunter after her prey, the sea keeping its numbers', () => {
+  it('stages a fight just beyond her sight once she has seen none a while: a hunter after her prey, the sea keeping its numbers', () => {
     // Open water south of Jamaica, under way, every check a fight (chance 1).
     const sure = { ...content, traffic: { ...content.traffic, encounters: { ...content.traffic.encounters, chance: 1 } } };
     const start = createWorld(def);
@@ -917,9 +923,21 @@ describe('a quiet sea', () => {
     const sim = world(5, at, sure);
     sim.step(day);
     const before = traffic0(sim.state).length;
-    sim.step(Math.ceil(content.traffic.encounters.quietDays + 1) * day);
-    const staged = sim.events().find((e) => e.type === 'FightStaged');
+    const end = sim.state.tick + Math.ceil(content.traffic.encounters.quietDays + 1) * day;
+    const found = () => sim.events().find((e) => e.type === 'FightStaged');
+    while (!found() && sim.state.tick < end) sim.step(5);
+    const staged = found();
     expect(staged).toBeDefined();
+    // Both out in the haze, past what she can see (a few ticks on, neither has come into it).
+    const me = sim.state.ships.player!;
+    const sight = sightTiles(content, sim.state.tick, windAt(sim.state, me.x, me.y), me, sim.state.weather?.storms);
+    for (const id of staged!.entityIds) expect(Math.hypot(sim.state.ships[id]!.x - me.x, sim.state.ships[id]!.y - me.y)).toBeGreaterThan(sight);
+    // Their fight plays out on the map for her to come upon, rather than being settled out in the haze.
+    const [hunter, prey] = staged!.entityIds;
+    const met = sim.state.tick + day;
+    const begun = () => sim.events().some((e) => e.type === 'SkirmishBegun' && e.entityIds[0] === hunter && e.entityIds[1] === prey);
+    while (!begun() && sim.state.tick < met) sim.step(10);
+    expect(begun()).toBe(true);
     // She heard of it as she saw it: the clock of quiet days starts again.
     expect(sim.state.fightSeenAt).toBeGreaterThan(0);
     // Each staged ship stood in for one far off: about as many ships as before.

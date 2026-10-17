@@ -1,6 +1,6 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, PrizePapers, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
-import { atDifficulty, crewQualityOf, difficultyOf, hourOf, isLand, shipStats, tileAt } from '@corsair/data';
+import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, sightTiles, tileAt } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, famesOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
@@ -672,15 +672,16 @@ export function createTrafficSystem(
     return rung >= def.rung;
   };
   /**
-   * Two ships fall on each other in her sight: a spot of open water off her bow (traffic.json encounters.distance
-   * of her sight), the prey there, bound on for a port by the lanes, and the hunter a few tiles off, already after
-   * her. Which pair by `kinds`: a pirate and a merchant, a patrol and a pirate, or a warship and an enemy merchant
+   * Two ships fall on each other just beyond her sight (`sight`): a spot of open water off her bow
+   * (traffic.json encounters.beyondTiles past it), the prey there, bound on for a port by the lanes, and the hunter a
+   * few tiles further out, already after her. Neither shows until the fight comes up out of the haze. Which pair by `kinds`: a pirate and a merchant, a patrol and a pirate, or a warship and an enemy merchant
    * (only at war). Undefined when no spot or pair can be had.
    */
-  const stage = (state: WorldState, me: Ship, tick: number, rng: Rng): { state: WorldState; ids: string[]; kind: string } | undefined => {
+  const stage = (state: WorldState, me: Ship, sight: number, tick: number, rng: Rng): { state: WorldState; ids: string[]; kind: string } | undefined => {
     const e = t.encounters;
-    const far = t.sightTiles * e.distance;
+    const far = sight + e.beyondTiles;
     let spot: [number, number] | undefined;
+    let out: [number, number] = [0, -1];
     for (const turn of [0, 25, -25, 50, -50, 80, -80]) {
       const rad = ((me.headingDeg + turn) * Math.PI) / 180;
       const x = me.x + Math.sin(rad) * far;
@@ -688,6 +689,7 @@ export function createTrafficSystem(
       if (x < 1 || y < 1 || x > map.width - 2 || y > map.height - 2) continue;
       if (isLand(tileAt(map, x, y)) || isLand(tileAt(map, x + 4, y))) continue;
       spot = [x, y];
+      out = [Math.sin(rad), -Math.cos(rad)];
       break;
     }
     if (!spot) return undefined;
@@ -713,8 +715,11 @@ export function createTrafficSystem(
     if (!way) return undefined;
     const prey = spawn(content, state, preyRole, preyHome, spot, rng, tick);
     const preyShip: Ship = { ...prey.ship, sails: 'full', ai: { ...prey.ship.ai!, from: preyHome.id, to: bound.id, route: way, along: 0, waitUntil: undefined } };
-    const hunterAt: [number, number] = [spot[0] + 5, spot[1] + 3];
-    const hunter = spawn(content, prey.state, hunterRole, hunterHome, isLand(tileAt(map, hunterAt[0], hunterAt[1])) ? [spot[0] - 5, spot[1] - 3] : hunterAt, rng, tick);
+    // Further out than her prey, and to one side (the other, if that's land), so she too is beyond sight.
+    const [ox, oy] = out;
+    const hunterAt: [number, number] = [spot[0] + ox * 5 - oy * 3, spot[1] + oy * 5 + ox * 3];
+    const otherSide: [number, number] = [spot[0] + ox * 5 + oy * 3, spot[1] + oy * 5 - ox * 3];
+    const hunter = spawn(content, prey.state, hunterRole, hunterHome, isLand(tileAt(map, hunterAt[0], hunterAt[1])) ? otherSide : hunterAt, rng, tick);
     const home = lanes.berth(hunterHome.id);
     const back = home ? lanes.path([hunter.ship.x, hunter.ship.y], home) : undefined;
     const hunterShip: Ship = {
@@ -729,6 +734,7 @@ export function createTrafficSystem(
         along: 0,
         waitUntil: undefined,
         target: preyShip.id,
+        staged: true,
         calmUntil: tick + Math.round(e.calmDays * tpd),
       },
     };
@@ -1533,6 +1539,9 @@ export function createTrafficSystem(
       let next = state;
       const events: EmittedEvent[] = [];
       let ships = { ...state.ships };
+      // How far the player sees this tick, by the weather and the hour where she is.
+      const watching = state.ships.player;
+      const sight = watching ? sightTiles(content, tick, windAt(state, watching.x, watching.y), watching, state.weather?.storms) : t.sightTiles;
       for (const id of Object.keys(ships).sort()) {
         // A ship taken or sunk earlier this tick is gone.
         const ship = ships[id];
@@ -1597,9 +1606,9 @@ export function createTrafficSystem(
             if (Math.hypot(prey.x - ship.x, prey.y - ship.y) > cb.chase.contactTiles) {
               const chased = pursue(next, ship, prey, dt);
               ships = { ...ships, [id]: { ...chased, ai: { ...chased.ai!, target: prey.id } } };
-            } else if (p && Math.hypot(prey.x - p.x, prey.y - p.y) <= t.sightTiles * 1.1) {
-              // Within the player's sight (and a little past it, so one she sees come up over the horizon is still being
-              // fought) the fight plays out on the map for a while, and she can take a hand.
+            } else if (p && (ship.ai.staged || Math.hypot(prey.x - p.x, prey.y - p.y) <= sight * 1.1)) {
+              // Within the player's sight (and a little past it, so one she sees come up out of the haze is still being
+              // fought), or staged for her to come upon, the fight plays out on the map for a while, and she can take a hand.
               const until = tick + Math.round((cb.hunt.skirmishHours / 24) * tpd);
               // Each wears down as the fight goes, by the other's share of their strength.
               const [hs, ps] = [fightStrength(ship), fightStrength(prey)];
@@ -1607,7 +1616,7 @@ export function createTrafficSystem(
               const fight = (s: Ship, foe: string, foeShare: number) => ({ with: foe, until, from: tick, start: stood(s), foeShare });
               ships = {
                 ...ships,
-                [id]: { ...ship, speed: 0, ai: { ...ship.ai, target: undefined, skirmish: fight(ship, prey.id, ps / (hs + ps)) } },
+                [id]: { ...ship, speed: 0, ai: { ...ship.ai, target: undefined, staged: undefined, skirmish: fight(ship, prey.id, ps / (hs + ps)) } },
                 [prey.id]: { ...prey, speed: 0, ai: { ...prey.ai!, target: undefined, skirmish: fight(prey, id, hs / (hs + ps)) } },
               };
               events.push({ type: 'SkirmishBegun', entityIds: [id, prey.id], payload: { x: prey.x, y: prey.y } });
@@ -1648,14 +1657,14 @@ export function createTrafficSystem(
         ships = { ...ships, [id]: moved };
       }
 
-      // A quiet sea is a dead one: when she has seen no fight for a while, the world stages one off her bow, near
-      // the edge of her sight, with real ships that carry on their way after (traffic.json encounters).
+      // A quiet sea is a dead one: when she has seen no fight for a while, the world stages one off her bow, just
+      // beyond her sight, with real ships that carry on their way after (traffic.json encounters).
       const quarter = Math.max(1, Math.round(tpd / 4));
       const me = ships.player;
       if (tick % quarter === 0 && me && !me.docked && !next.prize) {
         const e = t.encounters;
         if (tick - (next.fightSeenAt ?? 0) >= e.quietDays * tpd && rng.float() < e.chance) {
-          const staged = stage({ ...next, ships }, me, tick, rng);
+          const staged = stage({ ...next, ships }, me, sight, tick, rng);
           if (staged) {
             next = { ...staged.state, fightSeenAt: tick };
             ships = { ...staged.state.ships };
@@ -1691,7 +1700,7 @@ export function createTrafficSystem(
           if (!all.length) continue;
           // From a port out of her sight, where she won't see a ship appear at the quay (any, if all are in sight).
           const me = ships.player;
-          const unseen = me ? all.filter((s) => Math.hypot(s.x - me.x, s.y - me.y) > t.sightTiles) : all;
+          const unseen = me ? all.filter((s) => Math.hypot(s.x - me.x, s.y - me.y) > sight) : all;
           const home = unseen.length ? unseen : all;
           const port = home[Math.floor(rng.float() * home.length)]!;
           const made = spawn(content, { ...next, ships }, role, port, lanes.mooring(port.id)!, rng, tick);
@@ -1739,12 +1748,10 @@ export function createTrafficSystem(
         }
       }
 
-      // What the player's lookouts see: ships within sight, halved at night. Sightings of ships gone are forgotten.
+      // What the player's lookouts see: ships within sight. Sightings of ships gone are forgotten.
       const player = ships.player;
       let captain = next.captain;
       if (player && captain) {
-        const hour = hourOf(content.calendar, tick);
-        const sight = t.sightTiles * (hour < 6 || hour >= 19 ? t.nightSight : 1);
         const sightings: Record<string, Sighting> = {};
         // A ship that has gone into port is out of sight until she sails again.
         for (const [id, seen] of Object.entries(captain.sightings ?? {})) if (ships[id] && !inPort(ships[id])) sightings[id] = seen;
@@ -1765,7 +1772,7 @@ export function createTrafficSystem(
       const saw =
         watcher &&
         events.some(
-          (ev) => (ev.type === 'SkirmishBegun' || ev.type === 'SeaFight') && Math.hypot((ev.payload.x as number) - watcher.x, (ev.payload.y as number) - watcher.y) <= t.sightTiles,
+          (ev) => (ev.type === 'SkirmishBegun' || ev.type === 'SeaFight') && Math.hypot((ev.payload.x as number) - watcher.x, (ev.payload.y as number) - watcher.y) <= sight,
         );
       return { state: { ...next, ships, captain, ...(saw ? { fightSeenAt: tick } : {}), rng: { ...next.rng, traffic: rng.state() } }, events };
     },

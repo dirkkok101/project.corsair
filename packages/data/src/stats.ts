@@ -18,6 +18,30 @@ export function hourOf(calendar: Calendar, tick: number): number {
   return 12;
 }
 
+/**
+ * How far her lookouts see (tiles), and how far the haze lets the player see: traffic.json sightTiles, times
+ * sightByWind for the wind where she is, closing to stormSight inside a storm (from half again its radius), and
+ * times nightSight after dark. One distance for the view, the chart, a click and the sea's fights.
+ */
+export function sightTiles(
+  content: ContentPack,
+  tick: number,
+  wind: { strength: string },
+  at: { x: number; y: number },
+  storms: readonly { x: number; y: number; radius: number }[] = [],
+): number {
+  const t = content.traffic;
+  let deep = 0;
+  for (const s of storms) {
+    const d = Math.hypot(s.x - at.x, s.y - at.y);
+    const k = Math.min(1, Math.max(0, (d - s.radius * 0.7) / (s.radius * 0.8)));
+    deep = Math.max(deep, 1 - k * k * (3 - 2 * k));
+  }
+  const hour = hourOf(content.calendar, tick);
+  const weather = (t.sightByWind[wind.strength] ?? 1) * (1 - deep * (1 - t.stormSight));
+  return t.sightTiles * weather * (hour < 6 || hour >= 19 ? t.nightSight : 1);
+}
+
 /** The first tick at or after `after` whose hour is `hour` (the inverse of hourOf, for tests and the debug sky). */
 export function tickAtHour(calendar: Calendar, hour: number, after = 0): number {
   const { phases, startSeconds } = calendar.daylight;

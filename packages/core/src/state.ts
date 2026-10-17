@@ -57,6 +57,8 @@ export interface AiCaptain {
   calmUntil?: number;
   /** An AI ship being hunted (another AI ship; the player is hunted through `chasing`). */
   target?: string;
+  /** A hunter staged for the player to come upon (traffic.json encounters): her fight plays out, though it begins out of sight. */
+  staged?: boolean;
   /** A pirate's temperament (combat.json tactics): how long the odds she takes, and how she fights. */
   temperament?: string;
   /** A pirate's nerve: her temperament's attack odds times this (below 1, she chances stronger ships). */

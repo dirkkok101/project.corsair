@@ -706,6 +706,10 @@ export const trafficSchema = z.object({
   minMargin: z.number().min(0),
   maxPerRoute: z.number().int().positive(),
   sightTiles: z.number().positive(),
+  /** Sight by the wind's strength (clear in light airs, hazed in a blow). */
+  sightByWind: z.record(z.string(), z.number().positive()),
+  /** Sight deep inside a storm, as a share. */
+  stormSight: z.number().min(0).max(1),
   nightSight: z.number().min(0).max(1),
   hailTiles: z.number().positive(),
   laneCell: z.number().int().positive(),
@@ -767,7 +771,8 @@ export const trafficSchema = z.object({
   encounters: z.object({
     quietDays: z.number().min(0),
     chance: z.number().min(0).max(1),
-    distance: z.number().positive().max(1),
+    /** A staged fight begins this many tiles beyond her sight, so it comes up out of the haze. */
+    beyondTiles: z.number().min(0),
     /** The staged hunter leaves the watching captain be this long: her prey is the other ship. */
     calmDays: z.number().min(0),
     kinds: z.object({ piracy: z.number().min(0), patrol: z.number().min(0), war: z.number().min(0) }),
