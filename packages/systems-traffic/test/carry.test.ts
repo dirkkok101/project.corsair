@@ -1,5 +1,5 @@
 import { createSim } from '@corsair/core';
-import { sightTiles } from '@corsair/data';
+import { viewTiles } from '@corsair/data';
 import { createWorld } from '@corsair/systems-navigation';
 import { describe, expect, it } from 'vitest';
 import { atWar } from '@corsair/systems-politics';
@@ -110,7 +110,7 @@ describe('plague at sea', () => {
 });
 
 describe('a quiet sea', () => {
-  it('stages a fight just beyond her sight once she has seen none a while: a hunter after her prey, the sea keeping its numbers', () => {
+  it('stages a fight just beyond her view once she has seen none a while: a hunter after her prey, the sea keeping its numbers', () => {
     // Open water south of Jamaica, under way, every check a fight (chance 1).
     const sure = { ...content, traffic: { ...content.traffic, encounters: { ...content.traffic.encounters, chance: 1 } } };
     const start = createWorld(def);
@@ -123,10 +123,10 @@ describe('a quiet sea', () => {
     while (!found() && sim.state.tick < end) sim.step(5);
     const staged = found();
     expect(staged).toBeDefined();
-    // Both out in the haze, past what she can see (a few ticks on, neither has come into it).
+    // Both out past the horizon, beyond what she can make out (a few ticks on, neither has come into it).
     const me = sim.state.ships.player!;
-    const sight = sightTiles(content, sim.state.tick, windAt(sim.state, me.x, me.y), me, sim.state.weather?.storms);
-    for (const id of staged!.entityIds) expect(Math.hypot(sim.state.ships[id]!.x - me.x, sim.state.ships[id]!.y - me.y)).toBeGreaterThan(sight);
+    const view = viewTiles(content, sim.state.tick, windAt(sim.state, me.x, me.y), me, sim.state.weather?.storms);
+    for (const id of staged!.entityIds) expect(Math.hypot(sim.state.ships[id]!.x - me.x, sim.state.ships[id]!.y - me.y)).toBeGreaterThan(view);
     // Their fight plays out on the map for her to come upon, rather than being settled out in the haze.
     const [hunter, prey] = staged!.entityIds;
     const met = sim.state.tick + day;

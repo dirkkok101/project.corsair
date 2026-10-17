@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadContent, sightTiles, tickAtHour } from '../src';
+import { loadContent, sightTiles, tickAtHour, viewTiles } from '../src';
 
 const content = loadContent();
 const noon = tickAtHour(content.calendar, 12, 0);
@@ -12,6 +12,15 @@ describe('sight', () => {
     expect(by('fresh')).toBeGreaterThan(by('strong'));
     expect(by('strong')).toBeGreaterThan(by('gale'));
     expect(by('fresh')).toBeCloseTo(content.traffic.sightTiles * content.traffic.sightByWind.fresh!);
+  });
+
+  it('the view on the sea reaches past her lookouts, and the weather closes both alike', () => {
+    for (const strength of ['light', 'fresh', 'gale']) {
+      const sight = sightTiles(content, noon, { strength }, at);
+      const view = viewTiles(content, noon, { strength }, at);
+      expect(view).toBeGreaterThan(sight);
+      expect(view / sight).toBeCloseTo(content.traffic.viewTiles / content.traffic.sightTiles);
+    }
   });
 
   it('closes to stormSight deep in a storm, and is clear of it well outside', () => {

@@ -45,7 +45,7 @@ export interface SeaLight {
   /** 0 clear .. 1 a storm's overcast: the water greys under the cloud. */
   overcast?: number;
   fog: THREE.Color;
-  /** The haze (tiles), measured as HAZE_AROUND says: clear to fogNear, thickening to all haze at fogFar. */
+  /** The haze, by distance from the camera (tiles): clear to fogNear, thickening to all haze at fogFar (at most HAZE_AROUND.x). */
   fogNear: number;
   fogFar: number;
 }
@@ -170,8 +170,8 @@ void main() {
   vParam = xz;
   vRadius = r;
   vec4 view = viewMatrix * vec4(world, 1.0);
-  // Depth from the camera, for the haze in battle (at sea it is measured from her ship, as on the land and ships).
-  vDepth = -view.z;
+  // Distance from the camera, as the haze is measured on the land and the ships, so the sea hazes with them.
+  vDepth = length(view.xyz);
   gl_Position = projectionMatrix * view;
 }
 `;
@@ -383,8 +383,7 @@ void main() {
   col = mix(col, uFoam * min(lit * 0.5, vec3(1.15)) * uFoamLight, clamp(foam, 0.0, 1.0));
 
   // Haze toward the horizon.
-  float hazeAt = uHazeAround.w > 0.5 ? length(vWorld.xz - uHazeAround.xz) : vDepth;
-  col = mix(col, uFogColor, smoothstep(uFogNear, uFogFar, hazeAt) * uHazeAround.y);
+  col = mix(col, uFogColor, smoothstep(uFogNear, uFogFar, vDepth) * uHazeAround.x);
   gl_FragColor = vec4(col, 1.0);
 }
 `;

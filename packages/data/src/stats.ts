@@ -19,9 +19,8 @@ export function hourOf(calendar: Calendar, tick: number): number {
 }
 
 /**
- * How far her lookouts see (tiles), and how far the haze lets the player see: traffic.json sightTiles, times
- * sightByWind for the wind where she is, closing to stormSight inside a storm (from half again its radius), and
- * times nightSight after dark. One distance for the view, the chart, a click and the sea's fights.
+ * How far her lookouts sight a ship (tiles), to know her and remember her: traffic.json sightTiles, times the
+ * weather (seeing).
  */
 export function sightTiles(
   content: ContentPack,
@@ -29,6 +28,35 @@ export function sightTiles(
   wind: { strength: string },
   at: { x: number; y: number },
   storms: readonly { x: number; y: number; radius: number }[] = [],
+): number {
+  return content.traffic.sightTiles * seeing(content, tick, wind, at, storms);
+}
+
+/**
+ * How far the player can make out a ship on the sea (tiles), where the haze closes on the horizon: traffic.json
+ * viewTiles, times the weather (seeing). Ships are drawn this far, and the sea brings new ships and staged fights
+ * in from beyond it.
+ */
+export function viewTiles(
+  content: ContentPack,
+  tick: number,
+  wind: { strength: string },
+  at: { x: number; y: number },
+  storms: readonly { x: number; y: number; radius: number }[] = [],
+): number {
+  return content.traffic.viewTiles * seeing(content, tick, wind, at, storms);
+}
+
+/**
+ * The weather's share of a clear day's seeing: sightByWind for the wind where she is, closing to stormSight inside
+ * a storm (from half again its radius), and times nightSight after dark.
+ */
+function seeing(
+  content: ContentPack,
+  tick: number,
+  wind: { strength: string },
+  at: { x: number; y: number },
+  storms: readonly { x: number; y: number; radius: number }[],
 ): number {
   const t = content.traffic;
   let deep = 0;
@@ -39,7 +67,7 @@ export function sightTiles(
   }
   const hour = hourOf(content.calendar, tick);
   const weather = (t.sightByWind[wind.strength] ?? 1) * (1 - deep * (1 - t.stormSight));
-  return t.sightTiles * weather * (hour < 6 || hour >= 19 ? t.nightSight : 1);
+  return weather * (hour < 6 || hour >= 19 ? t.nightSight : 1);
 }
 
 /** The first tick at or after `after` whose hour is `hour` (the inverse of hourOf, for tests and the debug sky). */

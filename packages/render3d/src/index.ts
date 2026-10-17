@@ -8,7 +8,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Ship, Wind, WorldState } from '@corsair/core';
-import { hourOf, shipStats, sightTiles, tickAtHour } from '@corsair/data';
+import { hourOf, shipStats, tickAtHour, viewTiles } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from './battleView';
 
@@ -66,14 +66,14 @@ const CHASE_AHEAD = 0.3;
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
 const CLOUDS_FROM = [70, 160];
 /**
- * At sea the haze is her sight (sightTiles in @corsair/data: by the weather and the hour), ringed round her ship:
- * clear to this share of it, thickening to all haze at its edge, so the haze lies on the horizon, what she can't see
- * the player can't either, and a sail comes up out of it as she closes it. Zoomed out the haze lifts (HAZE_RING: all
- * of it to MARKS_FROM, thinning to `least` by `to`), so the map reads clearly, a faint tint past her sight marking
- * the fog of war.
+ * At sea the haze lies on the horizon, as in battle: past the camera's target by her view (viewTiles in @corsair/data,
+ * by the weather and the hour), clear to this share of it and all haze at its end, so the open sea reads far out and
+ * a sail comes up over the horizon out of it. Ships are drawn as far as that. Zoomed out it moves out with the camera,
+ * and overhead (looking down, never at the horizon) it lifts (HAZE_RING: all of it to MARKS_FROM, none by `to`), so
+ * the map reads clearly.
  */
 const HAZE_CLEAR = 0.75;
-const HAZE_RING = { to: 140, least: 0.12 };
+const HAZE_RING = { to: 140, least: 0 };
 /**
  * In battle the haze is by depth from the camera: clear to the far edge of the fight, then thickening over this many
  * tiles (narrower under cloud).
@@ -259,9 +259,10 @@ export async function createSeaRenderer(
   const landmarks = createLandmarks(ground.heightAt);
   scene.add(landmarks.object);
 
-  // Clouds: soft white puffs drifting downwind (Pirates!: white clouds are wind, dark ones a storm).
+  // Clouds: soft white puffs drifting downwind (Pirates!: white clouds are wind, dark ones a storm), going into the
+  // haze toward the horizon with the sea under them.
   const puff = puffTexture();
-  const cloudMat = new THREE.SpriteMaterial({ map: puff, transparent: true, depthWrite: false, opacity: 0.85, fog: false });
+  const cloudMat = new THREE.SpriteMaterial({ map: puff, transparent: true, depthWrite: false, opacity: 0.85 });
   const clouds: THREE.Sprite[] = [];
   let seed = 7;
   const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
@@ -400,7 +401,7 @@ export async function createSeaRenderer(
   const rides = new Map<string, { bob: number; pitch: number; roll: number; lean: number; heading: number }>();
 
   /** The frame's clock and the hour's light: sun, sky, sea and sails blend smoothly by the sun's height. */
-  const beginFrame = (nowMs: number, view: number, around?: { x: number; z: number; sight: number }) => {
+  const beginFrame = (nowMs: number, view: number, around?: { x: number; z: number; reach: number }) => {
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
     const hour = hourOf(content.calendar, skyTick + skyShift);
@@ -445,14 +446,15 @@ export async function createSeaRenderer(
     renderer.toneMappingExposure = (0.7 + level * 0.3) * (1 - 0.12 * g);
     // The horizon closes in under the cloud, and the clouds themselves darken.
     if (around) {
-      // Her sight (the weather has already closed it in).
-      light.fogNear = around.sight * HAZE_CLEAR;
-      light.fogFar = around.sight;
-      Object.assign(HAZE_AROUND, { x: around.x, z: around.z, w: 1, y: 1 - (1 - HAZE_RING.least) * THREE.MathUtils.smoothstep(view, MARKS_FROM, HAZE_RING.to) });
+      // Her view (the weather has already closed it in), past the camera's own distance from her.
+      light.fogNear = view + around.reach * HAZE_CLEAR;
+      light.fogFar = view + around.reach;
+      // From astern the camera looks out to the horizon (and past the map's edge, far out): the haze stays.
+      HAZE_AROUND.x = chase ? 1 : 1 - (1 - HAZE_RING.least) * THREE.MathUtils.smoothstep(view, MARKS_FROM, HAZE_RING.to);
     } else {
       light.fogNear = Math.max(view, BATTLE_VIEW.max);
       light.fogFar = light.fogNear + HAZE_BAND / (1 + 2.2 * g);
-      Object.assign(HAZE_AROUND, { w: 0, y: 1 });
+      HAZE_AROUND.x = 1;
     }
     haze.color.copy(light.fog);
     haze.near = light.fogNear;
@@ -551,8 +553,7 @@ export async function createSeaRenderer(
       if (Math.abs(want - n.shown) < 0.01) n.shown = want;
       // A name fades into the haze with its town.
       n.sprite.getWorldPosition(bannerAt);
-      const far = HAZE_AROUND.w ? Math.hypot(bannerAt.x - HAZE_AROUND.x, bannerAt.z - HAZE_AROUND.z) : -bannerAt.applyMatrix4(camera.matrixWorldInverse).z;
-      const clear = 1 - THREE.MathUtils.smoothstep(far, haze.near, haze.far) * HAZE_AROUND.y;
+      const clear = 1 - THREE.MathUtils.smoothstep(bannerAt.distanceTo(camera.position), haze.near, haze.far) * HAZE_AROUND.x;
       n.sprite.visible = n.shown * clear > 0.01;
       (n.sprite.material as THREE.SpriteMaterial).opacity = n.shown * clear;
     }
@@ -688,8 +689,8 @@ export async function createSeaRenderer(
       skyShift = tickAtHour(content.calendar, skyWant, skyTick) - skyTick;
       skyWant = undefined;
     }
-    const sight = sightTiles(content, state.tick, options.windAt(state, me.x, me.y), me, state.weather?.storms);
-    const dt = beginFrame(nowMs, distance, { x: me.x, z: me.y, sight });
+    const reach = viewTiles(content, state.tick, options.windAt(state, me.x, me.y), me, state.weather?.storms);
+    const dt = beginFrame(nowMs, distance, { x: me.x, z: me.y, reach });
     wildlife.update(me, dt, hourOf(content.calendar, skyTick + skyShift));
     // The smoke of distant fights: swelling, rising downwind, thinning to nothing.
     smokeClock += dt;
@@ -736,13 +737,15 @@ export async function createSeaRenderer(
     // Ships: each at her place, her sails for the wind; far out they grow so they stay readable.
     const farScale = THREE.MathUtils.clamp(distance / 140, 1, FAR_SHIP_SCALE);
     const seen = new Set<string>();
-    const zoomedOut = distance >= MARKS_FROM;
+    const zoomedOut = distance >= MARKS_FROM && !chase;
     const wakes = new Set<string>();
     for (const s of Object.values(state.ships)) {
       seen.add(s.id);
       if (seaFrames > 0 && !knownIds.has(s.id)) born.set(s.id, t);
-      // Within her sight she shows (out of the haze as she closes it); beyond it, not at all.
-      let shown = s.id === options.playerId || Math.hypot(s.x - me.x, s.y - me.y) <= sight ? 1 : 0;
+      // Short of the haze's end she shows (out of the haze on the horizon as she closes it); zoomed out, where the
+      // haze has lifted, within her view of the player's ship (a mark where she was last seen past it).
+      const inView = zoomedOut ? Math.hypot(s.x - me.x, s.y - me.y) <= reach : Math.hypot(s.x - camera.position.x, camera.position.y, s.y - camera.position.z) <= haze.far;
+      let shown = s.id === options.playerId || inView ? 1 : 0;
       const from = born.get(s.id);
       if (from !== undefined) {
         if (t - from >= RISE_SECONDS) born.delete(s.id);
@@ -750,7 +753,7 @@ export async function createSeaRenderer(
       }
       shownLast.set(s.id, shown);
       if (shown <= 0) {
-        // Out of sight: not drawn (built only once she first comes into it).
+        // Out of view: not drawn (built only once she first comes into it).
         const m = ships.get(s.id);
         if (m) m.root.visible = false;
         continue;
