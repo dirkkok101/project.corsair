@@ -144,6 +144,12 @@ export const havensSchema = z.object({
   names: z.array(z.string()).min(1),
 });
 
+/** Names lettered on the sea (seanames.json): seas zoomed out, passages and banks from the sailing zoom. Drawing only. */
+export const seaNamesSchema = z.object({
+  names: z.array(z.object({ name: z.string(), kind: z.enum(['sea', 'passage', 'bank']), lon: z.number(), lat: z.number() })).min(1),
+});
+export type SeaName = z.infer<typeof seaNamesSchema>['names'][number];
+
 const seasonWind = z.object({ fromDeg: degrees, spreadDeg: z.number().min(0).max(180), strength: weights });
 
 export const windZonesSchema = z.object({

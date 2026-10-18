@@ -32,6 +32,7 @@ import type { WildlifeKind, WildlifeSound } from './wildlife';
 import { createTowns, TOWN_GLOW, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
+import { createSeaNames } from './seanames';
 
 // The 3D sea map (art direction: Sid Meier's Pirates! 2004, in HD): the world in map tiles, x east and z south,
 // y up; the camera follows the player's ship and zooms from her deck to the whole region (the mouse wheel),
@@ -261,6 +262,9 @@ export async function createSeaRenderer(
   });
   let bannersAt = -Infinity;
   scene.add(towns.object);
+  // The seas, passages and banks named on the water.
+  const seaNames = createSeaNames(content.maps.caribbean, content.seaNames);
+  scene.add(seaNames.object);
   // The treasure maps' landmarks on their coasts (and a dug pit once a hoard is found).
   const landmarks = createLandmarks(ground.heightAt);
   scene.add(landmarks.object);
@@ -867,6 +871,7 @@ export async function createSeaRenderer(
     );
 
     for (const n of names) n.inRange = Math.hypot(n.x - me.x, n.y - me.y) < NAMES_WITHIN * Math.max(1, distance / 120);
+    seaNames.update(distance, !chase);
     // Each town's line, from the game's state, freshened every couple of seconds (redrawn only when it changes).
     if (options.townLine && nowMs - bannersAt > 2000) {
       bannersAt = nowMs;
@@ -890,6 +895,7 @@ export async function createSeaRenderer(
       inBattle = true;
       worldShips.visible = false;
       markLayer.visible = false;
+      seaNames.object.visible = false;
       fx.object.visible = true;
       fx.reset();
       // The smoke of the map's distant fights ages only on the map: left, it would hang frozen over this one.

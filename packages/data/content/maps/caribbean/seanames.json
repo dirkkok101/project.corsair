@@ -1,0 +1,34 @@
+{
+  "$comment": "Names lettered on the sea (after Pirates! 2004 and the 1987 map 'The Spanish Main 1560-1700'): the seas, the passages between the islands and the banks and reefs in open water, all real names. Each lies on water at (lon, lat), where its middle goes. A 'sea' shows zoomed out; a 'passage' or a 'bank' from the sailing zoom. Drawing only: not part of the save fingerprint.",
+  "names": [
+    { "name": "Caribbean Sea", "kind": "sea", "lon": -75.5, "lat": 14.8 },
+    { "name": "Gulf of Mexico", "kind": "sea", "lon": -91.0, "lat": 25.0 },
+    { "name": "Bay of Campeche", "kind": "sea", "lon": -94.3, "lat": 20.3 },
+    { "name": "Atlantic Ocean", "kind": "sea", "lon": -67.0, "lat": 27.0 },
+    { "name": "The Spanish Main", "kind": "sea", "lon": -73.0, "lat": 12.6 },
+    { "name": "Gulf of Honduras", "kind": "sea", "lon": -87.6, "lat": 16.5 },
+
+    { "name": "Windward Passage", "kind": "passage", "lon": -73.9, "lat": 19.9 },
+    { "name": "Mona Passage", "kind": "passage", "lon": -67.9, "lat": 18.3 },
+    { "name": "Anegada Passage", "kind": "passage", "lon": -63.9, "lat": 18.4 },
+    { "name": "Jamaica Channel", "kind": "passage", "lon": -75.3, "lat": 18.2 },
+    { "name": "Yucatán Channel", "kind": "passage", "lon": -85.8, "lat": 21.7 },
+    { "name": "Straits of Florida", "kind": "passage", "lon": -81.4, "lat": 24.1 },
+    { "name": "Old Bahama Channel", "kind": "passage", "lon": -78.9, "lat": 22.9 },
+    { "name": "Providence Channel", "kind": "passage", "lon": -77.3, "lat": 25.55 },
+
+    { "name": "Pedro Bank", "kind": "bank", "lon": -78.2, "lat": 17.0 },
+    { "name": "Serranilla Bank", "kind": "bank", "lon": -79.85, "lat": 15.85 },
+    { "name": "Rosalind Bank", "kind": "bank", "lon": -80.5, "lat": 16.4 },
+    { "name": "Serrana Bank", "kind": "bank", "lon": -80.3, "lat": 14.3 },
+    { "name": "Quita Sueño", "kind": "bank", "lon": -81.1, "lat": 14.4 },
+    { "name": "Misteriosa Bank", "kind": "bank", "lon": -84.05, "lat": 18.9 },
+    { "name": "Miskito Cays", "kind": "bank", "lon": -82.55, "lat": 14.25 },
+    { "name": "Cay Sal Bank", "kind": "bank", "lon": -80.0, "lat": 23.7 },
+    { "name": "Alacranes Reef", "kind": "bank", "lon": -89.7, "lat": 22.45 },
+    { "name": "Great Bahama Bank", "kind": "bank", "lon": -77.9, "lat": 23.9 },
+    { "name": "Caicos Bank", "kind": "bank", "lon": -71.8, "lat": 21.4 },
+    { "name": "Silver Bank", "kind": "bank", "lon": -69.95, "lat": 20.2 },
+    { "name": "Chinchorro Bank", "kind": "bank", "lon": -87.4, "lat": 18.6 }
+  ]
+}

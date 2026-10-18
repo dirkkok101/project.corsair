@@ -9,6 +9,7 @@ import musicJson from '../content/music.json';
 import caribbeanMap from '../content/maps/caribbean/map.json';
 import settlementsJson from '../content/maps/caribbean/settlements.json';
 import havensJson from '../content/maps/caribbean/havens.json';
+import seaNamesJson from '../content/maps/caribbean/seanames.json';
 import weatherJson from '../content/maps/caribbean/weather.json';
 import windZonesJson from '../content/maps/caribbean/wind_zones.json';
 import placeholderMap from '../content/maps/placeholder.json';
@@ -35,6 +36,7 @@ import {
   rasterMapSchema,
   settlementSchema,
   havensSchema,
+  seaNamesSchema,
   shipClassSchema,
   spriteSchema,
   trafficSchema,
@@ -57,6 +59,7 @@ import type {
   Polar,
   ProceduralMapDef,
   RasterMapDef,
+  SeaName,
   Settlement,
   ShipClass,
   SpriteDef,
@@ -80,6 +83,8 @@ export interface ContentPack {
   settlements: Settlement[];
   /** Pirate havens drawn per career (careerSettlements). */
   havens: z.infer<typeof havensSchema>;
+  /** Names lettered on the sea (drawing only). */
+  seaNames: SeaName[];
   windZones: WindZones;
   weather: Weather;
   calendar: Calendar;
@@ -98,11 +103,11 @@ export interface ContentPack {
 }
 
 /**
- * The content that decides how the world plays, for the save fingerprint: music and sprite
- * framing only change how it looks and sounds, so editing them must not flag old saves.
+ * The content that decides how the world plays, for the save fingerprint: music, sprite framing and the names on
+ * the sea only change how it looks and sounds, so editing them must not flag old saves.
  */
-export function gameplayContent(content: ContentPack): Omit<ContentPack, 'music' | 'sprites'> {
-  const { music: _music, sprites: _sprites, ...rest } = content;
+export function gameplayContent(content: ContentPack): Omit<ContentPack, 'music' | 'sprites' | 'seaNames'> {
+  const { music: _music, sprites: _sprites, seaNames: _seaNames, ...rest } = content;
   return rest;
 }
 
@@ -117,6 +122,7 @@ export function loadContent(): ContentPack {
     maps: { placeholder: proceduralMapSchema.parse(placeholderMap), caribbean: rasterMapSchema.parse(caribbeanMap) },
     settlements: z.array(settlementSchema).parse(settlementsJson),
     havens: havensSchema.parse(havensJson),
+    seaNames: seaNamesSchema.parse(seaNamesJson).names,
     windZones: windZonesSchema.parse(windZonesJson),
     weather: weatherSchema.parse(weatherJson),
     calendar: calendarSchema.parse(calendarJson),

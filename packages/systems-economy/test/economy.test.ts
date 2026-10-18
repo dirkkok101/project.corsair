@@ -275,6 +275,7 @@ describe('saves', () => {
     const base = contentFingerprint(gameplayContent(content));
     expect(contentFingerprint(gameplayContent({ ...content, music: { ...content.music, tunes: [] } }))).toBe(base);
     expect(contentFingerprint(gameplayContent({ ...content, sprites: {} }))).toBe(base);
+    expect(contentFingerprint(gameplayContent({ ...content, seaNames: [] }))).toBe(base);
     const dearSugar = content.goods.map((g) => (g.id === 'sugar' ? { ...g, basePrice: g.basePrice + 1 } : g));
     expect(contentFingerprint(gameplayContent({ ...content, goods: dearSugar }))).not.toBe(base);
   });

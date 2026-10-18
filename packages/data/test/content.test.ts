@@ -64,6 +64,14 @@ describe('caribbean map', () => {
     expect(at(-78, 24)).toBe(Tile.Shallow); // Great Bahama Bank
   });
 
+  it('letters every name on the sea on water', () => {
+    const onLand = content.seaNames.filter((n) => {
+      const { x, y } = tileOf(def, n.lon, n.lat);
+      return isLand(tileAt(map, x, y));
+    });
+    expect(onLand.map((n) => n.name)).toEqual([]);
+  });
+
   it('starts the player on open water', () => {
     const { x, y } = startOf(def);
     expect(isLand(tileAt(map, x, y))).toBe(false);

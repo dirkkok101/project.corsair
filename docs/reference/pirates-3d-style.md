@@ -100,7 +100,11 @@ own off a real island, at every zoom, hour and wind.
     along the wind (even a breaking crest is a sparkle of flecks, never a solid slab), and faded out far off
     before they'd make a speckled pattern.
   - Turquoise shallows round the islands, sand showing through near the beach, white surf on the shore, and broken
-    wave lines rolling in across the shallows (strongest on a windward shore).
+    wave lines rolling in across the shallows (strongest on a windward shore). The banks in open water (Pedro Bank,
+    the Serranilla and Rosalind banks, the Bahama banks) show as wide turquoise shapes too, not only the apron round
+    an island.
+  - Names on the water (`seanames.json`, `seanames.ts`): the seas lettered wide in capitals when zoomed out, the
+    passages and banks in italic from the sailing zoom, faint white lying flat on the sea; overhead only.
   - Cloud shadows dim the sun's light on the water as they drift by.
   - The water ships push (`sea/waves.ts`): a wave simulation round the camera, where each hull heaps water at
     her bow and draws a hollow at her stern, so her bow waves and the V of her wake are real ridges of water
