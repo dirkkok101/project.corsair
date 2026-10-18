@@ -145,7 +145,7 @@ export function coastTexture(depth: THREE.Texture, mapW: number, mapH: number): 
       const gy = at(wide, x, y + 1) - at(wide, x, y - 1);
       const len = Math.hypot(gx, gy) || 1;
       data[i * 4] = source[i * 2]!;
-      data[i * 4 + 1] = Math.round(255 * Math.max(smooth[i]!, floor[i]! * 0.98) * (0.75 + 0.25 * Math.min(1, halo[i]! * 1.5)));
+      data[i * 4 + 1] = Math.round(255 * Math.max(smooth[i]!, floor[i]! * 0.98) * (0.93 + 0.07 * Math.min(1, halo[i]! * 1.5)));
       data[i * 4 + 2] = Math.round(255 * (0.5 + (0.5 * gx) / len));
       data[i * 4 + 3] = Math.round(255 * (0.5 + (0.5 * gy) / len));
     }
