@@ -79,7 +79,7 @@ const CLOUDS_FROM = [70, 160];
  * and overhead (looking down, never at the horizon) it lifts (HAZE_RING: all of it to MARKS_FROM, none by `to`), so
  * the map reads clearly.
  */
-const HAZE_CLEAR = 0.75;
+const HAZE_CLEAR = 0.5;
 const HAZE_RING = { to: 140, least: 0 };
 /**
  * In battle the haze is by depth from the camera: clear to the far edge of the fight, then thickening over this many
@@ -134,6 +134,12 @@ const DAY_SUN = new THREE.Color('#fff4d6');
 const GOLD_SUN = new THREE.Color('#ffa860');
 const MOON = new THREE.Color('#8aa4ff');
 const DAY_SKY = new THREE.Color('#9fd3f0');
+/**
+ * The haze's colour, as the sky's times this: the far sea (blue-grey, darker than the sky over it), not the sky.
+ * Hazed into the sky's own colour, the sea turned to sky at the haze's end, a curved false horizon short of the
+ * real one (a disc of sea in fog, from astern); hazed into far-sea, it runs on to meet the sky in a crisp line.
+ */
+const FAR_SEA = new THREE.Color(0.28, 0.42, 0.56);
 const GOLD_SKY = new THREE.Color('#f2a679');
 const NIGHT_SKY = new THREE.Color('#2c4670');
 const DAY_ZENITH = new THREE.Color('#2f7fcf');
@@ -386,6 +392,8 @@ export async function createSeaRenderer(
   const target = new THREE.Vector3();
   const sunDir = new THREE.Vector3();
   const zenith = new THREE.Color();
+  /** The sky dome's colour at the horizon (paler than the far sea below it). */
+  const skyLine = new THREE.Color();
   const light = {
     sunDir,
     sun: new THREE.Color(),
@@ -441,7 +449,9 @@ export async function createSeaRenderer(
     light.sky.lerp(STORM_HORIZON.clone().multiplyScalar(dim), g * 0.9);
     zenith.lerp(STORM_ZENITH.clone().multiplyScalar(dim), g * 0.9);
     light.sun.lerp(STORM_SUN.clone().multiplyScalar(dim), g * 0.8);
-    light.fog.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.08 * dayness * (1 - g));
+    skyLine.copy(light.sky).lerp(new THREE.Color('#ffffff'), 0.08 * dayness * (1 - g));
+    // Under cloud the distance closes in as grey mist again (the sky's colour), not far-off sea.
+    light.fog.copy(light.sky).multiply(FAR_SEA).lerp(light.sky, 0.75 * g);
     (scene.background as THREE.Color).copy(light.sky);
     sun.intensity = THREE.MathUtils.lerp(0.9, 2.6, THREE.MathUtils.smoothstep(e, -0.05, 0.12)) * (1 - 0.72 * g);
     sun.color.copy(light.sun);
@@ -616,8 +626,8 @@ export async function createSeaRenderer(
     sun.target.position.copy(target);
     ground.update(camera.position, target);
     ocean.update(target, sea, t, light);
-    // The sky meets the sea in the haze's own colour, so the horizon is one line of haze.
-    sky.update(camera.position, zenith, light.fog, sunDir, light.sun);
+    // The sky's horizon in its own colour, paler than the far sea below it (the same, under a storm's mist).
+    sky.update(camera.position, zenith, skyLine, sunDir, light.sun);
     towns.update(t);
     composer.render(dt);
   };
