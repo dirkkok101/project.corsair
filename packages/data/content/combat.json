@@ -89,7 +89,12 @@
     "merchant": 0.6,
     "patrol": 1.1,
     "pirate": 1.3,
-    "losses": 0.35
+    "losses": 0.35,
+    "$repel": "Only a ship that means to board throws grapples (a brush in passing is a scrape). Grappled by a boarder, the player can repel them (R) in the last repelSeconds of the grapple: a window as wide as her boarders' odds would make it (at 0 and at 1); in time, the grapples are cut for repelLosses of her crew and the boarder sheers off for sheerSeconds; too soon, and they come over. Each repel narrows the next by repelFade (her men tire), so holding a boarder off buys time to sail or shoot clear, not the fight.",
+    "repelSeconds": [0.3, 0.9],
+    "repelLosses": 0.04,
+    "repelFade": 0.7,
+    "sheerSeconds": 10
   },
   "personality": {
     "merchant": "runner",

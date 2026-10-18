@@ -514,7 +514,19 @@ export const combatSchema = z.object({
     pickupTiles: z.number().positive(),
   }),
   /** Boarding: each side's strength is crew x this factor; the player's uses `player`. */
-  boarding: z.object({ player: z.number().positive(), merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
+  boarding: z.object({
+    player: z.number().positive(),
+    merchant: z.number().positive(),
+    patrol: z.number().positive(),
+    pirate: z.number().positive(),
+    losses: share,
+    /** The repel window (seconds before the boarders go over) at boarding odds 0 and 1; its cost; how long she sheers off. */
+    repelSeconds: z.tuple([z.number().positive(), z.number().positive()]),
+    repelLosses: share,
+    /** Each repel this fight narrows the next window by this (the men tire). */
+    repelFade: z.number().positive().max(1),
+    sheerSeconds: z.number().positive(),
+  }),
   /** A fight between two AI ships: strength is crew x (1 + guns / 10) x the role's factor; the winner loses `losses` of her crew. */
   autoResolve: z.object({ merchant: z.number().positive(), patrol: z.number().positive(), pirate: z.number().positive(), losses: share }),
   /** At sea her crew patch a beaten ship up a little each day: sails to `sails` (percent), hull to `hull` of its max. */

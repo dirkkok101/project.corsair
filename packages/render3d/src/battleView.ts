@@ -54,6 +54,8 @@ export interface BattleViewState {
   /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
    * whether each broadside can fire now (as the battle's aim reports it). */
   arcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
+  /** Her grapples' reach round the player (tiles), and whether she means to board now. */
+  grapple?: { tiles: number; threat: boolean };
   /** She has gone down: barrels and men in the water where she sank. */
   wreck?: { barrels: { x: number; y: number }[]; survivors: { x: number; y: number; men: number }[] };
 }

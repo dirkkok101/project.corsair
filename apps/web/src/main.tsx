@@ -863,6 +863,8 @@ async function main() {
       } else if (k === 'q' || k === 'e') fight.battle.send({ type: 'Fire', side: k === 'q' ? 'port' : 'starboard' });
       else if (['1', '2', '3'].includes(k)) fight.battle.send({ type: 'SetAmmo', ammo: (['round', 'chain', 'grape'] as Ammo[])[Number(k) - 1]! });
       else if (k === 'g' && !e.repeat) fight.battle.send({ type: 'Board' });
+      // R: repel boarders, as the grapple bar reaches the gold (one try a grapple).
+      else if (k === 'r' && !e.repeat) fight.battle.send({ type: 'Repel' });
       // Y: strike your colours, when a famous pirate calls on you to.
       else if (k === 'y' && !e.repeat && fight.battle.demands()) fight.battle.send({ type: 'Strike' });
       else if (k === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
@@ -1299,7 +1301,9 @@ async function main() {
           };
       // The fight is drawn on the same sea as the map.
       sea3d.canvas.style.display = '';
-      sea3d.renderBattle({ ...bs, arcs }, now, fight.nation, fight.famous);
+      // Her grapples' reach round the player, red while she means to board.
+      const grapple = bs.result || bs.wreck ? undefined : { tiles: content.combat.battle.boardTiles, threat: Boolean(bs.enemyBoarding) };
+      sea3d.renderBattle({ ...bs, arcs, grapple }, now, fight.nation, fight.famous);
       const me = player();
       const prize = sim.state.prize;
       render(
@@ -1377,7 +1381,7 @@ async function main() {
             ),
             viewDeg: sea3d.viewDeg(),
           }}
-          board={{ odds: fight.battle.boardingOdds(), active: Boolean(bs.boarding) }}
+          board={{ odds: fight.battle.boardingOdds(), active: Boolean(bs.boarding), repel: fight.battle.repelWindow() }}
           onPlunder={takePlunder}
           reloadSeconds={gunnery.reloadSeconds}
           aim={{ port: fight.battle.aim('port'), starboard: fight.battle.aim('starboard') }}

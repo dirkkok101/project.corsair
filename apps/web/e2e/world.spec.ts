@@ -938,6 +938,69 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
   expect(errors).toEqual([]);
 });
 
+test('a pirate who means to board: the warning, the repel window on the grapple bar, and R throws them back', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'pirate', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: { role: string } }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai?.role === 'pirate').sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    // Out to open water first: by the coast she would spend the fight shying off the land.
+    window.__corsair.sim.step(1500);
+    const s = (window.__corsair.state.get('ships') as typeof ships)[id]!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + 1.5, y: s.y });
+    window.__corsair.sim.step(1);
+  });
+  // Alongside, she falls on her (a hunter closing won't stop to talk).
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => window.__corsair.sim.step(1));
+      return page.evaluate(() => window.__corsair.view());
+    })
+    .toBe('battle');
+  // Lying hove to (sails furled), she cripples the rig and comes in to board: warned before the grapples bite.
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('s');
+    await page.evaluate(() => window.__corsair.battle.step(1));
+  }
+  expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.sails)).toBe('furled');
+  const until = (what: string) =>
+    page.evaluate((w) => {
+      for (let i = 0; i < 30 * 900; i++) {
+        const s = window.__corsair.battle.state()!;
+        if (window.__corsair.battle.result() || (w === 'intent' ? s.enemyBoarding && s.grappling === 0 : s.grappling > 0)) return;
+        window.__corsair.battle.step(1);
+      }
+    }, what);
+  await until('intent');
+  await frames(page);
+  await expect(page.locator('.battle-boarder')).toContainText('She means to board!');
+  await page.screenshot({ path: 'test-results/boarder.png' });
+  await until('grapple');
+  await frames(page);
+  await expect(page.locator('.battle-grapple')).toContainText('Repel boarders: R');
+  await expect(page.locator('.battle-repel-window')).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/grapple.png' });
+  // Into the gold, then R: the grapples are cut and she sheers off.
+  const window_ = await page.evaluate(() => {
+    const seconds = 3;
+    for (let i = 0; i < 30 * seconds; i++) {
+      const s = window.__corsair.battle.state()!;
+      const w = (document.querySelector('.battle-repel-window') as HTMLElement | null)?.style.width;
+      if (w && s.grappling / seconds >= 1 - (parseFloat(w) / 100) * 0.5) return w;
+      window.__corsair.battle.step(1);
+    }
+    return undefined;
+  });
+  expect(window_).toBeTruthy();
+  await page.keyboard.press('r');
+  await page.evaluate(() => window.__corsair.battle.step(1));
+  await frames(page);
+  await expect(page.locator('.battle-repel')).toContainText('Boarders repelled!');
+  expect(await page.evaluate(() => window.__corsair.battle.state()!.grappling)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
 test('privateering: a letter of marque at war, a lawful attack, and a bounty at the governor', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   await page.evaluate(() => window.__corsair.sim.step(1));

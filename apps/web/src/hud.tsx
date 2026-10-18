@@ -261,7 +261,7 @@ const KEYS: { group: string; keys: [string, string][] }[] = [
   { group: 'Sailing', keys: [['A D', 'steer'], ['W S', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern']] },
   { group: 'Course and chart', keys: [['M', 'the chart: pick a port'], ['F', 'follow the route'], ['I', 'intercept a ship'], ['Click', 'sail there, or dock']] },
   { group: 'Ships and shore', keys: [['H', 'hail a ship'], ['E', 'enter port, set sail'], ['G', 'go ashore and dig'], ['K', 'careen on a beach']] },
-  { group: 'Battle', keys: [['Space', 'fire whichever side bears'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
+  { group: 'Battle', keys: [['Space', 'fire whichever side bears'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
   { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['Esc', 'close, or leave port']] },
 ];
 

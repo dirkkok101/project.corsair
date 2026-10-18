@@ -133,6 +133,14 @@ export interface BattleState {
   rng: RngState;
   /** The player has ordered "close to board": her helm runs alongside the enemy until the grapples hold. */
   boarding?: boolean;
+  /** The enemy means to board: she is closing for the grapples (only a ship that means to board throws them). */
+  enemyBoarding?: boolean;
+  /** Battle seconds until which the enemy, her boarders repelled, sheers off rather than close again. */
+  sheerUntil?: number;
+  /** The player's repel this grapple (one try a grapple), and when: shown for a moment. */
+  repel?: { result: 'repelled' | 'missed'; at: number };
+  /** Boarders repelled this fight: each narrows the next window (boarding.repelFade). */
+  repels?: number;
   /**
    * She has gone down: barrels of her purse and her men in the water, to sail over and pick up until
    * `until` (battle seconds), or until the player leaves the wreck. What's picked up so far is kept here.
@@ -158,6 +166,8 @@ export type BattleCommand =
   | { type: 'LeaveWreck' }
   /** Close to board: the helm steers alongside her and holds there for the grapples (again, or any helm, to stop). */
   | { type: 'Board' }
+  /** Repel boarders: in the grapple's last moments (repelWindow), cut her grapples; too soon, and they come over. */
+  | { type: 'Repel' }
   /** Strike her colours, when a famous pirate calls on her to (`demands`): she keeps her ship and men. */
   | { type: 'Strike' };
 
@@ -480,25 +490,27 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
    * to board when the other is crippled or out-crewed, or, if bold, the moment the other's broadside facing
    * her has just fired; otherwise stalk from a station off the other's bow or stern and rake her.
    */
-  const pirate = (me: BattleShip, them: BattleShip, d: number, toThem: number, ready: Broadside): number => {
+  /** A boarder's course, and whether she means to board now (her grapples go out only then). */
+  const pirate = (me: BattleShip, them: BattleShip, d: number, toThem: number, ready: Broadside, sheering: boolean): { want: number; board: boolean } => {
     const t = c.tactics.temperaments[me.temperament ?? 'bold'] ?? Object.values(c.tactics.temperaments)[0]!;
-    if (state.grappling > 0) return toThem;
-    if (me.hull < me.hullMax * t.fleeBelowHull || me.crew < me.crewStart * t.fleeBelowCrew) return toThem + 180;
+    if (state.grappling > 0) return { want: toThem, board: true };
+    if (me.hull < me.hullMax * t.fleeBelowHull || me.crew < me.crewStart * t.fleeBelowCrew) return { want: toThem + 180, board: false };
     // The other's broadside on my side of her: just fired, it's a while reloading.
     const rel = ((bearing(them, me) - them.headingDeg + 540) % 360) - 180;
     const facing: Broadside = rel > 0 ? 'starboard' : 'port';
     const opening = t.seizeOpenings && d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload;
-    if (them.sailCondition < t.boardBelowSails || me.crew > them.crew * t.boardCrewRatio || opening) return toThem;
+    // Her boarders thrown back, she sheers off for a while and works her guns before closing again.
+    if (!sheering && (them.sailCondition < t.boardBelowSails || me.crew > them.crew * t.boardCrewRatio || opening)) return { want: toThem, board: true };
     // Stalk: a station off her bow or stern (the nearer), where her broadsides can't bear.
     const standoff = reach(me, 'round') * c.tactics.standoffShare;
     const r = (them.headingDeg * Math.PI) / 180;
     const ends = [1, -1].map((k) => ({ x: them.x + Math.sin(r) * k * standoff, y: them.y - Math.cos(r) * k * standoff }));
     const station = ends.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0]!;
     if (Math.hypot(station.x - me.x, station.y - me.y) > c.tactics.stationTiles) {
-      return normalizeDeg((Math.atan2(station.x - me.x, -(station.y - me.y)) * 180) / Math.PI);
+      return { want: normalizeDeg((Math.atan2(station.x - me.x, -(station.y - me.y)) * 180) / Math.PI), board: false };
     }
     // On station: turn the loaded broadside on her, raking her end on.
-    return ready === 'starboard' ? toThem - 90 : toThem + 90;
+    return { want: ready === 'starboard' ? toThem - 90 : toThem + 90, board: false };
   };
 
   /** Steering for an AI captain (the enemy, or the player under autopilot in the headless runner). */
@@ -510,7 +522,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const ready: Broadside = me.reload.starboard <= me.reload.port ? 'starboard' : 'port';
     let want: number;
     if (personality === 'runner') want = toThem + 180;
-    else if (personality === 'aggressive') want = pirate(me, them, d, toThem, ready);
+    else if (personality === 'aggressive') {
+      const plan = pirate(me, them, d, toThem, ready, side === 'enemy' && seconds() < (state.sheerUntil ?? 0));
+      want = plan.want;
+      state = side === 'enemy' ? { ...state, enemyBoarding: plan.board } : { ...state, boarding: plan.board };
+    }
     else if (d > reach(me, 'round') * 0.8) want = toThem;
     else if (personality === 'cautious' && d < reach(me, 'round') * 0.5) want = toThem + 180;
     // Put the loaded broadside to bear: the target abeam on that side.
@@ -595,6 +611,18 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return ps / Math.max(1e-6, ps + es);
   };
 
+  /**
+   * How long before her boarders go over the player can repel them (seconds): wider the likelier her own boarders
+   * would carry the deck (her crew, its spirit, her nettings). Only when the enemy is the one boarding.
+   */
+  const repelWindow = () => {
+    const [low, high] = c.boarding.repelSeconds;
+    const tired = Math.pow(c.boarding.repelFade, state.repels ?? 0);
+    const window = state.enemyBoarding && !state.boarding && state.ships.player.crew > 0 ? (low + (high - low) * boardingOdds()) * tired : 0;
+    // Too tired to: narrower than a couple of frames is no window a hand could hit.
+    return window >= 2 * DT ? window : 0;
+  };
+
   /** `byAi`: the command came from an AI captain's steering (the enemy, or the headless autopilot). */
   const apply = (side: Side, cmd: BattleCommand, rng: ReturnType<typeof rngStream>, byAi = false) => {
     if (cmd.type === 'LeaveWreck') {
@@ -603,6 +631,26 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     }
     if (cmd.type === 'Board') {
       state = { ...state, boarding: !state.boarding };
+      return;
+    }
+    if (cmd.type === 'Repel') {
+      // One try a grapple: in the window the grapples are cut and she sheers off; too soon, they come over.
+      const window = repelWindow();
+      if (side !== 'player' || state.grappling <= 0 || state.repel || !window) return;
+      if (state.grappling < c.battle.grappleSeconds - window) {
+        state = { ...state, repel: { result: 'missed', at: seconds() } };
+        return;
+      }
+      const p = state.ships.player;
+      state = {
+        ...state,
+        grappling: 0,
+        enemyBoarding: false,
+        sheerUntil: seconds() + c.boarding.sheerSeconds,
+        repel: { result: 'repelled', at: seconds() },
+        repels: (state.repels ?? 0) + 1,
+        ships: { ...state.ships, player: { ...p, crew: Math.max(0, p.crew - Math.round(p.crew * c.boarding.repelLosses)) } },
+      };
       return;
     }
     if (cmd.type === 'Strike') {
@@ -720,6 +768,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     result: () => state.result,
     /** The player's chance to carry her deck if the boarders went over now. */
     boardingOdds: () => boardingOdds(),
+    /** Seconds before her boarders go over in which R repels them (0: nothing to repel). */
+    repelWindow: () => repelWindow(),
     /** She may strike any moment now (shown to the player, so a surrender can be worked for). */
     wavering: () => !state.result && !state.wreck && (beaten(state.ships.enemy) || yields(state.ships.enemy, state.ships.player)),
     /** A famous pirate is calling on the player to strike (Strike yields: she keeps her ship and men). */
@@ -767,11 +817,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         // Lashed together, both are dragged down to grappleDrag of their way, so cutting free takes a
         // deliberate run before the boarders go over.
         if (apart > c.battle.breakTiles) state = { ...state, grappling: 0 };
-        else if (apart <= c.battle.boardTiles || state.grappling > 0) {
+        else if ((apart <= c.battle.boardTiles && (state.boarding || state.enemyBoarding)) || state.grappling > 0) {
           const drag = (s: BattleShip) => ({ ...s, speed: Math.min(s.speed, content.ships[s.classId]!.speed * c.battle.tilesPerSecondPerSpeedPoint * c.battle.grappleDrag) });
           state = {
             ...state,
             grappling: state.grappling + DT,
+            // A fresh grapple: a fresh try at repelling it.
+            ...(state.grappling === 0 ? { repel: undefined } : {}),
             ships: { player: drag(state.ships.player), enemy: drag(state.ships.enemy) },
           };
         }
@@ -872,7 +924,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           if (seconds() >= wreck.until || (!wreck.barrels.length && !wreck.survivors.length)) end('sunk');
         } else if (e.hull <= 0) sink(e, rng);
         else if (p.hull <= 0) end('lost');
-        else if (state.grappling >= c.battle.grappleSeconds) {
+        // (Less a hair: the grapple's seconds are summed a frame at a time.)
+        else if (state.grappling >= c.battle.grappleSeconds - 1e-6) {
           // Boarding: crews with their fighting spirit; the stronger side carries the deck, both bleed.
           const ps = p.crew * c.boarding.player * spirit(p) * p.boardMult * p.boardingDefence * nets(p, 'player');
           const es = e.crew * c.boarding[e.role ?? 'merchant'] * spirit(e) * e.boardMult * e.boardingDefence * nets(e, 'enemy');

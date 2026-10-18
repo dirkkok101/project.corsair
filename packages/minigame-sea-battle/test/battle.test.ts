@@ -141,26 +141,28 @@ describe('sea battle', () => {
     expect(far.aim('starboard')).toBe('out-of-range');
   });
 
-  it('hulls together throw grapples: held, the boarders go over; sailing clear cuts them', () => {
+  it('a boarder alongside throws grapples: held, the boarders go over; sailing clear cuts them', () => {
     const b = content.combat.battle;
     // Seated alongside, inside grappling distance.
-    const alongside = (enemy: Ship) =>
+    const alongside = (enemy: Ship, playerCrew?: number) =>
       createBattle({ ...content, combat: { ...content.combat, battle: { ...b, startApart: b.boardTiles * 0.6 } } }, {
         map,
         wind: { fromDeg: 0, strength: 'fresh' },
-        player: { ...ship('ship.brig'), headingDeg: 90 },
+        player: { ...ship('ship.brig', undefined, playerCrew), headingDeg: 90 },
         enemy: { ...enemy, headingDeg: 90 },
         seed: 6,
         bearingDeg: 0,
       });
-    // A pirate holds on: the grapples stay out until the boarders go over, no sooner.
-    const held = alongside(ship('ship.sloop', 'pirate', 0.95));
+    // A pirate who outmans her means to board, and holds on: the grapples stay out until the boarders go over.
+    const held = alongside(ship('ship.sloop', 'pirate', 0.95), 0.3);
     let guard = 0;
     while (!held.result() && guard++ < 30 * 30) held.step(1);
     expect(['boarded', 'lost']).toContain(held.result()!.outcome);
     expect(held.state.tick / 30).toBeGreaterThanOrEqual(b.grappleSeconds);
     // The brig runs downwind while the grapples are still young: past breakTiles they part.
+    // Closing to board herself (G), the player throws them on a merchant; running clear cuts them.
     const cut = alongside(ship('ship.fluyt', 'merchant'));
+    cut.send({ type: 'Board' });
     cut.step(1);
     expect(cut.state.grappling).toBeGreaterThan(0);
     guard = 0;
@@ -257,13 +259,68 @@ describe('sea battle', () => {
     expect(reload(150)).toBeCloseTo(reload(108));
   });
 
+  it('a brush in passing throws no grapples: only a ship that means to board', () => {
+    const b = content.combat.battle;
+    // A merchant alongside, no one boarding: no grapples, however close.
+    const battle = createBattle({ ...content, combat: { ...content.combat, battle: { ...b, startApart: b.boardTiles * 0.6 } } }, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: { ...ship('ship.brig'), headingDeg: 90 },
+      enemy: { ...ship('ship.fluyt', 'merchant'), headingDeg: 90 },
+      seed: 6,
+      bearingDeg: 0,
+    });
+    for (let i = 0; i < 30; i++) battle.step(1);
+    expect(battle.state.grappling).toBe(0);
+  });
+
+  it('repels boarders: in the window the grapples are cut and she sheers off; too soon and they come over', () => {
+    const b = content.combat.battle;
+    const grappled = () => {
+      const battle = createBattle({ ...content, combat: { ...content.combat, battle: { ...b, startApart: b.boardTiles * 0.6 } } }, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig', undefined, 0.3), headingDeg: 90 },
+        enemy: { ...ship('ship.sloop', 'pirate', 0.95), headingDeg: 90 },
+        seed: 6,
+        bearingDeg: 0,
+      });
+      battle.step(1);
+      expect(battle.state.enemyBoarding).toBe(true);
+      expect(battle.repelWindow()).toBeGreaterThan(0);
+      return battle;
+    };
+    // In time: a moment before the boarders would go over.
+    const timely = grappled();
+    const crew = timely.state.ships.player.crew;
+    while (timely.state.grappling < b.grappleSeconds - timely.repelWindow() / 2) timely.step(1);
+    timely.send({ type: 'Repel' });
+    timely.step(1);
+    expect(timely.state.repel?.result).toBe('repelled');
+    expect(timely.state.grappling).toBe(0);
+    expect(timely.state.ships.player.crew).toBeLessThan(crew);
+    // She sheers off for a while: no grapples, however close she lies.
+    for (let i = 0; i < 30 * 3; i++) timely.step(1);
+    expect(timely.result()).toBeUndefined();
+    expect(timely.state.enemyBoarding).toBe(false);
+    // Too soon: one try a grapple, and the boarders go over.
+    const early = grappled();
+    early.step(5);
+    early.send({ type: 'Repel' });
+    early.step(1);
+    expect(early.state.repel?.result).toBe('missed');
+    let guard = 0;
+    while (!early.result() && guard++ < 30 * 30) early.step(1);
+    expect(['boarded', 'lost']).toContain(early.result()!.outcome);
+  });
+
   it('a happy crew carries the deck: boarded alongside, high morale loses fewer men', () => {
     const b = content.combat.battle;
     const board = (playerMorale: number) => {
       const battle = createBattle({ ...content, combat: { ...content.combat, battle: { ...b, startApart: b.boardTiles * 0.6 } } }, {
         map,
         wind: { fromDeg: 0, strength: 'fresh' },
-        player: { ...ship('ship.brig', undefined, 0.5), headingDeg: 90 },
+        player: { ...ship('ship.brig', undefined, 0.3), headingDeg: 90 },
         enemy: { ...ship('ship.sloop', 'pirate', 0.95), headingDeg: 90 },
         seed: 6,
         bearingDeg: 0,

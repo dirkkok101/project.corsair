@@ -2773,6 +2773,30 @@ body {
   border-color: #ff9a7a;
 }
 
+/* The grapple bar is wider, so the gold repel window at its end is a mark to hit. */
+.battle-call .battle-grapple-bar {
+  position: relative;
+  flex: 0 0 220px;
+}
+
+.k-bar > span.battle-repel-window {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgb(232 193 112 / 0.55);
+  box-shadow: inset 2px 0 0 var(--k-gold);
+}
+
+.battle-boarder,
+.battle-repel.missed {
+  border-color: #e0503c;
+}
+
+.battle-repel.repelled {
+  border-color: var(--k-gold);
+  color: var(--k-gold);
+}
+
 .battle-demand {
   position: absolute;
   top: 210px;

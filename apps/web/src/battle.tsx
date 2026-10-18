@@ -474,6 +474,12 @@ function Bar({ label, share, word, men }: { label: string; share: number; word: 
 /** A ship's masts by name, fore to aft. */
 const MAST_NAMES: Record<number, string[]> = { 1: ['mast'], 2: ['foremast', 'mainmast'], 3: ['foremast', 'mainmast', 'mizzen'] };
 
+/** Tiles a second either way under which the gap is holding, not changing; the pace shows past this far apart. */
+const PACE_EVEN = 0.05;
+const PACE_FROM_TILES = 14;
+/** Seconds "Boarders repelled!" or "Too soon!" stays up. */
+const REPEL_SAID_SECONDS = 2;
+
 /** A ship's card (storyboard 5.1): her flag, name, what she is, and hull, sails and men as named bands. */
 function ShipCard({ ship, tag, gold, name, what, wavering, oars }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; wavering?: boolean; oars?: boolean }) {
   const up = ship.masts.filter((m) => m > 0).length;
@@ -543,8 +549,11 @@ export interface BattleHudProps {
   advice?: string;
   /** The compass: the wind on the battle water, her heading, speed and point of sail. */
   compass: CompassProps;
-  /** Boarding: the chance the player's boarders carry her deck now, and whether "close to board" is on. */
-  board: { odds: number; active: boolean };
+  /**
+   * Boarding: the chance the player's boarders carry her deck now, whether "close to board" is on, and the seconds
+   * before her boarders go over in which R repels them (0: nothing to repel).
+   */
+  board: { odds: number; active: boolean; repel: number };
   onPlunder: (choice: PlunderChoice) => void;
   onContinue: () => void;
   /** F1's every-key help, open over the battle. */
@@ -577,6 +586,15 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
   };
   const enemy = state.ships.enemy;
   const gauge = weatherGauge(state);
+  // How fast the gap is changing (tiles a second; less than nothing: she is closing), from both ships' way.
+  const e0 = state.ships.enemy;
+  const way = (s: { headingDeg: number; speed: number }): [number, number] => [Math.sin((s.headingDeg * Math.PI) / 180) * s.speed, -Math.cos((s.headingDeg * Math.PI) / 180) * s.speed];
+  const [pvx, pvy] = way(me);
+  const [evx, evy] = way(e0);
+  const opening = apart > 0 ? ((evx - pvx) * (e0.x - me.x) + (evy - pvy) * (e0.y - me.y)) / apart : 0;
+  const pace = opening < -PACE_EVEN ? "She's gaining on you" : opening > PACE_EVEN ? "You're drawing away" : "You're holding her off";
+  const fightSeconds = state.tick / 30;
+  const repelSaid = state.repel && fightSeconds - state.repel.at < REPEL_SAID_SECONDS ? state.repel.result : undefined;
   /** What the fight did: how it ended, a line for each thing won or lost, her own ship, and the standing it moved. */
   const reportBody = (result: BattleResult) => (
     <div class="battle-report-body">
@@ -660,6 +678,19 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
                 : 'Weather gauge: neither. Whoever wins the wind chooses when to close.'}
           </div>
         ) : null}
+        {/* She means to board: the warning, how the chase goes, and what keeps her off. */}
+        {!state.result && !state.wreck && state.grappling === 0 && state.enemyBoarding ? (
+          <div class="battle-call battle-boarder">
+            <span>
+              She means to board! <b>{pace}.</b> Keep her outside the ring: bear away, or sweep her deck with grape.
+            </span>
+          </div>
+        ) : !state.result && !state.wreck && state.grappling === 0 && apart > PACE_FROM_TILES ? (
+          <div class="battle-call battle-pace">{pace}</div>
+        ) : null}
+        {repelSaid && !state.result ? (
+          <div class={`battle-call battle-repel ${repelSaid}`}>{repelSaid === 'repelled' ? 'Boarders repelled! She sheers off.' : 'Too soon! Her boarders are coming over.'}</div>
+        ) : null}
         {!state.result && !state.wreck && state.grappling === 0 && (board.active || (apart <= 12 && board.odds >= 0.5)) ? (
           <div class="battle-call battle-board">
             <Key k="G" />
@@ -696,9 +727,17 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
         ) : null}
         {!state.result && state.grappling > 0 ? (
           <div class="battle-call battle-grapple">
-            <span>Grappled! Sail clear to cut free, or stand by to repel boarders</span>
-            <span class="k-bar">
+            <span>
+              {state.boarding
+                ? 'Grappled! Your boarders go over when the bar fills.'
+                : board.repel > 0 && !state.repel
+                  ? 'Grappled! Repel boarders: R as the bar reaches the gold.'
+                  : 'Grappled! Her boarders are coming over.'}
+            </span>
+            <span class="k-bar battle-grapple-bar">
               <span class="low" style={{ width: `${Math.round(Math.min(1, state.grappling / b.grappleSeconds) * 100)}%` }} />
+              {/* The repel window: the bar's last stretch, as wide as her crew and spirit make it. */}
+              {board.repel > 0 && !state.repel ? <span class="battle-repel-window" style={{ width: `${Math.round((board.repel / b.grappleSeconds) * 100)}%` }} /> : null}
             </span>
           </div>
         ) : null}

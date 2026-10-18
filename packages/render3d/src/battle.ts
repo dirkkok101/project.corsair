@@ -175,6 +175,14 @@ export function createBattleFx() {
     object.add(m);
   }
 
+  // Her grapples' reach round the player: a faint ring, red while she means to board, so she is kept outside it.
+  const grappleRing = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(Array.from({ length: 65 }, (_, i) => new THREE.Vector3(Math.cos((i / 64) * Math.PI * 2), 0, Math.sin((i / 64) * Math.PI * 2)))),
+    new THREE.LineBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }),
+  );
+  grappleRing.renderOrder = 1;
+  object.add(grappleRing);
+
   // The player's firing arcs on the water: gold when that broadside bears and is loaded, so she steers into one.
   const arcs = new THREE.Group();
   object.add(arcs);
@@ -518,6 +526,14 @@ export function createBattleFx() {
       spars.count = nSpar;
       heads.count = nHead;
       for (const mesh of [barrels, spars, heads]) mesh.instanceMatrix.needsUpdate = true;
+
+      grappleRing.visible = Boolean(view.grapple);
+      if (view.grapple) {
+        grappleRing.position.set(hulls.player.x, 0.12, hulls.player.z);
+        grappleRing.scale.setScalar(view.grapple.tiles);
+        grappleRing.material.color.set(view.grapple.threat ? '#e0503c' : '#f2e6c8');
+        grappleRing.material.opacity = view.grapple.threat ? 0.85 : 0.25;
+      }
 
       // The player's arcs, round her on the water.
       arcs.visible = Boolean(view.arcs);
