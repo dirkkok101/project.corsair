@@ -65,4 +65,20 @@ describe('the sea ships ride', () => {
     }
     expect(jolt).toBeLessThan(0.004);
   });
+
+  it('never turns about the camera: a small shift leaves the waves be, a big one raises a new sea', () => {
+    const at = new THREE.Vector3(300, 0, 200);
+    // Far out, where a sea turned as a whole would sweep sideways like a turntable.
+    const far = () => Array.from({ length: 40 }, (_, i) => [at.x + 150 * Math.cos(i), at.z + 150 * Math.sin(i)] as const);
+    const after = (toDeg: number) => {
+      const sea = ocean();
+      sea.update(at, { toDeg: 90, strength: 0.8 }, 0, light);
+      for (let i = 1; i <= 60 * 40; i++) sea.update(at, { toDeg, strength: 0.8 }, i / 60, light);
+      return far().map(([x, z]) => sea.heightAt(x, z));
+    };
+    const steady = after(90);
+    const off = (h: number[]) => h.reduce((n, v, i) => n + Math.abs(v - steady[i]!), 0) / h.length;
+    expect(off(after(100))).toBeLessThan(1e-9);
+    expect(off(after(150))).toBeGreaterThan(0.01);
+  });
 });

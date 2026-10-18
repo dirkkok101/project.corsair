@@ -151,6 +151,16 @@ describe('zones and seasons', () => {
       const night = { ...sim.state, tick: tickAtHour(content.calendar, 3) };
       expect(windAt(night, off.x, off.y).fromDeg).not.toBeCloseTo(zone.fromDeg, 0);
     });
+
+    it('can leave the breezes out (the run of the sea, which a day does not turn)', () => {
+      const sim = newSim(3);
+      const seaWindAt = createWindField(content, def, map, { breeze: false });
+      const zone = sim.state.weather!.zones[zoneAt(content, map, off.x, off.y).id]!;
+      for (const hour of [3, 15]) {
+        const state = { ...sim.state, tick: tickAtHour(content.calendar, hour) };
+        expect(seaWindAt(state, off.x, off.y).fromDeg).toBeCloseTo(zone.fromDeg, 6);
+      }
+    });
   });
 });
 

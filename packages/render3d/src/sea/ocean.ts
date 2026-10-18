@@ -117,21 +117,29 @@ const RING_GROWTH = 0.028;
 const RADIUS = 3000;
 /** The surface drift (tiles a second), at no wind and at full strength: the chop, foam and wakes move at it. */
 const DRIFT = [0.025, 0.09];
-/** How fast the sea turns to a new wind, and grows or dies with it (per second): slowly, as a sea does. */
+/** How fast the sea grows or dies with the wind, and its drift turns to a new one (per second): slowly, as a sea does. */
 const SEA_EASE = 0.08;
+/**
+ * The sea never turns about the camera (turned as a whole, far water sweeps round like a turntable): once the wind
+ * has backed or veered this far (radians) from the sea's waves, a new sea running with it rises over this many
+ * seconds as the old one dies away.
+ */
+const SEA_TURN_AT = (15 * Math.PI) / 180;
+const SEA_TURN_S = 10;
 /** The wakes' area round the target, in camera distances, and its limits (tiles). */
 const WAKE_AREA = { perDistance: 2.4, min: 30, max: 260 };
 
+// Two sets of waves: the sea running now, and (while the wind shifts) the one rising in its place.
 const WAVES_GLSL = /* glsl */ `
-uniform vec4 uWave[${COUNT}];    // direction (x, z), wavenumber, height
-uniform float uQ[${COUNT}];      // choppiness
-uniform float uPhase[${COUNT}];
+uniform vec4 uWave[${COUNT * 2}];    // direction (x, z), wavenumber, height
+uniform float uQ[${COUNT * 2}];      // choppiness
+uniform float uPhase[${COUNT * 2}];
 `;
 
 const VERT = /* glsl */ `
 ${WAVES_GLSL}
 uniform vec2 uCenter;
-uniform vec2 uFade[${COUNT}];
+uniform vec2 uFade[${COUNT * 2}];
 uniform sampler2D uCoast;
 uniform vec2 uMapSize;
 uniform sampler2D uWaves;
@@ -148,7 +156,8 @@ void main() {
   // The waves die on the beach itself, so the waterline stays where the land has it.
   float beach = 1.0 - smoothstep(0.9, 0.985, texture2D(uCoast, xz / uMapSize).r);
   vec3 p = vec3(0.0);
-  for (int i = 0; i < ${COUNT}; i++) {
+  for (int i = 0; i < ${COUNT * 2}; i++) {
+    if (uWave[i].w <= 0.0) continue;
     float a = uWave[i].w * (1.0 - smoothstep(uFade[i].x, uFade[i].y, r)) * uShowSwell;
     float arg = uWave[i].z * dot(uWave[i].xy, xz) - uPhase[i];
     float c = cos(arg);
@@ -187,9 +196,15 @@ uniform sampler2D uWaves;
 uniform vec3 uWaveArea;
 uniform vec2 uMapSize;
 uniform float uTime;
-// The wind's frame for the textures: rows along and across the wind, and its drifting offset.
+// The wind's frame for the textures drawn along it (chop, whitecaps): rows along and across the wind, and its
+// drifting offset; B is the frame of the sea rising in its place while the wind shifts, uBlend how far it has risen.
 uniform vec4 uFrame;
 uniform vec2 uOffset;
+uniform vec4 uFrameB;
+uniform vec2 uOffsetB;
+uniform float uBlend;
+// The surface's drift downwind, for the textures that don't run with the wind (foam, sand ribs).
+uniform vec2 uDrift;
 uniform vec2 uCloudOffset;
 uniform vec2 uWindDir;
 uniform float uStrength;
@@ -212,9 +227,24 @@ varying vec2 vParam;
 varying float vRadius;
 varying float vDepth;
 
+// The fine chop in a frame, two scales drifting with the wind, turned to the world's.
+vec2 chopIn(vec4 frame, vec2 uv) {
+  vec3 c1 = texture2D(uChop, uv / 2.6 + vec2(uTime * 0.014, 0.0)).rgb;
+  vec3 c2 = texture2D(uChop, uv / 0.95 + vec2(uTime * 0.025, 0.37)).rgb;
+  vec2 chop = (c1.rg - 0.5) * 0.6 + (c2.rg - 0.5) * 0.4;
+  return frame.xy * chop.x + frame.zw * chop.y;
+}
+// Broken foam at two fine scales, drawn out along the wind.
+float frayIn(vec2 uv) {
+  return texture2D(uDetail, vec2(uv.x / 1.4, uv.y / 0.55) + vec2(uTime * 0.012, 0.0)).a * 0.6
+    + texture2D(uDetail, vec2(uv.x / 0.5, uv.y / 0.22) + vec2(uTime * 0.02, 0.43)).a * 0.4;
+}
+
 void main() {
   vec2 xz = vParam;
   vec2 uv = vec2(dot(uFrame.xy, xz), dot(uFrame.zw, xz)) + uOffset;
+  vec2 uvB = vec2(dot(uFrameB.xy, xz), dot(uFrameB.zw, xz)) + uOffsetB;
+  vec2 drifted = xz - uDrift;
 
   // The waves, per pixel (each one fading out before it gets finer than a few pixels): the surface's tilt, how
   // far up a crest this is, and how pinched (the Gerstner Jacobian, low where a crest is about to break).
@@ -222,7 +252,8 @@ void main() {
   float crest = 0.0;
   float pinch = 1.0;
   float spread = 0.0;
-  for (int i = 0; i < ${COUNT}; i++) {
+  for (int i = 0; i < ${COUNT * 2}; i++) {
+    if (uWave[i].w <= 0.0) continue;
     float arg = uWave[i].z * dot(uWave[i].xy, xz) - uPhase[i];
     float fine = 1.0 - smoothstep(0.8, 1.6, fwidth(arg));
     float wa = uWave[i].z * uWave[i].w * fine * uShowSwell;
@@ -235,11 +266,10 @@ void main() {
     spread += uQ[i] * wa * uQ[i] * wa;
     crest += uWave[i].w * s * fine;
   }
-  // The fine chop, two scales drifting with the wind, stronger in a blow; in the wind's frame, turned to the world's.
-  vec3 c1 = texture2D(uChop, uv / 2.6 + vec2(uTime * 0.014, 0.0)).rgb;
-  vec3 c2 = texture2D(uChop, uv / 0.95 + vec2(uTime * 0.025, 0.37)).rgb;
-  vec2 chop = ((c1.rg - 0.5) * 0.6 + (c2.rg - 0.5) * 0.4) * (0.18 + 0.32 * uStrength) * uShowRipples;
-  n.xz -= uFrame.xy * chop.x + uFrame.zw * chop.y;
+  // The fine chop, stronger in a blow (the old sea's giving way to the new one's while the wind shifts).
+  vec2 chop = chopIn(uFrame, uv);
+  if (uBlend > 0.0) chop = mix(chop, chopIn(uFrameB, uvB), uBlend);
+  n.xz -= chop * (0.18 + 0.32 * uStrength) * uShowRipples;
 
   // The water ships push (waves.ts): its slopes tilt the surface too.
   vec2 gv = (xz - uWaveArea.xy) / uWaveArea.z;
@@ -300,7 +330,7 @@ void main() {
   vec3 col = mix(body, sky, F) + sun * spec;
   float foam = 0.0;
   if (floorH > 0.6) {
-    float ribs = texture2D(uDetail, uv / 3.1 + 0.5).a;
+    float ribs = texture2D(uDetail, drifted / 3.1 + 0.5).a;
     col = mix(col, uSand * lit * 0.6, smoothstep(0.88, 0.99, floorH + (ribs - 0.5) * 0.04) * (1.0 - F));
     float breathe = sin(uTime * 0.5 + wobble * 9.0) * 0.006;
     float surf = smoothstep(0.952, 0.982, floorH + wobble * 0.025 + breathe) * (0.75 + 0.25 * ribs);
@@ -326,8 +356,8 @@ void main() {
   // Broken into the streaks and flecks of real whitecaps, drawn out along the wind, never a solid patch: even a
   // crest's breaking core shows only the peaks of two fine scales of broken foam, a sparkle of white (as Pirates!
   // draws it), not the slab a whole crest would make.
-  float fray = texture2D(uDetail, vec2(uv.x / 1.4, uv.y / 0.55) + vec2(uTime * 0.012, 0.0)).a * 0.6
-    + texture2D(uDetail, vec2(uv.x / 0.5, uv.y / 0.22) + vec2(uTime * 0.02, 0.43)).a * 0.4;
+  float fray = frayIn(uv);
+  if (uBlend > 0.0) fray = mix(fray, frayIn(uvB), uBlend);
   caps = smoothstep(0.58, 0.7, fray + caps * 0.12) * smoothstep(0.05, 0.5, caps) * 0.85;
   // Gone before a whitecap would be a pixel or two (far out they'd make a speckled pattern, not a sea).
   float footprint = length(fwidth(xz));
@@ -340,8 +370,8 @@ void main() {
   float simFoam = 0.0;
   if (gs.b > 0.01) {
     // Fine enough that close in it reads as lace and flecks of foam, never as blobs.
-    float fine = texture2D(uDetail, uv / 0.2 + vec2(0.13, 0.71)).a;
-    float lace = texture2D(uDetail, uv / 0.7 + vec2(0.57, 0.29)).a * 0.6 + fine * 0.4;
+    float fine = texture2D(uDetail, drifted / 0.2 + vec2(0.13, 0.71)).a;
+    float lace = texture2D(uDetail, drifted / 0.7 + vec2(0.57, 0.29)).a * 0.6 + fine * 0.4;
     float freshW = smoothstep(0.0, 0.6, gs.a);
     // Never solid: even the densest churn shows water through it (Black Flag's wake is a lace of white over
     // the sea, whitest just astern), and old foam is a thin net.
@@ -367,7 +397,7 @@ void main() {
     float beams = wn * (1.0 + behind * ${WAKE_WIDENING.toFixed(4)});
     float armZone = smoothstep(0.3, 0.7, wn) * (1.0 - smoothstep(1.05, 1.35, wn));
     vec2 turn = vec2(uTime * 0.045, uTime * 0.029);
-    float boil = texture2D(uDetail, uv / 1.3 + turn).a * 0.6 + texture2D(uDetail, uv / 0.55 - turn * 1.7 + 0.31).a * 0.4;
+    float boil = texture2D(uDetail, drifted / 1.3 + turn).a * 0.6 + texture2D(uDetail, drifted / 0.55 - turn * 1.7 + 0.31).a * 0.4;
     // The churned track: about her own width (no wider than the water her hull parted), whitest at its middle,
     // never solid: even fresh it is a lace of foam over the water, breaking up as it ages and gone within a
     // couple of her lengths (a wide, solid slab read as a road behind her from astern).
@@ -375,7 +405,7 @@ void main() {
     float erode = mix(0.4, 0.78, 1.0 - life);
     float churn = track * smoothstep(erode, erode + 0.12, boil) * mix(1.0, 0.55, smoothstep(0.0, 1.2, behind));
     float crests = smoothstep(0.5, 0.95, sin(divPhase)) * armZone * divFine * (1.0 - smoothstep(0.6, 2.4, behind)) * smoothstep(0.3, 0.6, boil);
-    float spray = 0.5 + 0.8 * texture2D(uDetail, uv / 0.8 + 0.4 + turn * 0.5).a;
+    float spray = 0.5 + 0.8 * texture2D(uDetail, drifted / 0.8 + 0.4 + turn * 0.5).a;
     float hull = w.a * smoothstep(0.15, 0.6, w.a * (0.4 + 0.85 * spray));
     foam = max(foam, max(life * max(churn * 0.75, crests * 0.4), hull) * uShowWakes * (1.0 - simulated));
   }
@@ -428,7 +458,8 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setIndex(index);
 
-  const waves: Wave[] = SPECTRUM.map((s) => ({ dir: new THREE.Vector2(0, -1), k: 1, height: 0, q: 0, phase: s.phase, omega: 0 }));
+  // The sea running now (the first COUNT), and the one rising in its place while the wind shifts (the rest).
+  const waves: Wave[] = [...SPECTRUM, ...SPECTRUM].map((s) => ({ dir: new THREE.Vector2(0, -1), k: 1, height: 0, q: 0, phase: s.phase, omega: 0 }));
   const detail = detailTexture();
   const wakes = createWakes();
   const pushed = createWaves();
@@ -450,6 +481,10 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
     uTime: { value: 0 },
     uFrame: { value: new THREE.Vector4(0, -1, 1, 0) },
     uOffset: { value: new THREE.Vector2() },
+    uFrameB: { value: new THREE.Vector4(0, -1, 1, 0) },
+    uOffsetB: { value: new THREE.Vector2() },
+    uBlend: { value: 0 },
+    uDrift: { value: new THREE.Vector2() },
     uCloudOffset: { value: new THREE.Vector2() },
     uWindDir: { value: new THREE.Vector2(0, -1) },
     uStrength: { value: 0.5 },
@@ -485,26 +520,23 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
 
   // The sea's state, eased toward the wind's: the direction it moves (radians, clockwise from north) and how hard.
   let heading: number | undefined;
+  // The waves' own headings: the sea running now, and the one rising in its place (`rising` of the way) once the
+  // wind has shifted far enough from it.
+  let runs = 0;
+  let next = 0;
+  let rising = 0;
   let strength = 0.5;
   let last: number | undefined;
   const anchor = new THREE.Vector2();
   const drift = new THREE.Vector2();
   const along = new THREE.Vector2();
-  const across = new THREE.Vector2();
   let shipsThisFrame: WakeShip[] = [];
   // The water ships push steps when the renderer draws (it draws into its own targets): the frame's time and ships.
   let pushDt = 0;
   let pushShips: WakeShip[] = [];
 
-  /** Turns the textures' frame to a new heading, keeping them still at the anchor (else far water would race round). */
-  const setFrame = (to: number) => {
-    const before = new THREE.Vector2(along.dot(anchor), across.dot(anchor));
-    along.set(Math.sin(to), -Math.cos(to));
-    across.set(Math.cos(to), Math.sin(to));
-    const after = new THREE.Vector2(along.dot(anchor), across.dot(anchor));
-    uniforms.uOffset.value.add(before).sub(after);
-    uniforms.uFrame.value.set(along.x, along.y, across.x, across.y);
-  };
+  /** A heading's frame for the textures: rows along and across it. */
+  const frameOf = (frame: THREE.Vector4, to: number) => frame.set(Math.sin(to), -Math.cos(to), Math.cos(to), Math.sin(to));
 
   /** The waves' horizontal push and height at a point of the undisturbed surface. */
   const gerstner = (x: number, z: number) => {
@@ -536,10 +568,11 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       const dt = last === undefined ? 0 : THREE.MathUtils.clamp(t - last, 0, 0.1);
       last = t;
       anchor.set(at.x, at.z);
-      // Ease toward the wind (the short way round); the waves and textures turn about the camera's target.
+      // Ease toward the wind (the short way round): the drift turns with it; the waves rise anew (below).
       const want = (sea.toDeg * Math.PI) / 180;
       if (heading === undefined) {
         heading = want;
+        runs = want;
         strength = sea.strength;
       } else {
         const turn = Math.atan2(Math.sin(want - heading), Math.cos(want - heading));
@@ -552,10 +585,36 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
       const heights = SPECTRUM.map((s) => s.weight * WEIGHT_NORM * hs * swellOn);
       const choppy = CHOPPY(strength);
       const sumKA = SPECTRUM.reduce((n, s, i) => n + ((Math.PI * 2) / (peak * s.ratio)) * heights[i]!, 0) || 1;
+      // A shift of the wind past SEA_TURN_AT raises a new sea along it; when it has risen it is the sea running.
+      const off = (to: number) => Math.abs(Math.atan2(Math.sin(heading! - to), Math.cos(heading! - to)));
+      if (rising === 0 && off(runs) > SEA_TURN_AT) {
+        // Straight to the wind's new run, so one shift is one new sea.
+        next = want;
+        rising = 1e-6;
+        uniforms.uOffsetB.value.set(0, 0);
+      } else if (rising > 0) {
+        rising = Math.min(1, rising + dt / SEA_TURN_S);
+        if (rising >= 1) {
+          // The new sea takes the old one's place, as it stands.
+          for (let i = 0; i < COUNT; i++) {
+            const [a, b] = [waves[i]!, waves[i + COUNT]!];
+            a.dir.copy(b.dir);
+            Object.assign(a, { k: b.k, phase: b.phase, omega: b.omega });
+          }
+          uniforms.uOffset.value.copy(uniforms.uOffsetB.value);
+          runs = next;
+          rising = 0;
+        }
+      }
+      // Eased in and out, so no frame jolts; energy, not height, shared between the two, so the sea is as big midway
+      // through as either side of it.
+      const eased = rising * rising * (3 - 2 * rising);
+      const share = [Math.sqrt(1 - eased), Math.sqrt(eased)];
       waves.forEach((w, i) => {
-        const s = SPECTRUM[i]!;
+        const set = i < COUNT ? 0 : 1;
+        const s = SPECTRUM[i % COUNT]!;
         const k = (Math.PI * 2) / (peak * s.ratio);
-        const a = heading! + s.off;
+        const a = (set ? next : runs) + s.off;
         const dir = new THREE.Vector2(Math.sin(a), -Math.cos(a));
         // Keep each wave's phase where the camera is as the sea turns and grows (else the water there would jump).
         w.phase += k * dir.dot(anchor) - w.k * w.dir.dot(anchor);
@@ -563,7 +622,7 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
         w.dir.copy(dir);
         w.omega = Math.sqrt(GRAVITY * k) * PACE;
         w.phase = (w.phase + w.omega * dt) % (Math.PI * 2);
-        w.height = heights[i]!;
+        w.height = heights[i % COUNT]! * share[set]!;
         // Choppiness shared out by each wave's steepness, so all of them together sharpen the crests by `choppy`.
         w.q = choppy / sumKA;
         uniforms.uWave.value[i]!.set(w.dir.x, w.dir.y, w.k, w.height);
@@ -574,11 +633,17 @@ export function createOcean(depth: THREE.Texture, mapW: number, mapH: number, sh
         uniforms.uFade.value[i]!.set(Math.max(0, fadeAt * 0.6), Math.max(0.001, fadeAt));
       });
       uniforms.uHs.value = hs;
-      setFrame(heading);
-      // The textures drift downwind: in the wind's frame, along its first axis.
+      frameOf(uniforms.uFrame.value, runs);
+      frameOf(uniforms.uFrameB.value, next);
+      uniforms.uBlend.value = eased;
+      along.set(Math.sin(heading), -Math.cos(heading));
+      // The textures drift downwind: those along the wind in their own frame, along its first axis; the rest with
+      // the surface.
       const pace = THREE.MathUtils.lerp(DRIFT[0]!, DRIFT[1]!, Math.min(1, strength));
       uniforms.uOffset.value.x -= pace * dt;
+      uniforms.uOffsetB.value.x -= pace * dt;
       drift.set(along.x * pace, along.y * pace);
+      uniforms.uDrift.value.addScaledVector(drift, dt);
       uniforms.uCloudOffset.value.addScaledVector(along, -strength * CLOUD_SPEED * dt);
       uniforms.uWindDir.value.copy(along);
       uniforms.uStrength.value = strength;

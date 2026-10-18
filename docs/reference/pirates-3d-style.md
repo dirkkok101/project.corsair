@@ -94,6 +94,9 @@ own off a real island, at every zoom, hour and wind.
 - **Sea** (`sea/`; how it is drawn: `ocean-renderer.md`), after Black Flag:
   - A real sea of 24 waves running with the wind (Gerstner, crests sharpened), its size set by the weather: a
     gentle swell in light air, a lively sea in a fresh breeze, big rolling seas in a gale. Ships ride it.
+    It never turns as a whole (far water would sweep round the ship like a turntable): when the wind shifts 15
+    degrees or more, a new sea running with it rises over ten seconds as the old one dies away. It runs with the
+    zone's wind, not the coastal breezes' daily turn; sailing, the gauge and the flags keep the local wind.
   - Lit physically: deep blue-green water, the sky mirrored at grazing angles, the sun's path across it, light
     glowing through the steep crests, a fine chop on top. No speckled glitter: the highlight is kept broad.
   - Whitecaps where crests are sharpest for that sea: rare in a breeze, widespread in a gale, frayed into streaks

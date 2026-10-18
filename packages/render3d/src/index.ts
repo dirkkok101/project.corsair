@@ -194,6 +194,8 @@ export async function createSeaRenderer(
     playerId: string;
     settlements: PlacedSettlement[];
     windAt: (state: WorldState, x: number, y: number) => Wind;
+    /** The wind the sea runs with, if not the local one (the game's leaves out the coastal breezes' daily turn). */
+    seaWindAt?: (state: WorldState, x: number, y: number) => Wind;
     /** A town's line under its name ("Prosperous English Capital"), from the game's state. */
     townLine?: (s: PlacedSettlement, state: WorldState) => string;
     /**
@@ -742,7 +744,8 @@ export async function createSeaRenderer(
     );
     const t = nowMs / 1000;
     const wind = options.windAt(state, me.x, me.y);
-    const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
+    const runOf = options.seaWindAt?.(state, me.x, me.y) ?? wind;
+    const sea: SeaState = { toDeg: normalizeDeg(runOf.fromDeg + 180), strength: strengthOf(wind) };
 
     // Ships: each at her place, her sails for the wind; far out they grow so they stay readable.
     const farScale = THREE.MathUtils.clamp(distance / 140, 1, FAR_SHIP_SCALE);

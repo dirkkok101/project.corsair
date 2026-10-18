@@ -339,6 +339,7 @@ async function main() {
           playerId: def.start.shipId,
           settlements,
           windAt,
+          seaWindAt: createWindField(content, def, map, { breeze: false }),
           // ?sea=plain (then layers by name) for review: what's drawn on the 3D sea.
           sea: new URLSearchParams(location.search).get('sea')?.split(',') ?? undefined,
           sound: (id, opts) => audio.playSfx(id, opts),

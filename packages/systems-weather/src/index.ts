@@ -147,9 +147,12 @@ export function createBreezeField(content: ContentPack, def: RasterMapDef, map: 
   };
 }
 
-/** Wind at a tile: a storm wins, then the zone's weather plus any coastal breeze, then the fallback global wind. */
-export function createWindField(content: ContentPack, def: RasterMapDef, map: TileMap): WindAt {
-  const breezes = createBreezeField(content, def, map);
+/**
+ * Wind at a tile: a storm wins, then the zone's weather plus any coastal breeze, then the fallback global wind.
+ * `breeze: false` leaves the coastal breezes out (the run of the sea, which a day's breeze doesn't turn).
+ */
+export function createWindField(content: ContentPack, def: RasterMapDef, map: TileMap, opts: { breeze?: boolean } = {}): WindAt {
+  const breezes = opts.breeze === false ? undefined : createBreezeField(content, def, map);
   const multipliers = content.navigation.windStrength;
   const levels = (Object.entries(multipliers) as [WindStrength, number][]).sort((a, b) => a[1] - b[1]);
   return (state, x, y) => {
@@ -161,7 +164,7 @@ export function createWindField(content: ContentPack, def: RasterMapDef, map: Ti
     }
     const zone = weather.zones[zoneAt(content, map, x, y).id];
     if (!zone) return state.wind;
-    const breeze = breezes.at(state.tick, x, y);
+    const breeze = breezes?.at(state.tick, x, y);
     const day = state.tick / content.calendar.ticksPerDay;
     const near = (weather.systems ?? []).map((s) => systemWindAt(content, s, x, y, day)).filter((v) => v !== undefined);
     if (!breeze && !near.length) return { fromDeg: zone.fromDeg, strength: zone.strength };
