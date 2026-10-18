@@ -221,7 +221,8 @@ function hullSurface(plan: HullPlan): Surface {
     g.fillStyle = `rgba(${40 + rand() * 30},${30 + rand() * 20},${20 + rand() * 15},${0.08 + rand() * 0.12})`;
     g.fillRect(rand() * W, rand() * band, 60 + rand() * 260, 6 + rand() * 24);
   }
-  g.fillStyle = 'rgba(55,40,28,0.22)';
+  // Dulled only a little: the painted band is where her colours read from above.
+  g.fillStyle = 'rgba(55,40,28,0.08)';
   g.fillRect(0, 0, W, band);
   // Salt and sun bleaching on the upper works, in patches.
   for (let i = 0; i < 90; i++) {
@@ -491,7 +492,8 @@ function sailTexture(emblem: string): { map: THREE.CanvasTexture; normal: THREE.
   const sf = surface(S, S);
   const { colour: g, height: hg } = sf;
   const rand = seeded(emblem.length * 131 + 7);
-  g.fillStyle = '#efe7d3';
+  // Bright cream canvas, so her sails read across the sea at any zoom (Pirates! 2004's glowing white sails).
+  g.fillStyle = '#f9f4e7';
   g.fillRect(0, 0, S, S);
   // The weave: a fine cross-hatch of warp and weft, barely there.
   for (let i = 0; i < S; i += 2) {
@@ -529,11 +531,11 @@ function sailTexture(emblem: string): { map: THREE.CanvasTexture; normal: THREE.
   // Weathered: grey toward the foot, where the spray reaches, and a few stains.
   const foot = g.createLinearGradient(0, S * 0.5, 0, S);
   foot.addColorStop(0, 'rgba(90,80,60,0)');
-  foot.addColorStop(1, 'rgba(90,80,60,0.22)');
+  foot.addColorStop(1, 'rgba(90,80,60,0.1)');
   g.fillStyle = foot;
   g.fillRect(0, S * 0.5, S, S * 0.5);
   for (let i = 0; i < 30; i++) {
-    g.fillStyle = `rgba(110,90,60,${0.03 + rand() * 0.05})`;
+    g.fillStyle = `rgba(110,90,60,${0.02 + rand() * 0.03})`;
     g.beginPath();
     g.ellipse(rand() * S, rand() * S, 10 + rand() * 40, 6 + rand() * 24, rand() * 3, 0, Math.PI * 2);
     g.fill();
@@ -1896,19 +1898,20 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
     if (deckGuns.some((g) => Math.hypot(sp.x - g.out, sp.z - g.carriage.position.z) < 0.14) || gunnerSpots.some((c) => Math.hypot(sp.x - c.x, sp.z - c.z) < 0.06)) spots.splice(i, 1);
   }
 
-  // Colours: an ensign at the stern, a long pennant at the main masthead.
+  // Colours: an ensign at the stern, a long pennant at the main masthead, both big (as Pirates! flies them) so who
+  // she sails for reads at a glance from above.
   const stern = stationOf(h, 0.02);
-  const staff = spar(0.01, 0.008, 0.45);
+  const staff = spar(0.012, 0.009, 0.75);
   staff.position.set(0, stern.h, h.length / 2 - 0.02);
   root.add(staff);
-  const ensign = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26, 10, 4).translate(0.21, 0, 0), flagMat);
+  const ensign = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.48, 10, 4).translate(0.39, 0, 0), flagMat);
   // Named, so a ship card (apps/web/shipcard.html) can show her without colours, as the painted cards do.
   ensign.name = 'ensign';
   ensign.rotation.y = -Math.PI / 2;
-  ensign.position.set(0, stern.h + 0.32, h.length / 2 + 0.0);
+  ensign.position.set(0, stern.h + 0.48, h.length / 2 + 0.0);
   root.add(ensign);
   const main = plan.masts.reduce((a, b) => (b.height > a.height ? b : a));
-  const pennant = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.08, 12, 1).translate(0.3, 0, 0), flagMat);
+  const pennant = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.1, 12, 1).translate(0.475, 0, 0), flagMat);
   pennant.name = 'pennant';
   pennant.rotation.y = -Math.PI / 2;
   pennant.position.set(0, main.height + 0.02, -main.at);
