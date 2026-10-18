@@ -323,11 +323,12 @@ void main() {
   // fresh breeze, a good share of the sea in a gale.
   float breaking = (1.0 - pinch) / max(sqrt(spread * 0.5), 1e-4);
   float caps = smoothstep(mix(2.6, 1.5, smoothstep(0.5, 1.1, uStrength)), mix(3.4, 2.4, smoothstep(0.5, 1.1, uStrength)), breaking) * smoothstep(0.35, 0.7, uStrength);
-  // Broken into the streaks and flecks of real whitecaps, drawn out along the wind, never a solid patch.
-  // Two fine scales of broken foam: the core of a breaking crest stays fairly whole, its edges fray to flecks.
+  // Broken into the streaks and flecks of real whitecaps, drawn out along the wind, never a solid patch: even a
+  // crest's breaking core shows only the peaks of two fine scales of broken foam, a sparkle of white (as Pirates!
+  // draws it), not the slab a whole crest would make.
   float fray = texture2D(uDetail, vec2(uv.x / 1.4, uv.y / 0.55) + vec2(uTime * 0.012, 0.0)).a * 0.6
     + texture2D(uDetail, vec2(uv.x / 0.5, uv.y / 0.22) + vec2(uTime * 0.02, 0.43)).a * 0.4;
-  caps = smoothstep(0.7, 0.85, fray + caps * 0.35) * smoothstep(0.05, 0.5, caps) * 0.85;
+  caps = smoothstep(0.58, 0.7, fray + caps * 0.12) * smoothstep(0.05, 0.5, caps) * 0.85;
   // Gone before a whitecap would be a pixel or two (far out they'd make a speckled pattern, not a sea).
   float footprint = length(fwidth(xz));
   caps *= 1.0 - smoothstep(0.12, 0.35, footprint);

@@ -97,7 +97,8 @@ own off a real island, at every zoom, hour and wind.
   - Lit physically: deep blue-green water, the sky mirrored at grazing angles, the sun's path across it, light
     glowing through the steep crests, a fine chop on top. No speckled glitter: the highlight is kept broad.
   - Whitecaps where crests are sharpest for that sea: rare in a breeze, widespread in a gale, frayed into streaks
-    along the wind, and faded out far off before they'd make a speckled pattern.
+    along the wind (even a breaking crest is a sparkle of flecks, never a solid slab), and faded out far off
+    before they'd make a speckled pattern.
   - Turquoise shallows round the islands, sand showing through near the beach, white surf on the shore, and broken
     wave lines rolling in across the shallows (strongest on a windward shore).
   - Cloud shadows dim the sun's light on the water as they drift by.
