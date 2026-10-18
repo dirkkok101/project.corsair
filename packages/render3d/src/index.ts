@@ -61,6 +61,12 @@ const CHASE_MAX_PITCH = (62 * Math.PI) / 180;
  * the horizon and the sky stand over her (at the default zoom about 18 degrees).
  */
 const CHASE_PITCH = { min: 9, span: 30 };
+/**
+ * The overhead camera's pitch (degrees) at the closest zoom, and how much it steepens out to the furthest: looking
+ * down as Pirates! does (about 50 degrees at the default zoom, near straight down far out), so the sea map never
+ * shows the horizon and everything in frame is near.
+ */
+const MAP_PITCH = { min: 38, span: 44 };
 /** The chase camera looks this share of its distance ahead of her, so she sits low in the frame and the sea ahead shows. */
 const CHASE_AHEAD = 0.3;
 /** Clouds show from this camera distance out, fully by the second (close in, they'd smear across the view). */
@@ -870,7 +876,7 @@ export async function createSeaRenderer(
     // Camera: overhead (steeper the further out) or from astern, following the player.
     target.set(me.x, 0, me.y);
     const zt = Math.log(distance / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : 30 + zt * 45);
+    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : MAP_PITCH.min + zt * MAP_PITCH.span);
     viewHeading = chase ? chaseYaw(me.headingDeg, dt) : me.headingDeg;
     const pitch = chase ? chasePitch(base, distance, viewHeading, dt) : base;
     finishFrame(distance, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt, chase ? distance * CHASE_AHEAD : 0);
