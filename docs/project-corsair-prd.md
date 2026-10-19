@@ -218,6 +218,12 @@ Sailing is where players spend most of their time, so it should sound and look a
   - thunder after lightning
   - dolphins and splashes with the sea life
   - humpback song on calm nights in open sea
+  - sea battles (rendered by `tools/audio/combat-sfx.py`, credits kept in `tools/audio/combat-sfx.json`): each
+    broadside a ripple of recorded cannon over the synthesised boom (a distant rumble for far-off fights), her balls
+    rushing over as they arrive, timber splintering and canvas tearing where they strike, grape rattling across a
+    deck, a mast cracking as it goes, blades and shouting and a volley of small arms while the hulls are grappled,
+    an explosion as a ship goes down, and the crew cheering a fight won. Some are stand-ins until better recordings
+    are found (the sail tear is velcro and paper, the whistle a slowed swish).
 - **The ship's band:**
   - 31 traditional public-domain tunes in `content/music.json`, arranged for fiddle, whistle, plucked bass, harp and drums, and sequenced live over CC0 instrument samples.
   - Under full sail at speed the full band plays a lively shanty. Easier sailing gets a gentle tune with fewer instruments, and night gets a slow air. Storms have no music, only wind and thunder.

@@ -185,6 +185,10 @@ function pointOfCompass(from: { x: number; y: number }, to: { x: number; y: numb
   const deg = ((Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI + 360) % 360;
   return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(deg / 45) % 8]!;
 }
+/** Guns further off than this (tiles) are heard as a distant rumble rather than close cannon. */
+const FAR_GUNS_TILES = 15;
+/** How often the boarders' fight is heard again while the hulls lie grappled (about one melee clip's length). */
+const BOARDING_SOUND_MS = 5000;
 /** About how often each ship in a skirmish within sight fires a broadside. */
 const VOLLEY_MS = 2200;
 /** How often the plotted line to a destination on the chart is redrawn (display only). */
@@ -424,6 +428,11 @@ async function main() {
         targetId: string;
         acc: number;
         heardAt: number;
+        /** When the boarders' fight is next heard (ms), while the hulls are grappled. */
+        meleeAt?: number;
+        /** Her going down, and the fight's end, heard once. */
+        sankHeard?: boolean;
+        endHeard?: boolean;
         /** Who she is, kept from the start: a ship taken or sunk is gone from the world by the report. */
         name: string;
         title: string;
@@ -1299,12 +1308,34 @@ async function main() {
           const gain = 1 / (1 + Math.hypot(e.x - me.x, e.y - me.y) / 8);
           if (e.kind === 'smoke') {
             // The ship nearest the smoke fired: her broadside is half her guns.
-            const shooter = Math.hypot(e.x - me.x, e.y - me.y) < Math.hypot(e.x - bs.ships.enemy.x, e.y - bs.ships.enemy.y) ? me : bs.ships.enemy;
+            const theirs = Math.hypot(e.x - me.x, e.y - me.y) >= Math.hypot(e.x - bs.ships.enemy.x, e.y - bs.ships.enemy.y);
+            const shooter = theirs ? bs.ships.enemy : me;
             audio.battle.broadside(Math.floor(shooter.guns / 2), pan, gain);
+            // Hers: her balls go over the player's ship as they arrive, most of the way through their flight.
+            if (theirs) audio.battle.whistle((Math.hypot(e.x - me.x, e.y - me.y) / content.combat.guns.shotTilesPerSecond) * 0.8, pan * 0.3, 1);
           } else if (e.kind === 'splash') audio.battle.splash(pan, gain);
-          else audio.battle.hit(e.kind === 'sail' ? 'sail' : 'hull', pan, gain);
+          else if (e.kind === 'mast') audio.battle.mast(pan, gain);
+          else audio.battle.hit(e.kind === 'sail' ? 'sail' : e.kind === 'grape' ? 'grape' : 'hull', pan, gain);
         }
         fight.heardAt = Math.max(fight.heardAt, ...bs.effects.map((e) => e.at));
+        const enemy = bs.ships.enemy;
+        const enemyPan = (enemy.x - me.x) / 12;
+        // Grappled: the boarders' fight, over and over while the hulls lie together.
+        if (bs.grappling > 0 && now >= (fight.meleeAt ?? 0)) {
+          audio.battle.boarding(enemyPan, 1);
+          fight.meleeAt = now + BOARDING_SOUND_MS;
+        } else if (bs.grappling === 0) fight.meleeAt = undefined;
+        // She goes down: once, as the wreck appears.
+        if (bs.wreck && !fight.sankHeard) {
+          fight.sankHeard = true;
+          audio.battle.explosion(enemyPan, 1 / (1 + Math.hypot(enemy.x - me.x, enemy.y - me.y) / 8));
+        }
+        // The fight won: the crew cheer.
+        const outcome = fight.battle.result()?.outcome;
+        if (outcome && !fight.endHeard) {
+          fight.endHeard = true;
+          if (outcome === 'boarded' || outcome === 'struck' || outcome === 'sunk') audio.battle.cheer();
+        }
       } catch (err) {
         if (!audioFailed) console.error('battle audio failed', err);
         audioFailed = true;
@@ -1570,7 +1601,7 @@ async function main() {
         const d = Math.hypot(x - me.x, y - me.y);
         if (d <= view()) {
           sea3d.seaFight(x, y);
-          audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10));
+          audio.battle.broadside(6, (x - me.x) / 20, 0.4 / (1 + d / 10), d > FAR_GUNS_TILES);
         }
       }
     }
@@ -1603,7 +1634,7 @@ async function main() {
       // Each side fires every couple of seconds, staggered so the guns answer each other.
       nextVolley.set(s.id, now + VOLLEY_MS * (0.8 + 0.4 * Math.random()));
       sea3d.seaFight(s.x, s.y);
-      audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10));
+      audio.battle.broadside(4, (s.x - me.x) / 20, 0.4 / (1 + d / 10), d > FAR_GUNS_TILES);
     }
     // In port the harbour scene (2D, illustrated) covers the screen; at sea the 3D view does.
     const atSea = !fight && !renderer.harbour.visible;

@@ -1,6 +1,6 @@
 // Builds art/audio (SFX and instrument note samples) from CC0 / public-domain sources.
 //
-// Every shipped file is declared once in SOURCES below, which drives the download, the
+// Every shipped file is declared once in SOURCES below (the combat sounds in combat-sfx.json), which drives the download, the
 // processing and art/audio/CREDITS.json, so the credits cannot drift from what is on disk.
 // Raw downloads stay outside the repo in the cache directory (first argument, default
 // $TMPDIR/corsair-audio). Non-WAV sources (OGG/MP3/FLAC) are decoded with macOS's built-in
@@ -16,7 +16,7 @@ import { detectPitch, firstAbove, hzToMidi, peak, readWav, resample, writeWav16 
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const OUT = join(ROOT, 'art', 'audio');
-const BUDGET_BYTES = 7 * 1024 * 1024;
+const BUDGET_BYTES = 10 * 1024 * 1024;
 
 const SFX_RATE = 22050;
 const NOTE_RATE = 32000;
@@ -384,8 +384,9 @@ function check(): void {
       if (!ok && confident) problems.push(`${s.file}: root ${s.midi} but detected ${seen}`);
     }
   }
-  console.log(`art/audio: ${(total / 1024 / 1024).toFixed(2)} MB (${total} bytes), budget 7 MB`);
-  if (total > BUDGET_BYTES) problems.push('over the 7 MB budget');
+  const budgetMb = BUDGET_BYTES / 1024 / 1024;
+  console.log(`art/audio: ${(total / 1024 / 1024).toFixed(2)} MB (${total} bytes), budget ${budgetMb} MB`);
+  if (total > BUDGET_BYTES) problems.push(`over the ${budgetMb} MB budget`);
   if (problems.length) {
     console.error('CHECK FAILED\n  ' + problems.join('\n  '));
     process.exitCode = 1;
@@ -404,9 +405,17 @@ async function build(cache: string): Promise<void> {
     const { title, author, source_url, licence, licence_url, notes } = src;
     credits.push({ file: `art/audio/${src.out}`, title, author, source_url, licence, licence_url, notes: notes ?? '' });
   }
+  // The combat sounds are rendered by combat-sfx.py (cuts this script can't make: several clips laid in one, a
+  // whistle slowed); their credits and groups are kept as they are.
+  const combat = JSON.parse(readFileSync(join(import.meta.dirname, 'combat-sfx.json'), 'utf8')) as { credits: { file: string }[]; groups: Record<string, string> };
+  credits.push(...(combat.credits as typeof credits));
   writeFileSync(join(OUT, 'CREDITS.json'), JSON.stringify(credits, null, 2) + '\n');
   const sfx: Record<string, { files: string[]; notes: string }> = {};
   for (const s of SFX_SOURCES) (sfx[s.id] ??= { files: [], notes: SFX_NOTES[s.id] ?? '' }).files.push(`art/audio/${s.out}`);
+  for (const c of combat.credits) {
+    const id = basename(c.file, '.wav').replace(/_\d+$/, '');
+    (sfx[id] ??= { files: [], notes: combat.groups[id] ?? '' }).files.push(c.file);
+  }
   writeFileSync(join(OUT, 'sfx', 'sfx.json'), JSON.stringify(sfx, null, 2) + '\n');
   writeFileSync(join(OUT, 'instruments', 'instruments.json'), JSON.stringify(instrumentsJson, null, 2) + '\n');
 }

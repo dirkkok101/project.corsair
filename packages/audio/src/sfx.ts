@@ -33,10 +33,18 @@ export function createSfx(ctx: AudioContext, out: AudioNode) {
     setLibrary(lib: SampleLibrary) {
       library = lib;
     },
-    /** Play a named clip once (used by the renderer's wildlife). Silently skips unknown ids. */
-    play(id: string, opts: { gain: number; pan: number; lowpass?: number; rate?: number }) {
+    /** Play a named clip once (used by the renderer's wildlife and the battle). Silently skips unknown ids. */
+    play(id: string, opts: { gain: number; pan: number; lowpass?: number; rate?: number; when?: number }) {
       const b = clip(id);
       if (b) playClip(ctx, out, b, opts);
+    },
+    /** The names of the clips loaded. */
+    loaded(): string[] {
+      return [...(library?.sfx.keys() ?? [])];
+    },
+    /** Whether a named clip is loaded (the battle falls back to its synthesised sounds until it is). */
+    has(id: string): boolean {
+      return Boolean(library?.sfx.get(id)?.length);
     },
     /** A recorded thunder clip; false if none is loaded (the synthesised roll covers it). */
     thunder(delayS: number): boolean {

@@ -35,6 +35,8 @@ export interface AudioLevels {
   nowPlaying: string | undefined;
   /** Recorded samples are decoded and ready. */
   samplesReady: boolean;
+  /** The recorded effects loaded, by name (sfx.json groups). */
+  sfx: string[];
 }
 
 export function createAudio(options: { samples?: SampleManifest; tunes?: TuneData[] } = {}) {
@@ -318,22 +320,69 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     },
     /**
      * Sea battle sounds (PRD section 9.1). `pan` is -1 (left) to 1 (right) and `gain` falls off with
-     * distance, both worked out by the caller from where it happened. Misses use the splash clips.
+     * distance, both worked out by the caller from where it happened. Recorded clips (art/audio/sfx, the
+     * combat set) over the synthesised ones, which stand alone until the clips have loaded.
      */
     battle: {
-      /** A broadside: its guns go off in a ripple, not all at once. */
-      broadside(guns: number, pan: number, gain: number) {
+      /**
+       * A broadside: its guns go off in a ripple, not all at once, each a recorded cannon (a distant rumble when
+       * `far`) over the synthesised boom's low end.
+       */
+      broadside(guns: number, pan: number, gain: number, far = false) {
         if (ctx?.state !== 'running' || !noise) return;
         const out = placed(ctx.currentTime, pan, gain * 0.5);
+        const id = far ? 'cannon_far' : 'cannon_close';
+        const recorded = sfx?.has(id);
+        const n = Math.max(1, Math.min(16, guns));
         let t = ctx.currentTime + 0.01;
-        for (let i = 0; i < Math.max(1, Math.min(16, guns)); i++) {
+        for (let i = 0; i < n; i++) {
           gun(t, out);
-          t += 0.03 + Math.random() * 0.04;
+          // Every other gun recorded (a full battery of clips at once only muddies): pitched about so no two match.
+          if (recorded && (i % 2 === 0 || n <= 3)) {
+            sfx!.play(id, { when: t, gain: gain * (far ? 0.45 : 0.6), pan, rate: 0.8 + Math.random() * 0.3, ...(far ? { lowpass: 900 } : {}) });
+          }
+          t += recorded ? 0.07 + Math.random() * 0.09 : 0.03 + Math.random() * 0.04;
         }
       },
-      hit(kind: 'hull' | 'sail', pan: number, gain: number) {
+      /** A ball passing close by her: a rush of air as it goes over, `delayS` from now (its flight). */
+      whistle(delayS: number, pan: number, gain: number) {
+        if (ctx?.state !== 'running') return;
+        sfx?.play('ball_whistle', { when: ctx.currentTime + delayS, gain: gain * 0.45, pan, rate: 1.25 + Math.random() * 0.35 });
+      },
+      /** A ball striking home: splintering timber, canvas tearing, or grape rattling across her deck. */
+      hit(kind: 'hull' | 'sail' | 'grape', pan: number, gain: number) {
         if (ctx?.state !== 'running' || !noise) return;
-        strike(ctx.currentTime, placed(ctx.currentTime, pan, gain), kind);
+        const now = ctx.currentTime;
+        if (kind === 'grape') {
+          if (sfx?.has('musket')) sfx.play('musket', { gain: gain * 0.4, pan, rate: 0.9 + Math.random() * 0.25 });
+          else strike(now, placed(now, pan, gain * 0.6), 'hull');
+          return;
+        }
+        strike(now, placed(now, pan, gain * (sfx?.has(kind === 'hull' ? 'wood_hit' : 'sail_tear') ? 0.5 : 1)), kind);
+        // Pitched down: the clips are light timber; a hull is heavy oak.
+        if (kind === 'hull') sfx?.play('wood_hit', { gain: gain * 0.7, pan, rate: 0.55 + Math.random() * 0.2, lowpass: 3000 });
+        else sfx?.play('sail_tear', { gain: gain * 0.4, pan, rate: 0.8 + Math.random() * 0.25, lowpass: 5000 });
+      },
+      /** A mast going by the board: timber cracking and the spar coming down. */
+      mast(pan: number, gain: number) {
+        if (ctx?.state !== 'running') return;
+        sfx?.play('mast_crack', { gain: gain * 0.85, pan, rate: 0.8 + Math.random() * 0.15, lowpass: 4000 });
+      },
+      /** Hulls grappled: the boarders' fight (blades and shouting) and a ragged volley of small arms. */
+      boarding(pan: number, gain: number) {
+        if (ctx?.state !== 'running') return;
+        sfx?.play('melee', { gain: gain * 0.55, pan, rate: 0.95 + Math.random() * 0.1 });
+        sfx?.play('musket', { when: ctx.currentTime + 0.2 + Math.random() * 0.6, gain: gain * 0.4, pan: pan + 0.2, rate: 0.9 + Math.random() * 0.2 });
+      },
+      /** She goes down: a deep explosion (her powder, or her back broken). */
+      explosion(pan: number, gain: number) {
+        if (ctx?.state !== 'running') return;
+        sfx?.play('explosion', { gain: gain * 0.8, pan, rate: 0.7 + Math.random() * 0.15, lowpass: 3500 });
+      },
+      /** The fight won: her crew cheering. */
+      cheer() {
+        if (ctx?.state !== 'running') return;
+        sfx?.play('cheer', { gain: 0.5, pan: 0, rate: 0.95 + Math.random() * 0.1 });
       },
       splash(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
@@ -370,6 +419,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
         music,
         nowPlaying: band?.nowPlaying,
         samplesReady,
+        sfx: sfx?.loaded() ?? [],
       };
     },
   };

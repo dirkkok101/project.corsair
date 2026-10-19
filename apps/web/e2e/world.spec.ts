@@ -964,6 +964,10 @@ test('a pirate who means to board: the warning, the repel window on the grapple 
     await page.evaluate(() => window.__corsair.battle.step(1));
   }
   expect(await page.evaluate(() => window.__corsair.battle.state()!.ships.player.sails)).toBe('furled');
+  // The keys started the sound: the combat clips load with the rest (cannon, the boarders' fight, the cheer).
+  await page.waitForFunction(() => window.__corsair.audio.levels().samplesReady, undefined, { timeout: 20_000 });
+  const clips = await page.evaluate(() => window.__corsair.audio.levels().sfx);
+  for (const id of ['cannon_close', 'cannon_far', 'ball_whistle', 'wood_hit', 'sail_tear', 'mast_crack', 'musket', 'melee', 'cheer', 'explosion']) expect(clips).toContain(id);
   const until = (what: string) =>
     page.evaluate((w) => {
       for (let i = 0; i < 30 * 900; i++) {

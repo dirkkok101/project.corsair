@@ -85,5 +85,84 @@
       "art/audio/sfx/whale_blow_1.wav"
     ],
     "notes": "A humpback exhaling (wheeze blow), heard through a hydrophone; low-pass and add air noise for a spout at the surface."
+  },
+  "cannon_close": {
+    "files": [
+      "art/audio/sfx/cannon_close_1.wav",
+      "art/audio/sfx/cannon_close_2.wav",
+      "art/audio/sfx/cannon_close_3.wav"
+    ],
+    "notes": "A single close gun: a real salute field piece, a naval gun with reverb, a firework mortar bang; play pitched 0.85-1.1 (cannon_close_3 at 0.6-0.8) for variety."
+  },
+  "cannon_far": {
+    "files": [
+      "art/audio/sfx/cannon_far_1.wav",
+      "art/audio/sfx/cannon_far_2.wav",
+      "art/audio/sfx/cannon_far_3.wav"
+    ],
+    "notes": "Distant booms (fireworks heard across open country); play low, low-passed and pitched 0.6-0.9 for an enemy broadside over the water."
+  },
+  "ball_whistle": {
+    "files": [
+      "art/audio/sfx/ball_whistle_1.wav",
+      "art/audio/sfx/ball_whistle_2.wav",
+      "art/audio/sfx/ball_whistle_3.wav"
+    ],
+    "notes": "Rushing whoosh of a ball passing (slowed stick swishes, not a true whistle); play pitched 0.8-1.2 and pan across the listener."
+  },
+  "wood_hit": {
+    "files": [
+      "art/audio/sfx/wood_hit_1.wav",
+      "art/audio/sfx/wood_hit_2.wav",
+      "art/audio/sfx/wood_hit_3.wav"
+    ],
+    "notes": "Short wood breaks for a ball striking the hull; play pitched 0.55-0.8 for a heavy hull, layered with a cannon_far thump."
+  },
+  "sail_tear": {
+    "files": [
+      "art/audio/sfx/sail_tear_1.wav",
+      "art/audio/sfx/sail_tear_2.wav",
+      "art/audio/sfx/sail_tear_3.wav"
+    ],
+    "notes": "Stand-in rips (velcro, paper) for canvas tearing; play pitched 0.7-0.9 and layer two for a big sail."
+  },
+  "mast_crack": {
+    "files": [
+      "art/audio/sfx/mast_crack_1.wav",
+      "art/audio/sfx/mast_crack_2.wav"
+    ],
+    "notes": "Timber cracking and falling for a mast going over; play pitched 0.6-0.8 for weight."
+  },
+  "musket": {
+    "files": [
+      "art/audio/sfx/musket_1.wav",
+      "art/audio/sfx/musket_2.wav",
+      "art/audio/sfx/musket_3.wav"
+    ],
+    "notes": "Black-powder shots and a ragged rifle volley for swivels and boarders; play pitched 0.9-1.1 and stagger singles for a volley."
+  },
+  "melee": {
+    "files": [
+      "art/audio/sfx/melee_1.wav",
+      "art/audio/sfx/melee_2.wav",
+      "art/audio/sfx/melee_3.wav"
+    ],
+    "notes": "Boarding fight: two shouting-crowd beds (loopable, faded ends) and a blade-clash sequence to layer on top."
+  },
+  "cheer": {
+    "files": [
+      "art/audio/sfx/cheer_1.wav",
+      "art/audio/sfx/cheer_2.wav",
+      "art/audio/sfx/cheer_3.wav"
+    ],
+    "notes": "Crew cheering on victory: clapping and \"woo\" from a small group, plus one \"hurray\"; play pitched 0.85-0.95 for rougher, deeper voices."
+  },
+  "explosion": {
+    "files": [
+      "art/audio/sfx/explosion_1.wav",
+      "art/audio/sfx/explosion_2.wav",
+      "art/audio/sfx/explosion_3.wav"
+    ],
+    "notes": "Big blasts for a powder magazine: a single explosion, a sharp blast and a rolling chain; play pitched 0.5-0.7 for size."
   }
 }
