@@ -225,6 +225,8 @@ export interface HudProps {
   /** Sails and cruise speed, by the compass. */
   setSails: (sails: Ship['sails']) => void;
   cruise: { speed: number; choose: (speed: number) => void };
+  /** The gentle wind setting: any heading, and a calm, still make way for her. */
+  gentleWind: { on: boolean; toggle: () => void };
   /** F1: every key, grouped, and closing it. */
   help: boolean;
   closeHelp: () => void;
@@ -389,6 +391,18 @@ export function Hud(p: HudProps) {
           onClick={() => p.cruise.choose(p.cruise.speed >= 4 ? 1 : p.cruise.speed * 2)}
         >
           {p.cruise.speed}×
+        </button>
+        <button
+          class={`k-btn small hud-wind${p.gentleWind.on ? ' active' : ''}`}
+          aria-label="Gentle wind"
+          title={
+            p.gentleWind.on
+              ? 'Gentle wind: you make way on any heading, and in a calm. Click for the real wind'
+              : 'Real wind: your heading against it sets your speed. Click for a gentle wind, to sail where you like'
+          }
+          onClick={p.gentleWind.toggle}
+        >
+          {p.gentleWind.on ? 'Gentle' : 'Real'}
         </button>
       </div>
       <Compass {...compassProps(content, ship, wind, ship.speed * p.knotsPerTilePerSecond)} viewDeg={p.viewDeg} />

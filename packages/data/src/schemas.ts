@@ -69,6 +69,8 @@ export const navigationSchema = z.object({
     .object({ corridorTiles: z.number().positive(), runCorridorTiles: z.number().positive(), towTilesPerSecond: z.number().positive(), approachTiles: z.number().positive(), approachShare: z.number().min(0).max(1) })
     .optional(),
   windStrength: z.record(windStrength, z.number().min(0)),
+  /** The player's gentle wind (a setting): her point of sail's share lifted to at least polarFloor, the wind's strength to strengthFloor. */
+  gentleWind: z.object({ polarFloor: z.number().min(0).max(1), strengthFloor: z.number().min(0) }),
   // Ids name the sprite states too (art pipeline section 4), so they are a closed set.
   pointsOfSail: z
     .array(z.object({ id: z.enum(['irons', 'close', 'beam', 'broad', 'run']), maxDeg: z.number(), name: z.string() }))

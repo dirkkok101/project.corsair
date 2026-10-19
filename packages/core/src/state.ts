@@ -102,6 +102,8 @@ export interface AiCaptain {
 export interface Ship {
   id: string;
   classId: string;
+  /** The player's choice to sail with the gentle wind (navigation.json gentleWind): any heading, and a calm, still make way. */
+  gentleWind?: boolean;
   /** Her bottom's fouling: the share of her speed it costs (economy.json fouling), cleaned by careening. */
   fouling?: number;
   /** Fine-grain powder aboard keeps till this tick, then it is spent. */
@@ -532,6 +534,8 @@ export interface Hoard {
 export type Command =
   | { type: 'SetHelm'; shipId: string; helm: Helm }
   | { type: 'SetSails'; shipId: string; sails: SailSetting }
+  /** The gentle wind on or off for her (the player's setting). */
+  | { type: 'SetGentleWind'; shipId: string; on: boolean }
   /** Tacking aid: `beat` holds the best upwind course on the current tack, `tack` comes about onto the other. */
   | {
       type: 'SetAssist';

@@ -164,6 +164,7 @@ v = v_{base} \cdot P(\theta) \cdot W_s \cdot H \cdot C \cdot L + v_{current}
 - v_base = ship class top speed (`ships.json`).
 - P(θ) = polar curve by angle to wind, a per-rig lookup table of 16 points. Square-riggers peak on a broad reach and stall close-hauled; fore-and-aft rigs point higher. Tuned for play: a square rig has no drive inside about 33° and its best upwind course (about 55° off) makes good about 0.38 of top speed. The first playtest found 0.19 too slow to ever sail east against the trades.
 - W_s = wind strength multiplier (calm 0.15, light 0.5, fresh 0.8, strong 1.0, gale 1.1 with damage risk). Each step up must be clearly faster; the first playtest found 1.0 to 1.15 too small to feel, and a slower gale read as a bug while damage isn't modelled.
+- Gentle wind (a setting, the HUD's Real/Gentle button by the compass, kept in the browser across careers): for the player's own ship only, at sea and in battle, P(θ) is lifted to at least 0.8 (any heading makes way, head to wind too) and W_s to at least 0.5 (a calm still carries her), `navigation.json gentleWind`. AI ships keep the real wind, so it is an edge for a player who would sooner sail where she likes.
 - H = sail condition, 0 to 1. C = crew factor: below minimum crew, speed drops linearly.
 - L = load factor: cargo and cannon above 75% of capacity slow the ship.
 - v_current = map current vector at the tile.

@@ -1220,6 +1220,25 @@ async function main() {
   // and drops to 1x whenever something needs attention: land, a storm, port, or a sail in sight. Encounters
   // play out at 1x, where a passing ship stays on screen long enough to deal with.
   let wantedSpeed = 2;
+  // The gentle wind (navigation.json gentleWind): the player's own setting, kept in this browser across careers and
+  // put on her ship (whichever she sails) whenever it differs. Storage can be missing (a private window): then it
+  // lasts the session.
+  const GENTLE_KEY = 'corsair.gentleWind';
+  let gentleWind = (() => {
+    try {
+      return localStorage.getItem(GENTLE_KEY) === 'on';
+    } catch {
+      return false;
+    }
+  })();
+  const setGentleWind = (on: boolean) => {
+    gentleWind = on;
+    try {
+      localStorage.setItem(GENTLE_KEY, on ? 'on' : 'off');
+    } catch {
+      // Not kept: it lasts the session.
+    }
+  };
   const sailInSight = () => {
     const me = player();
     let best: { s: (typeof sim.state.ships)[string]; d: number } | undefined;
@@ -1675,6 +1694,8 @@ async function main() {
     wasDocked = Boolean(ship.docked);
     const reach = ship.docked ? undefined : portInReach();
     const near = reach || hailing ? undefined : shipInHail();
+    // Her ship sails with the gentle wind when the player has chosen it (a new or prize flagship takes it up too).
+    if (Boolean(ship.gentleWind) !== gentleWind) sim.send({ type: 'SetGentleWind', shipId: ship.id, on: gentleWind });
     // A hunter closing on the player: a warning beats any other prompt.
     const hunter = Object.values(sim.state.ships).find((s) => s.ai?.chasing);
     const treasure = reach || hailing ? undefined : digHere();
@@ -1931,6 +1952,7 @@ async function main() {
         faded={now - stripChanged > STRIP_REST_MS}
         setSails={(sails) => sim.send({ type: 'SetSails', shipId: ship.id, sails })}
         cruise={{ speed: wantedSpeed, choose: (n) => (wantedSpeed = n) }}
+        gentleWind={{ on: gentleWind, toggle: () => setGentleWind(!gentleWind) }}
         help={helpOpen}
         closeHelp={() => (helpOpen = false)}
         fleetPace={(() => {

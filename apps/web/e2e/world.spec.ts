@@ -1073,6 +1073,24 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   expect(errors).toEqual([]);
 });
 
+test('the gentle wind: a HUD toggle puts it on her ship, and the choice is kept for the next career', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  const button = page.getByRole('button', { name: 'Gentle wind' });
+  await expect(button).toHaveText('Real');
+  await button.click();
+  // A frame puts it on her ship; the next step carries the order out.
+  await frames(page);
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await expect(button).toHaveText('Gentle');
+  expect(await page.evaluate(() => (window.__corsair.state.get('ships.player') as { gentleWind?: boolean }).gentleWind)).toBe(true);
+  await page.screenshot({ path: 'test-results/gentle-wind.png' });
+  // Kept in this browser: a new career starts with it on.
+  await boot(page, '/?seed=4');
+  await frames(page);
+  await expect(page.getByRole('button', { name: 'Gentle wind' })).toHaveText('Gentle');
+  expect(errors).toEqual([]);
+});
+
 test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x, I intercepts', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // Open water south of Jamaica, away from every coast.

@@ -255,6 +255,36 @@ describe('determinism', () => {
   });
 });
 
+describe('the gentle wind (a setting)', () => {
+  const brig = { id: 'p', classId: 'ship.brig', x: 0, y: 0, headingDeg: 0, speed: 0, helm: 0 as const, sails: 'full' as const, blocked: false, cargo: {} };
+  const g = content.navigation.gentleWind;
+  const speed = (headingDeg: number, strength: 'calm' | 'fresh', gentleWind?: boolean) => targetSpeed(content, { ...brig, headingDeg, gentleWind }, { fromDeg: 0, strength });
+
+  it('makes way on any heading, head to wind too, and never slower than the real wind', () => {
+    const best = Math.max(...Array.from({ length: 181 }, (_, d) => speed(d, 'fresh', true)));
+    for (let d = 0; d <= 180; d += 6) {
+      expect(speed(d, 'fresh', true)).toBeGreaterThanOrEqual(best * g.polarFloor - 1e-9);
+      expect(speed(d, 'fresh', true)).toBeGreaterThanOrEqual(speed(d, 'fresh'));
+    }
+    expect(speed(0, 'fresh')).toBe(0);
+  });
+
+  it('carries her through a calm at strengthFloor of the wind, where the real calm all but stops her', () => {
+    expect(speed(120, 'calm', true) / speed(120, 'fresh', true)).toBeCloseTo(g.strengthFloor / content.navigation.windStrength.fresh!);
+    expect(speed(120, 'calm')).toBeLessThan(speed(120, 'calm', true) / 3);
+  });
+
+  it('is the player choosing it: a command puts it on her ship and takes it off', () => {
+    const sim = createSim(openSea(0), [createNavigationSystem(content, map)]);
+    sim.send({ type: 'SetGentleWind', shipId: 'player', on: true } as Command);
+    sim.step(1);
+    expect(sim.state.ships.player!.gentleWind).toBe(true);
+    sim.send({ type: 'SetGentleWind', shipId: 'player', on: false } as Command);
+    sim.step(1);
+    expect(sim.state.ships.player!.gentleWind).toBeUndefined();
+  });
+});
+
 describe('upgrades at sea', () => {
   const brig = { id: 'p', classId: 'ship.brig', x: 0, y: 0, headingDeg: 0, speed: 0, helm: 0 as const, sails: 'full' as const, blocked: false, cargo: {} };
   const wind = { fromDeg: 0, strength: 'fresh' as const };

@@ -16,6 +16,7 @@
     "mixed": 0.92,
     "fore_and_aft": 1
   },
+  "gentleWind": { "$comment": "A setting for the player who would sooner sail where she likes: on her own ship (in battle too) any heading makes at least polarFloor of what her best point of sail does, never stalling head to wind, and a calm or light air drives her as strengthFloor does (about half a strong wind's way). AI ships keep the real wind, so it is an edge, not a new sea.", "polarFloor": 0.8, "strengthFloor": 0.5 },
   "windStrength": {
     "calm": 0.15,
     "light": 0.5,
