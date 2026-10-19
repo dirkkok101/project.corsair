@@ -2677,8 +2677,16 @@ body {
 }
 
 .battle-card {
-  width: min(340px, 44vw);
-  padding: 12px 14px;
+  width: min(300px, 40vw);
+  padding: 6px 10px 8px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgb(8 14 22 / 0.5), rgb(8 14 22 / 0.15));
+  color: var(--k-cream);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+}
+
+.battle-card .k-bar {
+  height: 5px;
 }
 
 .battle-card-head {
@@ -2693,18 +2701,18 @@ body {
 }
 
 .battle-title {
-  margin: 2px 0 8px;
+  margin: 1px 0 5px;
   color: var(--k-cream-dim);
   font-size: 13px;
 }
 
 .battle-bar {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 88px;
+  grid-template-columns: 40px minmax(0, 1fr) 72px;
   align-items: center;
   gap: 8px;
-  margin: 3px 0;
-  font-size: 13px;
+  margin: 1px 0;
+  font-size: 12px;
 }
 
 .battle-bar-word {

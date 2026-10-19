@@ -258,11 +258,12 @@ export function createBattleFx() {
       const x = ship.x + fx * along + right[0] * ship.halfBeam * out;
       const z = ship.z + fz * along + right[1] * ship.halfBeam * out;
       const y = ship.deck * 0.7;
-      // A puff at each port (Pirates!: small white puffs, the ship never lost in them), pushed out and rolling
-      // downwind.
+      // A billow at each port, and a second rolling out after it (Pirates!: a broadside throws a bank of white smoke
+      // over the water, the ship half lost in it for a moment), pushed out and rolling downwind.
       const push = 1.3 + rand() * 0.7;
       spawn('flash', t, x + right[0] * out * 0.15, y, z + right[1] * out * 0.15, [right[0] * out * 2, 0, right[1] * out * 2], 0.12, [0.45, 0.8]);
-      spawn('smoke', t + rand() * 0.06, x, y + rand() * 0.1, z, [right[0] * out * push + (rand() - 0.5) * 0.3, 0.12 + rand() * 0.15, right[1] * out * push + (rand() - 0.5) * 0.3], 2.2 + rand(), [0.35, 1.5 + rand() * 0.5]);
+      spawn('smoke', t + rand() * 0.06, x, y + rand() * 0.1, z, [right[0] * out * push + (rand() - 0.5) * 0.3, 0.12 + rand() * 0.15, right[1] * out * push + (rand() - 0.5) * 0.3], 3.2 + rand() * 1.4, [0.4, 2.4 + rand() * 0.8]);
+      spawn('smoke', t + 0.1 + rand() * 0.1, x, y + 0.1, z, [right[0] * out * push * 1.6, 0.2 + rand() * 0.15, right[1] * out * push * 1.6], 2.6 + rand() * 1.2, [0.35, 2 + rand() * 0.8]);
     }
   };
   /** A ball strikes her hull: splinters fly from the hit and a little dark smoke. */

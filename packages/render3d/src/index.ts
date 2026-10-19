@@ -109,6 +109,12 @@ const BRISK = 4.5;
 /** The battle camera's distance in tiles: no nearer or further than this, whatever the zoom. */
 const BATTLE_VIEW = { min: 6, max: 90 };
 /**
+ * In battle the camera frames the fight, as Pirates! does (the ships as big in the frame as keeps both in it): it
+ * eases in or out until the further of the two lies this far from the middle of the screen (1 is the edge), as
+ * the projection measures it (an oblique view shows the near sea larger than the far, so no rule of thumb fits).
+ */
+const BATTLE_FIT = 0.68;
+/**
  * In battle ships are drawn at their true size (the map's 1.6x enlargement would make them dwarf the fight:
  * broadsides from barely a ship's length apart), so they trade shots across a few lengths of sea, as in Pirates!.
  */
@@ -663,6 +669,9 @@ export async function createSeaRenderer(
   const fighters = new Map<'player' | 'enemy', { built: BuiltShip; classId: string; plan: ShipPlan }>();
   let inBattle = false;
   let battleView = BATTLE_VIEW.min;
+  /** How far the battle camera's framing stands off its first guess, eased each frame to put the ships at BATTLE_FIT. */
+  let battleFit = 1;
+  const fitPoint = new THREE.Vector3();
   let sinkingFrom: number | undefined;
   /** Masts going by the board, by ship and mast: when it began, and the way it falls on her bearings. */
   const falls = new Map<string, { from: number; towardDeg: number }>();
@@ -922,15 +931,16 @@ export async function createSeaRenderer(
       fallsSeen = -Infinity;
       reloadSpan.clear();
       battleView = 0;
+      battleFit = 1;
     }
     const wind = view.wind;
     const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
     const { player, enemy } = view.ships;
     const apart = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-    // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close.
-    // The sea's own zoom (the wheel sets the same one in battle), so ships look as big as at sea (they are drawn
-    // at true size here, the map's ships 1.6x); pulled back only as far as keeps both ships on screen.
-    const want = THREE.MathUtils.clamp(Math.max(distance / SHIP_SCALE, apart * 0.8 + 4), BATTLE_VIEW.min, BATTLE_VIEW.max);
+    // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close: a first
+    // guess by how far apart they lie, corrected each frame by where they fall on screen (battleFit); the wheel
+    // pulls back from that, or closes in, as at sea.
+    const want = THREE.MathUtils.clamp((apart * 0.5 + 2) * battleFit * (distance / ZOOM.start), BATTLE_VIEW.min, BATTLE_VIEW.max);
     // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
     gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
     stormShare = battleStorm;
@@ -1054,11 +1064,21 @@ export async function createSeaRenderer(
     if (chase) target.set(player.x, 0, player.y);
     // The sea's camera angle for this zoom.
     const zt = Math.log(Math.max(ZOOM.min, battleView * SHIP_SCALE) / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : 30 + zt * 45);
+    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : MAP_PITCH.min + zt * MAP_PITCH.span);
     const span = chase ? Math.min(battleView, 30) : battleView;
     viewHeading = chase ? chaseYaw(player.headingDeg, dt) : player.headingDeg;
     const pitch = chase ? chasePitch(base, span, viewHeading, dt) : base;
     finishFrame(span, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt, chase ? span * CHASE_AHEAD : 0);
+    // Where the two ships fell on screen (their hulls and lower sails): ease the framing to put the further at BATTLE_FIT.
+    if (!chase) {
+      const edge = Math.max(
+        ...[player, enemy].map((s) => {
+          fitPoint.set(s.x, 1, s.y).project(camera);
+          return Math.max(Math.abs(fitPoint.x), Math.abs(fitPoint.y));
+        }),
+      );
+      battleFit = THREE.MathUtils.clamp(battleFit * Math.pow(Math.max(0.05, edge) / BATTLE_FIT, Math.min(1, dt * 2)), 0.4, 4);
+    }
   };
 
   return {

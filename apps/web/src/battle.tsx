@@ -479,15 +479,20 @@ const PACE_EVEN = 0.05;
 const PACE_FROM_TILES = 14;
 /** Seconds "Boarders repelled!" or "Too soon!" stays up. */
 const REPEL_SAID_SECONDS = 2;
+/** Seconds the weather gauge is called out, as the fight opens and each time it changes hands. */
+const GAUGE_CALL_SECONDS = 8;
 
-/** A ship's card (storyboard 5.1): her flag, name, what she is, and hull, sails and men as named bands. */
+/**
+ * A ship's card (storyboard 5.1): her flag, name, what she is and her men, and hull, sails and men as named bands.
+ * Light, as Pirates! keeps it: lettering over the sea on a faint shade, not a panel, so the fight stays the picture.
+ */
 function ShipCard({ ship, tag, gold, name, what, wavering, oars }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; wavering?: boolean; oars?: boolean }) {
   const up = ship.masts.filter((m) => m > 0).length;
   const hull = ship.hull / ship.hullMax;
   const sails = ship.sailCondition / 100;
   const men = ship.crew / Math.max(ship.crewStart, 1);
   return (
-    <div class="k-wood battle-card">
+    <div class="battle-card">
       <div class="battle-card-head">
         <span class={`k-tag${gold ? ' gold' : ''}`}>{tag}</span>
         <b class="battle-name">{name}</b>
@@ -496,7 +501,7 @@ function ShipCard({ ship, tag, gold, name, what, wavering, oars }: { ship: Battl
         {oars ? <span class="k-tag" title="Rowing: she can row into the wind, where you must tack. Cut her off rather than chase, and grape thins her rowers.">rowing</span> : null}
       </div>
       <div class="battle-title">
-        {what}
+        {what} · {Math.round(ship.crew)} men
         {up < ship.masts.length ? ` · ${up} of ${ship.masts.length} masts standing` : ''}
       </div>
       <Bar label="Hull" share={hull} word={bandOf(hull, [[0, 'Sinking'], [0.25, 'Badly hurt'], [0.6, 'Holed'], [0.9, 'Sound']])} />
@@ -595,6 +600,10 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
   const pace = opening < -PACE_EVEN ? "She's gaining on you" : opening > PACE_EVEN ? "You're drawing away" : "You're holding her off";
   const fightSeconds = state.tick / 30;
   const repelSaid = state.repel && fightSeconds - state.repel.at < REPEL_SAID_SECONDS ? state.repel.result : undefined;
+  // The weather gauge is called out as the fight opens and when it changes hands, then left to the compass.
+  const gaugeSeen = useRef({ gauge: '', since: 0 });
+  if (gaugeSeen.current.gauge !== (gauge ?? 'neither')) gaugeSeen.current = { gauge: gauge ?? 'neither', since: fightSeconds };
+  const gaugeCalled = fightSeconds - gaugeSeen.current.since < GAUGE_CALL_SECONDS;
   /** What the fight did: how it ended, a line for each thing won or lost, her own ship, and the standing it moved. */
   const reportBody = (result: BattleResult) => (
     <div class="battle-report-body">
@@ -669,7 +678,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
       ) : null}
       <div class="battle-toasts">
         {/* Who holds the weather gauge: the ship to windward chooses when to close. */}
-        {!state.result && !state.wreck ? (
+        {!state.result && !state.wreck && gaugeCalled ? (
           <div class={`battle-call battle-gauge ${gauge ?? 'neither'}`}>
             {gauge === 'player'
               ? 'Weather gauge: yours. You choose when to close; bear down to board, or hold off and fire.'
