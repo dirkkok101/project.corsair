@@ -736,5 +736,23 @@
     "licence": "Public domain",
     "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
     "notes": "Single sharp blast, 0.80s to the end of the 1.6s file. Recorded by the uploader at the Toshogu Spring Festival, Nikko. Commons licence template {{PD-self}} (released into the public domain by the author). Mono 22.05 kHz, peak-normalised to -1 dBFS."
+  },
+  {
+    "file": "art/audio/sfx/shouts_1.wav",
+    "title": "Crowd Shouting/Speaking Ambience",
+    "author": "StarNinjas",
+    "source_url": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Shouting crowd (layered voices, edited to sound like an army or mob), 0.5-6.0s, faded ends for looping. Mono 22.05 kHz, peak-normalised to -1 dBFS. Played as the shouting under a boarding fight: pitched down (0.88) and muffled (low-pass 3 kHz) under the sword clashes, where earshot hears a sword fight with men shouting (82%, 72%); alone it reads as a crowd cheering."
+  },
+  {
+    "file": "art/audio/sfx/shouts_2.wav",
+    "title": "Crowd Shouting/Speaking Ambience",
+    "author": "StarNinjas",
+    "source_url": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
+    "licence": "CC0 1.0",
+    "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "notes": "Another stretch of the same crowd, 12.0-17.5s, faded ends. Mono 22.05 kHz, peak-normalised to -1 dBFS. Played as the shouting under a boarding fight: pitched down (0.88) and muffled (low-pass 3 kHz) under the sword clashes, where earshot hears a sword fight with men shouting (82%, 72%); alone it reads as a crowd cheering."
   }
 ]

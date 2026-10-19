@@ -143,7 +143,7 @@
     "files": [
       "art/audio/sfx/melee_3.wav"
     ],
-    "notes": "Blades clashing in a boarding fight (sword clashes laid in a sequence); a musket volley plays with it. (Two crowd beds were dropped: earshot heard them as a crowd cheering.)"
+    "notes": "Blades clashing in a boarding fight (sword clashes laid in a sequence); a musket volley plays with it. The shouting under it is the shouts group."
   },
   "cheer": {
     "files": [
@@ -158,5 +158,12 @@
       "art/audio/sfx/explosion_2.wav"
     ],
     "notes": "Big blasts for a powder magazine: a single explosion, a sharp blast and a rolling chain; play pitched 0.5-0.7 for size."
+  },
+  "shouts": {
+    "files": [
+      "art/audio/sfx/shouts_1.wav",
+      "art/audio/sfx/shouts_2.wav"
+    ],
+    "notes": "Men shouting in a boarding fight, under the sword clashes: a crowd recording pitched down (0.88) and low-passed (3 kHz), so it reads as fighting rather than cheering."
   }
 }

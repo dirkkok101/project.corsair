@@ -19,7 +19,7 @@ const MASTER = 0.6;
 /**
  * The sea battle's mix: each sound's level against its distance gain, measured from the game's own output
  * (momentary loudness at its peak, against the sea's bed in a fresh breeze, about -23 LUFS): the player's broadside
- * about -12, hers and a hull hit about -15, a mast going -14, her balls rushing over -17, the boarders' fight -16, a
+ * about -12, hers and a hull hit about -15, a mast going -14, her balls rushing over -17, the boarders' fight (blades over men shouting) -16, a
  * far-off fight just over the bed. Before this was measured, everything but the player's own guns sat at the bed and
  * was lost in it.
  */
@@ -34,7 +34,8 @@ const BATTLE_MIX = {
   sail: 0.6,
   grape: 0.75,
   mast: 3.5,
-  melee: 0.5,
+  melee: 0.4,
+  shouts: 0.36,
   volley: 0.35,
   explosion: 1.5,
   cheer: 0.7,
@@ -405,6 +406,8 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       boarding(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
         sfx?.play('melee', { gain: gain * BATTLE_MIX.melee, pan, rate: 0.95 + Math.random() * 0.1 });
+        // The men shouting under the blades: a crowd pitched down and muffled (alone, at its own pitch, it cheers).
+        sfx?.play('shouts', { gain: gain * BATTLE_MIX.shouts, pan: pan * 0.6, rate: 0.85 + Math.random() * 0.06, lowpass: 3000 });
         sfx?.play('musket', { when: ctx.currentTime + 0.2 + Math.random() * 0.6, gain: gain * BATTLE_MIX.volley, pan: pan + 0.2, rate: 0.9 + Math.random() * 0.2 });
       },
       /** She goes down: a deep explosion (her powder, or her back broken). */

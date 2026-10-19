@@ -221,7 +221,8 @@ Sailing is where players spend most of their time, so it should sound and look a
   - sea battles (rendered by `tools/audio/combat-sfx.py`, credits kept in `tools/audio/combat-sfx.json`): each
     broadside a ripple of recorded cannon over the synthesised boom (a distant rumble for far-off fights), her balls
     rushing over as they arrive, timber splintering and canvas tearing where they strike, grape rattling across a
-    deck, a mast cracking as it goes, blades and shouting and a volley of small arms while the hulls are grappled,
+    deck, a mast cracking as it goes, blades over men shouting (a crowd recording pitched down and muffled, which
+    alone would read as cheering) and a volley of small arms while the hulls are grappled,
     an explosion as a ship goes down, and the crew cheering a fight won. Some are stand-ins until better recordings
     are found. The whistle and the sail tear are our own, synthesised (`tools/audio/ball-whistle.py`, `battle-synth.py`).
     The battle mix is measured, not guessed (`tools/audio/battle-mix.mjs` records the game's own output, `loudness.py`
