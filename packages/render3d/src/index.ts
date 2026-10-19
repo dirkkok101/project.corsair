@@ -115,8 +115,9 @@ const BATTLE_VIEW = { min: 6, max: 90 };
  */
 const BATTLE_FIT = 0.68;
 /**
- * In battle ships are drawn at their true size (the map's 1.6x enlargement would make them dwarf the fight:
- * broadsides from barely a ship's length apart), so they trade shots across a few lengths of sea, as in Pirates!.
+ * In battle ships are drawn at their true size (MODEL_SCALE without the map's enlargement) times the fight's own
+ * scale (combat.json battle.shipScale), which the battle aims and strikes by too: big in the frame, a length or
+ * two apart at a broadside, as in Pirates!.
  */
 const BATTLE_MODEL_SCALE = MODEL_SCALE / SHIP_SCALE;
 /**
@@ -669,6 +670,8 @@ export async function createSeaRenderer(
   const fighters = new Map<'player' | 'enemy', { built: BuiltShip; classId: string; plan: ShipPlan }>();
   let inBattle = false;
   let battleView = BATTLE_VIEW.min;
+  /** Battle ships' model scale: true size times the fight's scale (battle.shipScale). */
+  const battleScale = BATTLE_MODEL_SCALE * content.combat.battle.shipScale;
   /** How far the battle camera's framing stands off its first guess, eased each frame to put the ships at BATTLE_FIT. */
   let battleFit = 1;
   const fitPoint = new THREE.Vector3();
@@ -976,8 +979,8 @@ export async function createSeaRenderer(
         } else if (e.place?.part === 'rigging' && e.place.up !== undefined) {
           // Through her rigging: a hole in the canvas where the ball crossed it (in her own frame).
           const sz = content.ships[s.classId]?.size;
-          const along = e.place.along * (sz ? sz.length : f.plan.hull.length * BATTLE_MODEL_SCALE);
-          f.built.sailHole(e.place.up / BATTLE_MODEL_SCALE, -along / BATTLE_MODEL_SCALE);
+          const along = e.place.along * (sz ? sz.length * content.combat.battle.shipScale : f.plan.hull.length * battleScale);
+          f.built.sailHole(e.place.up / battleScale, -along / battleScale);
         } else if (e.kind === 'hit' && e.place?.part === 'hull') {
           // Round shot through her side: a hole on the side facing the ship that fired.
           const foe = side === 'player' ? enemy : player;
@@ -1008,7 +1011,7 @@ export async function createSeaRenderer(
       });
       f.built.setSails(...sailsOf(sailAnim(content, s, wind, nowMs)), nowMs);
       const pace = (s.speed ?? 0) / content.combat.battle.tilesPerSecondPerSpeedPoint / FAST_SHIP;
-      const length = placeShip(`battle.${side}`, f.built.root, s, wind, dt, 1 / SHIP_SCALE, pace, BATTLE_MODEL_SCALE);
+      const length = placeShip(`battle.${side}`, f.built.root, s, wind, dt, content.combat.battle.shipScale / SHIP_SCALE, pace, battleScale);
       if (!(side === 'enemy' && view.wreck)) sprayShips.push(bowOf(`battle.${side}`, f.built.root, s.headingDeg, length, Math.min(1, pace * 1.4), dt));
       // Going down: she settles by the stern, rolls and is gone under the sea.
       if (side === 'enemy' && view.wreck) {
@@ -1021,7 +1024,7 @@ export async function createSeaRenderer(
         const root = f.built.root;
         root.rotateX(-0.35 * k);
         root.rotateZ(0.45 * k * k);
-        root.position.y -= k * k * (f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1) + 0.6) * BATTLE_MODEL_SCALE;
+        root.position.y -= k * k * (f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1) + 0.6) * battleScale;
         root.visible = k < 1;
       } else f.built.root.visible = true;
       const tallest = f.plan.masts.reduce((h, m) => Math.max(h, m.height), 1);
@@ -1029,11 +1032,11 @@ export async function createSeaRenderer(
         x: s.x,
         z: s.y,
         headingDeg: s.headingDeg,
-        length: f.plan.hull.length * BATTLE_MODEL_SCALE,
-        halfBeam: f.plan.hull.beam * BATTLE_MODEL_SCALE,
-        deck: f.plan.hull.rail * BATTLE_MODEL_SCALE,
-        sails: tallest * 0.6 * BATTLE_MODEL_SCALE,
-        masts: f.plan.masts.map((m) => ({ along: m.at / f!.plan.hull.length, height: m.height * BATTLE_MODEL_SCALE })),
+        length: f.plan.hull.length * battleScale,
+        halfBeam: f.plan.hull.beam * battleScale,
+        deck: f.plan.hull.rail * battleScale,
+        sails: tallest * 0.6 * battleScale,
+        masts: f.plan.masts.map((m) => ({ along: m.at / f!.plan.hull.length, height: m.height * battleScale })),
       };
       if (!(side === 'enemy' && view.wreck)) wakeShips.push({ id: `battle.${side}`, x: s.x, z: s.y, headingDeg: s.headingDeg, speed: s.speed ?? 0, pace: Math.min(1, (pace * FAST_SHIP) / BRISK), length });
     }

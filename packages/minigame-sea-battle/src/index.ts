@@ -353,6 +353,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const queue: BattleCommand[] = [];
 
   const seconds = () => state.tick / TPS;
+  /** A ship's size in the fight (ships.json size, times battle.shipScale): what balls are aimed at and strike. */
+  const sizeOf = (classId: string) => {
+    const s = content.ships[classId]!.size;
+    const k = c.battle.shipScale;
+    return { length: s.length * k, beam: s.beam * k, rail: s.rail * k, mast: s.mast * k, yard: s.yard * k };
+  };
   const distance = () => Math.hypot(state.ships.enemy.x - state.ships.player.x, state.ships.enemy.y - state.ships.player.y);
   const bearing = (from: BattleShip, to: BattleShip) => normalizeDeg((Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI);
   /** Which broadside bears on the target, if either: within arcDeg of the beam. */
@@ -411,13 +417,14 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const off = Math.abs(((toThem - ship.headingDeg + 540) % 360) - 180);
     const end = off <= c.chasers.arcDeg ? 1 : off >= 180 - c.chasers.arcDeg ? -1 : 0;
     if (!end) return;
-    const size = content.ships[ship.classId]!.size;
-    const theirs = content.ships[target.classId]!.size;
+    const size = sizeOf(ship.classId);
+    const theirs = sizeOf(target.classId);
     const r = (ship.headingDeg * Math.PI) / 180;
     const flight = d / c.guns.shotTilesPerSecond;
     const tr = (target.headingDeg * Math.PI) / 180;
     const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
-    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * ship.spreadMult;
+    // Scattered in proportion to the ships' size in the fight, so a bigger target is no likelier hit.
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * ship.spreadMult * c.battle.shipScale;
     const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
     const shots: Shot[] = [];
     for (let g = 0; g < ship.chasers; g++) {
@@ -440,7 +447,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     state = {
       ...state,
       ships: { ...state.ships, [victim]: { ...v, crew: Math.max(0, v.crew - fell) } },
-      effects: [...state.effects, { kind: 'grape', x: v.x, y: v.y, at: seconds(), ship: victim, place: { along: 0, part: 'deck', up: content.ships[v.classId]!.size.rail, across: 0 } }],
+      effects: [...state.effects, { kind: 'grape', x: v.x, y: v.y, at: seconds(), ship: victim, place: { along: 0, part: 'deck', up: sizeOf(v.classId).rail, across: 0 } }],
     };
   };
 
@@ -452,8 +459,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     // One ball a gun on this side, each from its own port along her side. Her gunners lead the target (where she
     // will be when the ball gets there, at her present course and pace) and aim for her hull, or her rigging with
     // chain, or her deck with grape; each ball scatters about that point, more the longer the range.
-    const size = content.ships[ship.classId]!.size;
-    const theirs = content.ships[target.classId]!.size;
+    const size = sizeOf(ship.classId);
+    const theirs = sizeOf(target.classId);
     const r = (ship.headingDeg * Math.PI) / 180;
     const fwd = [Math.sin(r), -Math.cos(r)] as const;
     const stbd = [Math.cos(r), Math.sin(r)] as const;
@@ -463,7 +470,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
     const aimH = ship.ammo === 'chain' ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
     // Grape leaves the muzzle as a tight cone of small shot: it holds together over its short reach.
-    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1) * ship.spreadMult;
+    // Scattered in proportion to the ships' size in the fight (battle.shipScale), so a bigger target is no likelier hit.
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1) * ship.spreadMult * c.battle.shipScale;
     // A normal scatter from two uniform draws (Box-Muller).
     const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
     const shots: Shot[] = [];
@@ -839,7 +847,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const at = shotAt(shot, k);
           const victimSide: Side = shot.from === 'player' ? 'enemy' : 'player';
           const vs = state.ships[victimSide];
-          const sz = content.ships[vs.classId]!.size;
+          const sz = sizeOf(vs.classId);
           const vr = (vs.headingDeg * Math.PI) / 180;
           const rx = at[0] - vs.x;
           const ry = at[1] - vs.y;
@@ -848,7 +856,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const half = sz.length / 2;
           // Her waterline narrows toward bow and stern.
           // The easy levels forgive the player's near misses: her hull stands that much wider and taller to his balls.
-          const slack = shot.from === 'player' ? (setup.difficulty?.nearMissTiles ?? 0) : 0;
+          const slack = shot.from === 'player' ? (setup.difficulty?.nearMissTiles ?? 0) * c.battle.shipScale : 0;
           const width = sz.beam * Math.sqrt(Math.max(0, 1 - (along / (half + slack)) ** 2)) + 0.04 + slack;
           const inHull = Math.abs(along) <= half + slack && Math.abs(across) <= width && at[2] <= sz.rail + slack && at[2] > -0.05;
           const inRig = !state.wreck && Math.abs(along) <= half * 0.85 && Math.abs(across) <= sz.yard && at[2] > sz.rail && at[2] <= sz.mast;

@@ -440,15 +440,17 @@ describe('sea battle', () => {
   });
 
   it('sails shot away all but stop her in a fight: a fluyt running from a frigate is caught', () => {
-    const near = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 5 } } };
-    const chase = createBattle(near, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.fluyt', undefined, 0.5), enemy: ship('ship.frigate', 'patrol', 0.9), seed: 4, bearingDeg: 0 });
-    for (let i = 0; i < 30 * 90 && !chase.result(); i++) chase.step(1, 'runner');
-    expect(chase.result()?.outcome).toBe('lost');
+    // Her canvas already in rags as she turns to run.
+    const near = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 5 * content.combat.battle.shipScale } } };
+    const chase = createBattle(near, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.fluyt', undefined, 0.5), sailCondition: 0 }, enemy: ship('ship.frigate', 'patrol', 0.9), seed: 4, bearingDeg: 0 });
+    chase.step(30 * 10, 'runner');
     const her = chase.state.ships.player;
     expect(her.sailCondition).toBe(0);
     // Her rags draw only combat.json's battle floor (her point of sail takes more off, never adds): with the world
     // map's floor she would still make 0.29 here.
     expect(her.speed).toBeLessThan(content.ships['ship.fluyt']!.speed * content.combat.battle.tilesPerSecondPerSpeedPoint * content.combat.battle.tornSailsFloor * 1.5);
+    for (let i = 0; i < 30 * 90 && !chase.result(); i++) chase.step(1, 'runner');
+    expect(chase.result()?.outcome).toBe('lost');
   });
 
   it('swivels sweep the deck close in; chasers fire along her heading', () => {
@@ -507,7 +509,7 @@ describe('sea battle', () => {
   });
 
   it('places every hit on her, and rigging hits bring masts down: canvas and men go with them', () => {
-    // The brig keeps her range and pounds a big merchantman with round shot until a mast goes.
+    // The brig works a big merchantman's rigging with chain (as a boarder would) until a mast goes.
     let seen = 0;
     for (let seed = 1; seed <= 12 && !seen; seed++) {
       const battle = createBattle(content, {
@@ -522,7 +524,7 @@ describe('sea battle', () => {
       let guard = 0;
       while (!battle.result() && guard++ < 30 * 60 * 6) {
         const before = battle.state.ships.enemy;
-        battle.step(1, 'cautious');
+        battle.step(1, 'aggressive');
         const s = battle.state;
         // Every hit carries where it went in: along her length, how high, how far out.
         for (const e of s.effects.filter((x) => x.place && x.at === s.tick / 30)) {

@@ -362,6 +362,8 @@ export const combatSchema = z.object({
   battle: z.object({
     /** Battle speed: navigation's tiles per second per speed point, scaled down so a fight is readable. */
     tilesPerSecondPerSpeedPoint: z.number().positive(),
+    /** Ships in a fight are this many times their size (ships.json size): hulls, rigging and guns, drawn and hit alike. */
+    shipScale: z.number().positive(),
     /** Battle handling: how fast a ship gathers way, and the slower rate she loses it, so she carries
      * her way through a tack instead of stopping dead. */
     accelPerSecond: z.number().positive(),

@@ -48,7 +48,8 @@ describe('battle balance', () => {
     for (const c of content.pirates.captains) {
       let lost = 0;
       const seen: string[] = [];
-      for (let seed = 1; seed <= 16; seed++) {
+      // 32 seeds: at 16 the tiers' means lie within a fight of each other by chance (seed noise, not tuning).
+      for (let seed = 1; seed <= 32; seed++) {
         const b = fight(asHeSails(c), seed, 'cautious', { crew: 120 });
         seen.push(`${b.result()!.outcome}:${b.state.tick}`);
         if (b.result()!.outcome === 'lost') lost++;
