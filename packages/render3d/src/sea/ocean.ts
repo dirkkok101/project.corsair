@@ -358,7 +358,12 @@ void main() {
   // draws it), not the slab a whole crest would make.
   float fray = frayIn(uv);
   if (uBlend > 0.0) fray = mix(fray, frayIn(uvB), uBlend);
-  caps = smoothstep(0.58, 0.7, fray + caps * 0.12) * smoothstep(0.05, 0.5, caps) * 0.85;
+  // The breaking crest sets how thick the flecks lie, not where a patch ends, and a coarser noise along the wind
+  // breaks it into a few clumps: dense at their hearts, thinning to stray flecks, so no whitecap has an outline (an
+  // evenly speckled oval read as a slab close in).
+  float clump = smoothstep(0.3, 0.75, texture2D(uDetail, vec2(uv.x / 3.2, uv.y / 1.1) + vec2(uTime * 0.01, 0.61)).a);
+  float thick = mix(0.8, 0.46 - 0.1 * smoothstep(0.9, 1.1, uStrength), caps * (0.4 + 0.6 * clump));
+  caps = smoothstep(thick, thick + 0.07, fray) * smoothstep(0.02, 0.3, caps) * 0.85;
   // Gone before a whitecap would be a pixel or two (far out they'd make a speckled pattern, not a sea).
   float footprint = length(fwidth(xz));
   caps *= 1.0 - smoothstep(0.12, 0.35, footprint);
