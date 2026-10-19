@@ -394,7 +394,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
         strike(now, placed(now, pan, gain * synth * (sfx?.has(kind === 'hull' ? 'wood_hit' : 'sail_tear') ? 0.5 : 1)), kind);
         // Pitched down: the clips are light timber; a hull is heavy oak.
         if (kind === 'hull') sfx?.play('wood_hit', { gain: gain * BATTLE_MIX.hull, pan, rate: 0.55 + Math.random() * 0.2, lowpass: 3000 });
-        else sfx?.play('sail_tear', { gain: gain * BATTLE_MIX.sail, pan, rate: 0.8 + Math.random() * 0.25, lowpass: 5000 });
+        else sfx?.play('sail_tear', { gain: gain * BATTLE_MIX.sail, pan, rate: 0.9 + Math.random() * 0.2 });
       },
       /** A mast going by the board: timber cracking and the spar coming down. */
       mast(pan: number, gain: number) {

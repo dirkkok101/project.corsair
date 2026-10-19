@@ -223,7 +223,7 @@ Sailing is where players spend most of their time, so it should sound and look a
     rushing over as they arrive, timber splintering and canvas tearing where they strike, grape rattling across a
     deck, a mast cracking as it goes, blades and shouting and a volley of small arms while the hulls are grappled,
     an explosion as a ship goes down, and the crew cheering a fight won. Some are stand-ins until better recordings
-    are found (the sail tear is velcro and paper). The whistle is our own, synthesised (`tools/audio/ball-whistle.py`).
+    are found. The whistle and the sail tear are our own, synthesised (`tools/audio/ball-whistle.py`, `battle-synth.py`).
     The battle mix is measured, not guessed (`tools/audio/battle-mix.mjs` records the game's own output, `loudness.py`
     reads it; earshot judged the clips): every sound clear of the sea's bed, the player's broadside loudest, a master
     limiter so the busiest moment never clips; clips earshot heard as something else were dropped.

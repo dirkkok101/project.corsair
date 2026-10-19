@@ -123,7 +123,7 @@
       "art/audio/sfx/sail_tear_2.wav",
       "art/audio/sfx/sail_tear_3.wav"
     ],
-    "notes": "Stand-in rips (velcro, paper) for canvas tearing; play pitched 0.7-0.9 and layer two for a big sail."
+    "notes": "Heavy canvas tearing where a ball goes through the rigging: synthesised (battle-synth.py); play at rate 0.9-1.1."
   },
   "mast_crack": {
     "files": [

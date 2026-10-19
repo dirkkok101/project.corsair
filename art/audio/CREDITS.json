@@ -631,30 +631,30 @@
   },
   {
     "file": "art/audio/sfx/sail_tear_1.wav",
-    "title": "Velcro_01 (202 More Sound Effects)",
-    "author": "OwlishMedia",
-    "source_url": "https://opengameart.org/content/202-more-sound-effects",
-    "licence": "CC0 1.0",
+    "title": "Heavy canvas tearing (synthesised, variant 1)",
+    "author": "Project Corsair",
+    "source_url": "tools/audio/battle-synth.py",
+    "licence": "CC0 1.0 (original, synthesised for this game)",
     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "notes": "A velcro rip standing in for canvas tearing; no CC0/PD fabric-rip recording was found. Mono 22.05 kHz, peak-normalised to -1 dBFS."
+    "notes": "A run of fibre snaps over a fluttering rip whose band rises as it runs, and the canvas flapping as it gives way (battle-synth.py). earshot hears canvas tearing (78%, 80%, 49%) where the velcro and paper recordings it replaces read as velcro."
   },
   {
     "file": "art/audio/sfx/sail_tear_2.wav",
-    "title": "Velcro_02 (202 More Sound Effects)",
-    "author": "OwlishMedia",
-    "source_url": "https://opengameart.org/content/202-more-sound-effects",
-    "licence": "CC0 1.0",
+    "title": "Heavy canvas tearing (synthesised, variant 2)",
+    "author": "Project Corsair",
+    "source_url": "tools/audio/battle-synth.py",
+    "licence": "CC0 1.0 (original, synthesised for this game)",
     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "notes": "A shorter velcro rip, canvas-tear stand-in. Mono 22.05 kHz, peak-normalised to -1 dBFS."
+    "notes": "A run of fibre snaps over a fluttering rip whose band rises as it runs, and the canvas flapping as it gives way (battle-synth.py). earshot hears canvas tearing (78%, 80%, 49%) where the velcro and paper recordings it replaces read as velcro."
   },
   {
     "file": "art/audio/sfx/sail_tear_3.wav",
-    "title": "paper_ripped - 1 (Various paper sound effects)",
-    "author": "Luckius",
-    "source_url": "https://opengameart.org/content/various-paper-sound-effects",
-    "licence": "CC0 1.0",
+    "title": "Heavy canvas tearing (synthesised, variant 3)",
+    "author": "Project Corsair",
+    "source_url": "tools/audio/battle-synth.py",
+    "licence": "CC0 1.0 (original, synthesised for this game)",
     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "notes": "A quick paper rip, canvas-tear stand-in; layer under a velcro rip or play pitched down. Mono 22.05 kHz, peak-normalised to -1 dBFS."
+    "notes": "A run of fibre snaps over a fluttering rip whose band rises as it runs, and the canvas flapping as it gives way (battle-synth.py). earshot hears canvas tearing (78%, 80%, 49%) where the velcro and paper recordings it replaces read as velcro."
   },
   {
     "file": "art/audio/sfx/mast_crack_1.wav",
