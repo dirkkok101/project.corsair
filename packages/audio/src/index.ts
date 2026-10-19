@@ -16,6 +16,32 @@ export type { SampleManifest } from './samples';
 
 const GLIDE_S = 0.25; // time constant for layer volumes following their targets
 const MASTER = 0.6;
+/**
+ * The sea battle's mix: each sound's level against its distance gain, measured from the game's own output
+ * (momentary loudness at its peak, against the sea's bed in a fresh breeze, about -23 LUFS): the player's broadside
+ * about -12, hers and a hull hit about -15, a mast going -14, her balls rushing over -17, the boarders' fight -16, a
+ * far-off fight just over the bed. Before this was measured, everything but the player's own guns sat at the bed and
+ * was lost in it.
+ */
+const BATTLE_MIX = {
+  gunSynth: 0.7,
+  cannon: 0.9,
+  cannonFar: 0.4,
+  whistle: 0.45,
+  hullSynth: 1,
+  hull: 1.6,
+  sailSynth: 0.75,
+  sail: 0.6,
+  grape: 0.75,
+  mast: 3.5,
+  melee: 0.5,
+  volley: 0.35,
+  explosion: 1.5,
+  cheer: 0.7,
+  splash: 1.1,
+};
+/** The master limiter: the loudest moments of a fight (both broadsides, hits and a mast at once) never clip. */
+const LIMIT = { thresholdDb: -8, kneeDb: 4, ratio: 20, attack: 0.002, release: 0.2 };
 const MUTE_KEY = 'corsair.muted';
 const MUSIC_KEY = 'corsair.music';
 const MUSIC = 0.45; // the band sits under the sea, not on top of it
@@ -86,7 +112,13 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     ctx = new AudioContext();
     master = ctx.createGain();
     master.gain.value = muted ? 0 : MASTER;
-    master.connect(ctx.destination);
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = LIMIT.thresholdDb;
+    limiter.knee.value = LIMIT.kneeDb;
+    limiter.ratio.value = LIMIT.ratio;
+    limiter.attack.value = LIMIT.attack;
+    limiter.release.value = LIMIT.release;
+    master.connect(limiter).connect(ctx.destination);
     meter = ctx.createAnalyser();
     meter.fftSize = 2048;
     master.connect(meter);
@@ -330,7 +362,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
        */
       broadside(guns: number, pan: number, gain: number, far = false) {
         if (ctx?.state !== 'running' || !noise) return;
-        const out = placed(ctx.currentTime, pan, gain * 0.5);
+        const out = placed(ctx.currentTime, pan, gain * 0.5 * BATTLE_MIX.gunSynth);
         const id = far ? 'cannon_far' : 'cannon_close';
         const recorded = sfx?.has(id);
         const n = Math.max(1, Math.min(16, guns));
@@ -339,7 +371,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
           gun(t, out);
           // Every other gun recorded (a full battery of clips at once only muddies): pitched about so no two match.
           if (recorded && (i % 2 === 0 || n <= 3)) {
-            sfx!.play(id, { when: t, gain: gain * (far ? 0.45 : 0.6), pan, rate: 0.8 + Math.random() * 0.3, ...(far ? { lowpass: 900 } : {}) });
+            sfx!.play(id, { when: t, gain: gain * (far ? BATTLE_MIX.cannonFar : BATTLE_MIX.cannon), pan, rate: 0.8 + Math.random() * 0.3, ...(far ? { lowpass: 900 } : {}) });
           }
           t += recorded ? 0.07 + Math.random() * 0.09 : 0.03 + Math.random() * 0.04;
         }
@@ -347,46 +379,47 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       /** A ball passing close by her: a rush of air as it goes over, `delayS` from now (its flight). */
       whistle(delayS: number, pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
-        sfx?.play('ball_whistle', { when: ctx.currentTime + delayS, gain: gain * 0.45, pan, rate: 1.25 + Math.random() * 0.35 });
+        sfx?.play('ball_whistle', { when: ctx.currentTime + delayS, gain: gain * BATTLE_MIX.whistle, pan, rate: 0.9 + Math.random() * 0.2 });
       },
       /** A ball striking home: splintering timber, canvas tearing, or grape rattling across her deck. */
       hit(kind: 'hull' | 'sail' | 'grape', pan: number, gain: number) {
         if (ctx?.state !== 'running' || !noise) return;
         const now = ctx.currentTime;
         if (kind === 'grape') {
-          if (sfx?.has('musket')) sfx.play('musket', { gain: gain * 0.4, pan, rate: 0.9 + Math.random() * 0.25 });
+          if (sfx?.has('musket')) sfx.play('musket', { gain: gain * BATTLE_MIX.grape, pan, rate: 0.9 + Math.random() * 0.25 });
           else strike(now, placed(now, pan, gain * 0.6), 'hull');
           return;
         }
-        strike(now, placed(now, pan, gain * (sfx?.has(kind === 'hull' ? 'wood_hit' : 'sail_tear') ? 0.5 : 1)), kind);
+        const synth = kind === 'hull' ? BATTLE_MIX.hullSynth : BATTLE_MIX.sailSynth;
+        strike(now, placed(now, pan, gain * synth * (sfx?.has(kind === 'hull' ? 'wood_hit' : 'sail_tear') ? 0.5 : 1)), kind);
         // Pitched down: the clips are light timber; a hull is heavy oak.
-        if (kind === 'hull') sfx?.play('wood_hit', { gain: gain * 0.7, pan, rate: 0.55 + Math.random() * 0.2, lowpass: 3000 });
-        else sfx?.play('sail_tear', { gain: gain * 0.4, pan, rate: 0.8 + Math.random() * 0.25, lowpass: 5000 });
+        if (kind === 'hull') sfx?.play('wood_hit', { gain: gain * BATTLE_MIX.hull, pan, rate: 0.55 + Math.random() * 0.2, lowpass: 3000 });
+        else sfx?.play('sail_tear', { gain: gain * BATTLE_MIX.sail, pan, rate: 0.8 + Math.random() * 0.25, lowpass: 5000 });
       },
       /** A mast going by the board: timber cracking and the spar coming down. */
       mast(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
-        sfx?.play('mast_crack', { gain: gain * 0.85, pan, rate: 0.8 + Math.random() * 0.15, lowpass: 4000 });
+        sfx?.play('mast_crack', { gain: gain * BATTLE_MIX.mast, pan, rate: 0.8 + Math.random() * 0.15, lowpass: 4000 });
       },
       /** Hulls grappled: the boarders' fight (blades and shouting) and a ragged volley of small arms. */
       boarding(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
-        sfx?.play('melee', { gain: gain * 0.55, pan, rate: 0.95 + Math.random() * 0.1 });
-        sfx?.play('musket', { when: ctx.currentTime + 0.2 + Math.random() * 0.6, gain: gain * 0.4, pan: pan + 0.2, rate: 0.9 + Math.random() * 0.2 });
+        sfx?.play('melee', { gain: gain * BATTLE_MIX.melee, pan, rate: 0.95 + Math.random() * 0.1 });
+        sfx?.play('musket', { when: ctx.currentTime + 0.2 + Math.random() * 0.6, gain: gain * BATTLE_MIX.volley, pan: pan + 0.2, rate: 0.9 + Math.random() * 0.2 });
       },
       /** She goes down: a deep explosion (her powder, or her back broken). */
       explosion(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
-        sfx?.play('explosion', { gain: gain * 0.8, pan, rate: 0.7 + Math.random() * 0.15, lowpass: 3500 });
+        sfx?.play('explosion', { gain: gain * BATTLE_MIX.explosion, pan, rate: 0.7 + Math.random() * 0.15, lowpass: 3500 });
       },
       /** The fight won: her crew cheering. */
       cheer() {
         if (ctx?.state !== 'running') return;
-        sfx?.play('cheer', { gain: 0.5, pan: 0, rate: 0.95 + Math.random() * 0.1 });
+        sfx?.play('cheer', { gain: BATTLE_MIX.cheer, pan: 0, rate: 0.95 + Math.random() * 0.1 });
       },
       splash(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
-        sfx?.play(Math.random() < 0.3 ? 'splash_big' : 'splash_small', { gain: gain * 0.6, pan, rate: 0.9 + Math.random() * 0.3 });
+        sfx?.play(Math.random() < 0.3 ? 'splash_big' : 'splash_small', { gain: gain * BATTLE_MIX.splash, pan, rate: 0.9 + Math.random() * 0.3 });
       },
     },
     /** One-shot clip for game events such as sea life; no-op until sound is unlocked and loaded. */

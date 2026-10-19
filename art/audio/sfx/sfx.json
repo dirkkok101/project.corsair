@@ -108,13 +108,12 @@
       "art/audio/sfx/ball_whistle_2.wav",
       "art/audio/sfx/ball_whistle_3.wav"
     ],
-    "notes": "Rushing whoosh of a ball passing (slowed stick swishes, not a true whistle); play pitched 0.8-1.2 and pan across the listener."
+    "notes": "A cannonball going over: synthesised (ball-whistle.py), a falling howl of air; play at rate 0.9-1.1."
   },
   "wood_hit": {
     "files": [
       "art/audio/sfx/wood_hit_1.wav",
-      "art/audio/sfx/wood_hit_2.wav",
-      "art/audio/sfx/wood_hit_3.wav"
+      "art/audio/sfx/wood_hit_2.wav"
     ],
     "notes": "Short wood breaks for a ball striking the hull; play pitched 0.55-0.8 for a heavy hull, layered with a cannon_far thump."
   },
@@ -136,22 +135,18 @@
   "musket": {
     "files": [
       "art/audio/sfx/musket_1.wav",
-      "art/audio/sfx/musket_2.wav",
-      "art/audio/sfx/musket_3.wav"
+      "art/audio/sfx/musket_2.wav"
     ],
     "notes": "Black-powder shots and a ragged rifle volley for swivels and boarders; play pitched 0.9-1.1 and stagger singles for a volley."
   },
   "melee": {
     "files": [
-      "art/audio/sfx/melee_1.wav",
-      "art/audio/sfx/melee_2.wav",
       "art/audio/sfx/melee_3.wav"
     ],
-    "notes": "Boarding fight: two shouting-crowd beds (loopable, faded ends) and a blade-clash sequence to layer on top."
+    "notes": "Blades clashing in a boarding fight (sword clashes laid in a sequence); a musket volley plays with it. (Two crowd beds were dropped: earshot heard them as a crowd cheering.)"
   },
   "cheer": {
     "files": [
-      "art/audio/sfx/cheer_1.wav",
       "art/audio/sfx/cheer_2.wav",
       "art/audio/sfx/cheer_3.wav"
     ],
@@ -160,8 +155,7 @@
   "explosion": {
     "files": [
       "art/audio/sfx/explosion_1.wav",
-      "art/audio/sfx/explosion_2.wav",
-      "art/audio/sfx/explosion_3.wav"
+      "art/audio/sfx/explosion_2.wav"
     ],
     "notes": "Big blasts for a powder magazine: a single explosion, a sharp blast and a rolling chain; play pitched 0.5-0.7 for size."
   }

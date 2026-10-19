@@ -53,7 +53,8 @@ declare global {
     /** `seed` is the new game's RNG seed: with `replay.inputs()` it reproduces the run. */
     __corsair: ReturnType<typeof createDebugApi> & {
       seed: number;
-      audio: { levels: () => import('@corsair/audio').AudioLevels };
+      /** The mixer's levels, and the battle's sounds to play one at a time (to measure the mix). */
+      audio: { levels: () => import('@corsair/audio').AudioLevels; battle: import('@corsair/audio').Audio['battle'] };
       wildlife: import('@corsair/render3d').SeaRenderer['wildlife'];
       ports: () => { id: string; name: string; x: number; y: number }[];
       snapshot: { save: () => import('@corsair/core').Save };

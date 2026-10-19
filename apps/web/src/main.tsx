@@ -1060,7 +1060,7 @@ async function main() {
   window.__corsair = {
     ...createDebugApi(sim, loop),
     seed,
-    audio: { levels: () => audio.levels() },
+    audio: { levels: () => audio.levels(), battle: audio.battle },
     wildlife: sea3d.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
     snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },

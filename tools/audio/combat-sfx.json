@@ -57,30 +57,30 @@
     },
     {
       "file": "art/audio/sfx/ball_whistle_1.wav",
-      "title": "swosh-31 (Swish - bamboo stick weapon swooshes)",
-      "author": "qubodup (Iwan Gabovitch)",
-      "source_url": "https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes",
-      "licence": "CC0 1.0",
+      "title": "Cannonball passing overhead (synthesised, variant a)",
+      "author": "Project Corsair",
+      "source_url": "tools/audio/ball-whistle.py",
+      "licence": "CC0 1.0 (original, synthesised for this game)",
       "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notes": "A bamboo stick waved past the mic, slowed to 0.6x (pitch and speed) to read as a heavy ball rushing past. The pack's swoosh.txt: \"Free for *any* use ... public domain, Gemeindegut, cc0-licensed or WTFPL-licensed.\" Mono 22.05 kHz, peak-normalised to -1 dBFS."
+      "notes": "Noise through a resonant band-pass falling in pitch as the ball passes (Doppler), loudest just after it goes over; made with ball-whistle.py and judged with earshot (reads as a whoosh past, where the slowed stick swishes it replaces read as a stick)."
     },
     {
       "file": "art/audio/sfx/ball_whistle_2.wav",
-      "title": "swosh-28 (Swish - bamboo stick weapon swooshes)",
-      "author": "qubodup (Iwan Gabovitch)",
-      "source_url": "https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes",
-      "licence": "CC0 1.0",
+      "title": "Cannonball passing overhead (synthesised, variant c)",
+      "author": "Project Corsair",
+      "source_url": "tools/audio/ball-whistle.py",
+      "licence": "CC0 1.0 (original, synthesised for this game)",
       "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notes": "A bamboo stick waved past the mic, slowed to 0.6x (pitch and speed) to read as a heavy ball rushing past. The pack's swoosh.txt: \"Free for *any* use ... public domain, Gemeindegut, cc0-licensed or WTFPL-licensed.\" Mono 22.05 kHz, peak-normalised to -1 dBFS."
+      "notes": "Noise through a resonant band-pass falling in pitch as the ball passes (Doppler), loudest just after it goes over; made with ball-whistle.py and judged with earshot (reads as a whoosh past, where the slowed stick swishes it replaces read as a stick)."
     },
     {
       "file": "art/audio/sfx/ball_whistle_3.wav",
-      "title": "swosh-41 (Swish - bamboo stick weapon swooshes)",
-      "author": "qubodup (Iwan Gabovitch)",
-      "source_url": "https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes",
-      "licence": "CC0 1.0",
+      "title": "Cannonball passing overhead (synthesised, variant b)",
+      "author": "Project Corsair",
+      "source_url": "tools/audio/ball-whistle.py",
+      "licence": "CC0 1.0 (original, synthesised for this game)",
       "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notes": "A bamboo stick waved past the mic, slowed to 0.6x (pitch and speed) to read as a heavy ball rushing past. The pack's swoosh.txt: \"Free for *any* use ... public domain, Gemeindegut, cc0-licensed or WTFPL-licensed.\" Mono 22.05 kHz, peak-normalised to -1 dBFS."
+      "notes": "Noise through a resonant band-pass falling in pitch as the ball passes (Doppler), loudest just after it goes over; made with ball-whistle.py and judged with earshot (reads as a whoosh past, where the slowed stick swishes it replaces read as a stick)."
     },
     {
       "file": "art/audio/sfx/wood_hit_1.wav",
@@ -99,15 +99,6 @@
       "licence": "CC0 1.0",
       "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
       "notes": "Short wood break/crunch, whole file. Mono 22.05 kHz, peak-normalised to -1 dBFS."
-    },
-    {
-      "file": "art/audio/sfx/wood_hit_3.wav",
-      "title": "bfh1_wood_breaking_03 (75 CC0 breaking / falling / hit sfx)",
-      "author": "rubberduck",
-      "source_url": "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
-      "licence": "CC0 1.0",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notes": "Short wood break, whole file. Mono 22.05 kHz, peak-normalised to -1 dBFS."
     },
     {
       "file": "art/audio/sfx/sail_tear_1.wav",
@@ -173,33 +164,6 @@
       "notes": "Another black-powder shot, 1.50-2.20s of the same file. Mono 22.05 kHz, peak-normalised to -1 dBFS."
     },
     {
-      "file": "art/audio/sfx/musket_3.wav",
-      "title": "3 Volley Salute - US Army Funeral",
-      "author": "United States Army",
-      "source_url": "https://commons.wikimedia.org/wiki/File:3_Volley_Salute_-_US_Army_Funeral.ogg",
-      "licence": "Public domain (US federal government work)",
-      "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-USGov-Military-Army",
-      "notes": "A ragged rifle volley, 18.85-20.85s of the 31s recording (modern rifles, firing party outdoors). Commons template {{PD-USGov-Military-Army}}. Mono 22.05 kHz, peak-normalised to -1 dBFS."
-    },
-    {
-      "file": "art/audio/sfx/melee_1.wav",
-      "title": "Crowd Shouting/Speaking Ambience",
-      "author": "StarNinjas",
-      "source_url": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
-      "licence": "CC0 1.0",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notes": "Shouting crowd (layered voices, edited to sound like an army or mob), 0.5-6.0s, faded ends for looping. Mono 22.05 kHz, peak-normalised to -1 dBFS."
-    },
-    {
-      "file": "art/audio/sfx/melee_2.wav",
-      "title": "Crowd Shouting/Speaking Ambience",
-      "author": "StarNinjas",
-      "source_url": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
-      "licence": "CC0 1.0",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "notes": "Another stretch of the same crowd, 12.0-17.5s, faded ends. Mono 22.05 kHz, peak-normalised to -1 dBFS."
-    },
-    {
       "file": "art/audio/sfx/melee_3.wav",
       "title": "sword_clash 1, 3, 5, 8, 2, 6 (20 Sword Sound Effects - Attacks and Clashes)",
       "author": "StarNinjas",
@@ -207,15 +171,6 @@
       "licence": "CC0 1.0",
       "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
       "notes": "Six blade clashes from the pack (two knives struck together) placed at 0, 0.85, 1.4, 2.55, 3.2 and 4.3s to make a 5.5s exchange; layer over melee_1/2. Mono 22.05 kHz, peak-normalised to -1 dBFS."
-    },
-    {
-      "file": "art/audio/sfx/cheer_1.wav",
-      "title": "Clapping hurray",
-      "author": "starlite",
-      "source_url": "https://commons.wikimedia.org/wiki/File:Clapping_hurray.ogg",
-      "licence": "Public domain",
-      "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-author",
-      "notes": "Small group clapping and shouting \"woo\", 0.3-6.3s of the 11.6s recording, faded ends. Commons licence template {{PD-author}} (released into the public domain by the author, worldwide) via PDSounds.org. Mono 22.05 kHz, peak-normalised to -1 dBFS."
     },
     {
       "file": "art/audio/sfx/cheer_2.wav",
@@ -252,26 +207,17 @@
       "licence": "Public domain",
       "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
       "notes": "Single sharp blast, 0.80s to the end of the 1.6s file. Recorded by the uploader at the Toshogu Spring Festival, Nikko. Commons licence template {{PD-self}} (released into the public domain by the author). Mono 22.05 kHz, peak-normalised to -1 dBFS."
-    },
-    {
-      "file": "art/audio/sfx/explosion_3.wav",
-      "title": "Explosions-LS100152",
-      "author": "Fg2",
-      "source_url": "https://commons.wikimedia.org/wiki/File:Explosions-LS100152.ogg",
-      "licence": "Public domain",
-      "licence_url": "https://commons.wikimedia.org/wiki/Template:PD-self",
-      "notes": "A rolling chain of blasts, 0.5-6.2s of the 7s file, faded out; suits a magazine going up. Recorded by the uploader at the Toshogu Spring Festival, Nikko. Commons licence template {{PD-self}} (released into the public domain by the author). Mono 22.05 kHz, peak-normalised to -1 dBFS."
     }
   ],
   "groups": {
     "cannon_close": "A single close gun: a real salute field piece, a naval gun with reverb, a firework mortar bang; play pitched 0.85-1.1 (cannon_close_3 at 0.6-0.8) for variety.",
     "cannon_far": "Distant booms (fireworks heard across open country); play low, low-passed and pitched 0.6-0.9 for an enemy broadside over the water.",
-    "ball_whistle": "Rushing whoosh of a ball passing (slowed stick swishes, not a true whistle); play pitched 0.8-1.2 and pan across the listener.",
+    "ball_whistle": "A cannonball going over: synthesised (ball-whistle.py), a falling howl of air; play at rate 0.9-1.1.",
     "wood_hit": "Short wood breaks for a ball striking the hull; play pitched 0.55-0.8 for a heavy hull, layered with a cannon_far thump.",
     "sail_tear": "Stand-in rips (velcro, paper) for canvas tearing; play pitched 0.7-0.9 and layer two for a big sail.",
     "mast_crack": "Timber cracking and falling for a mast going over; play pitched 0.6-0.8 for weight.",
     "musket": "Black-powder shots and a ragged rifle volley for swivels and boarders; play pitched 0.9-1.1 and stagger singles for a volley.",
-    "melee": "Boarding fight: two shouting-crowd beds (loopable, faded ends) and a blade-clash sequence to layer on top.",
+    "melee": "Blades clashing in a boarding fight (sword clashes laid in a sequence); a musket volley plays with it. (Two crowd beds were dropped: earshot heard them as a crowd cheering.)",
     "cheer": "Crew cheering on victory: clapping and \"woo\" from a small group, plus one \"hurray\"; play pitched 0.85-0.95 for rougher, deeper voices.",
     "explosion": "Big blasts for a powder magazine: a single explosion, a sharp blast and a rolling chain; play pitched 0.5-0.7 for size."
   }
