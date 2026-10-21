@@ -775,7 +775,8 @@ test('sea life and gun smoke on the 3D sea: dolphins, flying fish, a whale and g
 test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart marks ships seen', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   const count = await page.evaluate(() => Object.values(window.__corsair.state.get('ships') as Record<string, { ai?: unknown }>).filter((s) => s.ai).length);
-  expect(count).toBe(50);
+  // The population (traffic.json, 90) split by role share, each rounded: 50 merchants, 16 patrols, 23 pirates.
+  expect(count).toBe(89);
 
   // An English merchant sets out from Port Royal; bring the player alongside her.
   const id = await page.evaluate(() => {

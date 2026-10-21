@@ -737,10 +737,18 @@ export function createTrafficSystem(
       .find(([x, y]) => !isLand(tileAt(map, x, y)));
     if (!hunterAt) return undefined;
     const hunter = spawn(content, prey.state, hunterRole, hunterHome, hunterAt, rng, tick);
+    // A hunter no faster than her prey would never come up with her and the fight would never be: she is already
+    // alongside instead, the fight joined (inside chase contact, just out from the prey), where that is water.
+    const speedOf = (s: Ship) => content.ships[s.classId]?.speed ?? 0;
+    const alongside: [number, number] = [spot[0] + ox * cb.chase.contactTiles * 0.8, spot[1] + oy * cb.chase.contactTiles * 0.8];
+    const closeIn = speedOf(hunter.ship) <= speedOf(preyShip) && !isLand(tileAt(map, alongside[0], alongside[1]));
+    const [hx, hy] = closeIn ? alongside : [hunter.ship.x, hunter.ship.y];
     const home = lanes.berth(hunterHome.id);
-    const back = home ? lanes.path([hunter.ship.x, hunter.ship.y], home) : undefined;
+    const back = home ? lanes.path([hx, hy], home) : undefined;
     const hunterShip: Ship = {
       ...hunter.ship,
+      x: hx,
+      y: hy,
       sails: 'full',
       // Her prey is the merchant, not the captain watching: she leaves her be a while after (encounters.calmDays).
       ai: {

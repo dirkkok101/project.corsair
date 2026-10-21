@@ -2,7 +2,7 @@ import { createSim } from '@corsair/core';
 import { viewTiles } from '@corsair/data';
 import { createWorld } from '@corsair/systems-navigation';
 import { describe, expect, it } from 'vitest';
-import { atWar } from '@corsair/systems-politics';
+import { atWar, initialPolitics } from '@corsair/systems-politics';
 import { createTrafficSystem } from '../src';
 import { content, def, map, settlements, lanes, windAt, day, world, ai, traffic0 } from './fixtures';
 
@@ -13,7 +13,8 @@ describe('ships that carry the world', () => {
     const roles = content.traffic.roles;
     const calm = {
       ...content,
-      traffic: { ...content.traffic, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } },
+      // A thinner sea, too: the whole world is stepped for months, and the traffic around her isn't what is tested.
+      traffic: { ...content.traffic, population: 40, roles: { ...roles, pirate: { ...roles.pirate, share: 0 } } },
       pirates: { ...content.pirates, captains: [] },
       combat: { ...content.combat, chase: { ...content.combat.chase, chaseTiles: 0.1 } },
     };
@@ -57,14 +58,15 @@ describe('ships that carry the world', () => {
 
   it('patrols go where merchants have been lost', () => {
     const sim = world(3);
-    // At peace, so no patrol goes off to blockade; ten English merchants lost off Bridgetown lately.
-    sim.send({ type: 'SetRelation', a: 'england', b: 'spain', war: false });
-    sim.applyCommands();
+    // At peace everywhere, so no patrol goes off to blockade (set in the state: this world has no politics system to
+    // carry out a SetRelation); ten English merchants lost off Bridgetown lately.
+    const politics = initialPolitics(content);
+    const peace = { ...politics, relations: Object.fromEntries(Object.entries(politics.relations).map(([k, r]) => [k, { ...r, war: false }])) };
     const losses = Array.from({ length: 10 }, (_, k) => ({ id: `loss.${k}`, tick: sim.state.tick, settlementId: 'town.bridgetown', kind: 'aiTaken', good: '', delayDays: 0 }));
     const patrols = ai(sim.state).filter((s) => s.ai!.role === 'patrol' && s.ai!.nation === 'england' && s.ai!.from !== 'town.bridgetown');
     expect(patrols.length).toBeGreaterThan(0);
     const ready = Object.fromEntries(patrols.map((p) => [p.id, { ...p, ai: { ...p.ai!, route: [], waitUntil: sim.state.tick + 1 } }]));
-    const next = createSim({ ...sim.state, news: [...(sim.state.news ?? []), ...losses], ships: { ...sim.state.ships, ...ready } }, [
+    const next = createSim({ ...sim.state, politics: peace, news: [...(sim.state.news ?? []), ...losses], ships: { ...sim.state.ships, ...ready } }, [
       createTrafficSystem(content, settlements, lanes, map, windAt),
     ]);
     next.step(3);

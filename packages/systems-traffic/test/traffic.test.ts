@@ -11,11 +11,12 @@ describe('ships at sea', () => {
   it('start with the full population moored at home ports, by role', () => {
     const sim = world(1);
     const ships = ai(sim.state);
-    expect(ships).toHaveLength(content.traffic.population);
+    // The population split by share, each role's count rounded.
+    const roleCounts = Object.values(content.traffic.roles).map((r) => Math.round(content.traffic.population * r.share));
+    expect(ships).toHaveLength(roleCounts.reduce((a, b) => a + b, 0));
     const roles = (r: string) => ships.filter((s) => s.ai!.role === r).length;
-    expect(roles('merchant')).toBe(25);
-    expect(roles('patrol')).toBe(9);
-    expect(roles('pirate')).toBe(16);
+    // Each role's share of the population (traffic.json roles), rounded.
+    for (const [role, def] of Object.entries(content.traffic.roles)) expect(roles(role), role).toBeCloseTo(content.traffic.population * def.share, -0.5);
     for (const s of ships) expect(isLand(tileAt(map, s.x, s.y))).toBe(false);
     // Pirates sail from havens under their own flag; the rest under their port's.
     for (const s of ships.filter((x) => x.ai!.role === 'pirate')) expect(s.ai!.nation).toBe('pirate');
@@ -24,7 +25,9 @@ describe('ships at sea', () => {
   it('each role sails a mix of classes, from her own', () => {
     const ships = ai(world(1).state);
     for (const role of ['merchant', 'patrol', 'pirate'] as const) {
-      const mix = Object.keys(content.traffic.roles[role].classes!);
+      // Her role's classes, and those a nation adds for its own ships (byNation: Spain's half-galleys).
+      const def = content.traffic.roles[role];
+      const mix = [...Object.keys(def.classes!), ...('byNation' in def && def.byNation ? Object.values(def.byNation).flatMap((c) => Object.keys(c)) : [])];
       const sailed = new Set(ships.filter((s) => s.ai!.role === role).map((s) => s.classId));
       // A pirate grown big sails a brig (biggerPirates), whatever her mix.
       for (const c of sailed) expect([...mix, content.traffic.biggerPirates.classId], `${role} ${c}`).toContain(c);
