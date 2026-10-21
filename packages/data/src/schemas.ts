@@ -438,6 +438,13 @@ export const combatSchema = z.object({
     standoffShare: z.number().positive(),
     stationTiles: z.number().positive(),
     openingReload: z.number().min(0).max(1),
+    /** A boarding captain's mind (minigame-sea-battle captain.ts): how she weighs boarding, stalking and running. */
+    utility: z.object({
+      soft: z.object({ share: z.number().positive(), sails: z.number().positive(), ratio: z.number().positive() }),
+      margin: z.number().min(0),
+      gauge: z.number().min(0).max(1),
+      stalk: z.number().min(0).max(1),
+    }),
     temperaments: z.record(
       z.string(),
       z.object({

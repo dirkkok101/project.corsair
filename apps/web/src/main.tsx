@@ -1251,6 +1251,8 @@ async function main() {
   };
   // The battle camera's shake (render3d shake.ts), on unless the player turns it off: kept in this browser like the
   // gentle wind.
+  // For tuning a pirate's mind (?mind=1): her wants shown over the battle.
+  const showMind = new URLSearchParams(location.search).get('mind') === '1';
   const SHAKE_KEY = 'corsair.shake';
   let shakeOn = (() => {
     try {
@@ -1385,6 +1387,7 @@ async function main() {
           enemyTitle={fight.title}
           enemyNation={fight.nation}
           wavering={fight.battle.wavering()}
+          showMind={showMind}
           demand={
             fight.battle.demands()
               ? (() => {

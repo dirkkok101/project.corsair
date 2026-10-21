@@ -2795,6 +2795,17 @@ body {
   box-shadow: inset 2px 0 0 var(--k-gold);
 }
 
+.battle-mind {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font: 12px ui-monospace, monospace;
+}
+
 .battle-boarder,
 .battle-repel.missed {
   border-color: #e0503c;

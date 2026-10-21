@@ -565,9 +565,11 @@ export interface BattleHudProps {
   shake: { on: boolean; toggle: () => void };
   /** F1's every-key help, open over the battle. */
   help?: { open: boolean; close: () => void };
+  /** For tuning (?mind=1): what her captain has in mind, and how much she wants each choice. */
+  showMind?: boolean;
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help, showMind }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -642,6 +644,12 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
         </div>
       )}
       {state.result ? null : <Compass {...compass} className="battle-compass" />}
+      {showMind && state.minds?.enemy ? (
+        <div class="battle-mind">
+          {state.minds.enemy.intent} · board {state.minds.enemy.wants.board.toFixed(2)} · stalk {state.minds.enemy.wants.stalk.toFixed(2)} · run{' '}
+          {state.minds.enemy.wants.flee.toFixed(2)}
+        </div>
+      ) : null}
       <div class="battle-calls">
         {!state.result && now < mastCall.current.until ? <div class="battle-call battle-mast">{mastCall.current.text}</div> : null}
         {wavering && !state.result ? <div class="battle-call battle-waver">She's wavering: {waverWhy(content, enemy, me, apart)}. Keep at her and she'll strike.</div> : null}

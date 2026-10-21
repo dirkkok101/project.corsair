@@ -2,6 +2,9 @@ import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
 import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
 import type { ContentPack, DifficultyLevel, TileMap } from '@corsair/data';
+import { weigh } from './captain';
+export type { Intent, Mind } from './captain';
+import type { Mind } from './captain';
 import { angleOffWind, atTheOars, bestUpwindDeg, createNavigationSystem, normalizeDeg } from '@corsair/systems-navigation';
 
 // The sea battle (PRD section 9.1): two ships on a local map cut from the world where they met, in
@@ -137,6 +140,8 @@ export interface BattleState {
   enemyBoarding?: boolean;
   /** Battle seconds until which the enemy, her boarders repelled, sheers off rather than close again. */
   sheerUntil?: number;
+  /** What each boarding captain has in mind, and how much she wants each choice (captain.ts): for tuning, and her next tick. */
+  minds?: Partial<Record<Side, Mind>>;
   /** The player's repel this grapple (one try a grapple), and when: shown for a moment. */
   repel?: { result: 'repelled' | 'missed'; at: number };
   /** Boarders repelled this fight: each narrows the next window (boarding.repelFade). */
@@ -494,21 +499,35 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   };
 
   /**
-   * A pirate's heading, by phase (combat.json tactics): hold on once grappled; run when badly hurt; close
-   * to board when the other is crippled or out-crewed, or, if bold, the moment the other's broadside facing
-   * her has just fired; otherwise stalk from a station off the other's bow or stern and rake her.
+   * A boarder's course, and whether she means to board now (her grapples go out only then). What she does is her
+   * mind's (captain.ts: board, stalk or run, weighed by her temperament, combat.json tactics); once grappled she holds
+   * on, and with her boarders thrown back she sheers off for a while and works her guns before closing again. Stalking,
+   * she keeps a station off the other's bow or stern and rakes her.
    */
-  /** A boarder's course, and whether she means to board now (her grapples go out only then). */
-  const pirate = (me: BattleShip, them: BattleShip, d: number, toThem: number, ready: Broadside, sheering: boolean): { want: number; board: boolean } => {
+  const pirate = (side: Side, me: BattleShip, them: BattleShip, d: number, toThem: number, ready: Broadside, sheering: boolean): { want: number; board: boolean } => {
     const t = c.tactics.temperaments[me.temperament ?? 'bold'] ?? Object.values(c.tactics.temperaments)[0]!;
-    if (state.grappling > 0) return { want: toThem, board: true };
-    if (me.hull < me.hullMax * t.fleeBelowHull || me.crew < me.crewStart * t.fleeBelowCrew) return { want: toThem + 180, board: false };
     // The other's broadside on my side of her: just fired, it's a while reloading.
     const rel = ((bearing(them, me) - them.headingDeg + 540) % 360) - 180;
     const facing: Broadside = rel > 0 ? 'starboard' : 'port';
-    const opening = t.seizeOpenings && d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload;
-    // Her boarders thrown back, she sheers off for a while and works her guns before closing again.
-    if (!sheering && (them.sailCondition < t.boardBelowSails || me.crew > them.crew * t.boardCrewRatio || opening)) return { want: toThem, board: true };
+    const gauge = weatherGauge(state);
+    const mind = weigh(
+      {
+        hull: me.hull / me.hullMax,
+        crew: me.crew / me.crewStart,
+        menRatio: me.crew / Math.max(1, them.crew),
+        theirSails: them.sailCondition,
+        opening: d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload,
+        gauge: gauge === undefined ? undefined : gauge === side ? 'mine' : 'theirs',
+      },
+      t,
+      c.tactics.utility,
+      state.minds?.[side]?.intent,
+    );
+    if (state.grappling > 0) mind.intent = 'board';
+    else if (sheering && mind.intent === 'board') mind.intent = mind.wants.flee > mind.wants.stalk ? 'flee' : 'stalk';
+    state = { ...state, minds: { ...state.minds, [side]: mind } };
+    if (mind.intent === 'board') return { want: toThem, board: true };
+    if (mind.intent === 'flee') return { want: toThem + 180, board: false };
     // Stalk: a station off her bow or stern (the nearer), where her broadsides can't bear.
     const standoff = reach(me, 'round') * c.tactics.standoffShare;
     const r = (them.headingDeg * Math.PI) / 180;
@@ -531,7 +550,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     let want: number;
     if (personality === 'runner') want = toThem + 180;
     else if (personality === 'aggressive') {
-      const plan = pirate(me, them, d, toThem, ready, side === 'enemy' && seconds() < (state.sheerUntil ?? 0));
+      const plan = pirate(side, me, them, d, toThem, ready, side === 'enemy' && seconds() < (state.sheerUntil ?? 0));
       want = plan.want;
       state = side === 'enemy' ? { ...state, enemyBoarding: plan.board } : { ...state, boarding: plan.board };
     }
