@@ -509,10 +509,13 @@ describe('sea battle', () => {
   });
 
   it('places every hit on her, and rigging hits bring masts down: canvas and men go with them', () => {
-    // The brig works a big merchantman's rigging with chain (as a boarder would) until a mast goes.
+    // The brig works a big merchantman's rigging with chain (as a boarder would) until a mast goes: a boarder that
+    // closes from any range (tactics.utility close), so the merchant has her rig worked long before she strikes.
+    const u = content.combat.tactics.utility;
+    const anyRange = { ...content, combat: { ...content.combat, tactics: { ...content.combat.tactics, utility: { ...u, close: { ...u.close, tiles: 1000 } } } } };
     let seen = 0;
     for (let seed = 1; seed <= 12 && !seen; seed++) {
-      const battle = createBattle(content, {
+      const battle = createBattle(anyRange, {
         map,
         wind: { fromDeg: 70, strength: 'fresh' },
         player: ship('ship.brig', undefined, 0.9),

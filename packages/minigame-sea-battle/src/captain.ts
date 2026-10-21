@@ -25,6 +25,8 @@ export interface Situation {
   theirSails: number;
   /** The other's broadside on her side has just fired and is a while reloading. */
   opening: boolean;
+  /** How far apart they lie, in tiles. */
+  apart: number;
   /** Who holds the weather gauge: her, the other, or neither. */
   gauge: 'mine' | 'theirs' | undefined;
 }
@@ -44,6 +46,11 @@ export interface Weighing {
   margin: number;
   /** The weather gauge: holding it, she can choose her moment to run down on the other; how much it adds to boarding. */
   gauge: number;
+  /**
+   * Boarding is for close quarters: her wish to board fades out beyond `tiles` (soft by `soft` tiles). Further off she
+   * stalks, working in toward the other's bow or stern, rather than run straight in from over the horizon.
+   */
+  close: { tiles: number; soft: number };
   /** How much she wants to stalk (keep off the other's bow or stern and rake her): her course when nothing else calls. */
   stalk: number;
 }
@@ -59,7 +66,8 @@ export function weigh(s: Situation, t: Temperament, w: Weighing, last?: Intent):
   // A ship falling apart doesn't board: the more she wants to run, the less she wants to close.
   const board =
     any(below(s.theirSails, t.boardBelowSails, w.soft.sails), above(s.menRatio, t.boardCrewRatio, w.soft.ratio), t.seizeOpenings && s.opening ? 1 : 0, s.gauge === 'mine' ? w.gauge : 0) *
-    (1 - flee);
+    (1 - flee) *
+    below(s.apart, w.close.tiles, w.close.soft);
   const wants: Record<Intent, number> = { board, stalk: w.stalk, flee };
   const order: Intent[] = ['flee', 'board', 'stalk'];
   let best = order.reduce((a, b) => (wants[b] > wants[a] ? b : a));

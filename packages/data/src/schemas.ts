@@ -443,6 +443,7 @@ export const combatSchema = z.object({
       soft: z.object({ share: z.number().positive(), sails: z.number().positive(), ratio: z.number().positive() }),
       margin: z.number().min(0),
       gauge: z.number().min(0).max(1),
+      close: z.object({ tiles: z.number().positive(), soft: z.number().positive() }),
       stalk: z.number().min(0).max(1),
     }),
     temperaments: z.record(

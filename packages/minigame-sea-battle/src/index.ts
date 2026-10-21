@@ -517,6 +517,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         menRatio: me.crew / Math.max(1, them.crew),
         theirSails: them.sailCondition,
         opening: d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload,
+        apart: d,
         gauge: gauge === undefined ? undefined : gauge === side ? 'mine' : 'theirs',
       },
       t,

@@ -1098,15 +1098,18 @@ test('a fight shakes the camera at each broadside and dips the sea under the gun
   // A key starts the sound (half sail, which changes nothing that matters here).
   await page.keyboard.press('s');
   await page.waitForFunction(() => window.__corsair.audio.levels().state === 'running');
-  // Her first broadside: the next frame shakes the camera.
-  await page.evaluate(() => {
-    for (let i = 0; i < 30 * 120; i++) {
-      if (window.__corsair.battle.result() || window.__corsair.battle.state()!.effects.some((e) => e.kind === 'smoke')) return;
-      window.__corsair.battle.step(1);
-    }
-  });
-  await frames(page, 1);
-  expect(await page.evaluate(() => window.__corsair.battle.shaking())).toBeGreaterThan(0);
+  // The first broadside shakes the camera. A few ticks at a time with a frame between, as in play: a long burst of
+  // ticks would make the next frame's step so long that a light shake is gone within it.
+  await expect
+    .poll(
+      async () => {
+        await page.evaluate(() => window.__corsair.battle.step(5));
+        await frames(page, 1);
+        return page.evaluate(() => window.__corsair.battle.shaking());
+      },
+      { timeout: 60_000, intervals: [0] },
+    )
+    .toBeGreaterThan(0);
   // A broadside dips the sea's bed under it, and the bed comes back.
   await page.evaluate(() => window.__corsair.audio.battle.broadside(8, 0, 1));
   await page.waitForFunction(() => window.__corsair.audio.levels().duck < 0.5, undefined, { timeout: 2_000 });

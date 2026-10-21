@@ -7,7 +7,7 @@ const w = content.combat.tactics.utility;
 const bold = content.combat.tactics.temperaments.bold!;
 const steadfast = content.combat.tactics.temperaments.steadfast!;
 /** A fair fight just begun: both whole, crews even, no opening, no gauge. */
-const fair: Situation = { hull: 1, crew: 1, menRatio: 1, theirSails: 100, opening: false, gauge: undefined };
+const fair: Situation = { hull: 1, crew: 1, menRatio: 1, theirSails: 100, opening: false, apart: 4, gauge: undefined };
 
 describe("a boarding captain's mind", () => {
   it('with nothing calling, she stalks', () => {
@@ -33,6 +33,13 @@ describe("a boarding captain's mind", () => {
     const mind = weigh({ ...fair, hull: bold.fleeBelowHull - 0.1, opening: true }, bold, w);
     expect(mind.intent).toBe('flee');
     expect(mind.wants.board).toBeLessThan(0.1);
+  });
+
+  it('boards only at close quarters: from over the horizon she stalks in, however many more men she has', () => {
+    const strong = { ...fair, menRatio: 3, theirSails: 10 };
+    expect(weigh({ ...strong, apart: 24 }, bold, w).intent).toBe('stalk');
+    expect(weigh({ ...strong, apart: w.close.tiles + 2 }, bold, w).intent).toBe('stalk');
+    expect(weigh({ ...strong, apart: w.close.tiles - 2 }, bold, w).intent).toBe('board');
   });
 
   it('a captain who never runs never runs', () => {
