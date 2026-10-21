@@ -513,7 +513,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const mind = weigh(
       {
         hull: me.hull / me.hullMax,
-        crew: me.crew / me.crewStart,
+        crew: me.crew / Math.max(1, me.crewStart),
         menRatio: me.crew / Math.max(1, them.crew),
         firepower: (me.guns * me.hull) / Math.max(1, them.guns * them.hull),
         theirSails: them.sailCondition,

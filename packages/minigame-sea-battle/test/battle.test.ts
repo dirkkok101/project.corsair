@@ -39,6 +39,14 @@ describe('a fair start', () => {
 });
 
 describe('sea battle', () => {
+  it('a pirate that comes into the fight with no men still weighs her choices (no 0/0 sends her running)', () => {
+    const battle = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.5), enemy: ship('ship.sloop', 'pirate', 0), seed: 1, bearingDeg: 90 });
+    battle.step(30);
+    const mind = battle.state.minds?.enemy;
+    expect(mind).toBeDefined();
+    for (const want of Object.values(mind!.wants)) expect(Number.isFinite(want)).toBe(true);
+  });
+
   it('always ends, and replays exactly from its seed', () => {
     const a = fight(ship('ship.sloop', 'pirate', 0.8), 4);
     expect(a.result()).toBeDefined();

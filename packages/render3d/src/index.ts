@@ -23,7 +23,7 @@ import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
 import type { BuiltShip, FlagDesign, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
-import { createShake } from './shake';
+import { createShake, drawShaken } from './shake';
 import { createStorm } from './storm';
 import type { SprayShip } from './storm';
 import type { BattleHull } from './battle';
@@ -648,13 +648,7 @@ export async function createSeaRenderer(
     sky.update(camera.position, zenith, skyLine, sunDir, light.sun);
     towns.update(t);
     // A blow in a fight shakes the frame drawn, and only that: the labels, the framing and picks see the camera still.
-    const turn = shake.update(dt);
-    const still = camera.quaternion.clone();
-    camera.rotateY(turn.yaw);
-    camera.rotateX(turn.pitch);
-    camera.rotateZ(turn.roll);
-    composer.render(dt);
-    camera.quaternion.copy(still);
+    drawShaken(camera, shake.update(dt), () => composer.render(dt));
   };
 
   // Heavy weather's rain, lightning and spray (storm.ts); the bows throwing spray this frame.
