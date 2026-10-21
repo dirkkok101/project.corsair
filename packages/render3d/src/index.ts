@@ -20,7 +20,7 @@ import { CLOUD_SPEED, createOcean } from './sea/ocean';
 import { HAZE_AROUND, installHaze } from './haze';
 import type { SeaState, WakeShip } from './sea/ocean';
 import { RIGS } from './rigs';
-import { buildShip, flagTexture, makeFlag, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
+import { buildShip, flagTexture, makeFlag, prepareKits, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
 import type { BuiltShip, FlagDesign, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import { createShake, drawShaken } from './shake';
@@ -231,6 +231,7 @@ export async function createSeaRenderer(
     sound?: WildlifeSound;
   },
 ): Promise<SeaRenderer> {
+  prepareKits(Object.values(RIGS));
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(2, devicePixelRatio));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

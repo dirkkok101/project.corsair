@@ -1503,6 +1503,14 @@ function kitFor(plan: ShipPlan): ClassKit {
   return kit;
 }
 
+/**
+ * Builds every class's kit now (each takes tens of milliseconds, mostly its normal maps): done while the game loads,
+ * the first sight of a new class at sea doesn't stall a frame.
+ */
+export function prepareKits(plans: ShipPlan[]) {
+  for (const plan of plans) kitFor(plan);
+}
+
 export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): BuiltShip {
   const kit = kitFor(plan);
   const root = new THREE.Group();
