@@ -6,7 +6,7 @@ import { shipKind } from './ui-art';
 // Under every AI ship near the player, on a short line from her: her nation as a tag, her name, and what she is
 // ("fluyt, merchant"), so who she is and whether she is worth a chase read at a glance; the prizes she tows as a
 // count. DOM over the 3D view, placed where the 3D camera shows each ship; hidden in port and in battle.
-const NEAR_TILES = 14;
+export const NEAR_TILES = 14;
 const BELOW_PX = 18;
 
 export function createShipLabels(parent: HTMLElement) {

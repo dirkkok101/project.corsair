@@ -37,7 +37,7 @@ import { letterMeans, MomentView } from './ui/moment';
 import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf } from './ui/kit';
-import { createShipLabels } from './shiplabels';
+import { createShipLabels, NEAR_TILES } from './shiplabels';
 import { bindMouse } from './mouse';
 import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
@@ -347,8 +347,10 @@ async function main() {
           // ?sea=plain (then layers by name) for review: what's drawn on the 3D sea.
           sea: new URLSearchParams(location.search).get('sea')?.split(',') ?? undefined,
           sound: (id, opts) => audio.playSfx(id, opts),
-          // A ship in sight from astern: what she is, as Sail ho! calls her ("Pirate sloop"; a famous pirate by name).
-          shipLabel: (s) => (s.ai?.famous ? `${s.ai.name}, ${shipKind(s.classId)}` : shipTitle(s).replace(/^./, (c) => c.toUpperCase())),
+          // A ship in sight further off than her card (shiplabels.ts, near the player): what she is, as Sail ho! calls
+          // her ("Pirate sloop"; a famous pirate by name).
+          shipLabel: (s, me) =>
+            Math.hypot(s.x - me.x, s.y - me.y) <= NEAR_TILES ? undefined : s.ai?.famous ? `${s.ai.name}, ${shipKind(s.classId)}` : shipTitle(s).replace(/^./, (c) => c.toUpperCase()),
           townLine: (s, state) => {
             // "Prosperous English Capital": the town's trend, nation and kind, and anything ailing it.
             const t = townOf(content, state, s);

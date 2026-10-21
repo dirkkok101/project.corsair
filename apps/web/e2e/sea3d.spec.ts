@@ -31,7 +31,8 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
   await frames(page, 10);
   await page.screenshot({ path: 'test-results/sea3d-far.png' });
   for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -300);
-  // A merchant a little way ahead: from astern she carries a label saying what she is.
+  // A merchant some way ahead (past the cards under the ships nearest her): she carries a label saying what she is,
+  // from astern and overhead.
   await page.evaluate(() => {
     const c = window.__corsair;
     c.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
@@ -40,7 +41,7 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
     const id = Object.keys(ships).filter((k) => k.startsWith('ai.')).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
     const me = c.state.get('ships.player') as { x: number; y: number; headingDeg: number };
     const r = (me.headingDeg * Math.PI) / 180;
-    c.cmd.send({ type: 'Teleport', shipId: id, x: me.x + Math.sin(r) * 15, y: me.y - Math.cos(r) * 15 });
+    c.cmd.send({ type: 'Teleport', shipId: id, x: me.x + Math.sin(r) * 20, y: me.y - Math.cos(r) * 20 });
     c.sim.step(1);
   });
   const labels = () => page.evaluate(() => (window as unknown as { __corsair3d: { shipLabels: string[] } }).__corsair3d.shipLabels);
@@ -48,10 +49,11 @@ test('the 3D sea map: draws at sea, zooms, looks from astern, and gives way to t
   // New to the sea, she rises into view over a couple of seconds; her label comes once she is half up.
   await expect.poll(labels, { timeout: 10_000 }).toContainEqual(expect.stringMatching(/^(English|Spanish|French|Dutch) /));
   await page.screenshot({ path: 'test-results/sea3d-astern.png' });
-  // Overhead again, the labels go.
+  // Overhead again, she keeps it.
   await page.keyboard.press('c');
-  await frames(page, 60);
-  expect(await labels()).toEqual([]);
+  await frames(page, 10);
+  expect(await labels()).toContainEqual(expect.stringMatching(/^(English|Spanish|French|Dutch) /));
+  await page.screenshot({ path: 'test-results/sea3d-labels-overhead.png' });
   expect(errors).toEqual([]);
 });
 

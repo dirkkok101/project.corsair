@@ -194,7 +194,7 @@ export interface SeaRenderer {
   setShake(scale: number): void;
   /** Debug: how much the battle camera is shaking now (trauma, 0..1). */
   readonly shaking: number;
-  /** Debug: the ship labels showing now (from astern), by what they say. */
+  /** Debug: the ship labels showing now, by what they say. */
   readonly shipLabels: string[];
   /** Shifts the sky to an hour of the day (for reviewing sunrise, sunset and night); the game's clock is untouched. */
   setSkyHour(hour: number): void;
@@ -226,8 +226,8 @@ export async function createSeaRenderer(
     seaWindAt?: (state: WorldState, x: number, y: number) => Wind;
     /** A town's line under its name ("Prosperous English Capital"), from the game's state. */
     townLine?: (s: PlacedSettlement, state: WorldState) => string;
-    /** What a ship in sight is ("Pirate sloop"), shown over her from astern; omit for no labels. */
-    shipLabel?: (s: Ship) => string;
+    /** What a ship in sight is ("Pirate sloop"), shown over her (none where it returns undefined); omit for no labels. */
+    shipLabel?: (s: Ship, player: Ship) => string | undefined;
     /**
      * For review, what to draw on the sea (`?sea=`): "plain" alone is the bare water; add layers by name to
      * bring them back (flecks, shadows, ripples, surf, swell, clouds, wakes). Unset, everything.
@@ -295,7 +295,7 @@ export async function createSeaRenderer(
   });
   let bannersAt = -Infinity;
   scene.add(towns.object);
-  // From astern, each ship in sight carries a label saying what she is (her flag and "Pirate sloop"), over her masts.
+  // Each ship in sight carries a label saying what she is (her flag and "Pirate sloop"), over her masts.
   const shipLabels = new Map<string, { banner: Banner; text: string; x: number; y: number; inRange: boolean; shown: number }>();
   const labelLayer = new THREE.Group();
   scene.add(labelLayer);
@@ -874,8 +874,8 @@ export async function createSeaRenderer(
       // ship's masts stand about as high as she is long).
       m.root.position.y -= (1 - shown) * len * 1.3;
       if (shown < 0.5) continue;
-      if (chase && options.shipLabel && s.id !== options.playerId) {
-        const text = options.shipLabel(s);
+      const text = s.id !== options.playerId ? options.shipLabel?.(s, me) : undefined;
+      if (text !== undefined) {
         let l = shipLabels.get(s.id);
         if (l && l.text !== text) {
           labelLayer.remove(l.banner.sprite);
@@ -897,7 +897,7 @@ export async function createSeaRenderer(
       wakes.add(s.id);
       if (Math.hypot(s.x - me.x, s.y - me.y) < 30 + distance * 0.6) sprayShips.push(bowOf(s.id, m.root, s.headingDeg, len, Math.min(1, pace * 1.4), dt));
     }
-    // Labels only from astern, on ships drawn this frame; a ship gone from the sea takes hers with her.
+    // Labels only on ships drawn this frame; a ship gone from the sea takes hers with her.
     for (const [id, l] of shipLabels) {
       l.inRange = labelled.has(id);
       if (seen.has(id)) continue;
