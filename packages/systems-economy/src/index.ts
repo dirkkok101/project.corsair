@@ -1018,9 +1018,14 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           if (!enemiesOf(content, state, nation).some((n) => n !== 'pirate')) return refuse(state, ship, 'at-peace');
           if (price === undefined) return refuse(state, ship, 'unwelcome');
           if (state.captain.gold < price) return refuse(state, ship, 'not-enough-gold');
+          const captain = { ...state.captain, gold: state.captain.gold - price, marques: [...(state.captain.marques ?? []), nation] };
+          // Merit he earned with this nation before he held its letter counts now: he may take it up above its first rung.
+          const rank = rankOf(content, captain, nation);
+          const promoted =
+            rank > 0 ? [{ type: 'Promoted', entityIds: [ship.id, s.id], payload: { nation, rank: content.politics.ranks.ladder[rank]!.name, acres: landOf(content, captain, nation) } }] : [];
           return {
-            state: { ...state, captain: { ...state.captain, gold: state.captain.gold - price, marques: [...(state.captain.marques ?? []), nation] } },
-            events: [{ type: 'MarqueBought', entityIds: [ship.id, s.id], payload: { nation, gold: price } }],
+            state: { ...state, captain },
+            events: [{ type: 'MarqueBought', entityIds: [ship.id, s.id], payload: { nation, gold: price } }, ...promoted],
           };
         }
         const { pay, kept, total } = bountiesOwed(content, state, nation);

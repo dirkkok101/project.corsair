@@ -863,6 +863,26 @@ describe('the governor', () => {
     expect(gold - gov.state.captain!.gold).toBe(Math.round(10 * content.combat.port.recruitGold * content.politics.ranks.perks.recruit!.value!));
   });
 
+  it('merit banked before the letter makes him that rank when he buys it, and says so', () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const ladder = content.politics.ranks.ladder;
+    const major = ladder.findIndex((l) => l.id === 'major');
+    // A famous pirate handed in without the letter: the merit counts, but makes no rank till he holds it.
+    const s = atWarWithSpain({ ...sim.state, captain: { ...sim.state.captain!, gold: 100000, merit: { england: ladder[major]!.merit } } });
+    const gov = createSim(s, [createEconomySystem(content, settlements)]);
+    gov.send({ type: 'BuyMarque', shipId: 'player' });
+    gov.applyCommands();
+    expect(rankOf(content, gov.state.captain, 'england')).toBe(major);
+    expect(gov.events().find((e) => e.type === 'Promoted')!.payload).toMatchObject({ nation: 'england', rank: ladder[major]!.name });
+    // A plain letter, no merit behind it: no promotion to announce.
+    const plain = createSim(atWarWithSpain({ ...sim.state, captain: { ...sim.state.captain!, gold: 100000 } }), [createEconomySystem(content, settlements)]);
+    plain.send({ type: 'BuyMarque', shipId: 'player' });
+    plain.applyCommands();
+    expect(plain.events().some((e) => e.type === 'Promoted')).toBe(false);
+  });
+
   it('a colonel trades better, a title brings land that pays rent each month', () => {
     const ladder = content.politics.ranks.ladder;
     const colonel = ladder.findIndex((l) => l.id === 'colonel');
