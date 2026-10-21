@@ -23,6 +23,7 @@ import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
 import type { BuiltShip, FlagDesign, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
+import { createShake } from './shake';
 import { createStorm } from './storm';
 import type { SprayShip } from './storm';
 import type { BattleHull } from './battle';
@@ -115,6 +116,12 @@ const BATTLE_VIEW = { min: 6, max: 90 };
  */
 const BATTLE_FIT = 0.68;
 /**
+ * How hard each thing in a fight shakes the camera (shake.ts trauma, 0..1; the camera turns by its square): her own
+ * broadside a kick, a ball through her side a jolt, a mast by the board or a magazine going up a blow. The same blow
+ * to the enemy shakes less: the camera stands with the player. Her broadside is fainter the further off she fires.
+ */
+const SHAKE = { broadside: 0.4, theirBroadside: 0.3, hull: 0.45, rigging: 0.25, mast: 0.7, explosion: 0.9, enemyShare: 0.45 };
+/**
  * In battle ships are drawn at their true size (MODEL_SCALE without the map's enlargement) times the fight's own
  * scale (combat.json battle.shipScale), which the battle aims and strikes by too: big in the frame, a length or
  * two apart at a broadside, as in Pirates!.
@@ -181,6 +188,10 @@ export interface SeaRenderer {
   toggleChase(): void;
   /** Which way is up the screen (degrees clockwise from north): 0 overhead, her heading from astern. */
   viewDeg(): number;
+  /** The player's camera shake in battle: 1 the full shake, 0 none. */
+  setShake(scale: number): void;
+  /** Debug: how much the battle camera is shaking now (trauma, 0..1). */
+  readonly shaking: number;
   /** Shifts the sky to an hour of the day (for reviewing sunrise, sunset and night); the game's clock is untouched. */
   setSkyHour(hour: number): void;
   /**
@@ -636,12 +647,20 @@ export async function createSeaRenderer(
     // The sky's horizon in its own colour, paler than the far sea below it (the same, under a storm's mist).
     sky.update(camera.position, zenith, skyLine, sunDir, light.sun);
     towns.update(t);
+    // A blow in a fight shakes the frame drawn, and only that: the labels, the framing and picks see the camera still.
+    const turn = shake.update(dt);
+    const still = camera.quaternion.clone();
+    camera.rotateY(turn.yaw);
+    camera.rotateX(turn.pitch);
+    camera.rotateZ(turn.roll);
     composer.render(dt);
+    camera.quaternion.copy(still);
   };
 
   // Heavy weather's rain, lightning and spray (storm.ts); the bows throwing spray this frame.
   const storm = createStorm();
   scene.add(storm.object);
+  const shake = createShake();
   let sprayShips: SprayShip[] = [];
   /** Each ship's pitch last frame, for how fast her bow is dropping into a sea. */
   const lastPitch = new Map<string, number>();
@@ -935,6 +954,7 @@ export async function createSeaRenderer(
       reloadSpan.clear();
       battleView = 0;
       battleFit = 1;
+      shake.reset();
     }
     const wind = view.wind;
     const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
@@ -1017,6 +1037,7 @@ export async function createSeaRenderer(
       if (side === 'enemy' && view.wreck) {
         if (sinkingFrom === undefined) {
           sinkingFrom = t;
+          shake.add(SHAKE.explosion);
           fx.splash(t, s.x, s.y);
           ocean.splash(s.x, s.y, 1.8);
         }
@@ -1046,6 +1067,14 @@ export async function createSeaRenderer(
       if (e.at <= fallsSeen) continue;
       if (e.kind === 'splash') ocean.splash(e.x, e.y, 0.35);
       else if (e.kind === 'mast') ocean.splash(e.x, e.y, 1.1);
+      // And the blows shake the camera: the ship nearest the smoke fired (gun smoke carries no ship).
+      if (e.kind === 'smoke') {
+        const theirs = Math.hypot(e.x - player.x, e.y - player.y) >= Math.hypot(e.x - enemy.x, e.y - enemy.y);
+        shake.add(theirs ? SHAKE.theirBroadside / (1 + apart / 8) : SHAKE.broadside);
+      } else if (e.kind !== 'splash') {
+        const blow = e.kind === 'mast' ? SHAKE.mast : e.kind === 'hit' && e.place?.part === 'hull' ? SHAKE.hull : SHAKE.rigging;
+        shake.add(e.ship === 'player' ? blow : blow * SHAKE.enemyShare);
+      }
     }
     fallsSeen = Math.max(fallsSeen, ...view.effects.map((e) => e.at));
     for (const n of names) n.inRange = false;
@@ -1151,6 +1180,12 @@ export async function createSeaRenderer(
     },
     setSkyHour(hour) {
       skyWant = hour;
+    },
+    setShake(scale) {
+      shake.setScale(scale);
+    },
+    get shaking() {
+      return shake.trauma;
     },
   };
 }

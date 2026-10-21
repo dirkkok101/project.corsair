@@ -561,11 +561,13 @@ export interface BattleHudProps {
   board: { odds: number; active: boolean; repel: number };
   onPlunder: (choice: PlunderChoice) => void;
   onContinue: () => void;
+  /** The camera's shake at each broadside and blow: on, or off for a still view. */
+  shake: { on: boolean; toggle: () => void };
   /** F1's every-key help, open over the battle. */
   help?: { open: boolean; close: () => void };
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, help }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -774,6 +776,14 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
             onClick={() => you.setSails(you.sails === 'full' ? 'half' : 'full')}
           >
             <Art id={`ui.icon.${you.sails}_sail`} class="inline-icon" /> {you.sails === 'full' ? 'Full sail' : 'Half sail'}
+          </button>
+          <button
+            class={`k-btn small battle-shake${shake.on ? ' active' : ''}`}
+            aria-label="Camera shake"
+            title={shake.on ? 'The view shakes at each broadside and blow: click to keep it still' : 'The view keeps still: click to let it shake at each broadside and blow'}
+            onClick={shake.toggle}
+          >
+            {shake.on ? 'Shake' : 'Still'}
           </button>
           <span class="battle-help">
             <Key k="F1" /> keys

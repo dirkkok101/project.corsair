@@ -1077,6 +1077,51 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
   expect(errors).toEqual([]);
 });
 
+test('a fight shakes the camera at each broadside and dips the sea under the guns; the shake can be turned off', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'pirate', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: { role: string } }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai?.role === 'pirate').sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.sim.step(1500);
+    const s = (window.__corsair.state.get('ships') as typeof ships)[id]!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + 1.5, y: s.y });
+    window.__corsair.sim.step(1);
+  });
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => window.__corsair.sim.step(1));
+      return page.evaluate(() => window.__corsair.view());
+    })
+    .toBe('battle');
+  // A key starts the sound (half sail, which changes nothing that matters here).
+  await page.keyboard.press('s');
+  await page.waitForFunction(() => window.__corsair.audio.levels().state === 'running');
+  // Her first broadside: the next frame shakes the camera.
+  await page.evaluate(() => {
+    for (let i = 0; i < 30 * 120; i++) {
+      if (window.__corsair.battle.result() || window.__corsair.battle.state()!.effects.some((e) => e.kind === 'smoke')) return;
+      window.__corsair.battle.step(1);
+    }
+  });
+  await frames(page, 1);
+  expect(await page.evaluate(() => window.__corsair.battle.shaking())).toBeGreaterThan(0);
+  // A broadside dips the sea's bed under it, and the bed comes back.
+  await page.evaluate(() => window.__corsair.audio.battle.broadside(8, 0, 1));
+  await page.waitForFunction(() => window.__corsair.audio.levels().duck < 0.5, undefined, { timeout: 2_000 });
+  await page.waitForFunction(() => window.__corsair.audio.levels().duck > 0.95, undefined, { timeout: 5_000 });
+  // Still: the button turns it off, and the choice is kept.
+  const button = page.getByRole('button', { name: 'Camera shake' });
+  await expect(button).toHaveText('Shake');
+  await button.click();
+  await frames(page);
+  await expect(button).toHaveText('Still');
+  expect(await page.evaluate(() => localStorage.getItem('corsair.shake'))).toBe('off');
+  await page.screenshot({ path: 'test-results/battle-shake.png' });
+  expect(errors).toEqual([]);
+});
+
 test('the gentle wind: a HUD toggle puts it on her ship, and the choice is kept for the next career', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   const button = page.getByRole('button', { name: 'Gentle wind' });

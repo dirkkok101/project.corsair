@@ -66,6 +66,8 @@ declare global {
         state: () => import('@corsair/minigame-sea-battle').BattleState | undefined;
         step: (ticks?: number, autopilot?: 'runner' | 'cautious' | 'aggressive') => void;
         result: () => import('@corsair/core').BattleResult | undefined;
+        /** How much the battle camera is shaking now (trauma, 0..1). */
+        shaking: () => number;
       };
     };
   }

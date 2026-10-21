@@ -57,7 +57,8 @@ Sources and the full notes are in the research summary in the 3D planning conver
   - Long thin wakes.
   - Heeling and pitching with the sea.
 - **Camera:** looking down at about 45 to 55 degrees on the sea map and somewhat closer in battle, always north-up
-  unless the chase view is on.
+  unless the chase view is on. In battle it shakes briefly at each blow (our addition: Pirates! keeps it still),
+  turned rather than moved so it reads the same at any zoom, and the player can turn it off.
 - **Lettering:**
   - Region names written faintly across the sea in large serif type ("Straits"): take them from the 1987 map, for
     example the Caribbean Sea, Windward Passage, Old Bahama Strait, the Spanish Main, Florida Channel.

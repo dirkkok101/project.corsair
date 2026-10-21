@@ -41,6 +41,20 @@ const BATTLE_MIX = {
   cheer: 0.7,
   splash: 1.1,
 };
+/**
+ * Ducking: the sea, the wind and the band dip under a blow and come back, so the guns land on a quieter bed rather than
+ * a louder one. How far each dips (dB, at full gain: a distant blow, at its fainter gain, dips the bed less) and how
+ * long it holds there (seconds; a broadside holds through its ripple), then the time constants it dips and recovers by.
+ */
+const DUCK = {
+  broadside: { db: 8, holdS: 0.25 },
+  hull: { db: 5, holdS: 0.15 },
+  sail: { db: 3, holdS: 0.1 },
+  mast: { db: 8, holdS: 0.6 },
+  explosion: { db: 12, holdS: 1 },
+  attackS: 0.015,
+  releaseS: 0.15,
+};
 /** The master limiter: the loudest moments of a fight (both broadsides, hits and a mast at once) never clip. */
 const LIMIT = { thresholdDb: -8, kneeDb: 4, ratio: 20, attack: 0.002, release: 0.2 };
 const MUTE_KEY = 'corsair.muted';
@@ -64,11 +78,18 @@ export interface AudioLevels {
   samplesReady: boolean;
   /** The recorded effects loaded, by name (sfx.json groups). */
   sfx: string[];
+  /** The beds' level under the ducking now: 1 untouched, less while a blow has them dipped. */
+  duck: number;
 }
 
 export function createAudio(options: { samples?: SampleManifest; tunes?: TuneData[] } = {}) {
   let ctx: AudioContext | undefined;
   let master: GainNode | undefined;
+  /** The sea and wind beds and the band, together, so a blow can dip them (DUCK). */
+  let beds: GainNode | undefined;
+  /** How deep the beds are dipped (gain) and until when (context seconds), so overlapping blows only deepen it. */
+  let duckLevel = 1;
+  let duckEnd = 0;
   let meter: AnalyserNode | undefined;
   let musicMeter: AnalyserNode | undefined;
   let noise: AudioBuffer | undefined;
@@ -103,7 +124,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     } else {
       src.connect(filter);
     }
-    filter.connect(gain).connect(master!);
+    filter.connect(gain).connect(beds!);
     // Different offsets keep the layers from sharing one audible noise pattern.
     src.start(0, Math.random() * noise!.duration);
     return { gain, filter };
@@ -120,6 +141,8 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     limiter.attack.value = LIMIT.attack;
     limiter.release.value = LIMIT.release;
     master.connect(limiter).connect(ctx.destination);
+    beds = ctx.createGain();
+    beds.connect(master);
     meter = ctx.createAnalyser();
     meter.fftSize = 2048;
     master.connect(meter);
@@ -141,7 +164,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       rain: noiseLayer('highpass', 2600),
       luff: noiseLayer('bandpass', 340, 1.3),
     };
-    band = createBand(ctx, master, options.tunes ?? []);
+    band = createBand(ctx, beds, options.tunes ?? []);
     band.setVolume(music ? MUSIC : 0);
     musicMeter = ctx.createAnalyser();
     musicMeter.fftSize = 2048;
@@ -157,6 +180,20 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
   };
 
   const glide = (param: AudioParam, value: number, tc = GLIDE_S) => param.setTargetAtTime(value, ctx!.currentTime, tc);
+
+  /** Dips the beds by `db` (scaled by the blow's distance gain) for `holdS`, then lets them back up. */
+  const duck = (db: number, gain: number, holdS: number) => {
+    if (!ctx || !beds) return;
+    const now = ctx.currentTime;
+    const level = 10 ** (-(db * Math.min(1, gain)) / 20);
+    // A blow while still dipped only deepens it and holds it longer.
+    duckLevel = now < duckEnd ? Math.min(duckLevel, level) : level;
+    duckEnd = Math.max(duckEnd, now + holdS);
+    const g = beds.gain;
+    g.cancelScheduledValues(now);
+    g.setTargetAtTime(duckLevel, now, DUCK.attackS);
+    g.setTargetAtTime(1, duckEnd, DUCK.releaseS);
+  };
 
   /** A deep canvas "thwump" as the sails fill again after being in irons. */
   const thump = () => {
@@ -376,6 +413,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
           }
           t += recorded ? 0.07 + Math.random() * 0.09 : 0.03 + Math.random() * 0.04;
         }
+        duck(DUCK.broadside.db, gain, t - ctx.currentTime + DUCK.broadside.holdS);
       },
       /** A ball passing close by her: a rush of air as it goes over, `delayS` from now (its flight). */
       whistle(delayS: number, pan: number, gain: number) {
@@ -386,6 +424,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       hit(kind: 'hull' | 'sail' | 'grape', pan: number, gain: number) {
         if (ctx?.state !== 'running' || !noise) return;
         const now = ctx.currentTime;
+        duck(kind === 'hull' ? DUCK.hull.db : DUCK.sail.db, gain, kind === 'hull' ? DUCK.hull.holdS : DUCK.sail.holdS);
         if (kind === 'grape') {
           if (sfx?.has('musket')) sfx.play('musket', { gain: gain * BATTLE_MIX.grape, pan, rate: 0.9 + Math.random() * 0.25 });
           else strike(now, placed(now, pan, gain * 0.6), 'hull');
@@ -400,6 +439,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       /** A mast going by the board: timber cracking and the spar coming down. */
       mast(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
+        duck(DUCK.mast.db, gain, DUCK.mast.holdS);
         sfx?.play('mast_crack', { gain: gain * BATTLE_MIX.mast, pan, rate: 0.8 + Math.random() * 0.15, lowpass: 4000 });
       },
       /** Hulls grappled: the boarders' fight (blades and shouting) and a ragged volley of small arms. */
@@ -413,6 +453,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       /** She goes down: a deep explosion (her powder, or her back broken). */
       explosion(pan: number, gain: number) {
         if (ctx?.state !== 'running') return;
+        duck(DUCK.explosion.db, gain, DUCK.explosion.holdS);
         sfx?.play('explosion', { gain: gain * BATTLE_MIX.explosion, pan, rate: 0.7 + Math.random() * 0.15, lowpass: 3500 });
       },
       /** The fight won: her crew cheering. */
@@ -456,6 +497,7 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
         nowPlaying: band?.nowPlaying,
         samplesReady,
         sfx: sfx?.loaded() ?? [],
+        duck: beds?.gain.value ?? 1,
       };
     },
   };

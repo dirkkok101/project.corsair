@@ -1071,6 +1071,7 @@ async function main() {
       /** Step the battle (it also runs in real time); `autopilot` lets the player's side fight itself. */
       step: (ticks = 1, autopilot?: 'runner' | 'cautious' | 'aggressive') => fight?.battle.step(ticks, autopilot),
       result: () => fight?.battle.result(),
+      shaking: () => sea3d.shaking,
     },
   };
   const player = () => sim.state.ships[def.start.shipId]!;
@@ -1244,6 +1245,26 @@ async function main() {
     gentleWind = on;
     try {
       localStorage.setItem(GENTLE_KEY, on ? 'on' : 'off');
+    } catch {
+      // Not kept: it lasts the session.
+    }
+  };
+  // The battle camera's shake (render3d shake.ts), on unless the player turns it off: kept in this browser like the
+  // gentle wind.
+  const SHAKE_KEY = 'corsair.shake';
+  let shakeOn = (() => {
+    try {
+      return localStorage.getItem(SHAKE_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  })();
+  sea3d.setShake(shakeOn ? 1 : 0);
+  const setShake = (on: boolean) => {
+    shakeOn = on;
+    sea3d.setShake(on ? 1 : 0);
+    try {
+      localStorage.setItem(SHAKE_KEY, on ? 'on' : 'off');
     } catch {
       // Not kept: it lasts the session.
     }
@@ -1444,6 +1465,7 @@ async function main() {
             chooseShot: (ammo) => fight?.battle.send({ type: 'SetAmmo', ammo }),
           }}
           onContinue={endBattle}
+          shake={{ on: shakeOn, toggle: () => setShake(!shakeOn) }}
           help={{ open: helpOpen, close: () => (helpOpen = false) }}
         />,
         battleRoot,
