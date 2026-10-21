@@ -381,6 +381,41 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       // A recorded peal when loaded, the synthesised roll until then.
       if (!sfx?.thunder(delayS)) thunder(delayS);
     },
+    /**
+     * An honour (a promotion): a seal pressed down, a low thump, then a bright chord rung out over it, note by note.
+     * Synthesised.
+     */
+    honour() {
+      if (ctx?.state !== 'running') return;
+      const t = ctx.currentTime + 0.01;
+      const out = placed(t, 0, 0.5);
+      const thump = ctx.createOscillator();
+      thump.frequency.setValueAtTime(140, t);
+      thump.frequency.exponentialRampToValueAtTime(45, t + 0.25);
+      const tg = ctx.createGain();
+      tg.gain.setValueAtTime(0.0001, t);
+      tg.gain.exponentialRampToValueAtTime(0.8, t + 0.006);
+      tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      thump.connect(tg).connect(out);
+      thump.start(t);
+      thump.stop(t + 0.45);
+      // D major, up to the octave: a bell's sine and its bright second partial, each ringing a long while.
+      for (const [i, hz] of [587.33, 739.99, 880, 1174.66].entries()) {
+        const at = t + 0.14 + i * 0.07;
+        for (const [mult, level] of [[1, 0.16], [2.76, 0.05]] as const) {
+          const o = ctx.createOscillator();
+          o.frequency.value = hz * mult;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(level, at + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + (mult === 1 ? 2.2 : 0.8));
+          o.connect(g).connect(out);
+          o.start(at);
+          o.stop(at + 2.3);
+        }
+      }
+      duck(4, 1, 1.5);
+    },
     get music() {
       return music;
     },

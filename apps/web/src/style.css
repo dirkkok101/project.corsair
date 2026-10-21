@@ -2596,6 +2596,283 @@ body {
   color: var(--k-gold);
 }
 
+/*
+ * The promotion moment as a ceremony (ui/moment.tsx Promotion): each piece rests at its final look and plays in from
+ * its `--at` delay, so with reduced motion it simply stands there complete.
+ */
+.moment-promotion {
+  gap: 22px;
+  overflow-y: auto;
+}
+
+.moment-promotion .rise {
+  animation: promo-rise 0.45s ease-out var(--at, 0s) both;
+}
+
+.moment-promotion .pop {
+  animation: promo-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) var(--at, 0s) both;
+}
+
+.promo-title {
+  animation: promo-title 0.55s ease-out both;
+}
+
+.promo-ladder {
+  position: relative;
+  width: min(1000px, 94vw);
+}
+
+.promo-ladder ol {
+  display: grid;
+  grid-template-columns: repeat(var(--rungs), minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The line between the first and last rungs' centres, gold as far as he has risen. */
+.promo-track {
+  position: absolute;
+  top: 21px;
+  right: calc(50% / var(--rungs));
+  left: calc(50% / var(--rungs));
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(201 185 147 / 0.25);
+}
+
+.promo-fill {
+  width: var(--to);
+  height: 100%;
+  border-radius: 2px;
+  background: var(--k-gold);
+  animation: promo-fill var(--climb) linear 0.55s both;
+}
+
+.promo-rung {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.promo-mark {
+  width: 26px;
+  height: 26px;
+  margin-top: 10px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--k-brass);
+  border: 2px solid var(--k-gold);
+}
+
+.promo-name {
+  font-size: 14px;
+  color: var(--k-cream-dim);
+}
+
+.promo-rung.ahead .promo-mark {
+  background: #1d1410;
+  border-color: rgb(201 185 147 / 0.45);
+}
+
+.promo-rung.passed .promo-mark {
+  animation: promo-light 0.25s ease-out var(--at) both;
+}
+
+.promo-rung.new .promo-mark {
+  width: 46px;
+  height: 46px;
+  margin-top: 0;
+  background: radial-gradient(circle at 40% 35%, #f6dc9a, var(--k-gold) 60%, var(--k-brass));
+  border: 3px solid #f2d58f;
+  box-shadow:
+    0 0 0 4px rgb(232 193 112 / 0.25),
+    0 0 28px 6px rgb(232 193 112 / 0.55);
+  animation: promo-stamp 0.42s cubic-bezier(0.3, 1.5, 0.5, 1) var(--at) both;
+}
+
+.promo-rung.new .promo-name {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--k-good);
+  animation: promo-rise 0.3s ease-out var(--at) both;
+}
+
+.promo-card {
+  width: min(820px, 94vw);
+}
+
+.promo-card .k-speech-body {
+  flex: 1;
+}
+
+.promo-perks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+
+.promo-perk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgb(232 193 112 / 0.45);
+  border-radius: 6px;
+  background: rgb(241 230 204 / 0.06);
+}
+
+.promo-perk img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+.promo-perk span {
+  font: 22px/1.05 var(--k-display);
+  color: var(--k-good);
+}
+
+.promo-deed {
+  position: relative;
+  margin: 6px 0;
+  padding: 12px 18px 14px;
+  transform: rotate(-0.6deg);
+}
+
+.promo-deed-head {
+  font: italic 16px var(--k-voice);
+  color: #6b5233;
+}
+
+.promo-acres {
+  font: 28px var(--k-display);
+}
+
+.promo-acres b {
+  font-size: 52px;
+  font-weight: normal;
+  line-height: 1;
+}
+
+.promo-deed-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  font-size: 15px;
+}
+
+.promo-seal {
+  position: absolute;
+  top: -16px;
+  right: 18px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #c2453a, #7d1f18 70%);
+  box-shadow: 0 3px 6px rgb(0 0 0 / 0.35);
+  animation: promo-stamp 0.4s cubic-bezier(0.3, 1.5, 0.5, 1) var(--at) both;
+}
+
+.promo-next {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--k-cream-dim);
+}
+
+.promo-next b {
+  color: var(--k-cream);
+}
+
+.promo-next-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.promo-next-line span:last-child {
+  white-space: nowrap;
+}
+
+.promo-bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgb(201 185 147 / 0.2);
+}
+
+.promo-bar div {
+  width: var(--to);
+  height: 100%;
+  background: var(--k-brass);
+  animation: promo-bar 0.8s ease-out var(--at) both;
+}
+
+@keyframes promo-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes promo-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes promo-title {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes promo-fill {
+  from {
+    width: var(--from);
+  }
+}
+
+@keyframes promo-light {
+  from {
+    background: #1d1410;
+    border-color: rgb(201 185 147 / 0.45);
+  }
+}
+
+@keyframes promo-stamp {
+  from {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes promo-bar {
+  from {
+    width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moment-promotion,
+  .moment-promotion * {
+    animation: none !important;
+  }
+}
+
 .moment-map {
   flex-direction: row;
   gap: 56px;

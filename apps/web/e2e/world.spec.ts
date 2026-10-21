@@ -691,6 +691,48 @@ test('moments: war comes as a letter in port, and a famous pirate seen the first
   expect(errors).toEqual([]);
 });
 
+test('promotion: merit banked before the letter makes him Major when he buys it, as a ceremony', async ({ page }) => {
+  await boot(page, '/?seed=3', { inPort: true });
+  // A career with a famous pirate's worth of merit with England already, and no letter yet.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const save = window.__corsair.snapshot.save();
+        save.state = { ...save.state, captain: { ...save.state.captain!, merit: { england: 15 }, gold: 100000, marques: [] } };
+        const req = indexedDB.open('corsair', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('saves');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('saves', 'readwrite');
+          tx.objectStore('saves').put(save, 'career');
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.goto('/?pace=1&turn=1');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.waitForFunction(() => Boolean(window.__corsair));
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.evaluate(() => {
+    window.__corsair.sim.pause();
+    window.__corsair.cmd.send({ type: 'BuyMarque', shipId: 'player' });
+    window.__corsair.sim.step(1);
+  });
+  const moment = page.locator('.moment-promotion');
+  await expect(moment.locator('.moment-title')).toHaveText('Major');
+  // The ladder: the letter and Captain passed on the way, Major his, the rest ahead.
+  await expect(moment.locator('.promo-rung.passed')).toHaveCount(2);
+  await expect(moment.locator('.promo-rung.new')).toHaveText('Major');
+  await expect(moment.locator('.promo-perk')).toHaveCount(2);
+  await expect(moment.locator('.promo-perk').first()).toContainText('Repairs 20% cheaper');
+  await expect(moment.locator('.promo-next')).toContainText('Next: Colonel');
+  await page.screenshot({ path: 'test-results/moment-promotion.png' });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.moment')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('news: a shock is talked about in the tavern, then shows on the chart', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // News is known at once where it happens, so a shock in the port we're at needs no waiting.

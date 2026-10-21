@@ -1859,6 +1859,7 @@ async function main() {
             portRequest = { service: 'governor' };
             closeMoment();
           }}
+          honour={() => audio.honour()}
         />
       ) : null,
       momentRoot,

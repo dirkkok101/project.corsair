@@ -1042,7 +1042,13 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const now = rankOf(content, { ...state.captain, merit }, nation);
         const promoted =
           now > was && was >= 0
-            ? [{ type: 'Promoted', entityIds: [ship.id, s.id], payload: { nation, rank: content.politics.ranks.ladder[now]!.name, acres: landOf(content, { ...state.captain, merit }, nation) } }]
+            ? [
+                {
+                  type: 'Promoted',
+                  entityIds: [ship.id, s.id],
+                  payload: { nation, rank: content.politics.ranks.ladder[now]!.name, from: content.politics.ranks.ladder[was]!.name, acres: landOf(content, { ...state.captain, merit }, nation) },
+                },
+              ]
             : [];
         let famous = state.famous;
         for (const d of captives) {

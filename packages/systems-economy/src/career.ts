@@ -104,7 +104,7 @@ export function careerScore(content: ContentPack, state: WorldState): CareerScor
 }
 
 /** What a rung brings at its nation's ports, in words (a rung with nothing new brings nothing). */
-export function rungBrings(content: ContentPack, rung: number): string[] {
+export function rungBrings(content: ContentPack, rung: number, land = true): string[] {
   const r = content.politics.ranks;
   const id = r.ladder[rung]?.id;
   const off = (v?: number) => Math.round((1 - (v ?? 1)) * 100);
@@ -119,6 +119,6 @@ export function rungBrings(content: ContentPack, rung: number): string[] {
     if (perk === 'upgrade') words.push(`upgrades ${off(p.value)}% cheaper`);
   }
   const acres = r.ladder[rung]?.acres;
-  if (acres) words.push(`a title and ${acres} acres of land paying ${Math.round(acres * r.rentPerAcre)} gold a month`);
+  if (acres && land) words.push(`a title and ${acres} acres of land paying ${Math.round(acres * r.rentPerAcre)} gold a month`);
   return words;
 }

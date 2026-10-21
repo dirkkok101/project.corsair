@@ -2,7 +2,9 @@ import type { WorldState } from '@corsair/core';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { hoardRing, rungBrings } from '@corsair/systems-economy';
 import { topTen } from '@corsair/systems-traffic';
+import { useEffect } from 'preact/hooks';
 import { Parchment, quartersHeld, waterNear } from '../log';
+import { ART } from '../ui-art';
 import { Bust, curly, Key } from './kit';
 
 // Moments (storyboard 2.13): short full-screen beats that reward and then get out of the way, one at a time from a
@@ -11,8 +13,8 @@ import { Bust, curly, Key } from './kit';
 export type Moment =
   /** News that matters (war, peace): a dated letter, its headline and what it means for you. */
   | { kind: 'letter'; newsId: string; at: string; date: string; headline: string; text: string; means: string; governor?: boolean }
-  /** A governor's commission: the new rank, what it brings, and the next. */
-  | { kind: 'promotion'; nation: string; rank: string; acres: number; town: string }
+  /** A governor's commission: the new rank (risen from `from`; none when his letter came with it), what it brings, and the next. */
+  | { kind: 'promotion'; nation: string; rank: string; from?: string; acres: number; town: string }
   /** A famous pirate seen for the first time. */
   | { kind: 'famous'; pirateId: string }
   /** A hoard dug up. */
@@ -48,10 +50,12 @@ export interface MomentProps {
   plot: (x: number, y: number) => void;
   /** Closes a letter and goes in to the port's governor. */
   toGovernor: () => void;
+  /** The sound of an honour (a promotion's seal coming down). */
+  honour: () => void;
 }
 
 /** The moment at the head of the queue, full screen. */
-export function MomentView({ moment, content, state, map, settlements, scene, close, plot, toGovernor }: MomentProps) {
+export function MomentView({ moment, content, state, map, settlements, scene, close, plot, toGovernor, honour }: MomentProps) {
   if (moment.kind === 'letter') {
     // The news's first sentence says who ("England and France are at war!"); the rest is the story.
     const [who, ...rest] = moment.text.split(/(?<=[!.])\s+/);
@@ -128,60 +132,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
     );
 
   if (moment.kind === 'promotion') {
-    const ladder = content.politics.ranks.ladder;
-    const rung = ladder.findIndex((r) => r.name === moment.rank);
-    const next = ladder[rung + 1];
-    const merit = state.captain?.merit?.[moment.nation as keyof NonNullable<NonNullable<WorldState['captain']>['merit']>] ?? 0;
-    const brings = rungBrings(content, rung);
-    const country = COUNTRY[moment.nation] ?? 'The Crown';
-    // The governor says what the rank opens to him, by the best thing it brings.
-    const perks = new Set(Object.entries(content.politics.ranks.perks).filter(([, p]) => p.rung === ladder[rung]?.id).map(([k]) => k));
-    const gives = perks.has('frigate')
-      ? `${country}'s yards will build you a frigate.`
-      : perks.has('repair')
-        ? `${country}'s yards are yours.`
-        : perks.has('upgrade')
-          ? `${country}'s shipwrights will fit you out at a friend's price.`
-          : perks.has('price')
-            ? `${country}'s merchants will deal fairly with you.`
-            : perks.has('recruit')
-              ? `Men will sooner sign on under an officer of ${country}.`
-              : ladder[rung]?.acres
-                ? `${country} rewards you with land.`
-                : `${country} does not forget those who serve her.`;
-    const now = brings.join(' · ');
-    return (
-      <div class="moment" style={paint(scene('moment.promotion'))}>
-        <div class="moment-head">
-          <div class="moment-kicker">By order of the Governor of {moment.town}</div>
-          <h2 class="moment-title">{moment.rank}</h2>
-          <div class="moment-sub">in the service of {COUNTRY[moment.nation] ?? moment.nation}</div>
-        </div>
-        <div class="k-wood moment-card">
-          <div class="k-speech">
-            <Bust id={`bust.governor.${moment.nation}`} label={`The governor of ${moment.town}`} />
-            <div class="k-speech-body">
-              <div class="k-say">
-                “{moment.rank}, then. {gives}”
-              </div>
-              <b class="moment-gold">Now, at {ADJECTIVE[moment.nation] ?? ''} ports</b>
-              <div>{now ? now[0]!.toUpperCase() + now.slice(1) : 'Your rank, and the respect it carries.'}</div>
-              {moment.acres ? <div>Your land: {moment.acres} acres, paying rent each month.</div> : null}
-              {next ? (
-                <div class="k-sub">
-                  Next: {next.name} at merit {next.merit} ({Math.max(0, next.merit - merit)} more){rungBrings(content, rung + 1).length ? `: ${rungBrings(content, rung + 1).join(', ')}` : ''}.
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div class="moment-actions end">
-            <button class="k-btn primary" onClick={close}>
-              Thank him <Key k="Enter" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <Promotion key={`${moment.nation}:${moment.rank}`} moment={moment} content={content} state={state} scene={scene} close={close} honour={honour} />;
   }
 
   if (moment.kind === 'famous') {
@@ -302,6 +253,169 @@ export function letterMeans(kind: 'war' | 'peace', a: string, b: string, marques
   return mine
     ? `Your ${ADJECTIVE[mine]} letter of marque no longer covers ${COUNTRY[other]}: taking her ships now is piracy.`
     : `Their ships are no longer lawful prizes for each other's privateers.`;
+}
+
+/** Each rank's perk by the icon its card shows. */
+const PERK_ICON: Record<string, string> = {
+  recruit: 'ui.icon.crew',
+  repair: 'ui.icon.hull',
+  bestFits: 'ui.icon.fit.bronze_cannon',
+  price: 'ui.icon.gold',
+  frigate: 'ui.icon.full_sail',
+  upgrade: 'ui.icon.fit.copper',
+};
+
+/**
+ * A promotion, as a ceremony (storyboard 2.13, docs/reference/game-ui.md "reveal moments are the reward"): the ladder
+ * fills from the rung he rose from to his new one, its seal comes down with the sound of it, then the governor speaks and
+ * what the rank brings comes up one by one: its perks, a title's grant of land, and how far to the next. Enter closes
+ * it at any point.
+ */
+function Promotion({
+  moment,
+  content,
+  state,
+  scene,
+  close,
+  honour,
+}: Pick<MomentProps, 'content' | 'state' | 'scene' | 'close' | 'honour'> & { moment: Extract<Moment, { kind: 'promotion' }> }) {
+  const ranks = content.politics.ranks;
+  const ladder = ranks.ladder;
+  const rung = ladder.findIndex((r) => r.name === moment.rank);
+  const from = moment.from ? ladder.findIndex((r) => r.name === moment.from) : -1;
+  const next = ladder[rung + 1];
+  const merit = state.captain?.merit?.[moment.nation as keyof NonNullable<NonNullable<WorldState['captain']>['merit']>] ?? 0;
+  const country = COUNTRY[moment.nation] ?? 'The Crown';
+  // rungBrings words each perk of the rung in the perks' own order: pair them with their ids for the icons.
+  const perkIds = Object.entries(ranks.perks)
+    .filter(([, p]) => p.rung === ladder[rung]?.id)
+    .map(([k]) => k);
+  const perks = rungBrings(content, rung, false).map((words, i) => ({ id: perkIds[i]!, words: words[0]!.toUpperCase() + words.slice(1) }));
+  const ids = new Set(perkIds);
+  // The governor says what the rank opens to him, by the best thing it brings.
+  const gives = ids.has('frigate')
+    ? `${country}'s yards will build you a frigate.`
+    : ids.has('repair')
+      ? `${country}'s yards are yours.`
+      : ids.has('upgrade')
+        ? `${country}'s shipwrights will fit you out at a friend's price.`
+        : ids.has('price')
+          ? `${country}'s merchants will deal fairly with you.`
+          : ids.has('recruit')
+            ? `Men will sooner sign on under an officer of ${country}.`
+            : ladder[rung]?.acres
+              ? `Rise, ${moment.rank}: ${country} rewards you with land.`
+              : `${country} does not forget those who serve her.`;
+  const line = ladder[rung]?.acres ? gives : `${moment.rank}, then. ${gives}`;
+
+  // The timeline, in seconds: the title, then the ladder filling a rung at a time, the seal, then what it brings.
+  const step = 0.32;
+  const climb = Math.max(1, rung - from);
+  const stamp = 0.55 + climb * step;
+  const card = stamp + 0.35;
+  const perksAt = card + 0.35;
+  const deedAt = perksAt + perks.length * 0.18;
+  const barAt = deedAt + (moment.acres ? 0.45 : 0.1);
+  const doneAt = barAt + 0.5;
+  useEffect(() => {
+    const t = setTimeout(honour, stamp * 1000);
+    return () => clearTimeout(t);
+  }, []);
+  const at = (s: number) => ({ '--at': `${s.toFixed(2)}s` });
+  // The fill runs between the first and last rungs' centres; each rung's share of it.
+  const share = (r: number) => `${((Math.max(0, r) / (ladder.length - 1)) * 100).toFixed(2)}%`;
+  const toNext = next ? Math.min(1, Math.max(0, (merit - ladder[rung]!.merit) / (next.merit - ladder[rung]!.merit))) : 1;
+
+  return (
+    <div class="moment moment-promotion" style={paint(scene('moment.promotion'))}>
+      <div class="moment-head rise" style={at(0)}>
+        <div class="moment-kicker">{ladder[rung]?.acres ? `By letters patent, read by the Governor of ${moment.town}` : `By order of the Governor of ${moment.town}`}</div>
+        <h2 class="moment-title promo-title">{moment.rank}</h2>
+        <div class="moment-sub">{ladder[rung]?.acres ? `a title, and land, from ${country}` : `in the service of ${country}`}</div>
+      </div>
+
+      <div class="promo-ladder" style={{ '--rungs': ladder.length }}>
+        <div class="promo-track" aria-hidden="true">
+          <div class="promo-fill" style={{ '--from': from < 0 ? '0%' : share(from), '--to': share(rung), '--climb': `${(climb * step).toFixed(2)}s` }} />
+        </div>
+        <ol aria-label={`Ranks with ${country}`}>
+          {ladder.map((r, i) => (
+            <li
+              key={r.id}
+              class={`promo-rung${i <= from ? ' held' : ''}${i > from && i < rung ? ' passed' : ''}${i === rung ? ' new' : ''}${i > rung ? ' ahead' : ''}`}
+              style={at(i === rung ? stamp : 0.55 + (i - from - 0.5) * step)}
+              aria-current={i === rung ? 'step' : undefined}
+            >
+              <span class="promo-mark" />
+              <span class="promo-name">{r.name}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div class="k-wood moment-card promo-card rise" style={at(card)}>
+        <div class="k-speech">
+          <Bust id={`bust.governor.${moment.nation}`} label={`The governor of ${moment.town}`} />
+          <div class="k-speech-body">
+            <div class="k-say">“{line}”</div>
+            {perks.length ? (
+              <>
+                <b class="moment-gold">Now yours, at {ADJECTIVE[moment.nation] ?? ''} ports</b>
+                <div class="promo-perks">
+                  {perks.map((p, i) => (
+                    <div key={p.id} class="promo-perk pop" style={at(perksAt + i * 0.18)}>
+                      {ART[PERK_ICON[p.id] ?? ''] ? <img src={ART[PERK_ICON[p.id]!]} alt="" draggable={false} /> : null}
+                      <span>{p.words}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+            {moment.acres ? (
+              <div class="k-paper promo-deed pop" style={at(deedAt)}>
+                <div class="promo-deed-head">Grant of land to the {moment.rank}</div>
+                <div class="promo-acres">
+                  <b>{moment.acres}</b> acres
+                </div>
+                <div class="promo-deed-terms">
+                  <span>
+                    <b>{Math.round(moment.acres * ranks.rentPerAcre)} gold a month</b> in rent
+                  </span>
+                  <span>
+                    <b>It grows with you:</b> {ranks.acresPerMerit} acres for every merit past {ladder.find((r) => r.acres)?.merit}
+                  </span>
+                </div>
+                <span class="promo-seal" style={at(deedAt + 0.3)} aria-hidden="true" />
+              </div>
+            ) : null}
+            {next ? (
+              <div class="promo-next rise" style={at(barAt)}>
+                <div class="promo-next-line">
+                  <span>
+                    <b>Next: {next.name}</b>
+                    {rungBrings(content, rung + 1).length ? ` · ${rungBrings(content, rung + 1).join(', ')}` : ''}
+                  </span>
+                  <span>{Math.max(0, next.merit - merit)} more merit</span>
+                </div>
+                <div class="promo-bar">
+                  <div style={{ ...at(barAt + 0.1), '--to': `${(toNext * 100).toFixed(1)}%` }} />
+                </div>
+              </div>
+            ) : (
+              <div class="promo-next rise" style={at(barAt)}>
+                <b>The highest rank {country} gives.</b>
+              </div>
+            )}
+          </div>
+        </div>
+        <div class="moment-actions end rise" style={at(doneAt)}>
+          <button class="k-btn primary" onClick={close}>
+            {ladder[rung]?.acres ? `Rise, ${moment.rank}` : 'Thank him'} <Key k="Enter" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** A moment's painting behind it, darkened enough for the words; a plain dark ground while it is unpainted. */

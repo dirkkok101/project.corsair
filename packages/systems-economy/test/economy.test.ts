@@ -851,7 +851,7 @@ describe('the governor', () => {
     gov.applyCommands();
     expect(gov.state.captain!.merit!.england).toBe(6);
     expect(rankOf(content, gov.state.captain, 'england')).toBe(1);
-    expect(gov.events().find((e) => e.type === 'Promoted')!.payload).toMatchObject({ nation: 'england', rank: ladder[1]!.name });
+    expect(gov.events().find((e) => e.type === 'Promoted')!.payload).toMatchObject({ nation: 'england', rank: ladder[1]!.name, from: ladder[0]!.name });
     // Without the letter, merit counts but makes no rank.
     expect(rankOf(content, { ...gov.state.captain!, marques: [] }, 'england')).toBe(-1);
     // A captain's men sign on cheaper at English ports, and nowhere else.
