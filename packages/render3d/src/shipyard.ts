@@ -558,30 +558,17 @@ function sailTexture(emblem: string): { map: THREE.CanvasTexture; normal: THREE.
   hg.lineWidth = 12;
   hg.strokeRect(6, 6, S - 12, S - 12);
   const k = S / 256;
+  // The emblem, painted on the canvas as her flag draws it (soaked into the cloth, a little short of solid).
   if (emblem === 'spain') {
-    // The ragged red cross of Burgundy.
-    g.strokeStyle = 'rgba(176,36,40,0.88)';
-    g.lineWidth = 16 * k;
-    g.beginPath();
-    g.moveTo(60 * k, 70 * k);
-    g.lineTo(196 * k, 216 * k);
-    g.moveTo(196 * k, 70 * k);
-    g.lineTo(60 * k, 216 * k);
-    g.stroke();
+    // The ragged red Cross of Burgundy.
+    g.fillStyle = 'rgba(167,30,42,0.88)';
+    raggedStaff(g, 62 * k, 66 * k, 194 * k, 214 * k, 18 * k, flagRandom('sail:spain'));
+    raggedStaff(g, 194 * k, 66 * k, 62 * k, 214 * k, 18 * k, flagRandom('sail:spain:2'));
   } else if (emblem === 'pirate') {
-    g.fillStyle = 'rgba(40,36,44,0.82)';
-    g.beginPath();
-    g.arc(128 * k, 128 * k, 30 * k, 0, Math.PI * 2);
-    g.fill();
-    g.fillRect(108 * k, 150 * k, 40 * k, 18 * k);
-    g.save();
-    g.translate(128 * k, 188 * k);
-    for (const a of [0.6, -0.6]) {
-      g.rotate(a);
-      g.fillRect(-56 * k, -6 * k, 112 * k, 12 * k);
-      g.rotate(-a);
-    }
-    g.restore();
+    // The skull and crossed bones, in tar.
+    g.fillStyle = 'rgba(32,30,34,0.86)';
+    crossbones(g, 128 * k, 168 * k, 120 * k, 12 * k);
+    skull(g, 128 * k, 104 * k, 74 * k, '#f1ead9');
   }
   const t = { map: finish(g.canvas, 4), normal: normalMap(hg, 2.2) };
   CLOTH.set(emblem, t);
@@ -1230,7 +1217,8 @@ function cloth(corners: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vect
 
 /** A flag that streams: its far edge waves, in a vertex shader. */
 function flagMaterial(texture: THREE.Texture): THREE.MeshStandardMaterial & { userData: { uniforms: { uTime: THREE.IUniform } } } {
-  const m = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide, roughness: 0.9 }) as THREE.MeshStandardMaterial & {
+  // The frayed fly is cut out of the cloth (alphaTest), not blended.
+  const m = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide, roughness: 0.9, alphaTest: 0.5 }) as THREE.MeshStandardMaterial & {
     userData: { uniforms: { uTime: THREE.IUniform } };
   };
   const uniforms = { uTime: { value: 0 } };
@@ -1238,13 +1226,22 @@ function flagMaterial(texture: THREE.Texture): THREE.MeshStandardMaterial & { us
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat fly = uv.x;\ntransformed.z += sin(uv.x * 8.0 - uTime * 9.0) * 0.05 * fly + fly * fly * 0.04;\ntransformed.y += sin(uv.x * 5.0 - uTime * 6.0) * 0.015 * fly;');
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vFold;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat fly = uv.x;\ntransformed.z += sin(uv.x * 8.0 - uTime * 9.0) * 0.05 * fly + fly * fly * 0.04;\ntransformed.y += sin(uv.x * 5.0 - uTime * 6.0) * 0.015 * fly;\nvFold = cos(uv.x * 8.0 - uTime * 9.0) * min(1.0, fly * 2.5);');
+    // The folds catch the light and fall into shadow as they run down the cloth (its slope, from the same wave).
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFold;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 0.86 + 0.14 * vFold;');
   };
   return m;
 }
 
-/** Each nation's colours, drawn: Spain's Burgundy cross, England's red ensign, France's white, the Dutch tricolour, the pirates' black. */
+/**
+ * Each nation's colours as its ships flew them about 1660, drawn: Spain's Cross of Burgundy (a ragged red saltire, its
+ * staves knotted where the branches were lopped), England's red ensign (St George's cross in the canton), France's
+ * white powdered with gold fleurs-de-lis, the States' red, white and blue, and the pirates' black. Each is sewn wool
+ * bunting: the seams of its strips show, its colours fade toward the fly, and the fly is frayed (a pirate's more).
+ */
 const FLAGS = new Map<string, THREE.CanvasTexture>();
 /** A famous pirate's own flag (pirates.json): a field, and a device in a colour. */
 export interface FlagDesign {
@@ -1253,71 +1250,303 @@ export interface FlagDesign {
   device: 'skull' | 'swords' | 'hourglass' | 'heart' | 'spear' | 'bones';
 }
 
-/** A famous pirate's device on her flag, in a 128x80 canvas, centred a little forward of the hoist. */
+/** The flag's cloth, in canvas pixels (a flag about 1.6 times as long as it is deep). */
+const FLAG_W = 320;
+const FLAG_H = 200;
+
+/** A small seeded random, so a flag is drawn the same each time (its fraying, its weave). */
+function flagRandom(key: string): () => number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
+/** A shape on its side: a bar from (x0, y0) to (x1, y1), `w` wide. */
+function bar(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, w: number) {
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const [nx, ny] = [(-(y1 - y0) / len) * (w / 2), ((x1 - x0) / len) * (w / 2)];
+  g.beginPath();
+  g.moveTo(x0 + nx, y0 + ny);
+  g.lineTo(x1 + nx, y1 + ny);
+  g.lineTo(x1 - nx, y1 - ny);
+  g.lineTo(x0 - nx, y0 - ny);
+  g.closePath();
+  g.fill();
+}
+
+/** A ragged staff of the Cross of Burgundy, from (x0, y0) to (x1, y1): a rough branch with its side shoots lopped. */
+function raggedStaff(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, w: number, rnd: () => number) {
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const [dx, dy] = [(x1 - x0) / len, (y1 - y0) / len];
+  const [nx, ny] = [-dy, dx];
+  // The staff itself, its edges a little uneven.
+  const steps = 14;
+  const edge = (side: number) =>
+    Array.from({ length: steps + 1 }, (_, i) => {
+      const t = i / steps;
+      const half = (w / 2) * (0.9 + 0.2 * rnd());
+      return [x0 + dx * len * t + nx * side * half, y0 + dy * len * t + ny * side * half] as const;
+    });
+  const left = edge(1);
+  const right = edge(-1).reverse();
+  g.beginPath();
+  for (const [i, [x, y]] of [...left, ...right].entries()) (i ? g.lineTo(x, y) : g.moveTo(x, y));
+  g.closePath();
+  g.fill();
+  // The knots: stubs where the shoots were cut, on either side in turn, slanting toward the staff's top.
+  for (let k = 0, t = 0.1; t < 0.92; k++, t += 0.1 + rnd() * 0.04) {
+    const side = k % 2 ? 1 : -1;
+    const [px, py] = [x0 + dx * len * t + nx * side * (w / 2) * 0.8, y0 + dy * len * t + ny * side * (w / 2) * 0.8];
+    const out = w * (0.45 + rnd() * 0.25);
+    const base = w * 0.42;
+    const lean = -w * 0.35;
+    g.beginPath();
+    g.moveTo(px - dx * base * 0.5, py - dy * base * 0.5);
+    g.lineTo(px + nx * side * out + dx * lean - dx * base * 0.2, py + ny * side * out + dy * lean - dy * base * 0.2);
+    g.lineTo(px + nx * side * out + dx * lean + dx * base * 0.25, py + ny * side * out + dy * lean + dy * base * 0.25);
+    g.lineTo(px + dx * base * 0.5, py + dy * base * 0.5);
+    g.closePath();
+    g.fill();
+  }
+}
+
+/** A fleur-de-lis `s` tall, centred on (x, y): the three petals, the band that binds them, and the foot below. */
+function fleurDeLis(g: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  g.beginPath();
+  // The middle petal, up to a point.
+  g.moveTo(0, -0.5);
+  g.bezierCurveTo(0.17, -0.32, 0.15, -0.1, 0.06, 0.06);
+  g.lineTo(-0.06, 0.06);
+  g.bezierCurveTo(-0.15, -0.1, -0.17, -0.32, 0, -0.5);
+  // The side petals, curling out and over.
+  for (const k of [1, -1]) {
+    g.moveTo(0.06 * k, 0.06);
+    g.bezierCurveTo(0.08 * k, -0.12, 0.3 * k, -0.26, 0.42 * k, -0.12);
+    g.bezierCurveTo(0.48 * k, -0.03, 0.4 * k, 0.04, 0.33 * k, 0.0);
+    g.bezierCurveTo(0.36 * k, -0.08, 0.28 * k, -0.1, 0.2 * k, -0.02);
+    g.bezierCurveTo(0.16 * k, 0.02, 0.14 * k, 0.05, 0.14 * k, 0.08);
+    g.closePath();
+  }
+  // The band.
+  g.rect(-0.24, 0.06, 0.48, 0.09);
+  // The foot: a short stem and two small curls.
+  g.moveTo(-0.07, 0.15);
+  g.lineTo(0.07, 0.15);
+  g.lineTo(0, 0.42);
+  g.closePath();
+  for (const k of [1, -1]) {
+    g.moveTo(0.06 * k, 0.15);
+    g.bezierCurveTo(0.14 * k, 0.17, 0.24 * k, 0.24, 0.2 * k, 0.34);
+    g.bezierCurveTo(0.16 * k, 0.26, 0.1 * k, 0.21, 0.04 * k, 0.2);
+    g.closePath();
+  }
+  g.restore();
+  g.fill('nonzero');
+  g.stroke();
+}
+
+/** A skull, `s` across, centred on (x, y), cut through to `hole` (the field) for its eyes, nose and teeth. */
+function skull(g: CanvasRenderingContext2D, x: number, y: number, s: number, hole: string) {
+  g.beginPath();
+  g.ellipse(x, y - s * 0.12, s * 0.5, s * 0.45, 0, 0, Math.PI * 2);
+  g.fill();
+  g.beginPath();
+  g.roundRect(x - s * 0.3, y + s * 0.12, s * 0.6, s * 0.36, s * 0.1);
+  g.fill();
+  const fill = g.fillStyle;
+  g.fillStyle = hole;
+  for (const k of [1, -1]) {
+    g.beginPath();
+    g.ellipse(x + k * s * 0.19, y + s * 0.0, s * 0.13, s * 0.15, k * 0.25, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.beginPath();
+  g.moveTo(x, y + s * 0.14);
+  g.lineTo(x + s * 0.06, y + s * 0.26);
+  g.lineTo(x - s * 0.06, y + s * 0.26);
+  g.closePath();
+  g.fill();
+  // Teeth: the gaps between them.
+  for (const k of [-0.15, -0.05, 0.05, 0.15]) g.fillRect(x + k * s - s * 0.012, y + s * 0.34, s * 0.024, s * 0.14);
+  g.fillStyle = fill;
+}
+
+/** A long bone from (x0, y0) to (x1, y1), `w` thick, knobbed at both ends. */
+function bone(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, w: number) {
+  bar(g, x0, y0, x1, y1, w);
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const [nx, ny] = [(-(y1 - y0) / len) * w * 0.55, ((x1 - x0) / len) * w * 0.55];
+  for (const [x, y] of [[x0, y0], [x1, y1]] as const) {
+    for (const k of [1, -1]) {
+      g.beginPath();
+      g.arc(x + nx * k, y + ny * k, w * 0.62, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+}
+
+/** Two bones crossed in a saltire, `s` long, centred on (x, y). */
+function crossbones(g: CanvasRenderingContext2D, x: number, y: number, s: number, w: number) {
+  const [dx, dy] = [Math.cos(0.5) * s * 0.5, Math.sin(0.5) * s * 0.5];
+  bone(g, x - dx, y - dy, x + dx, y + dy, w);
+  bone(g, x - dx, y + dy, x + dx, y - dy, w);
+}
+
+/** A cutlass, hilt at (x, y), its blade `len` long up along `angle` (radians from straight up), curving to the back. */
+function cutlass(g: CanvasRenderingContext2D, x: number, y: number, len: number, angle: number, side: number) {
+  g.save();
+  g.translate(x, y);
+  g.rotate(angle);
+  // The blade: broad, curving, with a clipped point.
+  g.beginPath();
+  g.moveTo(-7, 0);
+  g.quadraticCurveTo(-12 + side * 10, -len * 0.55, side * 16 - 6, -len);
+  g.lineTo(side * 16 + 4, -len * 0.86);
+  g.quadraticCurveTo(12 + side * 12, -len * 0.45, 7, 0);
+  g.closePath();
+  g.fill();
+  // The cup of the guard, the knuckle bow, the grip and pommel.
+  g.beginPath();
+  g.ellipse(0, 2, 17, 7, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(-5, 4, 10, 24);
+  g.beginPath();
+  g.arc(0, 31, 7, 0, Math.PI * 2);
+  g.fill();
+  g.lineWidth = 5;
+  g.beginPath();
+  g.moveTo(-side * 15, 3);
+  g.quadraticCurveTo(-side * 22, 22, -side * 3, 32);
+  g.stroke();
+  g.restore();
+}
+
+/** A famous pirate's device on her flag, a little toward the hoist from the middle. */
 function drawDevice(g: CanvasRenderingContext2D, design: FlagDesign) {
+  const [cx, cy] = [FLAG_W * 0.46, FLAG_H * 0.5];
   g.fillStyle = design.colour;
   g.strokeStyle = design.colour;
-  const bar = (x: number, y: number, len: number, angle: number, w = 6) => {
-    g.save();
-    g.translate(x, y);
-    g.rotate(angle);
-    g.fillRect(-len / 2, -w / 2, len, w);
-    g.restore();
-  };
-  if (design.device === 'skull' || design.device === 'bones') {
-    if (design.device === 'skull') {
-      g.beginPath();
-      g.arc(64, 30, 13, 0, Math.PI * 2);
-      g.fill();
-      g.fillRect(56, 38, 16, 9);
-      g.fillStyle = design.field;
-      g.beginPath();
-      g.arc(59, 29, 3.5, 0, Math.PI * 2);
-      g.arc(69, 29, 3.5, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = design.colour;
-    }
-    bar(64, design.device === 'skull' ? 60 : 40, 58, 0.55);
-    bar(64, design.device === 'skull' ? 60 : 40, 58, -0.55);
+  if (design.device === 'skull') {
+    crossbones(g, cx, cy + 34, 120, 13);
+    skull(g, cx, cy - 22, 74, design.field);
+  } else if (design.device === 'bones') {
+    crossbones(g, cx, cy, 170, 17);
   } else if (design.device === 'swords') {
-    // Two cutlasses crossed, hilts down.
-    for (const side of [-1, 1]) {
-      g.save();
-      g.translate(64, 40);
-      g.rotate(side * 0.6);
-      g.fillRect(-2.5, -30, 5, 50);
-      g.fillRect(-9, 18, 18, 4);
-      g.restore();
-    }
+    // Two cutlasses crossed, points up.
+    // Hilts set so the blades cross at their middle.
+    cutlass(g, cx - 40, cy + 52, 130, 0.62, 1);
+    cutlass(g, cx + 40, cy + 52, 130, -0.62, -1);
   } else if (design.device === 'hourglass') {
+    // The glass in its frame, the sand run half through.
+    const [w, h] = [70, 130];
+    g.fillRect(cx - w / 2 - 8, cy - h / 2, w + 16, 11);
+    g.fillRect(cx - w / 2 - 8, cy + h / 2 - 11, w + 16, 11);
+    for (const k of [-1, 1]) g.fillRect(cx + k * (w / 2 + 2) - 4, cy - h / 2 + 8, 8, h - 16);
+    g.lineWidth = 6;
     g.beginPath();
-    g.moveTo(48, 14);
-    g.lineTo(80, 14);
-    g.lineTo(64, 40);
-    g.lineTo(80, 66);
-    g.lineTo(48, 66);
-    g.lineTo(64, 40);
+    g.moveTo(cx - w / 2 + 6, cy - h / 2 + 12);
+    g.bezierCurveTo(cx - w / 2 + 6, cy - 14, cx - 4, cy - 8, cx - 4, cy);
+    g.bezierCurveTo(cx - 4, cy + 8, cx - w / 2 + 6, cy + 14, cx - w / 2 + 6, cy + h / 2 - 12);
+    g.moveTo(cx + w / 2 - 6, cy - h / 2 + 12);
+    g.bezierCurveTo(cx + w / 2 - 6, cy - 14, cx + 4, cy - 8, cx + 4, cy);
+    g.bezierCurveTo(cx + 4, cy + 8, cx + w / 2 - 6, cy + 14, cx + w / 2 - 6, cy + h / 2 - 12);
+    g.stroke();
+    // Sand: what is left above, the heap below, and the thread falling between.
+    g.beginPath();
+    g.moveTo(cx - 20, cy - 26);
+    g.lineTo(cx + 20, cy - 26);
+    g.lineTo(cx, cy - 4);
     g.closePath();
     g.fill();
+    g.beginPath();
+    g.moveTo(cx - w / 2 + 9, cy + h / 2 - 12);
+    g.quadraticCurveTo(cx, cy + 6, cx + w / 2 - 9, cy + h / 2 - 12);
+    g.closePath();
+    g.fill();
+    g.fillRect(cx - 1.5, cy - 4, 3, 30);
   } else if (design.device === 'heart') {
-    // A heart, bleeding.
+    // A heart, bleeding: three drops falling from it.
     g.beginPath();
-    g.moveTo(64, 58);
-    g.bezierCurveTo(30, 36, 46, 12, 64, 28);
-    g.bezierCurveTo(82, 12, 98, 36, 64, 58);
+    g.moveTo(cx, cy + 38);
+    g.bezierCurveTo(cx - 70, cy - 8, cx - 40, cy - 66, cx, cy - 32);
+    g.bezierCurveTo(cx + 40, cy - 66, cx + 70, cy - 8, cx, cy + 38);
     g.fill();
-    for (const x of [58, 66, 72]) g.fillRect(x, 58, 3, 8 + (x % 5) * 2);
+    for (const [x, y, s] of [[-18, 52, 1], [4, 66, 1.2], [22, 54, 0.9]] as const) {
+      g.beginPath();
+      g.moveTo(cx + x, cy + y - 12 * s);
+      g.bezierCurveTo(cx + x + 7 * s, cy + y - 2 * s, cx + x + 6 * s, cy + y + 6 * s, cx + x, cy + y + 6 * s);
+      g.bezierCurveTo(cx + x - 6 * s, cy + y + 6 * s, cx + x - 7 * s, cy + y - 2 * s, cx + x, cy + y - 12 * s);
+      g.fill();
+    }
   } else {
-    // A spear, point up, and a dart beside it.
-    g.fillRect(52, 18, 4, 52);
+    // A spear, point up, its blade leaf-shaped, and drops of blood beside it.
+    const x = cx - 14;
+    g.fillRect(x - 4, cy - 36, 8, 124);
     g.beginPath();
-    g.moveTo(54, 6);
-    g.lineTo(46, 22);
-    g.lineTo(62, 22);
-    g.closePath();
+    g.moveTo(x, cy - 98);
+    g.bezierCurveTo(x + 8, cy - 80, x + 20, cy - 58, x + 6, cy - 36);
+    g.lineTo(x - 6, cy - 36);
+    g.bezierCurveTo(x - 20, cy - 58, x - 8, cy - 80, x, cy - 98);
     g.fill();
-    bar(80, 44, 30, -0.9, 4);
+    // The socket where the head meets the shaft, bound round.
+    g.fillRect(x - 7, cy - 38, 14, 14);
+    for (const [dx, dy] of [[34, -20], [44, 10], [30, 36]] as const) {
+      g.beginPath();
+      g.moveTo(x + dx, cy + dy - 12);
+      g.bezierCurveTo(x + dx + 7, cy + dy - 2, x + dx + 6, cy + dy + 6, x + dx, cy + dy + 6);
+      g.bezierCurveTo(x + dx - 6, cy + dy + 6, x + dx - 7, cy + dy - 2, x + dx, cy + dy - 12);
+      g.fill();
+    }
   }
+}
+
+/**
+ * The cloth: the seams between the strips of bunting it was sewn from, a faint weave, the colours fading toward the
+ * fly, and the fly frayed (`wear` 0..1: a pirate's flag flies till it is in tatters).
+ */
+function clothOf(g: CanvasRenderingContext2D, rnd: () => number, wear: number) {
+  const [w, h] = [FLAG_W, FLAG_H];
+  // Seams: a dark line and a light one, across, every strip of bunting.
+  for (let y = h / 7; y < h - 1; y += h / 7) {
+    g.fillStyle = 'rgba(0, 0, 0, 0.09)';
+    g.fillRect(0, Math.round(y), w, 1.5);
+    g.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    g.fillRect(0, Math.round(y) + 2, w, 1);
+  }
+  const img = g.getImageData(0, 0, w, h);
+  const px = img.data;
+  // The fly's ragged edge: how far in it is eaten, row by row (smooth, with a few deeper tears).
+  const fray: number[] = [];
+  let run = 0;
+  const tears = Array.from({ length: Math.round(wear * 5) }, () => ({ at: rnd() * h, depth: (0.06 + rnd() * 0.12) * w * wear, span: 4 + rnd() * 10 }));
+  for (let y = 0; y < h; y++) {
+    run = run * 0.8 + (rnd() - 0.5) * 6;
+    let cut = Math.max(0, (1.5 + wear * 7) + run * (0.4 + wear));
+    for (const t of tears) cut = Math.max(cut, t.depth * Math.max(0, 1 - Math.abs(y - t.at) / t.span));
+    fray.push(cut);
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (x > w - fray[y]!) {
+        px[i + 3] = 0;
+        continue;
+      }
+      // The weave (threads one way and the other), and the sun's fading toward the fly.
+      const weave = ((x * 7 + y * 3) % 5 === 0 ? -6 : 0) + ((x + y * 5) % 7 === 0 ? 4 : 0) + (rnd() - 0.5) * 7;
+      const fade = (x / w) * 0.07;
+      for (let c = 0; c < 3; c++) px[i + c] = Math.max(0, Math.min(255, px[i + c]! + weave + (255 - px[i + c]!) * fade));
+    }
+  }
+  g.putImageData(img, 0, 0);
 }
 
 export function flagTexture(nation: string, design?: FlagDesign): THREE.CanvasTexture {
@@ -1325,64 +1554,65 @@ export function flagTexture(nation: string, design?: FlagDesign): THREE.CanvasTe
   const cached = FLAGS.get(key);
   if (cached) return cached;
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 80;
+  c.width = FLAG_W;
+  c.height = FLAG_H;
   const g = c.getContext('2d')!;
+  const [w, h] = [FLAG_W, FLAG_H];
+  const rnd = flagRandom(key);
+  const pirate = Boolean(design) || !['spain', 'england', 'player', 'france', 'netherlands'].includes(nation);
   if (design) {
     g.fillStyle = design.field;
-    g.fillRect(0, 0, 128, 80);
+    g.fillRect(0, 0, w, h);
     drawDevice(g, design);
   } else if (nation === 'spain') {
-    g.fillStyle = '#f4eee0';
-    g.fillRect(0, 0, 128, 80);
-    g.strokeStyle = '#b3262c';
-    g.lineWidth = 12;
-    g.beginPath();
-    g.moveTo(10, 8);
-    g.lineTo(118, 72);
-    g.moveTo(118, 8);
-    g.lineTo(10, 72);
-    g.stroke();
+    // The Cross of Burgundy, red on white, its staves corner to corner.
+    g.fillStyle = '#efe8d8';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#a71e2a';
+    raggedStaff(g, 22, 18, w - 22, h - 18, 24, rnd);
+    raggedStaff(g, w - 22, 18, 22, h - 18, 24, rnd);
   } else if (nation === 'england' || nation === 'player') {
-    g.fillStyle = '#b3262c';
-    g.fillRect(0, 0, 128, 80);
-    g.fillStyle = '#f4eee0';
-    g.fillRect(0, 0, 52, 36);
-    g.fillStyle = '#b3262c';
-    g.fillRect(22, 0, 8, 36);
-    g.fillRect(0, 14, 52, 8);
+    // The red ensign: a red field, and St George's cross on white in the canton.
+    g.fillStyle = '#ab1f2c';
+    g.fillRect(0, 0, w, h);
+    const [cw, ch] = [w * 0.4, h * 0.5];
+    g.fillStyle = '#efe8d8';
+    g.fillRect(0, 0, cw, ch);
+    g.fillStyle = '#ab1f2c';
+    g.fillRect(cw / 2 - ch * 0.1, 0, ch * 0.2, ch);
+    g.fillRect(0, ch * 0.4, cw, ch * 0.2);
   } else if (nation === 'france') {
-    g.fillStyle = '#f4f1e8';
-    g.fillRect(0, 0, 128, 80);
-    g.fillStyle = '#d8b24a';
-    for (const [x, y] of [[40, 30], [80, 30], [60, 54]]) {
-      g.beginPath();
-      g.arc(x!, y!, 7, 0, Math.PI * 2);
-      g.fill();
+    // The King's white, powdered with gold fleurs-de-lis.
+    g.fillStyle = '#f1ece0';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#c99a2e';
+    g.strokeStyle = '#8a6418';
+    g.lineWidth = 0.035;
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 6; col++) {
+        const x = 30 + col * 52 + (row % 2) * 26;
+        if (x > w - 14) continue;
+        fleurDeLis(g, x, 28 + row * 48, 34);
+      }
     }
   } else if (nation === 'netherlands') {
-    for (const [i, col] of ['#d0532b', '#f4eee0', '#2c4f8f'].entries()) {
+    // The States' flag: red, white and blue (the Prince's orange had given way to red at sea by the 1660s).
+    for (const [i, col] of ['#a8232b', '#efe8d8', '#25407d'].entries()) {
       g.fillStyle = col;
-      g.fillRect(0, (i * 80) / 3, 128, 80 / 3 + 1);
+      g.fillRect(0, (i * h) / 3, w, h / 3 + 1);
     }
   } else {
-    g.fillStyle = '#101012';
-    g.fillRect(0, 0, 128, 80);
-    g.fillStyle = '#efe9da';
-    g.beginPath();
-    g.arc(64, 32, 13, 0, Math.PI * 2);
-    g.fill();
-    g.fillRect(40, 50, 48, 7);
-    g.save();
-    g.translate(64, 54);
-    g.rotate(0.6);
-    g.fillRect(-26, -3, 52, 6);
-    g.rotate(-1.2);
-    g.fillRect(-26, -3, 52, 6);
-    g.restore();
+    // A pirate's black, with the skull and crossed bones.
+    g.fillStyle = '#121214';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#e9e1cc';
+    crossbones(g, w * 0.46, h * 0.5 + 34, 120, 13);
+    skull(g, w * 0.46, h * 0.5 - 22, 74, '#121214');
   }
+  clothOf(g, rnd, pirate ? 0.75 : 0.2);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
   FLAGS.set(key, t);
   return t;
 }

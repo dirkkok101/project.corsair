@@ -54,6 +54,11 @@ Sources and the full notes are in the research summary in the 3D planning conver
 - **Ships:**
   - Big against the islands; at the default zoom a ship is about a tenth of the screen's width.
   - Glowing white sails (a soft bloom), golden-brown hulls, big flags and long streaming pennants.
+  - Flags as the nations flew them about 1660, sewn wool bunting (seams across, fading toward the fly, the fly
+    frayed and a pirate's in tatters, the folds shaded as they run): Spain's ragged red Cross of Burgundy, England's
+    red ensign, France's white powdered with gold fleurs-de-lis, the States' red, white and blue, and the pirates'
+    black with skull and crossed bones (a famous pirate's own device on hers). Spanish and pirate square sails carry
+    the same emblem, painted on the canvas.
   - Long thin wakes.
   - Heeling and pitching with the sea.
 - **Camera:** looking down at about 45 to 55 degrees on the sea map and somewhat closer in battle, always north-up
