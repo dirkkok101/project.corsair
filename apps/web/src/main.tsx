@@ -103,7 +103,7 @@ function interiorFor(s: PlacedSettlement, service: Service): HarbourScene | unde
 const harbourId = (s: PlacedSettlement) =>
   s.nation === 'pirate' || s.type === 'haven' ? 'harbour.pirate.haven' : `harbour.${s.nation}.${{ hamlet: 'small', town: 'medium', city: 'large' }[s.size]}`;
 
-const COUNTRY_NAME: Record<string, string> = { england: 'England', spain: 'Spain', france: 'France', netherlands: 'The Netherlands' };
+const countryName: Record<string, string> = { england: 'England', spain: 'Spain', france: 'France', netherlands: 'The Netherlands' };
 
 /** The scene for a settlement: havens have their own; other towns go by nation and size. */
 function harbourFor(s: PlacedSettlement): { scene: HarbourScene; hotspots: HarbourDef['hotspots']; anchor: [number, number] } | undefined {
@@ -265,11 +265,11 @@ async function main() {
             const foes = enemiesOf(content, {} as WorldState, n).filter((x) => x !== 'pirate');
             return {
               nation: n,
-              name: COUNTRY_NAME[n]!,
+              name: countryName[n]!,
               port: home.name.replace(/ \(.*\)$/, ''),
               island: content.politics.flag.nations[n]?.island ?? '',
               about: content.politics.flag.nations[n]?.about ?? '',
-              wars: foes.length ? `At war with ${foes.map((x) => COUNTRY_NAME[x]).join(' and ')}` : 'At peace with all',
+              wars: foes.length ? `At war with ${foes.map((x) => countryName[x]).join(' and ')}` : 'At peace with all',
               peace: !foes.length,
               art: sceneUrl(harbourId(home)),
             };
@@ -357,7 +357,11 @@ async function main() {
             const trend = t.trend > 0 ? 'Prosperous ' : t.trend < 0 ? 'Struggling ' : '';
             const nation = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch', pirate: 'Pirate' }[s.nation] ?? '';
             const kind = s.type === 'capital' ? 'Capital' : s.type === 'haven' ? 'Haven' : s.type === 'mission' ? 'Mission' : s.size === 'hamlet' ? 'Settlement' : s.size === 'city' ? 'City' : 'Town';
-            const woes = [t.blockaded ? 'blockaded' : '', plagued(state, s.id) ? 'plague' : '', famine(content, state, s.id) ? 'famine' : ''].filter(Boolean);
+            // Blockaded: by whom (the nation of the warship lying off it).
+            const countryName: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' };
+            const by = t.blockaded ? Object.values(state.ships).find((x) => x.ai?.blockadeOf === s.id && (x.ai.waitUntil ?? 0) > state.tick)?.ai?.nation : undefined;
+            const blockade = t.blockaded ? `blockaded${by ? ` by ${countryName[by] ?? by}` : ''}` : '';
+            const woes = [blockade, plagued(state, s.id) ? 'plague' : '', famine(content, state, s.id) ? 'famine' : ''].filter(Boolean);
             return `${trend}${nation} ${kind}${woes.length ? ` · ${woes.join(', ')}` : ''}`;
           },
         });
@@ -734,7 +738,7 @@ async function main() {
       if (!s || s.nation === 'pirate') return undefined;
       const flag = sim.state.captain?.nation;
       if (flag && closedTo(content, sim.state, s) === 'at-war') {
-        return `Closed to you: ${COUNTRY_NAME[s.nation]} is at war with ${COUNTRY_NAME[flag]}, and once you attack her ships, her warships hunt you.`;
+        return `Closed to you: ${countryName[s.nation]} is at war with ${countryName[flag]}, and once you attack her ships, her warships hunt you.`;
       }
       const standing = sim.state.captain?.standing?.[s.nation] ?? 0;
       if (standing <= content.combat.standing.refused) return `They would not let you in: your standing with them is ${standing}.`;
@@ -1609,7 +1613,7 @@ async function main() {
         const flag = sim.state.captain?.nation;
         const text =
           ev.payload.reason === 'at-war' && flag
-            ? `${name} won't let ${({ england: 'an English', spain: 'a Spanish', france: 'a French', netherlands: 'a Dutch' } as Record<string, string>)[flag]} ship in: ${COUNTRY_NAME[ev.payload.nation as string]} is at war with ${COUNTRY_NAME[flag]}`
+            ? `${name} won't let ${({ england: 'an English', spain: 'a Spanish', france: 'a French', netherlands: 'a Dutch' } as Record<string, string>)[flag]} ship in: ${countryName[ev.payload.nation as string]} is at war with ${countryName[flag]}`
             : `${name} won't let you in: you are their enemy`;
         courseNote = { text, kind: 'Port closed', icon: 'ui.icon.anchor', tone: 'warn', until: now + 5000 };
       }

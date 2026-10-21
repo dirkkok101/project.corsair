@@ -161,7 +161,9 @@
     "merchant": 120,
     "patrol": 400,
     "pirate": 150,
-    "piracyScale": 50
+    "piracyScale": 50,
+    "blockade": 600,
+    "blockadeMerit": 3
   },
   "news": {
     "war": "{nation} and {other} are at war! Their ships are fair game to each other's privateers.",

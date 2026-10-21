@@ -7,6 +7,7 @@ import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@cor
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import {
+  bountiesOwed,
   cargoUsed,
   closedTo,
   crewOf,
@@ -861,6 +862,23 @@ describe('the governor', () => {
     gov.send({ type: 'Recruit', shipId: 'player', count: 10 });
     gov.applyCommands();
     expect(gold - gov.state.captain!.gold).toBe(Math.round(10 * content.combat.port.recruitGold * content.politics.ranks.perks.recruit!.value!));
+  });
+
+  it("a blockade broken off one of his ports: his governor pays the more for it, and counts it the more", () => {
+    const sim = moored(portRoyal);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const b = content.politics.bounty;
+    const blockader = { nation: 'spain' as const, role: 'patrol' as const, kind: 'sunk' as const, tick: sim.state.tick, relieved: 'england' as const };
+    const s = atWarWithSpain({ ...sim.state, captain: { ...sim.state.captain!, marques: ['england' as const], deeds: [blockader] } });
+    const gov = createSim(s, [createEconomySystem(content, settlements)]);
+    const chest = gov.state.captain!.chest ?? 0;
+    gov.send({ type: 'CollectBounties', shipId: 'player' });
+    gov.applyCommands();
+    expect(gov.state.captain!.chest! - chest).toBe(b.patrol + b.blockade);
+    expect(gov.state.captain!.merit!.england).toBe(b.blockadeMerit);
+    // A warship sunk off someone else's port is only a warship.
+    expect(bountiesOwed(content, atWarWithSpain({ ...s, captain: { ...s.captain!, deeds: [{ ...blockader, relieved: 'france' as const }] } }), 'england').total).toBe(b.patrol);
   });
 
   it('merit banked before the letter makes him that rank when he buys it, and says so', () => {

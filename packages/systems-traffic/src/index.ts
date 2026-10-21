@@ -1,5 +1,5 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
-import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, PrizePapers, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
+import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, PrizePapers, SailSetting, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, sightTiles, tileAt, viewTiles } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, famesOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
@@ -135,11 +135,15 @@ export function createTrafficSystem(
           .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
         if (nearHer) return { to: nearHer, good: undefined };
       }
-      // At war, a patrol may go to blockade the nearest enemy port within reach.
-      const enemy = settlements
-        .filter((s) => s.nation !== 'pirate' && !isHaven(s) && reachable(s) && atWar(content, state, ai.nation, s.nation))
-        .sort((a, b) => Math.hypot(a.x - here.x, a.y - here.y) - Math.hypot(b.x - here.x, b.y - here.y));
-      if (enemy.length && rng.float() < t.blockade.chance) return { to: enemy[0], good: undefined, blockade: true };
+      // At war, a patrol may go to blockade an enemy port: the nearer the likelier, and none that already has its
+      // fill of blockaders (under way to it or lying off it), so one port isn't ringed while the rest go free.
+      const held = (id: string) =>
+        Object.values(state.ships).filter((s) => s.ai && (s.ai.blockading === id || (s.ai.blockadeOf === id && (s.ai.waitUntil ?? 0) > state.tick))).length;
+      const enemy = settlements.filter((s) => s.nation !== 'pirate' && !isHaven(s) && reachable(s) && atWar(content, state, ai.nation, s.nation) && held(s.id) < t.blockade.maxPerPort);
+      if (enemy.length && rng.float() < t.blockade.chance) {
+        const pick = rng.weighted(Object.fromEntries(enemy.map((s) => [s.id, 1 / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.blockade.rangeTiles) ** 2])));
+        return { to: enemy.find((s) => s.id === pick), good: undefined, blockade: true };
+      }
       // Otherwise to her own ports, the more merchants lost near one lately, the likelier.
       const own = settlements.filter((s) => s.nation === ai.nation && !isHaven(s) && reachable(s) && !plagued(state, s.id));
       const pool = own.length ? own : settlements.filter((s) => !isHaven(s) && reachable(s) && !plagued(state, s.id));
@@ -493,14 +497,21 @@ export function createTrafficSystem(
     const ai = ship.ai!;
     const wait = tick + Math.round(rng.range(t.portDays[0], t.portDays[1]) * tpd);
     if (ai.blockading) {
-      // Off the enemy port: lie there a while (the port is blockaded), then home the way she came.
+      // Off the enemy port: she lies there a while (the port is blockaded), beating to and fro across its approach,
+      // square to the line from the port, as far each way as open water allows; then home.
       const days = tick + Math.round(rng.range(t.blockade.days[0], t.blockade.days[1]) * tpd);
-      const back = [...ai.route].reverse();
       const port = byId.get(ai.blockading)!;
+      const out = Math.max(1e-6, Math.hypot(ship.x - port.x, ship.y - port.y));
+      const [ux, uy] = [(ship.x - port.x) / out, (ship.y - port.y) / out];
+      const here: [number, number] = [ship.x, ship.y];
+      let reach = t.blockade.beatTiles;
+      const end = (k: number): [number, number] => [ship.x - uy * reach * k, ship.y + ux * reach * k];
+      while (reach >= 0.5 && !(lanes.clear(here, end(1)) && lanes.clear(here, end(-1)))) reach /= 2;
+      const beat = reach >= 0.5 ? ([end(1), end(-1)] as [[number, number], [number, number]]) : undefined;
       const news = newsItem(state, port.id, 'blockade', tick, ship.ai!.name, ai.nation);
       return {
         state: news,
-        ship: { ...ship, speed: 0, ai: { ...ai, to: ai.from, route: back, along: 0, offset: 0, waitUntil: days, blockading: undefined, blockadeOf: ai.blockading } as AiCaptain },
+        ship: { ...ship, speed: 0, ai: { ...ai, to: ai.from, route: [here, here], along: 0, offset: 0, waitUntil: days, blockading: undefined, blockadeOf: ai.blockading, beat } as AiCaptain },
         events: [{ type: 'Blockade', entityIds: [ship.id, port.id], payload: { nation: ai.nation } }],
       };
     }
@@ -608,7 +619,7 @@ export function createTrafficSystem(
    * windward. Long boards (up to tackTiles off the lane, shorter where land is near), and the ship
    * turns at her class's rate, losing way as she comes through the wind, rather than snapping round.
    */
-  const sail = (state: WorldState, ship: Ship, dt: number): Ship => {
+  const sail = (state: WorldState, ship: Ship, dt: number, sails: SailSetting = 'full'): Ship => {
     const ai = ship.ai!;
     const total = routeLength(ai.route);
     const lane = pointAlong(ai.route, ai.along);
@@ -628,7 +639,7 @@ export function createTrafficSystem(
       desired = normalizeDeg(lane.deg - Math.sign(offset) * 20);
     }
     const heading = steerToward(ship.headingDeg, desired, turnRate(ship) * dt);
-    const speed = gather(ship.speed, targetSpeed(content, { ...ship, headingDeg: heading, sails: 'full' }, wind), dt);
+    const speed = gather(ship.speed, targetSpeed(content, { ...ship, headingDeg: heading, sails }, wind), dt);
     const rel = ((heading - lane.deg) * Math.PI) / 180;
     const along = Math.min(total, ai.along + Math.max(0, Math.cos(rel)) * speed * dt);
     offset += Math.sin(rel) * speed * dt;
@@ -843,6 +854,20 @@ export function createTrafficSystem(
     return { ...ship, x, y, headingDeg: heading, speed, sails: 'full', ai: { ...ai, tackSign } };
   };
 
+  /**
+   * A blockader's beat: under easy sail along her board across the port's approach, about at its end and back to the
+   * far end, from wherever a chase left her. With no clear water for a beat she lies to.
+   */
+  const beatAcross = (state: WorldState, ship: Ship, dt: number): Ship => {
+    const ai = ship.ai!;
+    if (!ai.beat) return { ...ship, speed: 0 };
+    if (ai.along < routeLength(ai.route) - 0.05) return sail(state, ship, dt, 'half');
+    const [a, b] = ai.beat;
+    const far = Math.hypot(a[0] - ship.x, a[1] - ship.y) >= Math.hypot(b[0] - ship.x, b[1] - ship.y) ? a : b;
+    if (!lanes.clear([ship.x, ship.y], far)) return { ...ship, speed: 0 };
+    return sail(state, { ...ship, ai: { ...ai, route: [[ship.x, ship.y], far], along: 0, offset: 0 } }, dt, 'half');
+  };
+
   /** Back to her lane after a chase: join it at the nearest waypoint she can sail to in a straight line. */
   const rejoin = (ship: Ship): Ship => {
     const ai = ship.ai!;
@@ -875,7 +900,9 @@ export function createTrafficSystem(
   const sheltered = (state: WorldState, hunter: Ship, x: number, y: number) =>
     hunter.ai!.role === 'pirate'
       ? piratesFear(x, y)
-      : settlements.some((s) => atWar(content, state, hunter.ai!.nation, s.nation) && Math.hypot(s.x - x, s.y - y) <= (cb.chase.harbourTiles[s.size] ?? 0));
+      : // Except the port she blockades: she lies off it to stop what goes in and out, and dares its guns to do it
+        // (an enemy merchant, a pirate, or the captain once she has made herself the blockader's enemy, up to the quay).
+        settlements.some((s) => s.id !== hunter.ai!.blockadeOf && atWar(content, state, hunter.ai!.nation, s.nation) && Math.hypot(s.x - x, s.y - y) <= (cb.chase.harbourTiles[s.size] ?? 0));
 
   /** What a hunter goes after: pirates take merchants; patrols take pirates and their nation's enemies. */
   const isPrey = (state: WorldState, hunter: Ship, s: Ship) => {
@@ -1273,6 +1300,8 @@ export function createTrafficSystem(
         }
         let prize: WorldState['prize'];
         let purse = 0;
+        // Beaten while lying off a port: the blockade is broken.
+        const relieved = won && other.ai.blockadeOf && (other.ai.waitUntil ?? 0) > state.tick ? byId.get(other.ai.blockadeOf) : undefined;
         const famousId = won ? other.ai.famous : undefined;
         let famousShare = 0;
         let famousLeft = 0;
@@ -1316,7 +1345,11 @@ export function createTrafficSystem(
             // A famous pirate's ship taken is just a ship, under her own name; the pirate lives to sail again.
             const name = famousId ? (famousDef(famousId)?.ship ?? other.ai.name) : other.ai.name;
             prize = {
-              ship: { ...other, ...theirs, ai: { ...other.ai, name, famous: undefined, purse: 0, chasing: false, target: undefined, skirmish: undefined, prizes: undefined } },
+              ship: {
+                ...other,
+                ...theirs,
+                ai: { ...other.ai, name, famous: undefined, purse: 0, chasing: false, target: undefined, skirmish: undefined, prizes: undefined, blockading: undefined, blockadeOf: undefined, beat: undefined },
+              },
               volunteers,
               ...(famousId ? { captive: famousId } : {}),
             };
@@ -1336,8 +1369,15 @@ export function createTrafficSystem(
             for (const n of NATIONS) if (n !== nation && atWar(content, state, n, nation)) standing[n] = Math.min(100, (standing[n] ?? 0) + gain);
           }
           captain = { ...captain, standing };
-          // A deed for a governor's bounty: any governor pays for pirates; enemies of his nation, too.
-          const deed = { nation, role: other.ai.role, kind: outcome === 'sunk' ? ('sunk' as const) : ('taken' as const), tick: state.tick };
+          // A deed for a governor's bounty: any governor pays for pirates; enemies of his nation, too; and a
+          // blockader beaten off a port, its own nation's governors more (politics.json bounty.blockade).
+          const deed = {
+            nation,
+            role: other.ai.role,
+            kind: outcome === 'sunk' ? ('sunk' as const) : ('taken' as const),
+            tick: state.tick,
+            ...(relieved ? { relieved: relieved.nation } : {}),
+          };
           captain = { ...captain, deeds: [...(captain.deeds ?? []), deed] };
           // The career's record: prizes taken, pirates beaten by class, famous pirates beaten.
           const r = captain.record ?? {};
@@ -1378,6 +1418,7 @@ export function createTrafficSystem(
               retaken,
               laidUp: [] as { name: string; classId: string; at: string }[],
               famous: famousId ? { name: other.ai.name, share: famousShare, fame: content.politics.career.fame.war.famous } : null,
+              relieved: relieved ? { town: relieved.name ?? relieved.id, nation: relieved.nation, bounty: content.politics.bounty.blockade } : null,
             },
           },
         ];
@@ -1388,6 +1429,7 @@ export function createTrafficSystem(
         }
         // The fight is news, starting from the nearest port.
         let next: WorldState = { ...state, ships, captain, prize, ...(famousAfter ? { famous: famousAfter } : {}) };
+        if (relieved) next = newsItem(next, relieved.id, 'blockadeBroken', state.tick, other.ai.name, nation);
         // So is the ship she took: the pirate who has her.
         if (lost.ship) next = newsItem(next, nearestPort(other.x, other.y).id, 'yourShipTaken', state.tick, other.ai.name, 'pirate', { vessel: vessel(lost.ship) });
         if (freedHere.length) {
@@ -1666,6 +1708,16 @@ export function createTrafficSystem(
             }
             continue;
           }
+        }
+        // Lying off an enemy port: she beats across its approach till her time is up, then makes for home. (Ahead of
+        // the waits and arrivals below: the end of a board is not a port made, nor her beat the way home.)
+        if (ship.ai.blockadeOf && ship.ai.waitUntil !== undefined) {
+          if (ship.ai.waitUntil <= tick) {
+            const home = lanes.route(ship.ai.blockadeOf, ship.ai.to) ?? [[ship.x, ship.y]];
+            moved = rejoin({ ...ship, ai: { ...ship.ai, waitUntil: undefined, blockadeOf: undefined, beat: undefined, route: home, along: 0, offset: 0 } });
+          } else moved = beatAcross(next, ship, dt);
+          ships = { ...ships, [id]: moved };
+          continue;
         }
         if (ship.ai.waitUntil !== undefined) {
           if (ship.ai.waitUntil > tick) continue;

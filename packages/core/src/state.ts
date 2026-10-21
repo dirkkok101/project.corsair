@@ -70,6 +70,8 @@ export interface AiCaptain {
   /** A patrol bound to blockade an enemy port; and, lying off it, the port she blockades (until `waitUntil`). */
   blockading?: string;
   blockadeOf?: string;
+  /** Lying off it, the two ends of her beat across its approach. */
+  beat?: [[number, number], [number, number]];
   /**
    * Ships she has taken and keeps in tow (a pirate): her hold adds theirs, she keeps their pace, and she sells
    * them at her haven after `sellAfter`. Take her, or a patrol beats her, and they are free again.
@@ -380,6 +382,8 @@ export interface Deed {
   tick: number;
   /** A famous pirate (pirates.json id) held prisoner for this bounty: she sails again only once handed over. */
   captive?: string;
+  /** A blockader beaten off a port of this nation: its governors pay politics.json bounty.blockade more for it. */
+  relieved?: Nation;
 }
 
 /**

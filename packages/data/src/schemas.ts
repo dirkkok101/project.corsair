@@ -698,7 +698,8 @@ export const politicsSchema = z.object({
     standing: z.number(),
     nations: z.record(z.string(), z.object({ island: z.string(), about: z.string() })),
   }),
-  bounty: z.object({ merchant: z.number(), patrol: z.number(), pirate: z.number(), piracyScale: z.number().positive() }),
+  /** A blockade broken (its blockader beaten): `blockade` gold more from a governor of the port's nation, counting `blockadeMerit` deeds. */
+  bounty: z.object({ merchant: z.number(), patrol: z.number(), pirate: z.number(), piracyScale: z.number().positive(), blockade: z.number().min(0), blockadeMerit: z.number().min(1) }),
   news: z.record(z.string(), z.string()),
   /** Ranks per nation: the ladder by merit, each perk's rung and size, land and its rent. */
   ranks: z.object({
@@ -785,8 +786,19 @@ export const trafficSchema = z.object({
       }),
     ),
   }),
-  /** A patrol at war may blockade an enemy port: this chance a voyage, lying within `tiles` of it for `days`. */
-  blockade: z.object({ chance: z.number().min(0).max(1), tiles: z.number().positive(), days: z.tuple([z.number().min(0), z.number().min(0)]) }),
+  /**
+   * A patrol at war may blockade an enemy port: this chance a voyage, lying within `tiles` of it for `days`, beating to
+   * and fro across its approach up to `beatTiles` each way. Of the enemy ports she can reach, the nearer the likelier
+   * (interest halving by `rangeTiles`), and none already held by `maxPerPort` blockaders, under way or lying off it.
+   */
+  blockade: z.object({
+    chance: z.number().min(0).max(1),
+    tiles: z.number().positive(),
+    days: z.tuple([z.number().min(0), z.number().min(0)]),
+    beatTiles: z.number().min(0),
+    rangeTiles: z.number().positive(),
+    maxPerPort: z.number().int().positive(),
+  }),
   /** Patrols favour their ports where merchants were lost in the last `days` days, `weight` more for each loss. */
   patrolLosses: z.object({ days: z.number().positive(), weight: z.number().min(0) }),
   /**

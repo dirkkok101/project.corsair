@@ -74,6 +74,8 @@ export interface BattleReport {
   laidUp?: { name: string; classId: string; at: string }[];
   /** A famous pirate beaten: her name, the share of her wealth that came to the chest, and the fame. */
   famous?: { name: string; share: number; fame: number; piece?: number } | null;
+  /** A blockader beaten off a port: the blockade is broken, and its governors pay `bounty` more for it. */
+  relieved?: { town: string; nation: string; bounty: number } | null;
 }
 
 /** A prize waiting on the plunder screen: her hold, the men who would sign on, and the player's own hold. */
@@ -139,6 +141,10 @@ function reportRows(content: ContentPack, r: BattleReport): Row[] {
     if (r.famous.piece) {
       rows.push({ icon: 'ui.icon.chest', text: `A survivor pulled from the water carried a piece of ${r.famous.name}'s map: you hold ${r.famous.piece}. See it in the log (L)`, tone: 'good' });
     }
+  }
+  if (r.relieved) {
+    const country = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' }[r.relieved.nation] ?? r.relieved.nation;
+    rows.push({ icon: 'ui.icon.anchor', text: `The blockade of ${r.relieved.town} is broken: ${country}'s governors will pay ${r.relieved.bounty.toLocaleString()} gold more for it`, tone: 'good' });
   }
   if (r.purse) rows.push({ icon: 'ui.icon.chest', text: `+${r.purse} gold from her purse, into the plunder chest`, tone: 'good' });
   if (r.salvageGold) rows.push({ icon: 'ui.icon.gold', text: `+${r.salvageGold} gold from the barrels, into the plunder chest`, tone: 'good' });

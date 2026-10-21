@@ -232,7 +232,8 @@ export function bountiesOwed(content: ContentPack, state: WorldState, nation: Pl
       total += Math.round(b.pirate * (1 + piracy / b.piracyScale));
     } else if (atWar(content, state, nation, d.nation)) {
       pay.push(d);
-      total += b[d.role === 'patrol' ? 'patrol' : 'merchant'];
+      // A blockade of one of his own ports broken: he pays the more for it.
+      total += b[d.role === 'patrol' ? 'patrol' : 'merchant'] + (d.relieved === nation ? b.blockade : 0);
     } else kept.push(d);
   }
   return { pay, kept, total };
@@ -1034,7 +1035,8 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         // her time in his jail (pirates.json returnDays from now).
         const r = content.pirates.rules;
         const captives = pay.filter((d) => d.captive);
-        const gain = pay.length - captives.length + captives.length * r.bountyStanding;
+        const relieved = pay.filter((d) => d.relieved === nation).length;
+        const gain = pay.length - captives.length + captives.length * r.bountyStanding + relieved * (content.politics.bounty.blockadeMerit - 1);
         const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + gain) };
         // The same deeds are merit with his nation: they raise his rank there while he holds its letter.
         const merit = { ...state.captain.merit, [nation]: (state.captain.merit?.[nation] ?? 0) + gain };

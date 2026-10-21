@@ -254,6 +254,7 @@
     "convoyDue": "The {nation} convoy {ship} is on her way from Europe to {town}, with luxuries and settlers.",
     "treasureDue": "The {nation} treasure ship {ship} is loading silver at {town} for Havana and home.",
     "blockade": "{nation} warships are lying off {town}: little gets in or out.",
+    "blockadeBroken": "The blockade of {town} is broken: a privateer beat the {nation} {ship} lying off it.",
     "yourShipTaken": "The pirate {ship} took your {vessel} off {town}, and is making for her haven.",
     "prizeSold": "The pirate {ship} has sold the {vessel} at {town}.",
     "yourShipRetaken": "A {nation} patrol took your {vessel} back from the pirate {ship}. She lies at {town} for you to collect.",
