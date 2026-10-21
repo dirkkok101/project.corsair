@@ -21,6 +21,7 @@ import { HAZE_AROUND, installHaze } from './haze';
 import type { SeaState, WakeShip } from './sea/ocean';
 import { RIGS } from './rigs';
 import { buildShip, flagTexture, makeFlag, prepareKits, SAIL_GLOW, WINDOW_GLOW } from './shipyard';
+import { drawFlagIcon } from './flags';
 import type { BuiltShip, FlagDesign, ShipPlan } from './shipyard';
 import { createBattleFx, fallSide, MAST_FALL_SECONDS } from './battle';
 import { createShake, drawShaken } from './shake';
@@ -883,7 +884,7 @@ export async function createSeaRenderer(
           l = undefined;
         }
         if (!l) {
-          l = { banner: createBanner(text, s.ai?.nation ?? 'pirate', SHIP_LABEL_SIZE), text, x: s.x, y: s.y, inRange: false, shown: 0 };
+          l = { banner: createBanner(text, s.ai?.nation ?? 'pirate', SHIP_LABEL_SIZE, famousFlag(s.ai?.famous)), text, x: s.x, y: s.y, inRange: false, shown: 0 };
           labelLayer.add(l.banner.sprite);
           shipLabels.set(s.id, l);
         }
@@ -1308,12 +1309,14 @@ const FLAG_PICTURES = new Map<string, string>();
  * A town's banner over it, the same size on screen at every zoom (Pirates! 2004 shows the nation's colours, the
  * name and a line on the town's state): the nation's flag, the name in a serif, and the line beneath.
  */
-function createBanner(name: string, nation: string, size = 1): Banner {
+function createBanner(name: string, nation: string, size = 1, design?: FlagDesign): Banner {
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d')!;
   const nameFont = '600 46px Georgia, serif';
   const lineFont = 'italic 26px Georgia, serif';
-  const flag = flagTexture(nation).image as HTMLCanvasElement;
+  const flagW = 74;
+  // Drawn flat at the banner's own size: the cloth flag shrunk this far is mush, and its frayed fly lets the frame through.
+  const flag = drawFlagIcon(nation, design, flagW - 8, 42);
   const texture = new THREE.CanvasTexture(c);
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, fog: false }));
@@ -1324,9 +1327,12 @@ function createBanner(name: string, nation: string, size = 1): Banner {
     const nameW = ctx.measureText(name).width;
     ctx.font = lineFont;
     const lineW = line ? ctx.measureText(line).width : 0;
-    const flagW = 74;
-    c.width = Math.ceil(Math.max(nameW, lineW) + flagW + 44);
-    c.height = line ? 104 : 72;
+    const [width, height] = [Math.ceil(Math.max(nameW, lineW) + flagW + 44), line ? 104 : 72];
+    // A texture keeps the size it was first sent to the GPU at: a banner that grows or shrinks (a town's line coming
+    // or going) needs a fresh one, or it draws squeezed into the old shape.
+    if (width !== c.width || height !== c.height) texture.dispose();
+    c.width = width;
+    c.height = height;
     ctx.fillStyle = 'rgba(16, 24, 36, 0.66)';
     ctx.beginPath();
     ctx.roundRect(0, 4, c.width, c.height - 8, 12);

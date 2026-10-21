@@ -463,9 +463,43 @@ export function drawFlag(nation: string, design?: FlagDesign): HTMLCanvasElement
   c.width = FLAG_W;
   c.height = FLAG_H;
   const g = c.getContext('2d')!;
+  const rnd = flagRandom(design ? `${design.field}|${design.colour}|${design.device}` : nation);
+  flagField(g, nation, design, rnd, painted, false);
+  cloth(g, rnd, design || !NATIONS.has(nation) ? 0.75 : 0.2);
+  return c;
+}
+
+/**
+ * The same flag as a small picture for a name's banner (`w` x `h`): flat colours drawn straight at that size, no cloth,
+ * wear or fraying, its devices bolder so they still read.
+ */
+export function drawFlagIcon(nation: string, design: FlagDesign | undefined, w: number, h: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d')!;
+  g.scale(w / FLAG_W, h / FLAG_H);
+  const flat = (q: CanvasRenderingContext2D, colour: string, draw: (p: CanvasRenderingContext2D) => void) => {
+    q.save();
+    q.fillStyle = colour;
+    q.strokeStyle = colour;
+    draw(q);
+    q.restore();
+  };
+  flagField(g, nation, design, flagRandom(`icon:${nation}`), flat, true);
+  return c;
+}
+
+/** A flag's colours and devices on a FLAG_W x FLAG_H canvas, each device laid on by `painted` (flat, for an icon). */
+function flagField(
+  g: CanvasRenderingContext2D,
+  nation: string,
+  design: FlagDesign | undefined,
+  rnd: () => number,
+  painted: (g: CanvasRenderingContext2D, colour: string, draw: (p: CanvasRenderingContext2D) => void, rnd: () => number) => void,
+  icon: boolean,
+) {
   const [w, h] = [FLAG_W, FLAG_H];
-  const key = design ? `${design.field}|${design.colour}|${design.device}` : nation;
-  const rnd = flagRandom(key);
   if (design) {
     g.fillStyle = design.field;
     g.fillRect(0, 0, w, h);
@@ -478,8 +512,8 @@ export function drawFlag(nation: string, design?: FlagDesign): HTMLCanvasElement
       g,
       '#b0162a',
       (p) => {
-        burgundyStaff(p, -10, -6, w + 10, h + 6, 36, rnd);
-        burgundyStaff(p, w + 10, -6, -10, h + 6, 36, rnd);
+        burgundyStaff(p, -10, -6, w + 10, h + 6, icon ? 64 : 36, rnd);
+        burgundyStaff(p, w + 10, -6, -10, h + 6, icon ? 64 : 36, rnd);
       },
       rnd,
     );
@@ -503,7 +537,7 @@ export function drawFlag(nation: string, design?: FlagDesign): HTMLCanvasElement
     // The King's white, powdered with gold fleurs-de-lis.
     g.fillStyle = '#f3eee2';
     g.fillRect(0, 0, w, h);
-    painted(g, '#c8962a', (p) => semeDeLis(p, 52), rnd);
+    painted(g, '#c8962a', (p) => semeDeLis(p, icon ? 120 : 52), rnd);
   } else if (nation === 'netherlands') {
     // The States' flag: red, white and blue (the Prince's orange had given way to red at sea by the 1660s).
     for (const [i, col] of ['#ae1c28', '#f1ebdd', '#21468b'].entries()) {
@@ -514,8 +548,6 @@ export function drawFlag(nation: string, design?: FlagDesign): HTMLCanvasElement
     // A pirate's black, with the skull and crossed bones.
     g.fillStyle = '#121214';
     g.fillRect(0, 0, w, h);
-    painted(g, '#ebe4d0', (p) => skullAndBones(p, w * 0.47, h * 0.5 - 10, 120), rnd);
+    painted(g, '#ebe4d0', (p) => skullAndBones(p, w * (icon ? 0.5 : 0.47), h * 0.5 - (icon ? 22 : 10), icon ? 150 : 120), rnd);
   }
-  cloth(g, rnd, design || !NATIONS.has(nation) ? 0.75 : 0.2);
-  return c;
 }
