@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { burgundyStaff, crossbones, drawFlag, flagRandom, skull } from './flags';
+import { burgundyStaff, crossbones, drawFlag, drawPennant, flagRandom, skull } from './flags';
 import type { FlagDesign } from './flags';
 export type { FlagDesign } from './flags';
 
@@ -1267,6 +1267,18 @@ export function flagTexture(nation: string, design?: FlagDesign): THREE.CanvasTe
   return t;
 }
 
+/** A nation's pennant for the masthead (flags.ts), drawn once and shared. */
+function pennantTexture(nation: string, design?: FlagDesign): THREE.CanvasTexture {
+  const key = `pennant:${design ? `${design.field}|${design.colour}|${design.device}` : nation}`;
+  const cached = FLAGS.get(key);
+  if (cached) return cached;
+  const t = new THREE.CanvasTexture(drawPennant(nation, design));
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  FLAGS.set(key, t);
+  return t;
+}
+
 /** A nation's flag on its own (a fort's), streaming. */
 export function makeFlag(nation: string): { mesh: THREE.Mesh; update(t: number): void } {
   const material = flagMaterial(flagTexture(nation));
@@ -1399,6 +1411,7 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
   const sailMat = sailMaterial(sailTexture(nation === 'spain' || nation === 'pirate' ? nation : 'plain'));
   const flatMat = sailMaterial(sailTexture('plain'), sailMat.userData.uniforms);
   const flagMat = flagMaterial(flagTexture(nation, flag));
+  const pennantMat = flagMaterial(pennantTexture(nation, flag));
   const h = plan.hull;
   const railAt = (forward: number) => stationOf(h, 0.5 + forward / h.length);
 
@@ -1799,7 +1812,7 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
   ensign.position.set(0, stern.h + 0.48, h.length / 2 + 0.0);
   root.add(ensign);
   const main = plan.masts.reduce((a, b) => (b.height > a.height ? b : a));
-  const pennant = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.1, 12, 1).translate(0.475, 0, 0), flagMat);
+  const pennant = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.1, 24, 2).translate(0.475, 0, 0), pennantMat);
   pennant.name = 'pennant';
   pennant.rotation.y = -Math.PI / 2;
   pennant.position.set(0, main.height + 0.02, -main.at);
@@ -1889,6 +1902,7 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
       u.uBelly.value = point === 'irons' ? 0.1 : p.belly;
       u.uLuff.value = point === 'irons' ? 1 : 0;
       flagMat.userData.uniforms.uTime.value = t;
+      pennantMat.userData.uniforms.uTime.value = t;
       // Yards braced round toward the wind's side; courses furled at half sail, everything at furled.
       const braced = THREE.MathUtils.degToRad(setting === 'furled' ? 0 : side * p.brace);
       if (braced !== lastBrace) {

@@ -61,7 +61,10 @@ Sources and the full notes are in the research summary in the 3D planning conver
     skull over crossed cutlasses, a winged hourglass, a heart run through by a dart and bleeding, a skull beside a
     raised spear. Painted on sewn wool bunting: the paint lit from above, the seams and weave, a linen tape at the
     hoist, the colours fading toward a frayed fly (a pirate's in tatters), and the cloth rippling on the diagonal with
-    its folds shaded. Spanish and pirate square sails carry the same emblem, painted on the canvas.
+    its folds shaded. Spanish and pirate square sails carry the same emblem, painted on the canvas. The main
+    masthead flies the nation's pennant, tapering to a swallow-tail: England's St George at the hoist and a red tail,
+    Spain's Burgundy cross on white, France's lily on blue at the hoist of a white one, the States' three colours down
+    its length, a pirate's black (a famous one's in her colours, with a skull at the hoist).
   - Long thin wakes.
   - Heeling and pitching with the sea.
 - **Camera:** looking down at about 45 to 55 degrees on the sea map and somewhat closer in battle, always north-up

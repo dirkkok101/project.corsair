@@ -310,9 +310,9 @@ function painted(g: CanvasRenderingContext2D, colour: string, draw: (p: CanvasRe
  * hoist, and the fly frayed (`wear` 0..1: a pirate's flag flies till it is in tatters).
  */
 function cloth(g: CanvasRenderingContext2D, rnd: () => number, wear: number) {
-  const [w, h] = [FLAG_W, FLAG_H];
+  const [w, h] = [g.canvas.width, g.canvas.height];
   // Seams: each strip of bunting turned under and stitched, a fine shadow and a highlight beside it.
-  const strips = 6;
+  const strips = Math.max(1, Math.round(h / 53));
   for (let i = 1; i < strips; i++) {
     const y = Math.round((i * h) / strips);
     g.fillStyle = 'rgba(0,0,0,0.055)';
@@ -335,7 +335,7 @@ function cloth(g: CanvasRenderingContext2D, rnd: () => number, wear: number) {
     g.fillRect(0, y - 14, w, 28);
   }
   // The hoist: a linen tape sewn along the edge at the staff.
-  const tape = Math.round(w * 0.035);
+  const tape = Math.round(Math.min(w * 0.035, 18));
   g.fillStyle = '#e4dcc6';
   g.fillRect(0, 0, tape, h);
   g.fillStyle = 'rgba(0,0,0,0.18)';
@@ -372,6 +372,82 @@ function cloth(g: CanvasRenderingContext2D, rnd: () => number, wear: number) {
     }
   }
   g.putImageData(img, 0, 0);
+}
+
+/** A pennant's cloth: long and narrow, about as long as ten times its depth at the hoist. */
+export const PENNANT_W = 512;
+export const PENNANT_H = 56;
+
+/**
+ * A pennant (or streamer) for the main masthead, in the nation's colours as the period flew them: St George's cross at
+ * the hoist and a red tail for England, the Cross of Burgundy at the hoist of a white one for Spain, the King's lilies
+ * on blue at the hoist of a white one for France, the States' three colours down its length, a pirate's black (a famous
+ * one's in her own colours, her device's colour at the hoist). It tapers to a swallow-tail, frayed.
+ */
+export function drawPennant(nation: string, design?: FlagDesign): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = PENNANT_W;
+  c.height = PENNANT_H;
+  const g = c.getContext('2d')!;
+  const [w, h] = [PENNANT_W, PENNANT_H];
+  const key = `pennant:${design ? `${design.field}|${design.colour}|${design.device}` : nation}`;
+  const rnd = flagRandom(key);
+  // The hoist's square of colours, and the tail beyond it.
+  const hoist = Math.round(h * 1.4);
+  if (design) {
+    g.fillStyle = design.field;
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = design.colour;
+    g.fillRect(0, 0, hoist * 0.3, h);
+    skull(g, hoist * 0.75, h * 0.5, h * 0.78);
+  } else if (nation === 'england' || nation === 'player') {
+    g.fillStyle = '#b5142a';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f1ebdd';
+    g.fillRect(0, 0, hoist, h);
+    g.fillStyle = '#b5142a';
+    g.fillRect(hoist / 2 - h * 0.11, 0, h * 0.22, h);
+    g.fillRect(0, h * 0.39, hoist, h * 0.22);
+  } else if (nation === 'spain') {
+    g.fillStyle = '#f1ebdd';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#b0162a';
+    burgundyStaff(g, 4, 2, hoist - 4, h - 2, 9, rnd);
+    burgundyStaff(g, hoist - 4, 2, 4, h - 2, 9, rnd);
+    // A red edge down the tail.
+    g.fillRect(hoist, 0, w, h * 0.12);
+    g.fillRect(hoist, h * 0.88, w, h * 0.12);
+  } else if (nation === 'france') {
+    g.fillStyle = '#f3eee2';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#20356e';
+    g.fillRect(0, 0, hoist, h);
+    g.fillStyle = '#c8962a';
+    place(g, FLEUR, hoist / 2 - h * 0.36, h * 0.12, (h * 0.76) / 100);
+  } else if (nation === 'netherlands') {
+    for (const [i, col] of ['#ae1c28', '#f1ebdd', '#21468b'].entries()) {
+      g.fillStyle = col;
+      g.fillRect(0, Math.round((i * h) / 3), w, Math.ceil(h / 3) + 1);
+    }
+  } else {
+    g.fillStyle = '#121214';
+    g.fillRect(0, 0, w, h);
+  }
+  const worn = design || !NATIONS.has(nation);
+  cloth(g, rnd, worn ? 0.6 : 0.15);
+  // The shape: tapering from the hoist toward the fly, the end cut into a swallow-tail.
+  g.globalCompositeOperation = 'destination-in';
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(w, h * 0.3);
+  g.lineTo(w * 0.86, h * 0.5);
+  g.lineTo(w, h * 0.7);
+  g.lineTo(0, h);
+  g.closePath();
+  g.fillStyle = '#000';
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+  return c;
 }
 
 /** Every nation the game draws its own flag for; anything else flies a pirate's black. */
