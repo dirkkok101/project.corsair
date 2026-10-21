@@ -1281,12 +1281,31 @@ async function main() {
     }
     return best?.s;
   };
+  // Whether cruising holds at 1x near land, a port, a sail or a storm: the player's setting, off unless chosen (being
+  // tried without, 2026-10-21), and kept in this browser like the gentle wind.
+  const HOLDS_KEY = 'corsair.cruiseHolds';
+  let cruiseHolds = (() => {
+    try {
+      return localStorage.getItem(HOLDS_KEY) === 'on';
+    } catch {
+      return false;
+    }
+  })();
+  const setCruiseHolds = (on: boolean) => {
+    cruiseHolds = on;
+    try {
+      localStorage.setItem(HOLDS_KEY, on ? 'on' : 'off');
+    } catch {
+      // Not kept: it lasts the session.
+    }
+  };
   const timeScale = (inStorm: boolean): { scale: number; held?: string } => {
     const ship = player();
     // Only close in: cruising carries on along a coast, and holds for the last few tiles before land or a port.
     const nearLand =
       breezes.coastTiles(ship.x, ship.y) <= HOLD_COAST_TILES || settlements.some((s) => Math.hypot(s.x - ship.x, s.y - ship.y) <= HOLD_PORT_TILES);
     if (ship.docked || wantedSpeed <= 1) return { scale: 1 };
+    if (!cruiseHolds) return { scale: wantedSpeed };
     if (inStorm) return { scale: 1, held: 'storm' };
     if (nearLand) return { scale: 1, held: 'near land' };
     if (sailInSight()) return { scale: 1, held: 'sail in sight' };
@@ -2007,7 +2026,7 @@ async function main() {
         strip={strip}
         faded={now - stripChanged > STRIP_REST_MS}
         setSails={(sails) => sim.send({ type: 'SetSails', shipId: ship.id, sails })}
-        cruise={{ speed: wantedSpeed, choose: (n) => (wantedSpeed = n) }}
+        cruise={{ speed: wantedSpeed, choose: (n) => (wantedSpeed = n), holds: cruiseHolds, toggleHolds: () => setCruiseHolds(!cruiseHolds) }}
         gentleWind={{ on: gentleWind, toggle: () => setGentleWind(!gentleWind) }}
         help={helpOpen}
         closeHelp={() => (helpOpen = false)}

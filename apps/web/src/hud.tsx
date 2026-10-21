@@ -224,7 +224,8 @@ export interface HudProps {
   faded: boolean;
   /** Sails and cruise speed, by the compass. */
   setSails: (sails: Ship['sails']) => void;
-  cruise: { speed: number; choose: (speed: number) => void };
+  /** Cruise speed, and whether it drops to 1x near land, a port, a sail or a storm (`holds`). */
+  cruise: { speed: number; choose: (speed: number) => void; holds: boolean; toggleHolds: () => void };
   /** The gentle wind setting: any heading, and a calm, still make way for her. */
   gentleWind: { on: boolean; toggle: () => void };
   /** F1: every key, grouped, and closing it. */
@@ -391,6 +392,18 @@ export function Hud(p: HudProps) {
           onClick={() => p.cruise.choose(p.cruise.speed >= 4 ? 1 : p.cruise.speed * 2)}
         >
           {p.cruise.speed}×
+        </button>
+        <button
+          class={`k-btn small hud-holds${p.cruise.holds ? ' active' : ''}`}
+          aria-label="Slow near land and sails"
+          title={
+            p.cruise.holds
+              ? 'Cruising slows to 1× near land, a port, a sail or a storm. Click to keep your speed'
+              : 'Cruising keeps your speed everywhere. Click to slow to 1× near land, a port, a sail or a storm'
+          }
+          onClick={p.cruise.toggleHolds}
+        >
+          {p.cruise.holds ? 'Slows' : 'Steady'}
         </button>
         <button
           class={`k-btn small hud-wind${p.gentleWind.on ? ' active' : ''}`}

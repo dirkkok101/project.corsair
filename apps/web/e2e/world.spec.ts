@@ -1143,7 +1143,7 @@ test('the gentle wind: a HUD toggle puts it on her ship, and the choice is kept 
   expect(errors).toEqual([]);
 });
 
-test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x, I intercepts', async ({ page }) => {
+test('sailing: cruises at 2x, calls a sail in sight (dropping to 1x only when set to slow), I intercepts', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // Open water south of Jamaica, away from every coast.
   await page.evaluate(() => {
@@ -1180,7 +1180,14 @@ test('sailing: cruises at 2x on empty sea, calls a sail in sight and drops to 1x
   // Where she lies from the bow, and the key to go after her.
   await expect(page.locator('.hud-banner')).toContainText(/dead ahead|astern|(bow|beam|quarter)/);
   await expect(page.locator('.hud-banner')).toContainText('intercept');
-  // Cruising holds at 1x (here the coast may hold it too: either reason drops it).
+  // Cruising keeps its speed unless the player asks it to slow near land and sails; then it holds at 1x (here the
+  // coast may hold it too: either reason drops it).
+  const holds = page.getByRole('button', { name: 'Slow near land and sails' });
+  await expect(holds).toHaveText('Steady');
+  await expect(page.locator('.hud-date').first()).not.toContainText('1×,');
+  await holds.click();
+  await frames(page);
+  await expect(holds).toHaveText('Slows');
   await expect(page.locator('.hud-date').first()).toContainText('1×,');
   await page.keyboard.press('i');
   await page.evaluate(() => window.__corsair.sim.step(1));
