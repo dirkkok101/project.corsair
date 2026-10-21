@@ -105,7 +105,7 @@ export function createTrafficSystem(
   const orders = (state: WorldState, ship: Ship, rng: Rng) => {
     const ai = ship.ai!;
     const here = byId.get(ai.from)!;
-    const reachable = (s: Settlement) => s.id !== here.id && Boolean(lanes.route(here.id, s.id));
+    const reachable = (s: Settlement) => s.id !== here.id && lanes.joined(here.id, s.id);
     if (ai.role === 'pirate') {
       // Pirates stalk the lanes near home: bigger ports draw them, distance puts them off.
       const size = { hamlet: 1, town: 2, city: 4 } as const;

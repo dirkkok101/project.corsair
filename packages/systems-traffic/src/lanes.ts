@@ -13,6 +13,8 @@ type Settlement = Pick<PlacedSettlement, 'id' | 'x' | 'y'>;
 export interface SeaLanes {
   /** Waypoints in tiles from one port's mooring to another's, or undefined if no lane joins them. */
   route(from: string, to: string): Point[] | undefined;
+  /** Whether a lane joins two ports (exactly when `route` finds one, without searching for it). */
+  joined(from: string, to: string): boolean;
   /** The water tile a ship lies at off a port. */
   mooring(id: string): Point | undefined;
   /** True when a straight line between two points stays on water. */
@@ -95,15 +97,24 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
     [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
     [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2],
   ];
-  /** Open cells a lane may step between: no corner-cutting past land cells, and a clear line between centres. */
+  /**
+   * Open cells a lane may step between: no corner-cutting past land cells, and a clear line between centres. The map
+   * never changes, so each step's answer is kept (by cell and direction: 0 unknown, 1 open, 2 closed): every search
+   * walks the same steps, and the line test is most of a search's time.
+   */
+  const stepKnown = new Uint8Array(cw * ch * 8);
   const step = (i: number, dx: number, dy: number): number | undefined => {
     const [x, y] = [i % cw, Math.floor(i / cw)];
     const [nx, ny] = [x + dx, y + dy];
     if (nx < 0 || ny < 0 || nx >= cw || ny >= ch) return undefined;
     const n = ny * cw + nx;
+    const k = i * 8 + (dy + 1) * 3 + (dx + 1) - ((dy + 1) * 3 + (dx + 1) > 4 ? 1 : 0);
+    const known = stepKnown[k];
+    if (known) return known === 1 ? n : undefined;
     // A cell is only mostly water, so the line between two centres can still clip a headland.
-    if (!open[n] || (dx && dy && (!open[y * cw + nx] || !open[ny * cw + x]))) return undefined;
-    return clear(centre(i), centre(n)) ? n : undefined;
+    const ok = Boolean(open[n]) && !(dx && dy && (!open[y * cw + nx] || !open[ny * cw + x])) && clear(centre(i), centre(n));
+    stepKnown[k] = ok ? 1 : 2;
+    return ok ? n : undefined;
   };
 
   // The open sea is the largest connected group of open cells; lakes and lagoons have groups of their
@@ -269,6 +280,9 @@ export function createSeaLanes(map: TileMap, settlements: Settlement[], cell: nu
   };
   return {
     mooring: (id) => moorings.get(id)?.at,
+    // Every mooring's way out ends on the open sea's one connected group of cells, which the search walks by the same
+    // steps, so any two ports with moorings are joined.
+    joined: (from, to) => moorings.has(from) && moorings.has(to),
     clear,
     path: pathBetween,
     berth(id) {

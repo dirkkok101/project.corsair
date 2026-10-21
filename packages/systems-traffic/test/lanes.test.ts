@@ -22,6 +22,21 @@ describe('sea lanes', () => {
     expect(unreached).toEqual([]);
   });
 
+  it('know which ports a lane joins without searching, exactly as a search would find it', () => {
+    for (const from of ['town.port_royal', 'town.havana', 'town.bridgetown']) {
+      for (const to of settlements) {
+        if (to.id === from) continue;
+        expect(lanes.joined(from, to.id)).toBe(Boolean(lanes.route(from, to.id)));
+      }
+    }
+    expect(lanes.joined('town.port_royal', 'town.nowhere')).toBe(false);
+  });
+
+  it('come out the same however many searches went before (the steps it keeps are only the map)', () => {
+    const fresh = createSeaLanes(map, settlements, content.traffic.laneCell);
+    expect(fresh.route('town.havana', 'town.bridgetown')).toEqual(lanes.route('town.havana', 'town.bridgetown'));
+  });
+
   it('run on water the whole way, from mooring to mooring', () => {
     const route = lanes.route('town.bridgetown', 'town.havana')!;
     expect(route[0]).toEqual(lanes.mooring('town.bridgetown'));
