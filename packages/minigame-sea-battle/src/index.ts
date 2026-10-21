@@ -121,6 +121,8 @@ export interface BattleEffect {
   /** A falling mast: which (fore to aft), and the way it falls (degrees, the way the shot was going). */
   mast?: number;
   towardDeg?: number;
+  /** A broadside's smoke: how many guns fired. */
+  guns?: number;
 }
 
 export interface BattleState {
@@ -373,14 +375,24 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     if (Math.abs(rel + 90) <= c.guns.arcDeg) return 'port';
     return undefined;
   };
+  /** Her crew over the men a broadside needs (crewPerGun at each gun on the side). */
+  const manningOf = (ship: BattleShip) => Math.max(1, ship.crew) / Math.max(1, (ship.guns * c.guns.crewPerGun) / 2);
+  /**
+   * Short-handed, she can't work every gun on the side nor load those she does as fast: both by the square root of
+   * her manning, so her weight of shot a minute still falls in proportion to her men, in smaller, slower broadsides.
+   */
+  const gunsManned = (ship: BattleShip) => {
+    const n = Math.floor(ship.guns / 2);
+    return Math.min(n, Math.max(1, Math.round(n * Math.sqrt(Math.min(1, manningOf(ship))))));
+  };
+  /** And what guns she works scatter wider, her best gunners fallen (combat.json shortHandedSpread). */
+  const unsteady = (ship: BattleShip) => 1 + c.guns.shortHandedSpread * (1 - Math.min(1, manningOf(ship)));
   const reloadSeconds = (ship: BattleShip) => {
-    // Manning: her crew over the men a broadside needs. Short-handed, every broadside takes longer (the crew
-    // is split between the guns); with hands to spare it goes faster, up to reloadBonus at fullManning
-    // (Pirates! 2004: more crew means faster reloads).
-    const needed = (ship.guns * c.guns.crewPerGun) / 2;
-    const manning = Math.max(1, ship.crew) / Math.max(1, needed);
+    // With hands to spare she loads faster, up to reloadBonus at fullManning (Pirates! 2004: more crew means
+    // faster reloads).
+    const manning = manningOf(ship);
     const m = content.crew.manning;
-    const factor = manning < 1 ? 1 / manning : 1 - m.reloadBonus * Math.min(1, (manning - 1) / (m.fullManning - 1));
+    const factor = manning < 1 ? 1 / Math.sqrt(manning) : 1 - m.reloadBonus * Math.min(1, (manning - 1) / (m.fullManning - 1));
     // Her men at the sweeps aren't at the guns; bronze guns fired three times running must cool.
     const rowing = atTheOars(battleContent, ship, state.wind) ? c.upgrades.rowingReload : 1;
     const hot = ship.overheats && ship.firedAt.filter((t) => seconds() - t <= c.upgrades.overheatSeconds).length >= 3 ? c.upgrades.overheatReload : 1;
@@ -429,7 +441,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const tr = (target.headingDeg * Math.PI) / 180;
     const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
     // Scattered in proportion to the ships' size in the fight, so a bigger target is no likelier hit.
-    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * ship.spreadMult * c.battle.shipScale;
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * ship.spreadMult * unsteady(ship) * c.battle.shipScale;
     const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
     const shots: Shot[] = [];
     for (let g = 0; g < ship.chasers; g++) {
@@ -476,11 +488,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const aimH = ship.ammo === 'chain' ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
     // Grape leaves the muzzle as a tight cone of small shot: it holds together over its short reach.
     // Scattered in proportion to the ships' size in the fight (battle.shipScale), so a bigger target is no likelier hit.
-    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1) * ship.spreadMult * c.battle.shipScale;
+    const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1) * ship.spreadMult * unsteady(ship) * c.battle.shipScale;
     // A normal scatter from two uniform draws (Box-Muller).
     const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, rng.float()))) * Math.cos(2 * Math.PI * rng.float());
     const shots: Shot[] = [];
-    const n = Math.floor(ship.guns / 2);
+    const n = gunsManned(ship);
     for (let g = 0; g < n; g++) {
       const along = ((g + 0.5) / n - 0.5) * size.length * 0.6;
       const x = ship.x + fwd[0] * along + stbd[0] * size.beam * out;
@@ -494,7 +506,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       ...state,
       ships: { ...state.ships, [side]: { ...ship, firedAt: [...ship.firedAt.slice(-3), seconds()], reload: { ...ship.reload, [broadside]: reloadSeconds({ ...ship, firedAt: [...ship.firedAt.slice(-3), seconds()] }) } } },
       shots: [...state.shots, ...shots],
-      effects: [...state.effects, { kind: 'smoke', x: ship.x, y: ship.y, at: seconds() }],
+      effects: [...state.effects, { kind: 'smoke', x: ship.x, y: ship.y, at: seconds(), guns: n }],
     };
   };
 
@@ -807,8 +819,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     demands,
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
-    /** The player's guns now: a broadside's reload, and how far the shot loaded reaches. */
-    gunnery: () => ({ reloadSeconds: reloadSeconds(state.ships.player), rangeTiles: reach(state.ships.player) }),
+    /** The player's guns now: a broadside's reload, how far the shot loaded reaches, and how many guns she can work. */
+    gunnery: () => ({ reloadSeconds: reloadSeconds(state.ships.player), rangeTiles: reach(state.ships.player), guns: gunsManned(state.ships.player) }),
     /** Advance `ticks` thirtieths of a second. `autopilot` steers the player too (the headless runner). */
     step(ticks = 1, autopilot?: 'runner' | 'cautious' | 'aggressive') {
       for (let i = 0; i < ticks && !state.result; i++) {

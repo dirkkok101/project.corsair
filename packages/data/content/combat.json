@@ -42,6 +42,7 @@
     "grapeTiles": 4,
     "reloadSeconds": 4,
     "crewPerGun": 4,
+    "shortHandedSpread": 0.5,
     "shotTilesPerSecond": 6,
     "spread": 0.12,
     "spreadPerTile": 0.16,

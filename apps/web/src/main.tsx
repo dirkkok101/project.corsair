@@ -1353,10 +1353,10 @@ async function main() {
           const pan = (e.x - me.x) / 12;
           const gain = 1 / (1 + Math.hypot(e.x - me.x, e.y - me.y) / 8);
           if (e.kind === 'smoke') {
-            // The ship nearest the smoke fired: her broadside is half her guns.
+            // The ship nearest the smoke fired: her broadside is the guns she worked (half her guns when the smoke doesn't say, as a chaser's).
             const theirs = Math.hypot(e.x - me.x, e.y - me.y) >= Math.hypot(e.x - bs.ships.enemy.x, e.y - bs.ships.enemy.y);
             const shooter = theirs ? bs.ships.enemy : me;
-            audio.battle.broadside(Math.floor(shooter.guns / 2), pan, gain);
+            audio.battle.broadside(e.guns ?? Math.floor(shooter.guns / 2), pan, gain);
             // Hers: her balls go over the player's ship as they arrive, most of the way through their flight.
             if (theirs) audio.battle.whistle((Math.hypot(e.x - me.x, e.y - me.y) / content.combat.guns.shotTilesPerSecond) * 0.8, pan * 0.3, 1);
           } else if (e.kind === 'splash') audio.battle.splash(pan, gain);

@@ -72,6 +72,18 @@ describe('sailing model', () => {
     expect(sim.state.ships.player!.headingDeg).toBeCloseTo(turned, 6);
   });
 
+  it('turns slower with her sails shot through', () => {
+    const turned = (sailCondition: number) => {
+      const state = openSea(90);
+      const sim = createSim({ ...state, ships: { player: { ...state.ships.player!, sailCondition } } }, [createNavigationSystem(content, map)]);
+      sim.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
+      sim.step(TICKS_PER_SECOND);
+      return sim.state.ships.player!.headingDeg - 90;
+    };
+    expect(turned(0)).toBeCloseTo(turned(100) * content.navigation.tornSailsTurnFloor, 1);
+    expect(turned(50)).toBeLessThan(turned(100));
+  });
+
   it('stops at land, stays on water and reports the contact once', () => {
     const world = createWorld(content.maps.placeholder);
     // West of the island on its centre line, heading east into it, wind on the beam.

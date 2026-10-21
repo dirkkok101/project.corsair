@@ -261,10 +261,37 @@ describe('sea battle', () => {
       createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.brig'), crew }, enemy: ship('ship.sloop', 'pirate'), seed: 1, bearingDeg: 0 }).gunnery()
         .reloadSeconds;
     const base = content.combat.guns.reloadSeconds;
-    expect(reload(18)).toBeCloseTo(base * 2);
+    expect(reload(18)).toBeCloseTo(base * Math.SQRT2);
     expect(reload(36)).toBeCloseTo(base);
     expect(reload(108)).toBeCloseTo(base * (1 - content.crew.manning.reloadBonus));
     expect(reload(150)).toBeCloseTo(reload(108));
+  });
+
+  it('short-handed, she works fewer guns, and they scatter wider', () => {
+    // A brig's broadside is 9 guns, wanting 36 hands; at half that she works 9 x sqrt(0.5), about 6.
+    const broadside = (crew: number) => {
+      // The enemy seated abeam to starboard, well within reach.
+      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } }, {
+        map,
+        wind: { fromDeg: 90, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 0, crew },
+        enemy: ship('ship.fluyt', 'merchant'),
+        seed: 5,
+        bearingDeg: 90,
+      });
+      b.send({ type: 'Fire' });
+      b.step(1);
+      const shots = b.state.shots.filter((s) => s.from === 'player');
+      const mean = [shots.reduce((a, s) => a + s.tx, 0) / shots.length, shots.reduce((a, s) => a + s.ty, 0) / shots.length];
+      return { guns: b.gunnery().guns, fired: shots.length, scatter: Math.max(...shots.map((s) => Math.hypot(s.tx - mean[0]!, s.ty - mean[1]!))) };
+    };
+    const full = broadside(36);
+    const half = broadside(18);
+    expect(full.guns).toBe(9);
+    expect(half.guns).toBe(6);
+    expect(full.fired).toBe(9);
+    expect(half.fired).toBe(6);
+    expect(half.scatter).toBeGreaterThan(full.scatter);
   });
 
   it('a brush in passing throws no grapples: only a ship that means to board', () => {

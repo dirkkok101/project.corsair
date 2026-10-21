@@ -237,7 +237,9 @@ export function createNavigationSystem(
     // Way is gathered at accelPerSecond and, where set, lost more slowly: a ship carries her way.
     const rate = target < ship.speed ? (nav.decelPerSecond ?? nav.accelPerSecond) : nav.accelPerSecond;
     const speed = ship.speed + (target - ship.speed) * Math.min(1, rate * dt);
-    const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]! * handsFactor(content, ship);
+    // Her sails help bring her round as much as her rudder: shot through, she answers the helm slowly.
+    const sails = nav.tornSailsTurnFloor + (1 - nav.tornSailsTurnFloor) * ((ship.sailCondition ?? 100) / 100);
+    const turnRate = cls.turn * nav.turnDegPerSecondPerPoint * nav.rigTurnFactor[cls.rig]! * handsFactor(content, ship) * sails;
     let headingDeg = normalizeDeg(ship.headingDeg + ship.helm * turnRate * dt);
     let assist = ship.assist;
     const events: EmittedEvent[] = [];

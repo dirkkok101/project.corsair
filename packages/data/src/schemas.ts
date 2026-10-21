@@ -52,6 +52,8 @@ export const navigationSchema = z.object({
   decelPerSecond: z.number().positive().optional(),
   /** Sails shot to nothing still draw this share (rags, a jury rig): she is slowed, never stopped. */
   tornSailsFloor: z.number().min(0).max(1),
+  /** And she turns slower with them: sails shot to nothing leave her this share of her turn (the rudder still bites). */
+  tornSailsTurnFloor: z.number().min(0).max(1),
   sailSettings: z.record(z.enum(['furled', 'half', 'full']), z.number().min(0).max(1)),
   rigTurnFactor: z.record(rig, z.number().positive()),
   /**
@@ -471,6 +473,8 @@ export const combatSchema = z.object({
     /** Seconds to reload a broadside with a full gun crew; switching ammo costs a reload too. */
     reloadSeconds: z.number().positive(),
     /** Men a gun needs for full-speed reloading; fewer and every broadside reloads slower. */
+    /** Short-handed (fewer men than a broadside wants), her shot scatters up to this much more, at no men. */
+    shortHandedSpread: z.number().min(0),
     crewPerGun: z.number().positive(),
     shotTilesPerSecond: z.number().positive(),
     /**
