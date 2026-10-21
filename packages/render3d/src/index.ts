@@ -81,6 +81,8 @@ const CLOUDS_FROM = [70, 160];
  * the map reads clearly.
  */
 const HAZE_CLEAR = 0.5;
+/** From astern, looking along the sea to the horizon, the haze holds off longer: clear to this share of her view. */
+const HAZE_CLEAR_CHASE = 0.8;
 const HAZE_RING = { to: 140, least: 0 };
 /**
  * In battle the haze is by depth from the camera: clear to the far edge of the fight, then thickening over this many
@@ -192,6 +194,8 @@ export interface SeaRenderer {
   setShake(scale: number): void;
   /** Debug: how much the battle camera is shaking now (trauma, 0..1). */
   readonly shaking: number;
+  /** Debug: the ship labels showing now (from astern), by what they say. */
+  readonly shipLabels: string[];
   /** Shifts the sky to an hour of the day (for reviewing sunrise, sunset and night); the game's clock is untouched. */
   setSkyHour(hour: number): void;
   /**
@@ -222,6 +226,8 @@ export async function createSeaRenderer(
     seaWindAt?: (state: WorldState, x: number, y: number) => Wind;
     /** A town's line under its name ("Prosperous English Capital"), from the game's state. */
     townLine?: (s: PlacedSettlement, state: WorldState) => string;
+    /** What a ship in sight is ("Pirate sloop"), shown over her from astern; omit for no labels. */
+    shipLabel?: (s: Ship) => string;
     /**
      * For review, what to draw on the sea (`?sea=`): "plain" alone is the bare water; add layers by name to
      * bring them back (flecks, shadows, ripples, surf, swell, clouds, wakes). Unset, everything.
@@ -289,6 +295,10 @@ export async function createSeaRenderer(
   });
   let bannersAt = -Infinity;
   scene.add(towns.object);
+  // From astern, each ship in sight carries a label saying what she is (her flag and "Pirate sloop"), over her masts.
+  const shipLabels = new Map<string, { banner: Banner; text: string; x: number; y: number; inRange: boolean; shown: number }>();
+  const labelLayer = new THREE.Group();
+  scene.add(labelLayer);
   // The seas, passages and banks named on the water.
   const seaNames = createSeaNames(content.maps.caribbean, content.seaNames);
   scene.add(seaNames.object);
@@ -488,7 +498,7 @@ export async function createSeaRenderer(
     // The horizon closes in under the cloud, and the clouds themselves darken.
     if (around) {
       // Her view (the weather has already closed it in), past the camera's own distance from her.
-      light.fogNear = view + around.reach * HAZE_CLEAR;
+      light.fogNear = view + around.reach * (chase ? HAZE_CLEAR_CHASE : HAZE_CLEAR);
       light.fogFar = view + around.reach;
       // From astern the camera looks out to the horizon (and past the map's edge, far out): the haze stays.
       HAZE_AROUND.x = chase ? 1 : 1 - (1 - HAZE_RING.least) * THREE.MathUtils.smoothstep(view, MARKS_FROM, HAZE_RING.to);
@@ -586,7 +596,30 @@ export async function createSeaRenderer(
       placed.push([cx, cy, hw, hh]);
       keep.add(n);
     }
+    // Ships' labels: nearer ones first, none over a town's name or another's.
+    const keepLabels = new Set<string>();
+    const labelOrder = [...shipLabels].filter(([, l]) => l.inRange).sort(([, a], [, b]) => Math.hypot(a.x - target.x, a.y - target.z) - Math.hypot(b.x - target.x, b.y - target.z));
+    for (const [id, l] of labelOrder) {
+      bannerAt.copy(l.banner.sprite.position).project(camera);
+      if (bannerAt.z > 1) continue;
+      const cx = ((bannerAt.x + 1) / 2) * viewSize.x;
+      const cy = ((1 - bannerAt.y) / 2) * viewSize.y;
+      const hw = (l.banner.sprite.scale.x * unit) / 2 + 4;
+      const hh = (l.banner.sprite.scale.y * unit) / 2 + 3;
+      if (placed.some(([x, y, w, h]) => Math.abs(cx - x) < hw + w && Math.abs(cy - y) < hh + h)) continue;
+      placed.push([cx, cy, hw, hh]);
+      keepLabels.add(id);
+    }
     const step = Math.min(1, dt * 5);
+    for (const [id, l] of shipLabels) {
+      const want = keepLabels.has(id) ? 1 : 0;
+      l.shown = dt ? l.shown + (want - l.shown) * step : want;
+      if (Math.abs(want - l.shown) < 0.01) l.shown = want;
+      // Readable to the edge of the haze, then gone with her into it.
+      const clear = 1 - THREE.MathUtils.smoothstep(l.banner.sprite.position.distanceTo(camera.position), haze.far * 0.85, haze.far);
+      l.banner.sprite.visible = l.shown * clear > 0.01;
+      (l.banner.sprite.material as THREE.SpriteMaterial).opacity = l.shown * clear;
+    }
     for (const n of names) {
       // Fades rather than pops; a fresh view (no time passed yet) shows the outcome at once.
       const want = keep.has(n) ? 1 : 0;
@@ -788,6 +821,7 @@ export async function createSeaRenderer(
     const seen = new Set<string>();
     const zoomedOut = distance >= MARKS_FROM && !chase;
     const wakes = new Set<string>();
+    const labelled = new Set<string>();
     for (const s of Object.values(state.ships)) {
       seen.add(s.id);
       if (seaFrames > 0 && !knownIds.has(s.id)) born.set(s.id, t);
@@ -840,8 +874,36 @@ export async function createSeaRenderer(
       // ship's masts stand about as high as she is long).
       m.root.position.y -= (1 - shown) * len * 1.3;
       if (shown < 0.5) continue;
+      if (chase && options.shipLabel && s.id !== options.playerId) {
+        const text = options.shipLabel(s);
+        let l = shipLabels.get(s.id);
+        if (l && l.text !== text) {
+          labelLayer.remove(l.banner.sprite);
+          l.banner.dispose();
+          l = undefined;
+        }
+        if (!l) {
+          l = { banner: createBanner(text, s.ai?.nation ?? 'pirate', SHIP_LABEL_SIZE), text, x: s.x, y: s.y, inRange: false, shown: 0 };
+          labelLayer.add(l.banner.sprite);
+          shipLabels.set(s.id, l);
+        }
+        // Over her masts (a ship's masts stand about as high as she is long).
+        l.banner.sprite.position.set(m.root.position.x, m.root.position.y + len * 1.15, m.root.position.z);
+        l.x = s.x;
+        l.y = s.y;
+        l.inRange = true;
+        labelled.add(s.id);
+      }
       wakes.add(s.id);
       if (Math.hypot(s.x - me.x, s.y - me.y) < 30 + distance * 0.6) sprayShips.push(bowOf(s.id, m.root, s.headingDeg, len, Math.min(1, pace * 1.4), dt));
+    }
+    // Labels only from astern, on ships drawn this frame; a ship gone from the sea takes hers with her.
+    for (const [id, l] of shipLabels) {
+      l.inRange = labelled.has(id);
+      if (seen.has(id)) continue;
+      labelLayer.remove(l.banner.sprite);
+      l.banner.dispose();
+      shipLabels.delete(id);
     }
     for (const [id, m] of ships) {
       if (seen.has(id)) continue;
@@ -1182,6 +1244,9 @@ export async function createSeaRenderer(
     get shaking() {
       return shake.trauma;
     },
+    get shipLabels() {
+      return [...shipLabels.values()].filter((l) => l.banner.sprite.visible).map((l) => l.text);
+    },
   };
 }
 
@@ -1189,7 +1254,10 @@ interface Banner {
   sprite: THREE.Sprite;
   /** Sets the line under the name (redrawn only when it changes). */
   setLine(line: string): void;
+  dispose(): void;
 }
+/** A ship's label against a town's banner: smaller, so a town's name still reads first. */
+const SHIP_LABEL_SIZE = 0.7;
 
 /** A ship last seen here: a small sail, as the chart marks one. */
 function lastSeenMark(): THREE.Texture {
@@ -1240,7 +1308,7 @@ const FLAG_PICTURES = new Map<string, string>();
  * A town's banner over it, the same size on screen at every zoom (Pirates! 2004 shows the nation's colours, the
  * name and a line on the town's state): the nation's flag, the name in a serif, and the line beneath.
  */
-function createBanner(name: string, nation: string): Banner {
+function createBanner(name: string, nation: string, size = 1): Banner {
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d')!;
   const nameFont = '600 46px Georgia, serif';
@@ -1277,7 +1345,7 @@ function createBanner(name: string, nation: string): Banner {
       ctx.fillText(line, flagW + 24, 78);
     }
     texture.needsUpdate = true;
-    const h = line ? 0.05 : 0.036;
+    const h = (line ? 0.05 : 0.036) * size;
     sprite.scale.set((c.width / c.height) * h, h, 1);
   };
   draw('');
@@ -1287,6 +1355,10 @@ function createBanner(name: string, nation: string): Banner {
       if (line === shown) return;
       shown = line;
       draw(line);
+    },
+    dispose() {
+      texture.dispose();
+      sprite.material.dispose();
     },
   };
 }

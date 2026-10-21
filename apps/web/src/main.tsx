@@ -347,6 +347,8 @@ async function main() {
           // ?sea=plain (then layers by name) for review: what's drawn on the 3D sea.
           sea: new URLSearchParams(location.search).get('sea')?.split(',') ?? undefined,
           sound: (id, opts) => audio.playSfx(id, opts),
+          // A ship in sight from astern: what she is, as Sail ho! calls her ("Pirate sloop"; a famous pirate by name).
+          shipLabel: (s) => (s.ai?.famous ? `${s.ai.name}, ${shipKind(s.classId)}` : shipTitle(s).replace(/^./, (c) => c.toUpperCase())),
           townLine: (s, state) => {
             // "Prosperous English Capital": the town's trend, nation and kind, and anything ailing it.
             const t = townOf(content, state, s);
