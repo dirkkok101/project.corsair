@@ -1,12 +1,13 @@
 /**
- * A boarder's mind (utility AI): each tick she weighs what to do (board, stalk, or run) by how much she wants each now,
+ * A boarder's mind (utility AI): each tick she weighs what to do (board, duel, stalk, or run) by how much she wants each now,
  * and does the one she wants most. Each want is a reason or several, each read through a curve that rises around her
  * temperament's own threshold (combat.json tactics.temperaments), so reasons add up: a rig half shot through and a
  * crew a little stronger can together send her in where neither would alone. She holds to what she is doing until
  * something else is wanted clearly more (`margin`), so she doesn't dither between two near-equal choices. Pure and
  * deterministic: the fight is seeded and replays must come out the same.
  */
-export type Intent = 'board' | 'stalk' | 'flee';
+/** Board her; trade broadsides with her at range; keep off her bow or stern and rake her; or run. */
+export type Intent = 'board' | 'duel' | 'stalk' | 'flee';
 
 export interface Mind {
   intent: Intent;
@@ -21,6 +22,8 @@ export interface Situation {
   crew: number;
   /** Her men over the other's. */
   menRatio: number;
+  /** Her weight in a slugging match over the other's: guns times hull left, hers over the other's. */
+  firepower: number;
   /** The other's sails, 0..100. */
   theirSails: number;
   /** The other's broadside on her side has just fired and is a while reloading. */
@@ -37,6 +40,8 @@ export interface Temperament {
   seizeOpenings: boolean;
   fleeBelowHull: number;
   fleeBelowCrew: number;
+  /** She trades broadsides at range once her firepower is this many times the other's (a gunner sooner). */
+  duelOdds: number;
 }
 
 export interface Weighing {
@@ -51,6 +56,11 @@ export interface Weighing {
    * stalks, working in toward the other's bow or stern, rather than run straight in from over the horizon.
    */
   close: { tiles: number; soft: number };
+  /**
+   * Trading broadsides: how soft its curve is round her `duelOdds` (in firepower ratio), and how much she can want it
+   * at most: more than stalking, so a ship that outguns the other stands and fights; less than a sure boarding.
+   */
+  duel: { soft: number; most: number };
   /** How much she wants to stalk (keep off the other's bow or stern and rake her): her course when nothing else calls. */
   stalk: number;
 }
@@ -68,8 +78,9 @@ export function weigh(s: Situation, t: Temperament, w: Weighing, last?: Intent):
     any(below(s.theirSails, t.boardBelowSails, w.soft.sails), above(s.menRatio, t.boardCrewRatio, w.soft.ratio), t.seizeOpenings && s.opening ? 1 : 0, s.gauge === 'mine' ? w.gauge : 0) *
     (1 - flee) *
     below(s.apart, w.close.tiles, w.close.soft);
-  const wants: Record<Intent, number> = { board, stalk: w.stalk, flee };
-  const order: Intent[] = ['flee', 'board', 'stalk'];
+  const duel = w.duel.most * above(s.firepower, t.duelOdds, w.duel.soft) * (1 - flee);
+  const wants: Record<Intent, number> = { board, duel, stalk: w.stalk, flee };
+  const order: Intent[] = ['flee', 'board', 'duel', 'stalk'];
   let best = order.reduce((a, b) => (wants[b] > wants[a] ? b : a));
   if (last && best !== last && wants[best] < wants[last] + w.margin) best = last;
   return { intent: best, wants };

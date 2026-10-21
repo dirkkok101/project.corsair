@@ -646,7 +646,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
       {state.result ? null : <Compass {...compass} className="battle-compass" />}
       {showMind && state.minds?.enemy ? (
         <div class="battle-mind">
-          {state.minds.enemy.intent} · board {state.minds.enemy.wants.board.toFixed(2)} · stalk {state.minds.enemy.wants.stalk.toFixed(2)} · run{' '}
+          {state.minds.enemy.intent} · board {state.minds.enemy.wants.board.toFixed(2)} · duel {state.minds.enemy.wants.duel.toFixed(2)} · stalk {state.minds.enemy.wants.stalk.toFixed(2)} · run{' '}
           {state.minds.enemy.wants.flee.toFixed(2)}
         </div>
       ) : null}

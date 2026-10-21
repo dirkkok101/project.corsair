@@ -7,7 +7,7 @@ const w = content.combat.tactics.utility;
 const bold = content.combat.tactics.temperaments.bold!;
 const steadfast = content.combat.tactics.temperaments.steadfast!;
 /** A fair fight just begun: both whole, crews even, no opening, no gauge. */
-const fair: Situation = { hull: 1, crew: 1, menRatio: 1, theirSails: 100, opening: false, apart: 4, gauge: undefined };
+const fair: Situation = { hull: 1, crew: 1, menRatio: 1, firepower: 1, theirSails: 100, opening: false, apart: 4, gauge: undefined };
 
 describe("a boarding captain's mind", () => {
   it('with nothing calling, she stalks', () => {
@@ -40,6 +40,20 @@ describe("a boarding captain's mind", () => {
     expect(weigh({ ...strong, apart: 24 }, bold, w).intent).toBe('stalk');
     expect(weigh({ ...strong, apart: w.close.tiles + 2 }, bold, w).intent).toBe('stalk');
     expect(weigh({ ...strong, apart: w.close.tiles - 2 }, bold, w).intent).toBe('board');
+  });
+
+  it('a ship that outguns the other stands and trades broadsides; one outgunned keeps off her bow and stern', () => {
+    expect(weigh({ ...fair, firepower: bold.duelOdds + 0.5 }, bold, w).intent).toBe('duel');
+    expect(weigh({ ...fair, firepower: 0.5 }, bold, w).intent).toBe('stalk');
+    // A gunner stands up to an even match; a bold captain wants better odds before slugging it out.
+    const gunner = content.combat.tactics.temperaments.gunner!;
+    expect(weigh({ ...fair, firepower: 1.2 }, gunner, w).intent).toBe('duel');
+    expect(weigh({ ...fair, firepower: 1.2 }, bold, w).intent).toBe('stalk');
+  });
+
+  it('a sure boarding beats a duel; a duel never keeps her from running', () => {
+    expect(weigh({ ...fair, firepower: 3, opening: true }, bold, w).intent).toBe('board');
+    expect(weigh({ ...fair, firepower: 3, hull: 0.05 }, bold, w).intent).toBe('flee');
   });
 
   it('a captain who never runs never runs', () => {

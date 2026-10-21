@@ -444,6 +444,7 @@ export const combatSchema = z.object({
       margin: z.number().min(0),
       gauge: z.number().min(0).max(1),
       close: z.object({ tiles: z.number().positive(), soft: z.number().positive() }),
+      duel: z.object({ soft: z.number().positive(), most: z.number().min(0).max(1) }),
       stalk: z.number().min(0).max(1),
     }),
     temperaments: z.record(
@@ -455,6 +456,8 @@ export const combatSchema = z.object({
         seizeOpenings: z.boolean(),
         fleeBelowHull: z.number().min(0).max(1),
         fleeBelowCrew: z.number().min(0).max(1),
+        /** In a fight she trades broadsides at range once her guns times hull is this many times the other's. */
+        duelOdds: z.number().positive(),
         /** On the map she goes after a ship only at these odds or better (her strength over the other's). */
         attackOdds: z.number().positive(),
       }),

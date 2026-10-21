@@ -500,7 +500,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
 
   /**
    * A boarder's course, and whether she means to board now (her grapples go out only then). What she does is her
-   * mind's (captain.ts: board, stalk or run, weighed by her temperament, combat.json tactics); once grappled she holds
+   * mind's (captain.ts: board, duel, stalk or run, weighed by her temperament, combat.json tactics); once grappled she holds
    * on, and with her boarders thrown back she sheers off for a while and works her guns before closing again. Stalking,
    * she keeps a station off the other's bow or stern and rakes her.
    */
@@ -515,6 +515,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         hull: me.hull / me.hullMax,
         crew: me.crew / me.crewStart,
         menRatio: me.crew / Math.max(1, them.crew),
+        firepower: (me.guns * me.hull) / Math.max(1, them.guns * them.hull),
         theirSails: them.sailCondition,
         opening: d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload,
         apart: d,
@@ -529,6 +530,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     state = { ...state, minds: { ...state.minds, [side]: mind } };
     if (mind.intent === 'board') return { want: toThem, board: true };
     if (mind.intent === 'flee') return { want: toThem + 180, board: false };
+    // Trading broadsides: in to most of her guns' reach, then the loaded broadside to bear.
+    if (mind.intent === 'duel') return { want: d > reach(me, 'round') * 0.8 ? toThem : ready === 'starboard' ? toThem - 90 : toThem + 90, board: false };
     // Stalk: a station off her bow or stern (the nearer), where her broadsides can't bear.
     const standoff = reach(me, 'round') * c.tactics.standoffShare;
     const r = (them.headingDeg * Math.PI) / 180;
