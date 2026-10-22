@@ -804,12 +804,19 @@ export function createTrafficSystem(
 
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
   const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
-  const hunts = (state: WorldState, ship: Ship) =>
+  const hunts = (state: WorldState, ship: Ship, player?: Ship) =>
     (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) ||
     (ship.ai!.role === 'patrol' &&
       (standingWith(state, ship.ai!.nation) <= cb.standing.hostile ||
-        // At war with her flag, only once she has made herself its enemy: a new captain they let pass.
-        (Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation)) && standingWith(state, ship.ai!.nation) <= cb.standing.warHunt)));
+        (Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation)) &&
+          // At war with her flag, only once she has made herself its enemy: a new captain they let pass. Save off a
+          // port her warships blockade: there they challenge any ship of its flag, hers too, in or out.
+          (standingWith(state, ship.ai!.nation) <= cb.standing.warHunt || Boolean(player && inBlockade(state, ship, player))))));
+  /** Whether a ship lies within the blockade a blockader keeps (on her station, within blockade.tiles of the port). */
+  const inBlockade = (state: WorldState, blockader: Ship, s: Ship) => {
+    const port = blockader.ai!.blockadeOf ? byId.get(blockader.ai!.blockadeOf) : undefined;
+    return Boolean(port && (blockader.ai!.waitUntil ?? 0) > state.tick && Math.hypot(s.x - port.x, s.y - port.y) <= t.blockade.tiles);
+  };
 
   /**
    * Close on the player (or a ship she hunts): toward where they will be when she gets there (led by their way,
@@ -932,7 +939,7 @@ export function createTrafficSystem(
     const vengeful = avenging(state, hunter);
     let best: { s: Ship; score: number } | undefined;
     for (const s of Object.values(ships)) {
-      const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter) && !sheltered(state, hunter, s.x, s.y) && (matched(state, hunter, s) || vengeful);
+      const eligible = s.ai ? isPrey(state, hunter, s) : !s.docked && hunts(state, hunter, s) && !sheltered(state, hunter, s.x, s.y) && (matched(state, hunter, s) || vengeful);
       if (!eligible) continue;
       const d = Math.hypot(s.x - hunter.x, s.y - hunter.y);
       // A famous pirate whose hoard the captain dug up comes for her from further off, whatever the odds.
@@ -1652,7 +1659,7 @@ export function createTrafficSystem(
           if (ship.ai.chasing) {
             const d = p ? Math.hypot(p.x - ship.x, p.y - ship.y) : Infinity;
             const giveUp = cb.chase.giveUpTiles * (avenging(next, ship) ? content.treasure.dig.revengeReach : 1);
-            if (!p || p.docked || calm || sheltered(next, ship, p.x, p.y) || d > giveUp || !hunts(next, ship)) {
+            if (!p || p.docked || calm || sheltered(next, ship, p.x, p.y) || d > giveUp || !hunts(next, ship, p)) {
               ships = { ...ships, [id]: rejoin(ship) };
             } else if (d <= cb.chase.contactTiles) {
               const calmUntil = tick + Math.round(cb.chase.calmDays * tpd);

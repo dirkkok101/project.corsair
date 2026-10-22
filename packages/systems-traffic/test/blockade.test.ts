@@ -103,6 +103,51 @@ describe('blockades', () => {
     expect(fought({ ...plain, ai: { ...plain.ai!, blockadeOf: undefined, waitUntil: undefined } })).toBe(false);
   }, 60_000);
 
+  it("challenges a new captain of the port's flag inside the blockade, and lets her be once she is clear of it", () => {
+    const sim = world(5);
+    const { id, state } = spawn(atWar(sim.state), 'patrol', 'town.cartagena', 'town.santo_domingo');
+    // Spots on the lane into Port Royal, by their distance from the town: open water all the way.
+    const lane = settlements.filter((p) => p.nation === 'spain').map((p) => lanes.route(p.id, royal.id)).find((r) => r && r.length > 4)!;
+    const off = (k: number): [number, number] => {
+      // Back from the port along the lane, a tenth of a tile at a time, to the first spot k tiles from the town.
+      for (let i = lane.length - 1; i > 0; i--) {
+        const [a, b] = [lane[i]!, lane[i - 1]!];
+        const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 10);
+        for (let j = 0; j <= n; j++) {
+          const q: [number, number] = [a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n];
+          if (Math.hypot(q[0] - royal.x, q[1] - royal.y) >= k) return q;
+        }
+      }
+      return lane[0]!;
+    };
+    const station = off(t.tiles * 0.6);
+    const lying = { ...blockader(state, id, 8), x: station[0], y: station[1] };
+    // An English captain, new (no standing with Spain), and a wide sight so the lookout finds her at once.
+    const english = { ...state, captain: { ...state.captain!, nation: 'england' as const, standing: {} } };
+    const wide = { ...content, combat: { ...content.combat, chase: { ...content.combat.chase, chaseTiles: 40 } } };
+    const at = ([x, y]: [number, number], from: WorldState = english) => {
+      const player = { ...from.ships.player!, docked: undefined, x, y, speed: 0 };
+      const sea = createSim({ ...from, ships: { ...from.ships, player, [id]: from === english ? lying : from.ships[id]! } }, [createTrafficSystem(wide, settlements, lanes, map, windAt)]);
+      sea.step(30);
+      return sea;
+    };
+    // Close by her inside the blockade: she lays the captain aboard.
+    const close = at([station[0] + 1, station[1] + 1]);
+    expect(close.events().some((e) => e.type === 'BattleJoined' && e.entityIds.includes(id))).toBe(true);
+    // Further in, toward the quay, still inside it: she gives chase.
+    const inside = at(off(t.tiles * 0.2));
+    expect(Math.hypot(inside.state.ships.player!.x - station[0], inside.state.ships.player!.y - station[1])).toBeGreaterThan(content.combat.chase.contactTiles);
+    expect(inside.state.ships[id]!.ai!.chasing).toBe(true);
+    // Well clear of it: a new captain is let pass, as anywhere else at sea.
+    const outside = off(t.tiles * 2);
+    expect(Math.hypot(outside[0] - royal.x, outside[1] - royal.y)).toBeGreaterThan(t.tiles);
+    expect(at(outside).state.ships[id]!.ai!.chasing ?? false).toBe(false);
+    // Chased out past it, she breaks off and goes back to her station.
+    const broke = at(outside, inside.state);
+    expect(broke.state.ships[id]!.ai!.chasing).toBe(false);
+    expect(broke.state.ships[id]!.ai!.blockadeOf).toBe(royal.id);
+  });
+
   it('beating a blockader breaks the blockade: the deed remembers the port, and it is news there', () => {
     const sim = world(4);
     const { id, state } = spawn(atWar(sim.state), 'patrol', 'town.cartagena', 'town.santo_domingo');

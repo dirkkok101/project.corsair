@@ -101,6 +101,12 @@ const NATION: Record<PlacedSettlement['nation'], string> = {
   netherlands: 'Dutch',
   pirate: 'Pirate',
 };
+/** The nation whose warships lie off a town in blockade now, if any. */
+function blockadedBy(state: WorldState, town: PlacedSettlement): PlacedSettlement['nation'] | undefined {
+  if (!state.towns?.[town.id]?.blockaded) return undefined;
+  return Object.values(state.ships).find((s) => s.ai?.blockadeOf === town.id && (s.ai.waitUntil ?? 0) > state.tick)?.ai?.nation;
+}
+
 /** Services that work so far; the rest are drawn but marked "soon". */
 const READY: Service[] = ['merchant', 'tavern', 'shipwright', 'governor'];
 const ALL = 1_000_000; // "as many as possible": the sim stops at gold, hold or stock
@@ -262,8 +268,10 @@ function Merchant({
   const dear = rows.filter((r) => r.g.id !== 'food' && r.story.level === 'dear').sort((a, b) => b.q.sell - a.q.sell)[0];
   const glut = rows.filter((r) => r.g.id !== 'food' && r.verdict.word === 'cheap here').sort((a, b) => a.q.buy - b.q.buy)[0];
   const isDear = dear ? `${dear.g.name} ${dear.g.name.endsWith('s') ? 'are' : 'is'} dear here` : '';
-  const line =
-    dear && glut
+  const blockader = blockadedBy(state, town);
+  const line = blockader
+    ? `"${NATION[blockader]} warships lie off the harbour, captain: little gets in, and what's here is dear."`
+    : dear && glut
       ? `"${isDear}, captain, and I've more ${glut.g.name.toLowerCase()} than I can sell."`
       : dear
         ? `"${isDear}, captain: bring me ${dear.g.name.toLowerCase()} and I'll pay for it."`
@@ -676,7 +684,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         {notice ? <div class={`hud-toast interior-notice ${notice.tone}`}>{notice.text}</div> : null}
 
         {open === 'governor' ? (
-          <Governor content={content} state={state} town={town} shipId={shipId} send={send} />
+          <Governor content={content} state={state} town={town} settlements={settlements} shipId={shipId} send={send} />
         ) : open === 'shipwright' ? (
           <Shipwright content={content} state={state} town={town} shipId={shipId} send={send} />
         ) : open === 'tavern' ? (
@@ -1052,12 +1060,14 @@ function Governor({
   content,
   state,
   town,
+  settlements,
   shipId,
   send,
 }: {
   content: ContentPack;
   state: WorldState;
   town: PlacedSettlement;
+  settlements: PlacedSettlement[];
   shipId: string;
   send: PortProps['send'];
 }) {
@@ -1091,6 +1101,10 @@ function Governor({
           ? `"Back so soon, captain?"`
           : `"Nothing has changed since you were last here, ${days} ${days === 1 ? 'day' : 'days'} ago."`;
   const offer = !held && enemies.length && price !== undefined && !declined;
+  // His nation's ports under blockade now, this one first: breaking one is worth his while.
+  const blockades = [town, ...settlements.filter((s) => s.nation === nation && s.id !== town.id)]
+    .map((s) => ({ s, by: blockadedBy(state, s) }))
+    .filter((b): b is { s: PlacedSettlement; by: PlacedSettlement['nation'] } => Boolean(b.by));
   return (
     <div class="governor k-wood">
       <Speech bust={`bust.governor.${nation}`} who={`The governor of ${town.name}`} line={line}>
@@ -1131,6 +1145,20 @@ function Governor({
           </div>
         )}
       </div>
+      {blockades.length ? (
+        <div class="k-paper governor-card governor-blockade">
+          <Art id="ui.icon.anchor" class="governor-bounty-icon" />
+          <div class="governor-bounty-text">
+            <b>
+              Break the blockade: {blockades.map((b) => `${NATION[b.by]} warships off ${b.s.id === town.id ? 'our harbour' : b.s.name}`).join(', ')}
+            </b>
+            <span class="k-sub">
+              Sink or take one while she lies there: {content.politics.bounty.blockade.toLocaleString()} gold more than a warship's bounty, and it counts{' '}
+              {content.politics.bounty.blockadeMerit} times over toward your rank. They will challenge you too, going in and out.
+            </span>
+          </div>
+        </div>
+      ) : null}
       <Rank content={content} state={state} nation={nation} />
       {held ? (
         <div class="governor-row k-sub">
