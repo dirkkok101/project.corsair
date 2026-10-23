@@ -115,7 +115,7 @@ export function Hail({ state, content, settlements, ship, news, close, attack, l
               Attack her · <span class="k-sub">{consequence}</span>
             </div>
             <button class="k-btn primary attack" onClick={attack}>
-              Attack
+              Attack <Key k="F" />
             </button>
           </div>
           {items.map((n) => (

@@ -153,6 +153,12 @@ const COURSE_AGROUND_TICKS = 90;
 /** A waypoint counts as passed this near. */
 const WAYPOINT_TILES = 3;
 const LAST_WAYPOINT_TILES = 1;
+/**
+ * An intercept shortens sail from this far off, down to the other ship's own speed alongside her (inside hailing
+ * range, traffic.json hailTiles): she comes up with her and stays there, rather than overshooting at full sail.
+ */
+const INTERCEPT_EASE_TILES = 8;
+const ALONGSIDE_TILES = 2.2;
 
 /** A hull's outline, as [along, across] in fractions of navigation.json hull: bow to stern down her keel, and her sides. */
 const HULL: [number, number][] = [
@@ -233,7 +239,12 @@ export function createNavigationSystem(
     const a = ship.assist;
     const toPort = course && a?.mode === 'course' && a.portId && a.x !== undefined && a.y !== undefined ? Math.hypot(a.x - ship.x, a.y - ship.y) : Infinity;
     const shortened = course && toPort < course.approachTiles ? course.approachShare + (1 - course.approachShare) * (toPort / course.approachTiles) : 1;
-    const target = towing ? course!.towTilesPerSecond : targetSpeed(content, ship, wind) * shortened;
+    // Coming up with the ship she intercepts: no faster than her once alongside, easing down to it on the way in.
+    const quarry = a?.mode === 'intercept' && a.targetId ? state.ships[a.targetId] : undefined;
+    const apart = quarry ? Math.hypot(quarry.x - ship.x, quarry.y - ship.y) : Infinity;
+    const full = targetSpeed(content, ship, wind) * shortened;
+    const eased = quarry && apart < INTERCEPT_EASE_TILES ? quarry.speed + (full - quarry.speed) * Math.max(0, (apart - ALONGSIDE_TILES) / (INTERCEPT_EASE_TILES - ALONGSIDE_TILES)) : full;
+    const target = towing ? course!.towTilesPerSecond : Math.min(full, Math.max(0, eased));
     // Way is gathered at accelPerSecond and, where set, lost more slowly: a ship carries her way.
     const rate = target < ship.speed ? (nav.decelPerSecond ?? nav.accelPerSecond) : nav.accelPerSecond;
     const speed = ship.speed + (target - ship.speed) * Math.min(1, rate * dt);
@@ -270,6 +281,11 @@ export function createNavigationSystem(
           const ay = them.y - Math.cos(r) * them.speed * eta;
           want = bearingTo(ship, ax, ay);
           left = Math.hypot(them.x - ship.x, them.y - ship.y);
+          // Alongside her: said once (the game hails her), and again only after she has drawn well away.
+          if (left <= ALONGSIDE_TILES && !assist.alongside) {
+            assist = { ...assist, alongside: true };
+            events.push({ type: 'InterceptAlongside', entityIds: [ship.id, them.id], payload: {} });
+          } else if (left > ALONGSIDE_TILES * 2 && assist.alongside) assist = { ...assist, alongside: false };
         }
       } else if (assist.mode === 'course' && assist.x !== undefined && assist.y !== undefined) {
         const [tx, ty, portId] = [assist.x, assist.y, assist.portId];

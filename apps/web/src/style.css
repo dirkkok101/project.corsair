@@ -48,6 +48,8 @@ body {
 }
 
 .ship-label-box {
+  pointer-events: auto;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -89,6 +91,10 @@ body {
 .ship-label.label-pirate {
   background: none;
   border-color: #b0303b;
+}
+
+.ship-label.picked .ship-label-box {
+  box-shadow: 0 0 0 2px var(--k-gold);
 }
 
 .ship-label.label-pirate .ship-label-tag {
@@ -560,6 +566,49 @@ body {
   display: block;
   height: 100%;
   transition: width 0.3s, background 0.3s;
+}
+
+/* The ship picked: above the prompt line, who she is, where, and what Space does about her. */
+.hud-picked {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 6px;
+  font-size: 15px;
+  color: #f1e6cc;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.hud-picked-who {
+  display: flex;
+  flex-direction: column;
+}
+
+.hud-picked.label-spain .ship-label-tag {
+  background: #e8c170;
+}
+
+.hud-picked.label-england .ship-label-tag {
+  background: #cf573c;
+}
+
+.hud-picked.label-france .ship-label-tag {
+  background: #73bed3;
+}
+
+.hud-picked.label-netherlands .ship-label-tag {
+  background: #de9e41;
+}
+
+.hud-picked.label-pirate .ship-label-tag {
+  color: #f1e6cc;
+  background: #411d31;
 }
 
 .hud-prompt {

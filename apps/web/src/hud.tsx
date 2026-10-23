@@ -204,7 +204,9 @@ export interface HudProps {
   /** The one thing to do now ("Enter Port Royal · E"): a trailing " · K" shows as a key cap. */
   prompt?: string;
   /** "Sail ho!": a ship just come into sight, called out across the top: who and where, and whether she can be hailed. */
-  banner?: { text: string; hail: boolean };
+  banner?: { text: string; act?: 'hail' | 'chase' | 'stop' };
+  /** The ship picked (a click, Tab, or the last Sail ho!): who she is, where, and what Space does about her. */
+  picked?: { nation: string; tag: string; name: string; what: string; where: string; act?: string; run?: () => void; drop: () => void };
   /** Notes that come and go (a goal done, a dig's result, rent paid) and warnings that stay while they hold. */
   toasts?: Toast[];
   /** The hour the sky shows (0 to 24), for the date line's "morning" or "dusk". */
@@ -245,7 +247,7 @@ export interface Toast {
 
 /** "Enter Port Royal · E" as text and a key cap. */
 function Prompt({ text }: { text: string }) {
-  const m = /^(.*) · ([A-Z0-9]{1,5}|[A-Z] [a-z]+(?: [a-z]+)?)$/.exec(text);
+  const m = /^(.*) · (Space|[A-Z0-9]{1,5}|[A-Z] [a-z]+(?: [a-z]+)?)$/.exec(text);
   if (!m) return <div class="hud-prompt">{text}</div>;
   // A trailing "· I intercept" names its key and what it does.
   const [k, ...rest] = m[2]!.split(' ');
@@ -262,8 +264,11 @@ function Prompt({ text }: { text: string }) {
 
 const KEYS: { group: string; keys: [string, string][] }[] = [
   { group: 'Sailing', keys: [['A D', 'steer'], ['W S', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern']] },
-  { group: 'Course and chart', keys: [['M', 'the chart: pick a port'], ['F', 'follow the route'], ['I', 'intercept a ship'], ['Click', 'sail there, or dock']] },
-  { group: 'Ships and shore', keys: [['H', 'hail a ship'], ['E', 'enter port, set sail'], ['G', 'go ashore and dig'], ['K', 'careen on a beach']] },
+  {
+    group: 'At sea',
+    keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship (or her label)'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port'], ['K', 'careen on a beach'], ['E', 'set sail, in port']],
+  },
+  { group: 'Controller', keys: [['Stick', 'steer'], ['RT LT', 'more or less sail'], ['A', 'what Space does'], ['B', 'back, let her go'], ['LB', 'next ship (in battle: next shot)'], ['X', 'attack in a hail, board in battle'], ['Y', 'repel boarders; set sail in port'], ['Back', 'the chart; strike your colours in battle'], ['Start', 'the log; take the plunder in battle']] },
   { group: 'Battle', keys: [['Space', 'fire whichever side bears'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
   { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['Esc', 'close, or leave port']] },
 ];
@@ -318,7 +323,7 @@ export function Hud(p: HudProps) {
         {p.destination ? (
           <div class="hud-pill hud-course">
             To {p.destination.name} · {Math.round(p.destination.distanceKm)} km · bear {Math.round(p.destination.bearingDeg)}°
-            {p.destination.following ? ' · following' : ' · F to follow'}
+            {p.destination.following ? ' · following' : ' · Space to follow'}
           </div>
         ) : ship.assist ? (
           <div class="hud-pill hud-course">
@@ -335,14 +340,30 @@ export function Hud(p: HudProps) {
         <div class="hud-banner">
           <b>Sail ho!</b>
           <span>{p.banner.text}</span>
-          {p.banner.hail ? (
+          {p.banner.act ? (
             <span class="hud-banner-key">
-              <Key k="H" /> hail
+              <Key k="Space" /> {p.banner.act}
             </span>
           ) : null}
-          <span class="hud-banner-key">
-            <Key k="I" /> intercept
+        </div>
+      ) : null}
+      {p.picked ? (
+        <div class={`hud-picked k-wood label-${p.picked.nation}`}>
+          <span class="ship-label-tag">{p.picked.tag.replace(/^./, (c) => c.toUpperCase())}</span>
+          <span class="hud-picked-who">
+            <span>
+              <b>{p.picked.name}</b> · {p.picked.what}
+            </span>
+            <span class="k-sub">{p.picked.where}</span>
           </span>
+          {p.picked.act ? (
+            <button class="k-btn small primary" onClick={p.picked.run}>
+              {p.picked.act.replace(/ the .*$/, ' her')} <Key k="Space" />
+            </button>
+          ) : null}
+          <button class="k-btn small paper" title="Let her go (Esc)" onClick={p.picked.drop}>
+            ✕
+          </button>
         </div>
       ) : null}
       {p.toasts?.length ? (

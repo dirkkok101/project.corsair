@@ -381,6 +381,24 @@ describe('intercept', () => {
     expect(gone.events().some((e) => e.type === 'AssistEnded')).toBe(true);
   });
 
+  it('comes up alongside her, says so once, and keeps station within hailing range instead of sailing past', () => {
+    // Wind from the south; she lies east, sailing north under half sail, slower than the brig.
+    const sim = withTarget(180, { x: 215, y: 200 }, 0, 1);
+    sim.send({ type: 'SetSails', shipId: 'ai.1', sails: 'half' });
+    sim.send({ type: 'SetAssist', shipId: 'player', assist: 'intercept', targetId: 'ai.1' });
+    const apart = () => Math.hypot(sim.state.ships['ai.1']!.x - sim.state.ships.player!.x, sim.state.ships['ai.1']!.y - sim.state.ships.player!.y);
+    for (let t = 0; t < 60 * TICKS_PER_SECOND && !sim.events().some((e) => e.type === 'InterceptAlongside'); t++) sim.step();
+    expect(sim.events().filter((e) => e.type === 'InterceptAlongside')).toHaveLength(1);
+    // Ten seconds on she is still within hailing range, and has not said it again.
+    let widest = 0;
+    for (let t = 0; t < 10 * TICKS_PER_SECOND; t++) {
+      sim.step();
+      widest = Math.max(widest, apart());
+    }
+    expect(widest).toBeLessThanOrEqual(content.traffic.hailTiles);
+    expect(sim.events().filter((e) => e.type === 'InterceptAlongside')).toHaveLength(1);
+  });
+
   it('beats toward a ship lying dead to windward instead of heading into irons', () => {
     // Far enough upwind that the 20 s below are all beating, not circling her on arrival.
     const sim = withTarget(0, { x: 200, y: 120 }, 0, 0);

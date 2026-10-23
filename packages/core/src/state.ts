@@ -149,6 +149,8 @@ export interface Ship {
     from?: [number, number];
     /** Her boats are towing her in: her berth lies upwind in the harbour, where she can't beat (navigation.json course). */
     towing?: boolean;
+    /** An intercept has come up alongside her quarry (said once, until they draw apart). */
+    alongside?: boolean;
   };
   /** Units of each good in the hold. */
   cargo: Record<string, number>;

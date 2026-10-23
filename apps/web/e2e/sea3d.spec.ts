@@ -98,7 +98,7 @@ test('the 3D sea battle: both ships on the same sea, shot in flight and smoke, t
       if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
     }
   });
-  await page.keyboard.press('h');
+  await page.keyboard.press(' ');
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   const sea = page.locator('canvas.sea3d');

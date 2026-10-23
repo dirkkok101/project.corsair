@@ -5,18 +5,19 @@ import { shipKind } from './ui-art';
 
 // Under every AI ship near the player, on a short line from her: her nation as a tag, her name, and what she is
 // ("fluyt, merchant"), so who she is and whether she is worth a chase read at a glance; the prizes she tows as a
-// count. DOM over the 3D view, placed where the 3D camera shows each ship; hidden in port and in battle.
+// count. DOM over the 3D view, placed where the 3D camera shows each ship; hidden in port and in battle. A click on
+// a label picks her (`pick`), and the ship picked wears a ringed label.
 export const NEAR_TILES = 14;
 const BELOW_PX = 18;
 
-export function createShipLabels(parent: HTMLElement) {
+export function createShipLabels(parent: HTMLElement, pick: (id: string) => void) {
   const layer = parent.appendChild(document.createElement('div'));
   layer.className = 'ship-labels';
   const nodes = new Map<string, HTMLDivElement>();
 
   return {
     /** `project` gives a sea point's place on the screen (CSS pixels); `shown` false hides them all. */
-    update(state: WorldState, playerId: string, project: (x: number, y: number) => { px: number; py: number } | undefined, shown: boolean) {
+    update(state: WorldState, playerId: string, project: (x: number, y: number) => { px: number; py: number } | undefined, shown: boolean, picked?: string) {
       layer.hidden = !shown;
       const me = state.ships[playerId];
       const seen = new Set<string>();
@@ -28,9 +29,11 @@ export function createShipLabels(parent: HTMLElement) {
         let el = nodes.get(ship.id);
         if (!el) {
           el = layer.appendChild(document.createElement('div'));
+          const id = ship.id;
+          el.addEventListener('click', () => pick(id));
           nodes.set(ship.id, el);
         }
-        el.className = `ship-label label-${ship.ai.nation}`;
+        el.className = `ship-label label-${ship.ai.nation}${ship.id === picked ? ' picked' : ''}`;
         const towing = ship.ai.prizes?.length ?? 0;
         const role = ship.ai.famous ? 'famous pirate' : ship.ai.role === 'patrol' ? 'man-of-war' : ship.ai.role;
         const tag = NATION_ADJECTIVE[ship.ai.nation] ?? ship.ai.nation;

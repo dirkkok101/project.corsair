@@ -31,13 +31,14 @@ import { bindInput } from './input';
 import { exportSave, loadStoredSave, storeSave } from './save';
 import { Ending } from './career';
 import { chooseCareer } from './start';
-import { crewLook, Hail, shipTitle } from './hail';
+import { crewLook, Hail, NATION_ADJECTIVE, shipTitle } from './hail';
 import { Log } from './log';
 import { letterMeans, MomentView } from './ui/moment';
 import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf } from './ui/kit';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
+import { createGamepad } from './gamepad';
 import { bindMouse } from './mouse';
 import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
@@ -203,6 +204,8 @@ const HOLD_COAST_TILES = 3;
 const HOLD_PORT_TILES = 5;
 /** A ship this near (tiles) is called out ("Sail ho!") and holds time at 1x. */
 const SAIL_HO_TILES = 15;
+/** A click this near a ship (tiles) picks her: she is drawn bigger than her tile. */
+const PICK_TILES = 3;
 /** The HUD's strip fades after this long with nothing on it changing. */
 const STRIP_REST_MS = 6000;
 const SAIL_HO_MS = 3500;
@@ -367,7 +370,15 @@ async function main() {
         });
   viewport.appendChild(sea3d.canvas);
   loading.progress(0.9, 'Setting sail');
-  const shipLabels = createShipLabels(viewport);
+  /** The ship the captain has picked (a click on her or her label, Tab, or the last Sail ho!): Space acts on her. */
+  let target: string | undefined;
+  /** Picked by the captain (a click or Tab), not only called out: she comes before a course to follow. */
+  let chosen = false;
+  const pick = (id: string | undefined) => {
+    target = id;
+    chosen = Boolean(id);
+  };
+  const shipLabels = createShipLabels(viewport, pick);
   // For review and tests: the 3D renderer's showcase and sky controls.
   (window as unknown as { __corsair3d?: typeof sea3d }).__corsair3d = sea3d;
   // ?sky=17.5 starts the 3D sky and the harbour paintings at that hour, for reviewing sunrise, sunset and night.
@@ -709,6 +720,10 @@ async function main() {
   // The route plotted to it, and when it was last plotted.
   let guide: [number, number][] | undefined;
   let lastGuide = -Infinity;
+  // Whether the chart was open when a key went down, read before the chart's own keys close it (Esc closes the chart
+  // and should not also let the ship picked go).
+  let chartWasOpen = false;
+  window.addEventListener('keydown', () => (chartWasOpen = charts.open), true);
   const charts = createCharts(stage, map, settlements, (port) => {
     destination = port;
     lastGuide = -Infinity;
@@ -851,7 +866,9 @@ async function main() {
     (e) => {
       if (!moments.length || fight) return;
       audio.unlock();
-      if ((e.key === 'Enter' || e.key === 'Escape') && !e.repeat) closeMoment();
+      // Space too, and it presses no button underneath.
+      if (e.key === ' ') e.preventDefault();
+      if ((e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') && !e.repeat) closeMoment();
       e.stopImmediatePropagation();
     },
     true,
@@ -904,12 +921,28 @@ async function main() {
         if (port) sim.send({ type: 'Dock', shipId: ship.id, settlementId: port.id });
       }
     }
-    // H: hail the ship alongside, or part ways.
-    if (e.key.toLowerCase() === 'h' && !e.repeat && !e.ctrlKey && !e.metaKey) {
-      if (hailing) hailing = undefined;
-      else hail(shipInHail());
+    // Space: the one thing to do now, as the prompt line says (at sea only: in port Space is the buttons').
+    if (e.key === ' ' && !player().docked) {
+      e.preventDefault();
+      if (!e.repeat && !logOpen && !chartWasOpen) seaAction()?.run();
     }
-    if (e.key === 'Escape') hailing = undefined;
+    // Tab: pick the next ship in sight, nearest first.
+    if (e.key === 'Tab' && !player().docked && !hailing && !logOpen) {
+      e.preventDefault();
+      const ships = shipsInSight();
+      const at = ships.findIndex((s) => s.id === targeted()?.id);
+      pick(ships[(at + 1) % Math.max(1, ships.length)]?.id);
+    }
+    // F, in a hail: open fire on her.
+    if (e.key.toLowerCase() === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey && hailing) attackSpoken();
+    // Escape: part ways in a hail; else let the ship picked go.
+    if (e.key === 'Escape') {
+      if (hailing) partWays();
+      else if (!logOpen && !chartWasOpen) {
+        stopChasing(target);
+        pick(undefined);
+      }
+    }
     // K: careen her on a nearby beach when her bottom is foul: free, but days of her time.
     if (e.key.toLowerCase() === 'k' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
       const before = sim.events().length;
@@ -923,11 +956,6 @@ async function main() {
         digNote = { text: `Hove down on the beach for ${content.economy.fouling.beachDays} days: her bottom is clean, and she sails at her best again`, kind: 'Careened on a beach', icon: 'ui.icon.hull', until: performance.now() + 7000 };
       } else digNote = { text: 'No beach within reach to heave her down on: close the shore first', kind: 'No beach', icon: 'ui.icon.anchor', until: performance.now() + 4000 };
     }
-    // G: go ashore and dig, inside a treasure map's search ring and near a beach (D steers; G boards only in battle).
-    if (e.key.toLowerCase() === 'g' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
-      if (digHere()) dig();
-      else digNote = { text: "Nothing to dig for here: sail into a treasure map's search ring (M), close to the shore", kind: 'Nothing to dig', icon: 'ui.icon.chest', until: performance.now() + 4000 };
-    }
     // L: the captain's log, at sea or in port; Escape closes it too.
     if (e.key.toLowerCase() === 'l' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight) logOpen = !logOpen;
     // F1: every key, grouped (the HUD shows only the one that applies now).
@@ -940,28 +968,6 @@ async function main() {
     if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (!e.repeat) save();
-    }
-    // F: follow the route plotted to the destination (again to stop): the autopilot sails it, beating where it
-    // must and keeping off the coasts, and docks her on arrival. Steering by hand takes the helm back.
-    if (e.key.toLowerCase() === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey && !player().docked && !fight) {
-      const me = player();
-      if (me.assist?.mode === 'course') sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
-      else if (destination) {
-        const berth = lanes.berth(destination.id);
-        const route = berth ? lanes.path([me.x, me.y], berth) : undefined;
-        if (route) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: destination.x, y: destination.y, portId: destination.id, route: route.slice(1) });
-      }
-    }
-    // I: intercept the nearest ship in sight (again to stop), steering to meet her until the helm is used.
-    if (e.key.toLowerCase() === 'i' && !e.repeat && !e.ctrlKey && !e.metaKey && !player().docked) {
-      const me = player();
-      if (me.assist?.mode === 'intercept') sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
-      else {
-        const target = Object.values(sim.state.ships)
-          .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - me.x, s.y - me.y) <= view())
-          .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
-        if (target) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: target.id });
-      }
     }
     // Cruise speed in open water: = faster, - slower (1x to 4x).
     if (e.key === '=' || e.key === '+') wantedSpeed = Math.min(4, wantedSpeed * 2);
@@ -1120,10 +1126,10 @@ async function main() {
     const reply = sim.events().slice(since).find((ev) => ev.type === 'Hailed');
     if (reply) hailing = { targetId: other.id, news: (reply.payload.news as string[]) ?? [] };
   };
-  /** An AI ship at sea under a tile (within a tile and a half) and in her view (the view draws no other), nearest first. */
-  const shipAt = (x: number, y: number) =>
+  /** An AI ship at sea under a tile (within `reach` tiles) and in her view (the view draws no other), nearest first. */
+  const shipAt = (x: number, y: number, reach = 1.5) =>
     Object.values(sim.state.ships)
-      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5 && Math.hypot(s.x - player().x, s.y - player().y) <= view())
+      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= reach && Math.hypot(s.x - player().x, s.y - player().y) <= view())
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   /** A port under a tile (its town within two and a half tiles). */
   const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 3.75);
@@ -1207,6 +1213,83 @@ async function main() {
     }
     return best?.s;
   };
+
+  // One key does the one thing to do now (Space; A on a pad): enter the port in reach, hail the ship alongside,
+  // chase the ship picked, dig, or follow the course. The prompt line says which, with the key.
+  /** The ship picked, while she is at sea and in sight. */
+  const targeted = () => {
+    const me = player();
+    const s = target ? sim.state.ships[target] : undefined;
+    return s?.ai && !inPort(s) && Math.hypot(s.x - me.x, s.y - me.y) <= view() ? s : undefined;
+  };
+  /** Ships in sight at sea, nearest first: Tab steps through them. */
+  const shipsInSight = () => {
+    const me = player();
+    return Object.values(sim.state.ships)
+      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - me.x, s.y - me.y) <= view())
+      .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+  };
+  type SeaAction = { text: string; run: () => void };
+  /** What Space does about a ship: hail her alongside (a hunter closing won't stop to talk), else chase her, or stop. */
+  const shipAction = (her: Ship): SeaAction | undefined => {
+    const me = player();
+    if (her.ai?.chasing) return undefined;
+    if (Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles) return { text: `Hail the ${shipTitle(her)} ${her.ai!.name}`, run: () => hail(her) };
+    if (me.assist?.mode === 'intercept' && me.assist.targetId === her.id) return { text: `Stop chasing the ${her.ai!.name}`, run: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }) };
+    return { text: `Chase the ${shipTitle(her)} ${her.ai!.name}`, run: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: her.id }) };
+  };
+  /** Follow the route plotted to the destination: the autopilot sails it and docks her on arrival. */
+  const follow = (to: PlacedSettlement) => {
+    const me = player();
+    const berth = lanes.berth(to.id);
+    const route = berth ? lanes.path([me.x, me.y], berth) : undefined;
+    if (route) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: to.x, y: to.y, portId: to.id, route: route.slice(1) });
+  };
+  /** The one thing Space does now, if anything (nothing in port, in a hail, or with a hunter closing). */
+  const seaAction = (): SeaAction | undefined => {
+    const me = player();
+    if (me.docked || hailing || fight) return undefined;
+    // Into port, even with a hunter closing: under its guns she is safe.
+    const port = portInReach();
+    if (port) return { text: `Enter ${port.name}`, run: () => sim.send({ type: 'Dock', shipId: me.id, settlementId: port.id }) };
+    if (Object.values(sim.state.ships).some((s) => s.ai?.chasing)) return undefined;
+    // The ship picked, alongside or not; else any ship alongside (the chance to speak her is brief).
+    const her = targeted();
+    const alongside = shipInHail();
+    const near = her && Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles ? her : (alongside ?? her);
+    // A ship only called out (not picked, not alongside) waits behind a dig or a course plotted and not yet followed.
+    const pirate = digHere();
+    const pending = destination && me.assist?.mode !== 'course' ? destination : undefined;
+    const act = near ? shipAction(near) : undefined;
+    if (act && !(near === her && !chosen && !alongside && (pirate || pending))) return act;
+    if (pirate) return { text: `${pirate}'s hoard could lie on this coast: go ashore and dig`, run: dig };
+    if (pending) return { text: `Follow the course to ${pending.name}`, run: () => follow(pending) };
+    return undefined;
+  };
+  /** The chase on the ship picked ends: she sails on as the captain steers. */
+  const stopChasing = (id?: string) => {
+    const me = player();
+    if (me.assist?.mode === 'intercept' && (id === undefined || me.assist.targetId === id)) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
+  };
+  /** Part ways after a hail (Esc, or Sail on): a chase that brought her alongside ends, or it would shadow her. */
+  const partWays = () => {
+    if (hailing) stopChasing(hailing.targetId);
+    hailing = undefined;
+  };
+  /** In a hail: open fire on her (F, or the Attack button). */
+  const attackSpoken = () => {
+    if (!hailing) return;
+    sim.send({ type: 'Attack', shipId: player().id, targetId: hailing.targetId });
+    sim.applyCommands();
+    hailing = undefined;
+  };
+  // A click on a ship at sea (or her label) picks her; a click on open water lets her go.
+  sea3d.canvas.addEventListener('click', (e) => {
+    if (fight || player().docked || hailing) return;
+    const r = sea3d.canvas.getBoundingClientRect();
+    const tile = sea3d.pick(e.clientX - r.left, e.clientY - r.top);
+    if (tile) pick(shipAt(tile.x, tile.y, PICK_TILES)?.id);
+  });
   // One scene object per port, so the renderer sees the same one each frame and loads it once.
   const harbourScenes = new Map<string, ReturnType<typeof harbourFor>>();
   const interiors = new Map<string, HarbourScene | undefined>();
@@ -1332,7 +1415,10 @@ async function main() {
   let last = performance.now();
   let speedNow = 1;
   let wasDocked = Boolean(player().docked);
+  // A controller plays as the keyboard does (gamepad.ts).
+  const pad = createGamepad(() => audio.unlock());
   const frame = (now: number) => {
+    pad.poll(fight ? 'battle' : player().docked ? 'port' : 'sea');
     const elapsed = (now - last) / 1000;
     acc = loop.paused ? 0 : Math.min(acc + elapsed * speedNow, 0.25 * speedNow);
     last = now;
@@ -1542,6 +1628,11 @@ async function main() {
     for (let i = eventsSeen; i < evs.length; i++) {
       const ev = evs[i]!;
       if (ev.type === 'BattleJoined') startBattle(ev.entityIds[1]!, ev.payload.by === 'player');
+      // The chase has come up alongside her: hail her (the world waits on the captain's word).
+      if (ev.type === 'InterceptAlongside' && ev.entityIds[0] === player().id && !hailing && !fight) {
+        const her = sim.state.ships[ev.entityIds[1]!];
+        if (her?.ai && !her.ai.chasing) hail(her);
+      }
       if (ev.type === 'Deserted') portNotice = { text: `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`, icon: 'ui.icon.crew', tone: 'warn' };
       if (ev.type === 'Undocked') {
         portNotice = undefined;
@@ -1708,7 +1799,7 @@ async function main() {
     if (!atSea && !fight) renderer.render(harbourSkyShift ? { ...sim.state, tick: sim.state.tick + harbourSkyShift } : sim.state, now);
     sea3d.canvas.style.display = atSea || fight ? '' : 'none';
     if (atSea) sea3d.render(sim.state, now);
-    shipLabels.update(sim.state, def.start.shipId, (x, y) => sea3d.project(x, y), atSea);
+    shipLabels.update(sim.state, def.start.shipId, (x, y) => sea3d.project(x, y), atSea, targeted()?.id);
     charts.update(
       sim.state.ships[def.start.shipId],
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
@@ -1745,11 +1836,16 @@ async function main() {
     for (const s of Object.values(sim.state.ships)) {
       if (!s.ai || inPort(s) || ship.docked || Math.hypot(s.x - ship.x, s.y - ship.y) > SAIL_HO_TILES) continue;
       seen.add(s.id);
-      if (!inSight.has(s.id)) sailHo = { id: s.id, until: now + SAIL_HO_MS };
+      if (inSight.has(s.id)) continue;
+      sailHo = { id: s.id, until: now + SAIL_HO_MS };
+      // The ship called out is the one Space acts on, unless the captain has picked another.
+      if (!targeted()) {
+        target = s.id;
+        chosen = false;
+      }
     }
     inSight.clear();
     for (const id of seen) inSight.add(id);
-    const intercepting = ship.assist?.mode === 'intercept' && ship.assist.targetId ? sim.state.ships[ship.assist.targetId] : undefined;
     // A pirate fallen on a merchant within sight: the player can sail in and take a hand.
     const raider = Object.values(sim.state.ships).find(
       (s) => s.ai?.role === 'pirate' && s.ai.skirmish && Math.hypot(s.x - ship.x, s.y - ship.y) <= view(),
@@ -1795,13 +1891,13 @@ async function main() {
       }
     }
     wasDocked = Boolean(ship.docked);
-    const reach = ship.docked ? undefined : portInReach();
-    const near = reach || hailing ? undefined : shipInHail();
+    // What Space does now, and the ship picked with what Space would do about her.
+    const action = seaAction();
+    const picked = ship.docked || hailing ? undefined : targeted();
     // Her ship sails with the gentle wind when the player has chosen it (a new or prize flagship takes it up too).
     if (Boolean(ship.gentleWind) !== gentleWind) sim.send({ type: 'SetGentleWind', shipId: ship.id, on: gentleWind });
     // A hunter closing on the player: a warning beats any other prompt.
     const hunter = Object.values(sim.state.ships).find((s) => s.ai?.chasing);
-    const treasure = reach || hailing ? undefined : digHere();
     const spoken = hailing && sim.state.ships[hailing.targetId];
     render(
       spoken ? (
@@ -1811,18 +1907,14 @@ async function main() {
           settlements={settlements}
           ship={spoken}
           news={hailing!.news}
-          close={() => (hailing = undefined)}
+          close={partWays}
           lawful={spoken.ai ? legalTarget(content, sim.state, sim.state.captain, spoken.ai.nation) : undefined}
           buyFood={(units) => {
             sim.send({ type: 'BuyProvisions', shipId: player().id, targetId: hailing!.targetId, units });
             sim.applyCommands();
           }}
           room={Math.max(0, fleetHold(content, sim.state, player()) - cargoUsed(player()))}
-          attack={() => {
-            sim.send({ type: 'Attack', shipId: player().id, targetId: hailing!.targetId });
-            sim.applyCommands();
-            hailing = undefined;
-          }}
+          attack={attackSpoken}
         />
       ) : null,
       hailRoot,
@@ -2022,19 +2114,13 @@ async function main() {
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
-              : reach
-              ? `Enter ${reach.name} · E`
-              : near
-                ? `Hail the ${shipTitle(near)} ${near.ai!.name} · H`
-                : treasure
-                  ? `${treasure}'s hoard could lie on this coast: go ashore and dig · G`
-                : raider && raided?.ai
+            : action
+              ? `${action.text} · Space`
+              : raider && raided?.ai
                   ? raided.ai.role === 'patrol'
                     ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`
-                    : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name} · sail in and H to take a hand`
-                  : intercepting?.ai
-                      ? `Intercepting the ${intercepting.ai.name} · I to stop`
-                      : ship.assist?.mode === 'course'
+                    : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name}: pick her (Tab) and sail in to take a hand`
+                  : ship.assist?.mode === 'course'
                         ? ship.assist.towing
                           ? 'The wind is foul for the harbour: her boats tow her in · steer to take the helm'
                           : `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
@@ -2053,7 +2139,25 @@ async function main() {
             : wanted
               ? `The pirate ${shipKind(her.classId)} ${her.ai.name}, the one ${by} wants,`
               : `A ${shipTitle(her)}`;
-          return { text: `${who} ${fromTheBow(ship, her)}`, hail: near?.id === her.id };
+          const act = picked?.id === her.id ? shipAction(her) : undefined;
+          return { text: `${who} ${fromTheBow(ship, her)}`, act: act && (act.text.startsWith('Hail') ? 'hail' : act.text.startsWith('Stop') ? 'stop' : 'chase') };
+        })()}
+        picked={(() => {
+          if (!picked?.ai) return undefined;
+          const act = shipAction(picked);
+          const tiles = Math.hypot(picked.x - ship.x, picked.y - ship.y);
+          return {
+            nation: picked.ai.nation,
+            tag: NATION_ADJECTIVE[picked.ai.nation] ?? picked.ai.nation,
+            name: picked.ai.name,
+            what: `${shipKind(picked.classId)}, ${picked.ai.famous ? 'famous pirate' : picked.ai.role === 'patrol' ? 'man-of-war' : picked.ai.role}`,
+            where: `${Math.max(1, Math.round(tiles * kmPerTile))} km ${fromTheBow(ship, picked)}`,
+            ...(act ? { act: act.text, run: act.run } : {}),
+            drop: () => {
+              stopChasing(picked.id);
+              pick(undefined);
+            },
+          };
         })()}
         toasts={[...[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
