@@ -5,6 +5,8 @@ import { ART } from './ui-art';
 
 // The minimap (storyboard 4.1): a corner of the parchment chart around her, at a little over a pixel a tile.
 const MINIMAP_TILES = { w: 160, h: 94 };
+/** The chart's zoom: the whole sheet at 1, closest at max; it opens at `open` about her ship, and + and - step it. */
+const CHART_ZOOM = { min: 1, max: 6, open: 2, step: 1.4 };
 /** How long a sighted ship's marker lingers on the chart, in game days. */
 const SIGHTING_DAYS = 3;
 
@@ -220,9 +222,14 @@ export function createCharts(
   const chart = parent.appendChild(document.createElement('div'));
   chart.className = 'chart';
   chart.hidden = true;
-  const sheet = chart.appendChild(document.createElement('div'));
+  // The chart zooms (the wheel, a pinch, + and -) and pans (a drag): the frame is a window on the sheet, which is
+  // drawn as big as the zoom. Every mark is placed in shares of the sheet, so the marks spread apart as it grows and
+  // keep their own size.
+  const frame = chart.appendChild(document.createElement('div'));
+  frame.className = 'chart-frame';
+  frame.style.aspectRatio = `${map.width} / ${map.height}`;
+  const sheet = frame.appendChild(document.createElement('div'));
   sheet.className = 'chart-sheet';
-  sheet.style.aspectRatio = `${map.width} / ${map.height}`;
   sheet.appendChild(paper);
   // The course (dashed, in red ink) and the wind's arrows, drawn over the parchment.
   const ink = sheet.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg'));
@@ -333,7 +340,7 @@ export function createCharts(
             .join('')}</table></details>`
         : '<div class="k-sub">Prices unknown: call here to learn them</div>') +
       (selected?.id === s.id
-        ? '<div class="chart-card-actions"><div class="chart-card-set">Your course · <kbd class="k-key">F</kbd> follows it</div></div>'
+        ? '<div class="chart-card-actions"><div class="chart-card-set">Your course · <kbd class="k-key">Space</kbd> follows it</div></div>'
         : '<div class="chart-card-actions"><button class="k-btn primary chart-card-go" data-go>Set course · Enter</button></div>') +
       '<div class="chart-card-hint">Double-click a port to set course at once · Esc back</div>';
     card.insertAdjacentHTML('afterbegin', '<button class="chart-card-back" data-back>← Voyages</button>');
@@ -357,9 +364,9 @@ export function createCharts(
   let cardPort: PlacedSettlement | undefined;
   // Where she is, for the course drawn to a picked port.
   let here: [number, number] | undefined;
-  /** The wind's arrows over open water, in faint ink: which way it blows now, longer the harder. */
+  /** The wind's arrows over open water, in faint ink: which way it blows now, longer the harder; closer in, more of them and shorter, so each keeps its size on the screen. */
   const drawWinds = () => {
-    const step = Math.round(map.width / 9);
+    const step = Math.round(map.width / (9 * zoom));
     const length: Record<string, number> = { calm: 0, light: 0.45, fresh: 0.65, strong: 0.85, gale: 1 };
     let html = '';
     for (let y = step / 2; y < map.height; y += step) {
@@ -398,8 +405,8 @@ export function createCharts(
   const you = sheet.appendChild(document.createElement('div'));
   you.className = 'chart-you';
   you.innerHTML = '<span class="chart-you-tag">you</span>';
-  // A compass rose in the corner, as on any chart.
-  const rose = sheet.appendChild(document.createElement('img'));
+  // A compass rose in the corner, as on any chart (the frame's corner: it stays put as the sheet moves).
+  const rose = frame.appendChild(document.createElement('img'));
   rose.className = 'chart-rose';
   rose.src = ART['ui.chart.compass'] ?? '';
   rose.alt = '';
@@ -452,7 +459,7 @@ export function createCharts(
       '<div class="chart-plan-head">Voyages from here</div>' +
       (rows || '<div class="chart-plan-empty">No trade you know of pays yet: call at more ports to learn their prices.</div>') +
       (leads ? `<div class="chart-plan-head">Worth a look</div>${leads}` : '') +
-      '<div class="chart-plan-foot">A course goes to where you buy; F follows it.</div>';
+      '<div class="chart-plan-foot">A course goes to where you buy; Space follows it.</div>';
     for (const b of planner.querySelectorAll<HTMLButtonElement>('[data-port]')) b.addEventListener('click', () => choosePort(b.dataset.port!));
   };
   /** A good's painted icon, or nothing if the art isn't there. */
@@ -470,7 +477,7 @@ export function createCharts(
   // and, where the captain has called, the price that matters there: what you'd pay where it's
   // made, what you'd get everywhere else.
   let good: string | undefined;
-  const filter = chart.insertBefore(document.createElement('div'), sheet);
+  const filter = chart.insertBefore(document.createElement('div'), frame);
   filter.className = 'chart-goods';
   // Staples (food) are never worth carrying, so they have no filter.
   const goodButtons = market.goods.filter((g) => !g.staple).map((g) => {
@@ -511,12 +518,114 @@ export function createCharts(
     layoutLabels(pins, sheet.getBoundingClientRect());
   };
 
+  // Zoom and pan: how many times the whole chart's width the sheet is drawn, and the tile at the frame's centre.
+  let zoom = CHART_ZOOM.open;
+  let centre: [number, number] = [map.width / 2, map.height / 2];
+  /** Lay the sheet under the frame at the zoom, about the centre, never showing a bare edge. */
+  const place = () => {
+    const [w, h] = [frame.clientWidth, frame.clientHeight];
+    if (!w || !h) return;
+    const [sw, sh] = [w * zoom, h * zoom];
+    const left = Math.min(0, Math.max(w - sw, w / 2 - (centre[0] / map.width) * sw));
+    const top = Math.min(0, Math.max(h - sh, h / 2 - (centre[1] / map.height) * sh));
+    centre = [((w / 2 - left) / sw) * map.width, ((h / 2 - top) / sh) * map.height];
+    Object.assign(sheet.style, { width: `${sw}px`, height: `${sh}px`, left: `${left}px`, top: `${top}px` });
+    zoomOut.disabled = zoom <= CHART_ZOOM.min;
+    zoomIn.disabled = zoom >= CHART_ZOOM.max;
+  };
+  // Names are laid out again once the zoom settles: closer in, more of them find room.
+  let relabelAt = 0;
+  const relabel = () => {
+    cancelAnimationFrame(relabelAt);
+    relabelAt = requestAnimationFrame(() => {
+      layoutLabels(pins, sheet.getBoundingClientRect());
+      drawWinds();
+    });
+  };
+  /** Zoom by `factor`, the point under (x, y) on the screen staying put (the frame's middle when not given). */
+  const zoomBy = (factor: number, x?: number, y?: number) => {
+    const fr = frame.getBoundingClientRect();
+    const r = sheet.getBoundingClientRect();
+    const [px, py] = [x ?? fr.left + fr.width / 2, y ?? fr.top + fr.height / 2];
+    const tile = [((px - r.left) / r.width) * map.width, ((py - r.top) / r.height) * map.height];
+    zoom = Math.min(CHART_ZOOM.max, Math.max(CHART_ZOOM.min, zoom * factor));
+    const [sw, sh] = [fr.width * zoom, fr.height * zoom];
+    const [left, top] = [px - fr.left - (tile[0]! / map.width) * sw, py - fr.top - (tile[1]! / map.height) * sh];
+    centre = [((fr.width / 2 - left) / sw) * map.width, ((fr.height / 2 - top) / sh) * map.height];
+    place();
+    relabel();
+  };
+  // The wheel anywhere over the chart is the chart's (the voyages still scroll): the sea behind keeps its zoom.
+  chart.addEventListener('wheel', (e) => e.stopPropagation());
+  frame.addEventListener(
+    'wheel',
+    (e) => {
+      // The chart's, not the sea's: the 3D view behind it keeps its zoom.
+      e.preventDefault();
+      e.stopPropagation();
+      // A pinch reports small, fine-grained deltas (with Ctrl); a wheel notch about 100.
+      zoomBy(Math.pow(2, -e.deltaY / (e.ctrlKey ? 60 : 400)), e.clientX, e.clientY);
+    },
+    { passive: false },
+  );
+  // A drag pans; the click that ends one picks nothing.
+  let drag: { x: number; y: number; at: [number, number]; moved: boolean } | undefined;
+  let dragged = false;
+  frame.addEventListener('pointerdown', (e) => {
+    if (e.button === 0) drag = { x: e.clientX, y: e.clientY, at: centre, moved: false };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const [dx, dy] = [e.clientX - drag.x, e.clientY - drag.y];
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    drag.moved = true;
+    const r = sheet.getBoundingClientRect();
+    centre = [drag.at[0] - (dx / r.width) * map.width, drag.at[1] - (dy / r.height) * map.height];
+    place();
+  });
+  window.addEventListener('pointerup', () => {
+    dragged = Boolean(drag?.moved);
+    if (dragged) relabel();
+    drag = undefined;
+  });
+  frame.addEventListener(
+    'click',
+    (e) => {
+      if (!dragged) return;
+      dragged = false;
+      e.stopPropagation();
+    },
+    true,
+  );
+  // + and -, and the whole Caribbean at once, in the frame's corner.
+  const zooms = frame.appendChild(document.createElement('div'));
+  zooms.className = 'chart-zoom';
+  const zoomButton = (text: string, title: string, act: () => void) => {
+    const b = zooms.appendChild(document.createElement('button'));
+    b.className = 'k-btn small';
+    b.textContent = text;
+    b.title = title;
+    b.addEventListener('click', act);
+    return b;
+  };
+  const zoomIn = zoomButton('+', 'Closer (the wheel, or +)', () => zoomBy(CHART_ZOOM.step));
+  const zoomOut = zoomButton('−', 'Further (the wheel, or -)', () => zoomBy(1 / CHART_ZOOM.step));
+  zoomButton('Whole Caribbean', 'The whole chart at once', () => {
+    zoom = CHART_ZOOM.min;
+    place();
+    relabel();
+  });
+  window.addEventListener('resize', () => !chart.hidden && (place(), relabel()));
+
   const toggle = (open = chart.hidden) => {
     chart.hidden = !open;
     // A card left from the last look would show stale prices.
     hideCard();
     // Prices may have been learned since the chart was last open, and the wind has moved.
     if (open) {
+      // Opened about her ship, at the zoom it was left at.
+      if (here) centre = [...here];
+      place();
       showGood();
       showHint();
       showPlan();
@@ -525,6 +634,8 @@ export function createCharts(
   };
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'm') toggle();
+    if (!chart.hidden && (e.key === '=' || e.key === '+')) zoomBy(CHART_ZOOM.step);
+    if (!chart.hidden && e.key === '-') zoomBy(1 / CHART_ZOOM.step);
     if (e.key === 'Escape') {
       if (!card.hidden) hideCard();
       else chart.hidden = true;
@@ -556,6 +667,10 @@ export function createCharts(
         )
         .join('');
       if (html !== ringsDrawn) ringsLayer.innerHTML = ringsDrawn = html;
+    },
+    /** Make a port the destination, as a click on it does (at sea too): highlighted here, its route plotted. */
+    choose(id: string) {
+      choosePort(id);
     },
     /** Forget the destination (made port): no port highlighted. */
     clearDestination() {

@@ -348,6 +348,12 @@ body {
   font-weight: bold;
 }
 
+/* The course's food runs short of its days at sea. */
+.hud-food-short {
+  color: #ff9a7a;
+  font-weight: bold;
+}
+
 /* Sail ho: who and where, and the keys for what to do about her. */
 .hud-banner {
   position: absolute;
@@ -3995,14 +4001,41 @@ body {
   display: none;
 }
 
-.chart-sheet {
+.chart-frame {
   position: relative;
+  overflow: clip;
   /* As big as the screen allows: room above for the title strip, below for the goods filter, and to the right
      for the voyage planner. */
   margin: 62px 316px 56px 0;
   width: min(calc(98vw - 316px), calc((100vh - 130px) * 1600 / 1100));
   border-radius: 4px;
   box-shadow: 0 14px 40px rgb(0 0 0 / 0.6);
+  cursor: grab;
+  touch-action: none;
+}
+
+.chart-frame:active {
+  cursor: grabbing;
+}
+
+/* The sheet under the frame, as big as the zoom (placed by chart.ts). */
+.chart-sheet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+}
+
+/* + and -, and the whole Caribbean, in the frame's top right corner. */
+.chart-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
 }
 
 /* The parchment's aged edges, over the drawing and under the marks. */

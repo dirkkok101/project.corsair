@@ -207,6 +207,11 @@ const SAIL_HO_TILES = 15;
 /** A click this near a ship on the screen picks her (pixels): beside or below her, and up to her name banner above. */
 const PICK_PX = 40;
 const PICK_ABOVE_PX = 140;
+/** A port's town and the name over it, wider and taller than a ship. */
+const PORT_PICK_PX = 110;
+const PORT_PICK_ABOVE_PX = 180;
+/** Food for this many times a voyage's days counts as enough (winds are fickle); less, only just. */
+const FOOD_MARGIN = 1.3;
 /** The HUD's strip fades after this long with nothing on it changing. */
 const STRIP_REST_MS = 6000;
 const SAIL_HO_MS = 3500;
@@ -534,6 +539,17 @@ async function main() {
    * sagging as she sells, by that market's depth), the days at sea along the lanes at her speed, and how close
    * the way runs to a pirate haven. Leads are goods one port makes and another needs, prices not yet seen.
    */
+  /** Tiles a day at a fair average of her best speed (beating and reaching together), as the voyages reckon them. */
+  const sailPerDay = (me: Ship) => content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
+  const wayLength = (way: [number, number][]) => way.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - way[i]![0], p[1] - way[i]![1]), 0);
+  /** Whether the food aboard lasts a voyage of `days`, as a card line: enough, only just, or buy food first. */
+  const foodFor = (days: number): CardLine => {
+    const food = Math.floor(foodDays(content, player()));
+    const sea = `${Math.max(1, Math.round(days))} ${Math.round(days) === 1 ? 'day' : 'days'} at sea`;
+    if (food >= days * FOOD_MARGIN) return { text: `<b>Food for ${food} days:</b> enough for ${sea}`, tone: 'good' };
+    if (food >= days) return { text: `<b>Food for ${food} days:</b> only just, for ${sea}`, tone: 'bad' };
+    return { text: `<b>Food for ${food} days, ${sea}:</b> buy food before you sail`, tone: 'bad' };
+  };
   const voyagePlan = () => {
     const me = player();
     const known = sim.state.captain?.knownPrices ?? {};
@@ -803,10 +819,12 @@ async function main() {
       // Close to a pirate haven: their waters.
       const haven = Math.min(...settlements.filter((h) => h.nation === 'pirate').map((h) => Math.hypot(h.x - s.x, h.y - s.y)));
       if (s.nation !== 'pirate' && haven < content.traffic.pirateRangeTiles * 0.5) lines.push({ text: '<b>Pirate waters</b>: their ships hunt close by', tone: 'bad' });
-      // Days by the lanes, at a fair average of her best speed (as the voyage planner reckons them).
-      const perDay = content.navigation.tilesPerSecondPerSpeedPoint * shipStats(content, me).speed * 0.6 * (content.calendar.ticksPerDay / TICKS_PER_SECOND);
-      const days = me.docked === id ? 0 : (Math.hypot(s.x - me.x, s.y - me.y) * 1.3) / perDay;
-      return { painting: sceneUrl(harbourId(s)), days, lines: lines.slice(0, 4) };
+      // Days by the lanes from where she is, and whether the food aboard lasts them: first, as it decides the voyage.
+      const berth = lanes.berth(id);
+      const way = me.docked === id || !berth ? undefined : lanes.path([me.x, me.y], berth);
+      const days = me.docked === id ? 0 : (way ? wayLength(way) : Math.hypot(s.x - me.x, s.y - me.y) * 1.3) / sailPerDay(me);
+      const food = days >= 0.5 ? foodFor(days) : undefined;
+      return { painting: sceneUrl(harbourId(s)), days, lines: [...(food ? [food] : []), ...lines].slice(0, 4) };
     },
     hidden: (id) => {
       const port = settlements.find((s) => s.id === id);
@@ -971,8 +989,9 @@ async function main() {
       if (!e.repeat) save();
     }
     // Cruise speed in open water: = faster, - slower (1x to 4x).
-    if (e.key === '=' || e.key === '+') wantedSpeed = Math.min(4, wantedSpeed * 2);
-    if (e.key === '-') wantedSpeed = Math.max(1, wantedSpeed / 2);
+    // (With the chart open they zoom it instead.)
+    if ((e.key === '=' || e.key === '+') && !chartWasOpen) wantedSpeed = Math.min(4, wantedSpeed * 2);
+    if (e.key === '-' && !chartWasOpen) wantedSpeed = Math.max(1, wantedSpeed / 2);
   });
 
   // Mouse: left-click to move, right-click to act (PRD controls). At sea a left-click sets a course (to a
@@ -1285,8 +1304,9 @@ async function main() {
     hailing = undefined;
   };
   // A click on a ship at sea picks her: on her hull, her sails or the name over her, at any distance (measured on the
-  // screen, where she is drawn); a click on open water lets her go. The 3D canvas takes no pointer events (the
-  // harbour canvas lies over it), so the click is heard on the viewport they share.
+  // screen, where she is drawn). A click on a port or its name plots a course there, as the chart does (Space then
+  // follows it). A click on open water lets the ship picked go. The 3D canvas takes no pointer events (the harbour
+  // canvas lies over it), so the click is heard on the viewport they share.
   viewport.addEventListener('click', (e) => {
     // Only a click on the sea itself: a label or a button heard on its way up has done its own work.
     if (!(e.target instanceof HTMLCanvasElement) || fight || player().docked || hailing) return;
@@ -1302,6 +1322,24 @@ async function main() {
       if (dx > PICK_PX || dy > PICK_PX || dy < -PICK_ABOVE_PX) continue;
       const d = dx + Math.max(0, dy) + Math.max(0, -dy - PICK_PX) / 3;
       if (!best || d < best.d) best = { id: s.id, d };
+    }
+    // A ship is the smaller mark: she wins over a port when the click is on both.
+    const port = best
+      ? undefined
+      : settlements
+          .filter((s) => havenKnown(content, sim.state, s) && Math.hypot(s.x - player().x, s.y - player().y) <= view() * 2)
+          .flatMap((s) => {
+            const at = sea3d.project(s.x, s.y);
+            if (!at) return [];
+            const [dx, dy] = [Math.abs(cx - at.px), cy - at.py];
+            return dx <= PORT_PICK_PX && dy <= PICK_PX && dy >= -PORT_PICK_ABOVE_PX ? [{ s, d: dx + Math.abs(dy) / 2 }] : [];
+          })
+          .sort((a, b) => a.d - b.d)[0]?.s;
+    if (port) {
+      // Her course is the port's now: a ship picked would come before it, so she is let go.
+      pick(undefined);
+      charts.choose(port.id);
+      return;
     }
     pick(best?.id);
   });
@@ -2062,7 +2100,7 @@ async function main() {
       guide = berth ? lanes.path([ship.x, ship.y], berth)?.slice(1) : undefined;
     }
     sea3d.guide(destination && !ship.docked ? guide : undefined);
-    let course: { name: string; distanceKm: number; bearingDeg: number; following: boolean } | undefined;
+    let course: { name: string; distanceKm: number; bearingDeg: number; following: boolean; days: number; food: number } | undefined;
     if (destination && guide?.length) {
       let tiles = 0;
       let [px, py] = [ship.x, ship.y];
@@ -2073,7 +2111,7 @@ async function main() {
       const [nx, ny] = guide[0]!;
       const bearingDeg = ((Math.atan2(nx - ship.x, -(ny - ship.y)) * 180) / Math.PI + 360) % 360;
       const following = ship.assist?.mode === 'course' && ship.assist.portId === destination.id;
-      course = { name: destination.name, distanceKm: tiles * kmPerTile, bearingDeg, following };
+      course = { name: destination.name, distanceKm: tiles * kmPerTile, bearingDeg, following, days: tiles / sailPerDay(ship), food: foodDays(content, ship) };
     }
     const stats = shipStats(content, ship);
     const morale = moraleOf(content, sim.state);

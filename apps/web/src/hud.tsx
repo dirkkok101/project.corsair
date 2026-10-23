@@ -198,7 +198,8 @@ export interface HudProps {
   breeze?: string;
   /** The port picked on the chart: distance along the plotted route, the bearing of its next leg, and
    * whether the autopilot is following it. */
-  destination?: { name: string; distanceKm: number; bearingDeg: number; following: boolean };
+  /** The course plotted: how far, which way, about how many days at sea, and the days of food aboard. */
+  destination?: { name: string; distanceKm: number; bearingDeg: number; following: boolean; days: number; food: number };
   /** Sound status hint, shown until sound is running (or while muted). */
   sound?: string;
   /** The one thing to do now ("Enter Port Royal · E"): a trailing " · K" shows as a key cap. */
@@ -245,6 +246,11 @@ export interface Toast {
   tone?: 'gold' | 'warn';
 }
 
+/** About how long a voyage takes, as a seaman says it. */
+function daysSaid(days: number): string {
+  return days < 0.5 ? 'within the day' : `about ${Math.max(1, Math.round(days))} ${Math.round(days) <= 1 ? 'day' : 'days'}`;
+}
+
 /** "Enter Port Royal · E" as text and a key cap. */
 function Prompt({ text }: { text: string }) {
   const m = /^(.*) · (Space|[A-Z0-9]{1,5}|[A-Z] [a-z]+(?: [a-z]+)?)$/.exec(text);
@@ -266,7 +272,7 @@ const KEYS: { group: string; keys: [string, string][] }[] = [
   { group: 'Sailing', keys: [['A D', 'steer'], ['W S', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern']] },
   {
     group: 'At sea',
-    keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship (or her label)'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port'], ['K', 'careen on a beach'], ['E', 'set sail, in port']],
+    keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship, or a port to plot a course there'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port'], ['K', 'careen on a beach'], ['E', 'set sail, in port']],
   },
   { group: 'Controller', keys: [['Stick', 'steer'], ['RT LT', 'more or less sail'], ['A', 'what Space does'], ['B', 'back, let her go'], ['LB', 'next ship (in battle: next shot)'], ['X', 'attack in a hail, board in battle'], ['Y', 'repel boarders; set sail in port'], ['Back', 'the chart; strike your colours in battle'], ['Start', 'the log; take the plunder in battle']] },
   { group: 'Battle', keys: [['Space', 'fire whichever side bears'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
@@ -322,7 +328,8 @@ export function Hud(p: HudProps) {
         </div>
         {p.destination ? (
           <div class="hud-pill hud-course">
-            To {p.destination.name} · {Math.round(p.destination.distanceKm)} km · bear {Math.round(p.destination.bearingDeg)}°
+            To {p.destination.name} · {Math.round(p.destination.distanceKm)} km · bear {Math.round(p.destination.bearingDeg)}° · {daysSaid(p.destination.days)}
+            {p.destination.food < p.destination.days ? <span class="hud-food-short"> · food for {Math.floor(p.destination.food)}!</span> : null}
             {p.destination.following ? ' · following' : ' · Space to follow'}
           </div>
         ) : ship.assist ? (

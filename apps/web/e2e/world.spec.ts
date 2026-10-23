@@ -52,6 +52,9 @@ const frames = (page: Page, n = 2) =>
     for (let i = 0; i < k; i++) await new Promise((r) => requestAnimationFrame(r));
   }, n);
 
+/** The chart opens close about her ship: the whole Caribbean, to reach a port across it. */
+const wholeChart = (page: Page) => page.locator('.chart-zoom').getByRole('button', { name: 'Whole Caribbean' }).click();
+
 const player = (page: Page) =>
   page.evaluate(() => window.__corsair.state.get('ships.player') as { x: number; y: number; headingDeg: number; speed: number });
 
@@ -157,6 +160,7 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
   expect(tacked.tack).not.toBe(beating.tack);
 
   await page.keyboard.press('m');
+  await wholeChart(page);
   await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
@@ -371,6 +375,7 @@ test("sea chart: a port's card says what it means for you, with the prices last 
   await page.keyboard.press('m');
   // The career began in Port Royal, so its prices are known; a port never visited shows none.
   // A crowded name may be hidden; the port's pin always shows, and clicking it does the same.
+  await wholeChart(page);
   await page.locator('.chart-dot[title="Tortuga"]').click();
   await expect(page.locator('.chart-card')).toContainText('Prices unknown');
 
@@ -381,6 +386,7 @@ test("sea chart: a port's card says what it means for you, with the prices last 
   await page.evaluate(() => window.__corsair.sim.step(771 * 2));
   await page.keyboard.press('m');
   await expect(page.locator('.chart-card')).toBeHidden();
+  await wholeChart(page);
   await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
   // What it makes cheap, with the age of the price; every price folded away beneath.
   await expect(page.locator('.chart-card')).toContainText('Rum is cheap');
@@ -396,6 +402,7 @@ test("sea chart: a port's card says what it means for you, with the prices last 
   await page.locator('.chart-card').getByRole('button', { name: /Voyages/ }).click();
   await expect(page.locator('.chart-plan')).toBeVisible();
   // Picking a port rings it, draws the way there and says how far, beside the chart in the voyages' place.
+  await wholeChart(page);
   await page.locator('.chart-port', { hasText: 'Havana' }).click();
   await expect(page.locator('.chart-card')).toContainText('Prices unknown');
   await expect(page.locator('.chart-plan')).toBeHidden();
@@ -767,6 +774,7 @@ test('news: a shock is talked about in the tavern, then shows on the chart', asy
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await page.keyboard.press('m');
+  await wholeChart(page);
   await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
   await expect(page.locator('.chart-rumour')).toContainText('run short of sugar');
   // Back to the voyages: the planner lists the contract she has heard of.
@@ -1353,6 +1361,173 @@ test('one action key: Sail ho! picks her, Space chases her down and hails her al
   expect(errors).toEqual([]);
 });
 
+test('the chart zooms and pans: opens close about her ship, the wheel and + and - zoom it, a drag pans without picking a port, and a course says its days and food', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
+    window.__corsair.sim.step(1);
+  });
+  // How far apart two sea points ten tiles apart are drawn: the 3D view's zoom.
+  const seaZoom = () =>
+    page.evaluate(() => {
+      const me = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      const p3 = (window as unknown as { __corsair3d: { project: (x: number, y: number) => { px: number; py: number } } }).__corsair3d;
+      const [a, b] = [p3.project(me.x, me.y), p3.project(me.x + 10, me.y)];
+      return Math.hypot(b.px - a.px, b.py - a.py);
+    });
+  const speed = page.getByRole('button', { name: 'Cruise speed' });
+  const cruise = await speed.textContent();
+  await frames(page, 3);
+  const sea = await seaZoom();
+  await page.keyboard.press('m');
+  const frame = page.locator('.chart-frame');
+  const sheet = page.locator('.chart-sheet');
+  const width = async () => (await sheet.boundingBox())!.width;
+  const box = (await frame.boundingBox())!;
+  // Close in, about her: the sheet twice the frame, her mark near its middle.
+  expect(await width()).toBeCloseTo(box.width * 2, -1);
+  const you = (await page.locator('.chart-you').boundingBox())!;
+  expect(Math.abs(you.x + you.width / 2 - (box.x + box.width / 2))).toBeLessThan(box.width / 4);
+  // The wheel zooms the chart (not the sea behind it), and so do + and - (not the cruise speed).
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -400);
+  await frames(page);
+  const closer = await width();
+  expect(closer).toBeGreaterThan(box.width * 2.5);
+  await page.screenshot({ path: 'test-results/chart-zoomed.png' });
+  await page.keyboard.press('-');
+  await frames(page);
+  expect(await width()).toBeLessThan(closer);
+  await page.keyboard.press('=');
+  await frames(page);
+  expect(await width()).toBeCloseTo(closer, -1);
+  // A drag pans, and the click that ends it picks no port.
+  const before = (await sheet.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 200, box.y + box.height / 2 - 120, { steps: 6 });
+  await page.mouse.up();
+  await frames(page);
+  const after = (await sheet.boundingBox())!;
+  expect(before.x - after.x).toBeGreaterThan(150);
+  await expect(page.locator('.chart-card')).toBeHidden();
+  // The whole Caribbean: the sheet fills the frame again.
+  await wholeChart(page);
+  await frames(page);
+  expect(await width()).toBeCloseTo(box.width, -1);
+  // A port's card says the days at sea and whether her food lasts them; so does the course on the sea.
+  await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
+  await expect(page.locator('.chart-card')).toContainText(/Food for \d+ days/);
+  await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
+  await page.keyboard.press('m');
+  await expect(page.locator('.hud-course')).toContainText(/Cartagena · \d+ km · bear \d+° · about \d+ days?/);
+  expect(await seaZoom()).toBeCloseTo(sea, 0);
+  await expect(speed).toHaveText(cruise!);
+  await page.screenshot({ path: 'test-results/chart-course-days.png' });
+  expect(errors).toEqual([]);
+});
+
+test('courses and clicks together: a chart course, a ship clicked, open water, Space and Esc, and a port clicked at sea', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  const prompt = page.locator('.hud-prompt');
+  const assist = () => page.evaluate(() => window.__corsair.state.get('ships.player.assist') as { mode: string; portId?: string; targetId?: string } | undefined);
+  // Open water south of Jamaica, a course to Cartagena plotted on the chart.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('m');
+  await wholeChart(page);
+  await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
+  await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
+  await page.keyboard.press('m');
+  await frames(page);
+  // Nothing picked yet (or only called out): Space follows the course.
+  await page.keyboard.press('Escape');
+  await frames(page);
+  await expect(prompt).toContainText('Follow the course to Cartagena');
+
+  // A merchant a few tiles off, clicked: the ship picked by hand comes before the course; the course stays plotted.
+  const ship = await page.evaluate(() => {
+    const me = window.__corsair.state.get('ships.player') as { x: number; y: number };
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ids = Object.keys(window.__corsair.state.get('ships') as object).filter((k) => k.startsWith('ai.'));
+    const id = ids.sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: id, x: me.x + 6, y: me.y });
+    window.__corsair.sim.step(1);
+    return id;
+  });
+  await frames(page);
+  const shipAt = () =>
+    page.evaluate((id) => {
+      const s = (window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>)[id]!;
+      return (window as unknown as { __corsair3d: { project: (x: number, y: number) => { px: number; py: number } } }).__corsair3d.project(s.x, s.y);
+    }, ship);
+  let at = await shipAt();
+  await page.mouse.click(at.px, at.py);
+  await frames(page);
+  await expect(page.locator('.hud-picked')).toBeVisible();
+  await expect(prompt).toContainText('Chase the');
+  await expect(page.locator('.hud')).toContainText(/Cartagena · \d+ km/);
+  // Open water lets her go: Space is the course's again.
+  await page.mouse.click(at.px - 400, at.py + 250);
+  await frames(page);
+  await expect(page.locator('.hud-picked')).toHaveCount(0);
+  await expect(prompt).toContainText('Follow the course to Cartagena');
+
+  // Following the course, a click on her changes nothing until Space: then the chase; Esc ends it, and the course
+  // is Space's again.
+  await page.keyboard.press(' ');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  at = await shipAt();
+  await page.mouse.click(at.px, at.py);
+  await frames(page);
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  await page.keyboard.press(' ');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await assist()).toMatchObject({ mode: 'intercept', targetId: ship });
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await frames(page);
+  expect(await assist()).toBeUndefined();
+  await expect(prompt).toContainText('Follow the course to Cartagena');
+
+  // Off Port Royal, out of docking reach: a click on its name plots the course there instead, on the chart too.
+  await page.evaluate(() => {
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 2, y: pr.y + 12 });
+    window.__corsair.sim.step(1);
+  });
+  await frames(page, 3);
+  const port = await page.evaluate(() => {
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    return (window as unknown as { __corsair3d: { project: (x: number, y: number) => { px: number; py: number } } }).__corsair3d.project(pr.x, pr.y);
+  });
+  await page.mouse.click(port.px, port.py - 90);
+  await frames(page);
+  await expect(prompt).toContainText('Follow the course to Port Royal');
+  await expect(page.locator('.hud')).toContainText(/Port Royal · \d+ km/);
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-port.selected')).toHaveText('Port Royal');
+  await page.keyboard.press('m');
+  // Followed, she makes port, and the course and the chart's mark are gone.
+  await page.keyboard.press(' ');
+  const docked = await page.evaluate(async () => {
+    for (let i = 0; i < 1500; i++) {
+      window.__corsair.sim.step(2);
+      await new Promise((r) => requestAnimationFrame(r));
+      if (window.__corsair.state.get('ships.player.docked')) return true;
+    }
+    return false;
+  });
+  expect(docked).toBe(true);
+  await expect(page.locator('.chart-port.selected')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('course line: a port picked on the chart gets a route by sea, the HUD measures it, and Space follows it', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   await page.evaluate(() => {
@@ -1360,6 +1535,7 @@ test('course line: a port picked on the chart gets a route by sea, the HUD measu
     window.__corsair.sim.step(1);
   });
   await page.keyboard.press('m');
+  await wholeChart(page);
   await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
@@ -1486,6 +1662,7 @@ test('a course to a port takes her in when she comes within reach, without press
     }
   });
   await page.keyboard.press('m');
+  await wholeChart(page);
   await page.locator('.chart-port', { hasText: 'Port Royal' }).click();
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
