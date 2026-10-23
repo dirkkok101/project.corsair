@@ -7,6 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { inPort } from '@corsair/core';
 import type { Ship, Wind, WorldState } from '@corsair/core';
 import { hourOf, shipStats, tickAtHour, viewTiles } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
@@ -35,6 +36,7 @@ import { createTowns, TOWN_GLOW, TOWN_RADIUS } from './towns';
 import { createGround } from './terrain';
 import { createSky } from './sky';
 import { createSeaNames } from './seanames';
+import { createConsorts } from './consorts';
 
 // The 3D sea map (art direction: Sid Meier's Pirates! 2004, in HD): the world in map tiles, x east and z south,
 // y up; the camera follows the player's ship and zooms from her deck to the whole region (the mouse wheel),
@@ -104,6 +106,8 @@ const NAMES_WITHIN = 240;
 const FAR_SHIP_SCALE = 4;
 /** A ship's length in tiles at model scale (the brig's hull, 2.4 model units). */
 const SHIP_LENGTH = 2.4 * MODEL_SCALE;
+/** Ships in company sail this many ship's lengths apart, in line astern. */
+const CONSORT_SPACING = 1.7;
 /** How fast a ship eases into the swell's pitch and roll (per second): slow, so she rocks rather than bounces. */
 const RIDE_EASE = 1.1;
 /** A fast ship's speed in speed points, for how hard a ship heels in a turn. */
@@ -197,6 +201,8 @@ export interface SeaRenderer {
   readonly shaking: number;
   /** Debug: the ship labels showing now, by what they say. */
   readonly shipLabels: string[];
+  /** For tests: each ship drawn on the sea now (her own, and those in a flagship's company as `flagship~ship`), where, in tiles. */
+  readonly shipsDrawn: { id: string; x: number; y: number }[];
   /** Shifts the sky to an hour of the day (for reviewing sunrise, sunset and night); the game's clock is untouched. */
   setSkyHour(hour: number): void;
   /**
@@ -345,6 +351,8 @@ export async function createSeaRenderer(
   const smokes: { sprite: THREE.Sprite; at: number; size: number; drift: number }[] = [];
   let smokeClock = 0;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
+  /** The ships in company with each flagship, kept in line astern on her track (consorts.ts). */
+  const consorts = createConsorts();
   // Fog of war: how much of each ship showed last frame; ships new to the sea in sight, by when they
   // came; ships gone from it in sight, going down; and frames drawn at sea since the view (re)started, as on the first
   // frame, or back from a battle, nothing is new or gone.
@@ -823,7 +831,38 @@ export async function createSeaRenderer(
     const zoomedOut = distance >= MARKS_FROM && !chase;
     const wakes = new Set<string>();
     const labelled = new Set<string>();
+    // The ships in company with each flagship, the player's fleet or a pirate's prizes in tow: not on the sea map of
+    // their own (the sim pools them with her), so placed here each frame in line astern of her, on her track.
+    const company: Ship[] = [];
+    const leading = new Set<string>();
     for (const s of Object.values(state.ships)) {
+      const fleet = s.id === options.playerId ? (state.captain?.fleet ?? []) : (s.ai?.prizes ?? []);
+      if (!fleet.length || s.docked || inPort(s)) continue;
+      leading.add(s.id);
+      const stations = consorts.stations(s.id, s, fleet.length, SHIP_LENGTH * farScale * CONSORT_SPACING);
+      fleet.forEach((f, i) => {
+        const at = stations[i]!;
+        company.push({
+          ...s,
+          id: `${s.id}~${f.id}`,
+          classId: f.classId,
+          hull: f.hull,
+          sailCondition: f.sailCondition,
+          guns: f.guns,
+          upgrades: f.upgrades,
+          crew: undefined,
+          assist: undefined,
+          x: at.x,
+          y: at.y,
+          headingDeg: at.headingDeg,
+          // A prize in tow flies her taker's colours, plain.
+          ...(s.ai ? { ai: { ...s.ai, famous: undefined } } : {}),
+        });
+      });
+    }
+    consorts.keep(leading);
+    const inCompany = new Set(company.map((c) => c.id));
+    for (const s of [...Object.values(state.ships), ...company]) {
       seen.add(s.id);
       if (seaFrames > 0 && !knownIds.has(s.id)) born.set(s.id, t);
       // Short of the haze's end she shows (out of the haze on the horizon as she closes it); zoomed out, where the
@@ -875,7 +914,8 @@ export async function createSeaRenderer(
       // ship's masts stand about as high as she is long).
       m.root.position.y -= (1 - shown) * len * 1.3;
       if (shown < 0.5) continue;
-      const text = s.id !== options.playerId ? options.shipLabel?.(s, me) : undefined;
+      // Her own name over her; not over the ships in her company.
+      const text = s.id !== options.playerId && !inCompany.has(s.id) ? options.shipLabel?.(s, me) : undefined;
       if (text !== undefined) {
         let l = shipLabels.get(s.id);
         if (l && l.text !== text) {
@@ -959,7 +999,7 @@ export async function createSeaRenderer(
     }
     // Wakes behind the ships near the camera (far out they'd be finer than a pixel).
     ocean.ships(
-      Object.values(state.ships)
+      [...Object.values(state.ships), ...company]
         .filter((s) => wakes.has(s.id) && Math.hypot(s.x - me.x, s.y - me.y) < 60 + distance)
         .map((s) => ({
           id: s.id,
@@ -1247,6 +1287,9 @@ export async function createSeaRenderer(
     },
     get shipLabels() {
       return [...shipLabels.values()].filter((l) => l.banner.sprite.visible).map((l) => l.text);
+    },
+    get shipsDrawn() {
+      return [...ships].filter(([, m]) => m.root.visible && worldShips.visible).map(([id, m]) => ({ id, x: m.root.position.x, y: m.root.position.z }));
     },
   };
 }

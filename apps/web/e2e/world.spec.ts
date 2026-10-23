@@ -1717,6 +1717,26 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
   expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(1);
+  // At sea she sails in company: drawn astern of the flagship, on her track, and following her as she goes.
+  type Drawn = { id: string; x: number; y: number }[];
+  const drawn = () => page.evaluate(() => (window as unknown as { __corsair3d: { shipsDrawn: Drawn } }).__corsair3d.shipsDrawn);
+  await page.evaluate(async () => {
+    window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'full' });
+    for (let i = 0; i < 60; i++) {
+      window.__corsair.sim.step(4);
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  });
+  const me = await page.evaluate(() => window.__corsair.state.get('ships.player') as { x: number; y: number; headingDeg: number });
+  const consort = (await drawn()).find((d) => d.id.startsWith('player~'));
+  expect(consort).toBeDefined();
+  const apart = Math.hypot(consort!.x - me.x, consort!.y - me.y);
+  expect(apart).toBeGreaterThan(1);
+  expect(apart).toBeLessThan(15);
+  // Astern: behind her heading, not ahead of it.
+  const r = (me.headingDeg * Math.PI) / 180;
+  expect((consort!.x - me.x) * Math.sin(r) - (consort!.y - me.y) * Math.cos(r)).toBeLessThan(0);
+  await page.screenshot({ path: 'test-results/fleet-at-sea.png' });
   // The HUD says the pace she holds the fleet to.
   await expect(page.locator('.hud-fleet')).toContainText('held to');
   await page.evaluate(() => window.__corsair.sim.step(60));
