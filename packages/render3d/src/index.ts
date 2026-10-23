@@ -9,7 +9,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { inPort } from '@corsair/core';
 import type { Ship, Wind, WorldState } from '@corsair/core';
-import { hourOf, shipStats, tickAtHour, viewTiles } from '@corsair/data';
+import { hourOf, isLand, shipStats, tickAtHour, tileAt, viewTiles } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { BattleViewState } from './battleView';
 
@@ -839,8 +839,9 @@ export async function createSeaRenderer(
       const fleet = s.id === options.playerId ? (state.captain?.fleet ?? []) : (s.ai?.prizes ?? []);
       if (!fleet.length || s.docked || inPort(s)) continue;
       leading.add(s.id);
-      const stations = consorts.stations(s.id, s, fleet.length, SHIP_LENGTH * farScale * CONSORT_SPACING);
-      fleet.forEach((f, i) => {
+      const stations = consorts.stations(s.id, s, fleet.length, SHIP_LENGTH * farScale * CONSORT_SPACING, (x, y) => !isLand(tileAt(map, x, y)));
+      // Those not yet out of port behind her are not drawn till they are.
+      fleet.slice(0, stations.length).forEach((f, i) => {
         const at = stations[i]!;
         company.push({
           ...s,
@@ -864,7 +865,8 @@ export async function createSeaRenderer(
     const inCompany = new Set(company.map((c) => c.id));
     for (const s of [...Object.values(state.ships), ...company]) {
       seen.add(s.id);
-      if (seaFrames > 0 && !knownIds.has(s.id)) born.set(s.id, t);
+      // (Not a ship in company: she sails out behind her flagship, she doesn't rise from the sea.)
+      if (seaFrames > 0 && !knownIds.has(s.id) && !inCompany.has(s.id)) born.set(s.id, t);
       // Short of the haze's end she shows (out of the haze on the horizon as she closes it); zoomed out, where the
       // haze has lifted, within her view of the player's ship (a mark where she was last seen past it).
       const inView = zoomedOut ? Math.hypot(s.x - me.x, s.y - me.y) <= reach : Math.hypot(s.x - camera.position.x, camera.position.y, s.y - camera.position.z) <= haze.far;

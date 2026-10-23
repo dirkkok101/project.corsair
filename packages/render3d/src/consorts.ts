@@ -1,6 +1,7 @@
 // A fleet at sea: the ships sailing in company with a flagship (the player's fleet, a pirate's prizes in tow) are
 // not on the sea map of their own (the sim pools them with her), so the view draws them in line astern of her, each
-// on the very track she sailed, `spacing` apart: they follow her round a turn as ships in company do.
+// on the very track she sailed, `spacing` apart: they follow her round a turn as ships in company do. Out of port
+// they come out one by one, each as the flagship has sailed far enough to make room for her on open water.
 
 /** A track this much shorter (tiles) than she moved is a jump (a new career, a debug move), not sailing. */
 const JUMP_TILES = 12;
@@ -20,10 +21,11 @@ export function createConsorts() {
   const tracks = new Map<string, [number, number][]>();
   return {
     /**
-     * Where the `count` ships in company with her lie, nearest first: along her track, `spacing` tiles apart, each
-     * heading the way the track runs there. Short of track (just sailed), straight astern of her heading.
+     * Where the ships in company with her lie, nearest first: along her track, `spacing` tiles apart, each heading the
+     * way the track runs there. Short of track (just sailed), straight astern of her heading, but only over open water
+     * (`water`): fewer than `count` come back while the rest are still in port behind her, never over the land.
      */
-    stations(id: string, at: { x: number; y: number; headingDeg: number }, count: number, spacing: number): Station[] {
+    stations(id: string, at: { x: number; y: number; headingDeg: number }, count: number, spacing: number, water: (x: number, y: number) => boolean = () => true): Station[] {
       let track = tracks.get(id);
       const here: [number, number] = [at.x, at.y];
       if (!track || Math.hypot(track[0]![0] - at.x, track[0]![1] - at.y) > JUMP_TILES) track = [here];
@@ -50,7 +52,12 @@ export function createConsorts() {
       const [bx, by] = last ? [last.x, last.y] : here;
       for (let n = 1; k < count; k++, n++) {
         const back = last ? n * spacing : (k + 1) * spacing;
-        out.push({ x: bx - Math.sin(r) * back, y: by + Math.cos(r) * back, headingDeg: last?.headingDeg ?? at.headingDeg });
+        const from = last ? (n - 1) * spacing : k * spacing;
+        // The way back to her station must be open water too (a halfway check is enough at a ship's spacing).
+        const pt = (d: number): [number, number] => [bx - Math.sin(r) * d, by + Math.cos(r) * d];
+        if (![pt(back), pt((back + from) / 2)].every(([x, y]) => water(x, y))) break;
+        const [x, y] = pt(back);
+        out.push({ x, y, headingDeg: last?.headingDeg ?? at.headingDeg });
       }
       // Kept only as long as the line needs it.
       let len = 0;

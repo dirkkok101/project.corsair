@@ -1097,6 +1097,7 @@ async function main() {
     audio: { levels: () => audio.levels(), battle: audio.battle },
     wildlife: sea3d.wildlife,
     ports: () => settlements.map(({ id, name, x, y }) => ({ id, name, x, y })),
+    land: (x, y) => isLand(tileAt(map, x, y)),
     snapshot: { save: () => toSave(sim.state, seed, fingerprint, Date.now()) },
     view: () => (fight ? 'battle' : renderer.harbour.visible ? 'harbour' : 'sea'),
     battle: {

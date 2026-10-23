@@ -1686,6 +1686,61 @@ test('a course to a port takes her in when she comes within reach, without press
   expect(errors).toEqual([]);
 });
 
+test('a fleet leaves port in line: each ship comes out behind the flagship over open water, never over the land', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  // A prize kept (as the fleets test takes her), then into Port Royal with her.
+  await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { x: number; y: number; ai?: unknown }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    window.__corsair.sim.step(90);
+    const s = (window.__corsair.state.get('ships') as typeof ships)[id]!;
+    for (const [dx, dy] of [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1]]) {
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx!, y: s.y + dy! });
+      window.__corsair.sim.step(1);
+      const p = window.__corsair.state.get('ships.player') as { x: number; y: number };
+      if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
+    }
+  });
+  await page.keyboard.press(' ');
+  await page.keyboard.press('f');
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
+  await page.evaluate(() => {
+    for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
+  });
+  await page.locator('.fate-keep').click();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('sea');
+  expect(await page.evaluate(() => (window.__corsair.state.get('captain') as { fleet?: unknown[] }).fleet?.length)).toBe(1);
+  await page.evaluate(() => {
+    const pr = window.__corsair.ports().find((p) => p.name === 'Port Royal')!;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: pr.x + 1, y: pr.y + 2 });
+    window.__corsair.sim.step(1);
+  });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await page.evaluate(() => window.__corsair.view())).toBe('harbour');
+  // Out of port, the two of them.
+  await page.keyboard.press('e');
+  const seen = await page.evaluate(async () => {
+    const land: boolean[] = [];
+    window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'full' });
+    for (let i = 0; i < 120; i++) {
+      window.__corsair.sim.step(4);
+      await new Promise((r) => requestAnimationFrame(r));
+      const drawn = (window as unknown as { __corsair3d: { shipsDrawn: { id: string; x: number; y: number }[] } }).__corsair3d.shipsDrawn;
+      const c = drawn.find((d) => d.id.startsWith('player~'));
+      if (c) land.push(window.__corsair.land(c.x, c.y));
+    }
+    return land;
+  });
+  // She came out with her, and was never drawn over the land.
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.filter(Boolean)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test('fleets: keep a prize, she shows on the ship card, and the shipwright sells her', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   await page.evaluate(() => {

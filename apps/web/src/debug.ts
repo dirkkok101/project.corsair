@@ -57,6 +57,8 @@ declare global {
       audio: { levels: () => import('@corsair/audio').AudioLevels; battle: import('@corsair/audio').Audio['battle'] };
       wildlife: import('@corsair/render3d').SeaRenderer['wildlife'];
       ports: () => { id: string; name: string; x: number; y: number }[];
+      /** Whether a tile is land. */
+      land: (x: number, y: number) => boolean;
       snapshot: { save: () => import('@corsair/core').Save };
       /** What the canvas is drawing: the harbour scene in port, the sea otherwise. */
       view: () => 'harbour' | 'sea' | 'battle';

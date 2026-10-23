@@ -26,6 +26,20 @@ describe('ships in company', () => {
     expect(b!.y).toBeCloseTo(94, 0);
   });
 
+  it('come out of port one by one: none over the land astern, each as her track makes room for her', () => {
+    const c = createConsorts();
+    // Land west of x = 99: she sails east out of a harbour on the coast.
+    const water = (x: number) => x >= 99;
+    expect(c.stations('f', { x: 100, y: 100, headingDeg: 90 }, 2, 3, water)).toHaveLength(0);
+    let out = c.stations('f', { x: 100, y: 100, headingDeg: 90 }, 2, 3, water);
+    for (let x = 100; x <= 103.5; x += 0.1) out = c.stations('f', { x, y: 100, headingDeg: 90 }, 2, 3, water);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.x).toBeGreaterThanOrEqual(99);
+    for (let x = 103.5; x <= 107; x += 0.1) out = c.stations('f', { x, y: 100, headingDeg: 90 }, 2, 3, water);
+    expect(out).toHaveLength(2);
+    expect(out.every((s) => water(s.x))).toBe(true);
+  });
+
   it('start afresh after a jump, rather than strung across the sea', () => {
     const c = createConsorts();
     for (let x = 100; x <= 110; x += 0.2) c.stations('f', { x, y: 100, headingDeg: 90 }, 1, 3);
