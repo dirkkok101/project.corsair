@@ -6,6 +6,7 @@
     "accelPerSecond": 1,
     "decelPerSecond": 0.8,
     "turnDegPerSecondPerPoint": 7.5,
+    "sailHarm": { "full": 1, "half": 0.5, "furled": 0.25 },
     "tornSailsFloor": 0.1,
     "startApart": 24,
     "fairSpeed": 4,

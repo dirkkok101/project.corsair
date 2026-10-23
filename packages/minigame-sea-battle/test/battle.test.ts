@@ -273,6 +273,26 @@ describe('sea battle', () => {
     expect(across).toBeLessThan(2 * content.combat.guns.rangeTiles);
   });
 
+  it('shortened sail spares her canvas: under half sail a chain-shooting pirate tears less of it', () => {
+    // Half sail made as fast as full, so the two fights go alike but for the harm.
+    const nav = content.navigation;
+    const same = { ...content, navigation: { ...nav, sailSettings: { ...nav.sailSettings, half: nav.sailSettings.full } } };
+    const torn = (sails: 'full' | 'half') => {
+      let lost = 0;
+      for (let seed = 1; seed <= 6; seed++) {
+        const b = createBattle(same, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig'), enemy: ship('ship.sloop', 'pirate'), seed, bearingDeg: 90 });
+        b.send({ type: 'SetSails', shipId: 'player', sails });
+        for (let i = 0; i < 90 && !b.result(); i++) b.step(30);
+        lost += 100 - b.state.ships.player.sailCondition;
+      }
+      return lost;
+    };
+    const full = torn('full');
+    expect(full).toBeGreaterThan(0);
+    // Clearly less: a quarter or more of it spared.
+    expect(torn('half')).toBeLessThan(full * 0.75);
+  });
+
   it('the more hands at the guns, the faster she reloads, up to full manning', () => {
     // A brig's 18 guns at 4 men a gun want 36 hands for a broadside.
     const reload = (crew: number) =>

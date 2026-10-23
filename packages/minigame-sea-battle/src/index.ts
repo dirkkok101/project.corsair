@@ -917,10 +917,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const raking = Math.abs((dx * Math.sin(vr) - dy * Math.cos(vr)) / Math.max(1e-6, Math.hypot(dx, dy))) >= c.raking.cos;
           if (raking) place.rake = true;
           const harm = (shot.power ?? 1) * (raking ? c.raking.damage : 1);
+          // Canvas taken in is canvas spared: her sails and masts take the share her sail setting leaves.
+          const rigHarm = harm * c.battle.sailHarm[v.sails];
           let hurt: BattleShip = {
             ...v,
             hull: v.hull - a.hull * harm,
-            sailCondition: Math.max(0, v.sailCondition - a.sails * harm * v.sailWear),
+            sailCondition: Math.max(0, v.sailCondition - a.sails * rigHarm * v.sailWear),
             crew: Math.max(0, v.crew - a.crew * harm),
             guns,
           };
@@ -932,7 +934,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
             const i = standing.sort((p, q) => Math.abs(at[p]! - place.along) - Math.abs(at[q]! - place.along))[0];
             if (i !== undefined) {
               const masts = [...hurt.masts];
-              masts[i] = Math.max(0, masts[i]! - c.masts.damage[shot.ammo]!);
+              masts[i] = Math.max(0, masts[i]! - c.masts.damage[shot.ammo]! * c.battle.sailHarm[v.sails]);
               hurt = { ...hurt, masts };
               if (masts[i] === 0) {
                 // Gone: her canvas on that mast with it (never more than her standing masts can carry), and the

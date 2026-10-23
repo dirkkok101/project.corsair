@@ -786,7 +786,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
           </div>
           <button
             class="k-btn small battle-sails"
-            title={you.sails === 'full' ? 'Full sail: click for half sail, tighter turns (S)' : 'Half sail: click for full sail (W)'}
+            title={you.sails === 'full' ? 'Full sail: click for half sail, tighter turns and half the harm to her sails and masts (S)' : 'Half sail: click for full sail (W)'}
             onClick={() => you.setSails(you.sails === 'full' ? 'half' : 'full')}
           >
             <Art id={`ui.icon.${you.sails}_sail`} class="inline-icon" /> {you.sails === 'full' ? 'Full sail' : 'Half sail'}
