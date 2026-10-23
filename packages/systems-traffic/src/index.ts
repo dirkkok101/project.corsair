@@ -1,5 +1,5 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
-import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Nation, NewsItem, Prize, PrizePapers, SailSetting, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
+import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Mission, Nation, NewsItem, Prize, PrizePapers, SailSetting, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, sightTiles, tileAt, viewTiles } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, famesOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
@@ -7,6 +7,7 @@ import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import { zoneAt } from '@corsair/systems-weather';
 import type { SeaLanes } from './lanes';
+import { missionOffer } from './missions';
 export { createHavensSystem, havenKnown } from './havens';
 
 /**
@@ -20,6 +21,8 @@ export function prizePapers(content: ContentPack, state: WorldState, from: Natio
 
 export { createSeaLanes } from './lanes';
 export { careerGoals } from './goals';
+export { missionGoals, missionOffer, missionTitle, quarryClass } from './missions';
+export type { MissionOffer } from './missions';
 export type { Goal } from './goals';
 export type { SeaLanes } from './lanes';
 
@@ -117,8 +120,8 @@ export function createTrafficSystem(
       const player = Object.values(state.ships).find((x) => !x.ai);
       const near = (s: Settlement) => (player && Math.hypot(s.x - player.x, s.y - player.y) <= t.nearPlayer.tiles ? t.nearPlayer.weight : 1);
       const weights = Object.fromEntries(marks.map((s) => [s.id, (size[s.size] * fit(s) * near(s)) / (1 + Math.hypot(s.x - here.x, s.y - here.y) / t.pirateRangeTiles)]));
-      // A famous pirate keeps to her own waters: the lanes toward her haunts.
-      const haunts = ai.famous ? famousDef(ai.famous)?.haunts.filter((id) => marks.some((s) => s.id === id)) : undefined;
+      // A famous pirate keeps to her own waters: the lanes toward her haunts (and a mission's quarry to hers).
+      const haunts = (ai.haunts ?? (ai.famous ? famousDef(ai.famous)?.haunts : undefined))?.filter((id) => marks.some((s) => s.id === id));
       if (haunts?.length) return { to: byId.get(haunts[Math.floor(rng.float() * haunts.length)]!), good: undefined };
       const pick = marks.length ? rng.weighted(weights) : undefined;
       return { to: marks.find((s) => s.id === pick), good: undefined };
@@ -446,9 +449,11 @@ export function createTrafficSystem(
     if (ai.role === 'pirate') {
       // Out toward the mark only part way, to lurk on the lane: never under a port's guns, so a
       // spot that falls there is drawn back toward home.
+      // A mission's quarry lurks off the port the governor named, inside the waters ringed on the chart.
       const length = routeLength(route);
-      let stop = length * rng.range(LURK_AT[0], LURK_AT[1]);
-      while (stop > length * LURK_AT[0] / 2 && piratesFear(pointAlong(route, stop).x, pointAlong(route, stop).y)) stop -= length * 0.05;
+      const ring = content.politics.missions.hunt.ringTiles;
+      let stop = ai.mission ? Math.max(0, length - rng.range(ring * 0.5, ring * 0.8)) : length * rng.range(LURK_AT[0], LURK_AT[1]);
+      while (stop > length * LURK_AT[0] / 2 && piratesFear(pointAlong(route, stop).x, pointAlong(route, stop).y)) stop -= ai.mission ? 2 : length * 0.05;
       const end = pointAlong(route, stop);
       const keep: [number, number][] = [route[0]!];
       let run = 0;
@@ -787,6 +792,7 @@ export function createTrafficSystem(
             x.ai.role === made.ai!.role &&
             !inPort(x) &&
             !x.ai.famous &&
+            !x.ai.mission &&
             !x.ai.convoy &&
             !x.ai.skirmish &&
             !x.ai.target &&
@@ -1355,7 +1361,21 @@ export function createTrafficSystem(
               ship: {
                 ...other,
                 ...theirs,
-                ai: { ...other.ai, name, famous: undefined, purse: 0, chasing: false, target: undefined, skirmish: undefined, prizes: undefined, blockading: undefined, blockadeOf: undefined, beat: undefined },
+                ai: {
+                  ...other.ai,
+                  name,
+                  famous: undefined,
+                  mission: undefined,
+                  haunts: undefined,
+                  purse: 0,
+                  chasing: false,
+                  target: undefined,
+                  skirmish: undefined,
+                  prizes: undefined,
+                  blockading: undefined,
+                  blockadeOf: undefined,
+                  beat: undefined,
+                },
               },
               volunteers,
               ...(famousId ? { captive: famousId } : {}),
@@ -1397,7 +1417,10 @@ export function createTrafficSystem(
               ...(other.ai.famous ? { famousBeaten: (r.famousBeaten ?? 0) + 1 } : {}),
             },
           };
+          // A governor's quarry beaten: his mission is done, and he pays when she next calls on him.
+          if (other.ai.mission) captain = { ...captain, missions: (captain.missions ?? []).map((m) => (m.id === other.ai!.mission ? { ...m, done: state.tick } : m)) };
         }
+        const missionDone = won && other.ai.mission ? captain.missions?.find((m) => m.id === other.ai!.mission) : undefined;
         // The after-action report: everything the fight changed, for the battle's last screen.
         const standingChange: Record<string, number> = {};
         for (const n of NATIONS) {
@@ -1426,9 +1449,11 @@ export function createTrafficSystem(
               laidUp: [] as { name: string; classId: string; at: string }[],
               famous: famousId ? { name: other.ai.name, share: famousShare, fame: content.politics.career.fame.war.famous } : null,
               relieved: relieved ? { town: relieved.name ?? relieved.id, nation: relieved.nation, bounty: content.politics.bounty.blockade } : null,
+              mission: missionDone ? { id: missionDone.id, from: byId.get(missionDone.from)?.name ?? missionDone.from, reward: missionDone.reward, merit: missionDone.merit } : null,
             },
           },
         ];
+        if (missionDone) events.push({ type: 'MissionDone', entityIds: [player.id, missionDone.from], payload: { id: missionDone.id, kind: missionDone.kind, reward: missionDone.reward, name: missionDone.name ?? null } });
         // The fleet changed hands: it sails at its slowest ship's pace.
         if (lost.ship || retaken.length) {
           ships[player.id] = withFleetPace(content, ships[player.id]!, fleetAfter);
@@ -1599,6 +1624,57 @@ export function createTrafficSystem(
         if (!water(command.x, command.y)) return undefined;
         const moved = rejoin({ ...ship, x: command.x, y: command.y, speed: 0, ai: { ...ship.ai!, waitUntil: undefined } });
         return { state: { ...state, ships: { ...state.ships, [ship.id]: moved } }, events: [{ type: 'Teleported', entityIds: [ship.id], payload: {} }] };
+      }
+      if (command.type === 'AcceptMission') {
+        // The governor's mission this week, taken: a hunt puts her quarry on the sea, sailing from the haven
+        // nearest her waters, at once.
+        const player = state.ships[command.shipId];
+        if (!player || !state.captain) return undefined;
+        const town = player.docked ? byId.get(player.docked) : undefined;
+        const fail = (reason: string) => ({ state, events: [{ type: 'MissionRefused', entityIds: [player.id], payload: { reason } }] as EmittedEvent[] });
+        if (!town) return fail('not-docked');
+        const offer = missionOffer(content, state, town, settlements);
+        if (!offer) return fail('no-offer');
+        const m = content.politics.missions;
+        const open = state.captain.missions ?? [];
+        if (open.filter((x) => x.done === undefined).length >= m.open) return fail('too-many');
+        const n = state.nextShipId ?? 0;
+        const mission: Mission = {
+          id: `mission.${offer.key}`,
+          kind: offer.kind,
+          from: offer.from,
+          nation: offer.nation,
+          to: offer.to,
+          reward: offer.reward,
+          merit: offer.merit,
+          tick: state.tick,
+          endTick: state.tick + Math.round(m.lapseWeeks * content.economy.daysPerWeek * tpd),
+          ...(offer.kind === 'hunt' ? { target: `ai.${n}`, classId: offer.classId, name: offer.name } : {}),
+        };
+        let next = state;
+        const ships = { ...state.ships };
+        if (offer.kind === 'hunt') {
+          const area = byId.get(offer.to)!;
+          const havens = homePorts(settlements, lanes, 'pirate');
+          const haven = havens.length ? nearestTo(havens, area) : undefined;
+          if (!haven) return fail('no-haven');
+          // Her waters: off the port named, where the chart rings them.
+          const haunts = [area.id];
+          const rng = rngStream(state.rng?.traffic ?? seedRng(0, 'traffic'));
+          const made = spawn(content, state, 'pirate', haven, lanes.mooring(haven.id)!, rng, state.tick, offer.classId);
+          const cls = content.ships[made.ship.classId]!;
+          ships[made.ship.id] = {
+            ...made.ship,
+            crew: Math.max(cls.minCrew, Math.round(shipStats(content, made.ship).maxCrew * m.hunt.crew)),
+            ai: { ...made.ship.ai!, name: offer.name!, mission: mission.id, haunts, waitUntil: state.tick },
+          };
+          next = { ...made.state, rng: { ...made.state.rng, traffic: rng.state() } };
+        }
+        const captain = { ...state.captain, missions: [...open, mission], missionDeals: [...(state.captain.missionDeals ?? []), offer.key].slice(-20) };
+        return {
+          state: { ...next, ships, captain },
+          events: [{ type: 'MissionAccepted', entityIds: [player.id, town.id], payload: { id: mission.id, kind: mission.kind, to: mission.to, name: mission.name ?? null, classId: mission.classId ?? null } }],
+        };
       }
       if (command.type === 'SpawnShip') {
         const from = byId.get(command.from);
@@ -1789,7 +1865,7 @@ export function createTrafficSystem(
         for (const role of ROLES) {
           // Prizes in tow are still hulls of their role: replaced only once sold.
           const have = Object.values(ships).reduce(
-            (n, s) => n + (s.ai?.role === role && !s.ai.convoy && !s.ai.famous ? 1 : 0) + (s.ai?.prizes ?? []).filter((p) => p.takenFrom !== 'player' && p.role === role).length,
+            (n, s) => n + (s.ai?.role === role && !s.ai.convoy && !s.ai.famous && !s.ai.mission ? 1 : 0) + (s.ai?.prizes ?? []).filter((p) => p.takenFrom !== 'player' && p.role === role).length,
             0,
           );
           if (have >= target(role)) continue;
@@ -1805,6 +1881,22 @@ export function createTrafficSystem(
           ships = { ...ships, [made.ship.id]: made.ship };
           events.push({ type: 'ShipSpawned', entityIds: [made.ship.id], payload: { role } });
         }
+      }
+
+      // The governors' missions: a quarry beaten by another ship ends her hunt; one not done in time lapses, and her
+      // quarry sails on as any pirate. Neither costs the captain anything.
+      if (tick % tpd === 0 && next.captain?.missions?.length) {
+        const kept: Mission[] = [];
+        for (const m of next.captain.missions) {
+          const quarry = m.target ? ships[m.target] : undefined;
+          if (m.done === undefined && m.kind === 'hunt' && !quarry) {
+            events.push({ type: 'MissionLost', entityIds: [m.id, m.from], payload: { id: m.id, name: m.name ?? null } });
+          } else if (m.done === undefined && tick >= m.endTick) {
+            if (quarry?.ai) ships = { ...ships, [quarry.id]: { ...quarry, ai: { ...quarry.ai, mission: undefined, haunts: undefined } } };
+            events.push({ type: 'MissionLapsed', entityIds: [m.id, m.from], payload: { id: m.id, kind: m.kind, name: m.name ?? null, to: m.to } });
+          } else kept.push(m);
+        }
+        if (kept.length !== next.captain.missions.length) next = { ...next, captain: { ...next.captain, missions: kept } };
       }
 
       // Her war fame reaches a rung of the famous (pirates.json huntFame): one of them swears to take her, and
@@ -1990,7 +2082,8 @@ function spawn(
   const byStrength = (grown - big.from) / (big.full - big.from);
   const byFame = (fame - big.fameFrom) / (big.fameFull - big.fameFrom);
   const bigShare = big.maxShare * Math.max(0, Math.min(1, Math.max(byStrength, byFame)));
-  const shipClass = role === 'pirate' && rngStream(seedRng(n, 'bigger')).float() < bigShare ? big.classId : classId;
+  // A class asked for (a debug spawn, a mission's quarry) is the class she sails.
+  const shipClass = !only && role === 'pirate' && rngStream(seedRng(n, 'bigger')).float() < bigShare ? big.classId : classId;
   const cls = content.ships[shipClass]!;
   const ship: Ship = {
     id: `ai.${n}`,

@@ -700,6 +700,29 @@ export const politicsSchema = z.object({
   }),
   /** A blockade broken (its blockader beaten): `blockade` gold more from a governor of the port's nation, counting `blockadeMerit` deeds. */
   bounty: z.object({ merchant: z.number(), patrol: z.number(), pirate: z.number(), piracyScale: z.number().positive(), blockade: z.number().min(0), blockadeMerit: z.number().min(1) }),
+  /** Governors' missions (docs/design/governor-missions.md): how many open at once, when they lapse, and each kind's terms. */
+  missions: z.object({
+    open: z.number().int().min(1),
+    lapseWeeks: z.number().positive(),
+    hunt: z.object({
+      weight: z.number().min(0),
+      classes: z.array(z.string()).min(1),
+      match: z.number().positive(),
+      crew: share,
+      areaTiles: z.number().positive(),
+      ringTiles: z.number().positive(),
+      rewardShare: share,
+      minReward: z.number().min(0),
+      merit: z.number().min(0),
+    }),
+    courier: z.object({
+      weight: z.number().min(0),
+      tiles: z.tuple([z.number().min(0), z.number().positive()]),
+      goldPerTile: z.number().min(0),
+      minReward: z.number().min(0),
+      merit: z.number().min(0),
+    }),
+  }),
   news: z.record(z.string(), z.string()),
   /** Ranks per nation: the ladder by merit, each perk's rung and size, land and its rent. */
   ranks: z.object({

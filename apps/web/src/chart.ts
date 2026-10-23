@@ -545,14 +545,14 @@ export function createCharts(
     show() {
       toggle(true);
     },
-    /** The search rings of the treasure maps held: centre and radius in tiles, and whose hoard. */
-    rings(list: { x: number; y: number; r: number; label: string }[]) {
+    /** The search rings of the treasure maps held, and a mission quarry's waters: centre and radius in tiles, whose, and what to do there. */
+    rings(list: { x: number; y: number; r: number; label: string; say?: string }[]) {
       const html = list
         .map(
           (g) =>
             `<div class="chart-ring" title="${g.label}" style="left:${(g.x / map.width) * 100}%;top:${(g.y / map.height) * 100}%;width:${((2 * g.r) / map.width) * 100}%"></div>` +
             // Its label in red ink above the ring: whose hoard, search here.
-            `<div class="chart-ring-label" style="left:${(g.x / map.width) * 100}%;top:${((g.y - g.r) / map.height) * 100}%">${g.label.split(':')[0]}: search here</div>`,
+            `<div class="chart-ring-label" style="left:${(g.x / map.width) * 100}%;top:${((g.y - g.r) / map.height) * 100}%">${g.label.split(':')[0]}: ${g.say ?? 'search here'}</div>`,
         )
         .join('');
       if (html !== ringsDrawn) ringsLayer.innerHTML = ringsDrawn = html;

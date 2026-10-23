@@ -43,7 +43,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createHavensSystem, createSeaLanes, createTrafficSystem, havenKnown, prizePapers, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createHavensSystem, createSeaLanes, createTrafficSystem, havenKnown, missionGoals, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -1557,6 +1557,21 @@ async function main() {
         const p = ev.payload as { nation: string; rank: string; acres: number };
         moments.push({ kind: 'promotion', ...p, town: settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '' });
       }
+      // A governor's mission done, given up or beaten to: a note at sea says so, and what comes next.
+      if (ev.type === 'MissionDone' && ev.payload.kind === 'hunt') {
+        const by = settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '';
+        courseNote = { text: `The ${ev.payload.name as string} is beaten: the governor of ${by} will pay ${(ev.payload.reward as number).toLocaleString()} gold`, kind: 'Mission done', icon: 'ui.icon.chest', tone: 'gold', until: now + 7000 };
+      }
+      if (ev.type === 'MissionLapsed' || ev.type === 'MissionLost') {
+        const by = settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '';
+        const text =
+          ev.type === 'MissionLost'
+            ? `Another ship has beaten the ${ev.payload.name as string}: ${by}'s hunt is over`
+            : ev.payload.kind === 'hunt'
+              ? `${by} has given up the hunt for the ${ev.payload.name as string}`
+              : `${by}'s letter is no longer wanted`;
+        courseNote = { text, kind: 'Mission over', icon: 'ui.icon.course', until: now + 6000 };
+      }
       // A famous pirate in sight for the first time.
       if (ev.type === 'FamousSighted') {
         const id = ev.payload.pirateId as string;
@@ -1699,13 +1714,18 @@ async function main() {
       { sightings: sim.state.captain?.sightings ?? {}, tick: sim.state.tick, ticksPerDay: content.calendar.ticksPerDay },
       guide,
     );
-    charts.rings(
-      content.pirates.captains.flatMap((c) => {
+    charts.rings([
+      ...content.pirates.captains.flatMap((c) => {
         const hoard = sim.state.famous?.[c.id]?.hoard;
         const held = sim.state.captain?.mapPieces?.[c.id] ?? 0;
         return hoard && held && !hoard.found ? [{ ...hoardRing(content, hoard, held), label: `${c.name}'s hoard: ${held} of ${content.pirates.rules.mapPieces} pieces` }] : [];
       }),
-    );
+      // The waters a mission's quarry haunts, about the port the governor named.
+      ...(sim.state.captain?.missions ?? []).flatMap((m) => {
+        const at = m.kind === 'hunt' && m.done === undefined ? settlements.find((s) => s.id === m.to) : undefined;
+        return at ? [{ x: at.x, y: at.y, r: content.politics.missions.hunt.ringTiles, label: `The ${m.name}: wanted by ${settlements.find((s) => s.id === m.from)?.name ?? m.from}`, say: 'hunt here' }] : [];
+      }),
+    ]);
     const ship = player();
     const day = Math.floor(sim.state.tick / content.calendar.ticksPerDay);
     const hour = hourOf(content.calendar, sim.state.tick);
@@ -1816,6 +1836,8 @@ async function main() {
       goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, kind: 'Goal done', icon: 'ui.icon.cannon_loaded', tone: 'gold', until: now + 7000 };
     }
     goalsDone = doneNow;
+    // The governors' missions in hand: the nearest is the sea's goal pill, and the log lists them all.
+    const missions = missionGoals(sim.state, settlements);
     if (fight) logOpen = false;
     render(
       logOpen ? (
@@ -1834,7 +1856,7 @@ async function main() {
             logOpen = false;
             charts.show();
           }}
-          goals={goals}
+          goals={[...missions, ...goals]}
           date={(tick) => formatDate(dateOf(def.startDate, Math.floor(tick / content.calendar.ticksPerDay)))}
           plot={(x, y) => {
             // A port already in reach at sea: go in, rather than plot a course to where she lies.
@@ -2024,13 +2046,19 @@ async function main() {
         banner={(() => {
           const her = sailHo && now < sailHo.until ? sim.state.ships[sailHo.id] : undefined;
           if (!her?.ai) return undefined;
-          const who = her.ai.famous ? `${her.ai.name} himself, in a ${shipKind(her.classId)},` : `A ${shipTitle(her)}`;
+          const wanted = her.ai.mission ? sim.state.captain?.missions?.find((m) => m.id === her.ai!.mission) : undefined;
+          const by = wanted && settlements.find((s) => s.id === wanted.from)?.name;
+          const who = her.ai.famous
+            ? `${her.ai.name} himself, in a ${shipKind(her.classId)},`
+            : wanted
+              ? `The pirate ${shipKind(her.classId)} ${her.ai.name}, the one ${by} wants,`
+              : `A ${shipTitle(her)}`;
           return { text: `${who} ${fromTheBow(ship, her)}`, hail: near?.id === her.id };
         })()}
         toasts={[...[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
-          const g = goals.find((x) => !x.done);
-          return g && { title: g.title, have: g.have, of: g.of, unit: g.unit };
+          const g = missions[0] ?? goals.find((x) => !x.done);
+          return g && { title: g.title, have: g.have, of: g.of, unit: g.unit, mission: g.mission };
         })()}
         strip={strip}
         faded={now - stripChanged > STRIP_REST_MS}

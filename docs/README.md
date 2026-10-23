@@ -10,6 +10,8 @@ Canonical home for the product requirements, design, reference research and art 
 | `corsair-pixel-art-research.md` | Historical for the sea and ships (3D since 2026-10-08). Targeted research: 16-dir ships, RotSprite, autotiles, licensing, **free-first tool stack**; palette and tool notes still apply to harbour and UI art |
 | `ai-game-sprites-research.md` | Broad AI sprite research (YT / tools); for 2D characters, props and UI, not the 3D sea |
 | `ai-game-sprites-SKILL.md` | Reusable skill for AI sprite production; for 2D characters, props and UI, not the 3D sea |
+| `design/governor-missions.md` | Governors' missions (2026-10-23): one offer a week, hunt a matched pirate or carry a letter, paid into the chest; slice 1 built, raid and escort to come |
+| `design/backlog.md` | Player-raised items waiting for a slice (2026-10-23: sea HUD objectives, bigger chart, route days and food, ship against port, fleet at sea) |
 | `design/famous-pirates-and-treasure.md` | Design (2026-10-10): famous pirate captains, the Top Ten, treasure maps and digging for hoards |
 | `design/combat-model.md` | Design proposal (2026-10-10, for review): the career ladder from the starting brig, objectives, and a combat model with captain and crew quality, opponent doctrines, ten distinct famous pirates and period-true upgrades |
 | `design/combat-model-baseline.md` | Combat as built on 2026-10-10: the model with code references, its gaps, and measured famous-pirate difficulty |

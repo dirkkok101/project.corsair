@@ -192,7 +192,7 @@ export interface LogProps {
   close: () => void;
   /** Close the log and open the chart, its voyages beside it. */
   openChart: () => void;
-  /** The career's goals (careerGoals), in order. */
+  /** The governors' missions in hand (missionGoals), then the career's goals (careerGoals), in order. */
   goals: Goal[];
   /** A tick as a date ("14 May 1661"). */
   date: (tick: number) => string;
@@ -262,7 +262,7 @@ function LogPage({ state, settlements, date, plot }: Pick<LogProps, 'state' | 's
   );
 }
 
-/** The next three goals not yet done, each with its progress and one click to where it gets done; the done opposite. */
+/** The next three goals not yet done, each with its progress and one click to where it gets done; opposite, the missions in hand and the done. */
 function Goals({
   goals,
   settlements,
@@ -276,7 +276,8 @@ function Goals({
   open: (page: 'top' | 'maps' | 'chart') => void;
   level: DifficultyLevel;
 }) {
-  const next = goals.filter((g) => !g.done).slice(0, 3);
+  const missions = goals.filter((g) => g.mission);
+  const next = goals.filter((g) => !g.done && !g.mission).slice(0, 3);
   const done = goals.filter((g) => g.done);
   const port = (id?: string) => settlements.find((s) => s.id === id);
   return (
@@ -321,6 +322,32 @@ function Goals({
         )}
       </div>
       <div class="book-page">
+        {missions.length ? (
+          <>
+            <h2 class="book-title">Missions</h2>
+            <div class="book-sub">Work the governors gave you, nearest first.</div>
+            <div class="book-rule" />
+            {missions.map((g) => {
+              const where = port(g.port);
+              return (
+                <div key={g.id} class="goal">
+                  <div class="goal-head">
+                    <b>{g.title}</b>
+                  </div>
+                  <div class="goal-foot">
+                    <span class="book-sub">{g.why}</span>
+                    {where ? (
+                      <button class="k-btn small paper" onClick={() => plot(where.x, where.y)}>
+                        Plot a course to {where.name}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+            <div class="book-rule" />
+          </>
+        ) : null}
         <h3 class="book-heading">Done</h3>
         <div class="goals-done">
           {done.length ? (

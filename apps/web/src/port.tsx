@@ -5,6 +5,7 @@ import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import {
   strangerOffer,
   bountiesOwed,
+  missionsOwed,
   cargoUsed,
   crewOf,
   crewMood,
@@ -52,7 +53,8 @@ import {
   tradePreview,
 } from '@corsair/systems-economy';
 import { enemiesOf, legalTarget } from '@corsair/systems-politics';
-import { havenKnown, topTen } from '@corsair/systems-traffic';
+import { havenKnown, missionOffer, topTen } from '@corsair/systems-traffic';
+import type { MissionOffer } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
 import { Bust, Key, Speech, Stat } from './ui/kit';
 import { ChartInset } from './ui/chart-inset';
@@ -536,7 +538,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const rumours = newsAt(content, state, settlements, town.id);
   const unheard = rumours.filter((n) => !(state.captain?.heard ?? []).includes(n.id)).length;
   // What waits at each building, as a badge: news unheard, bounties owed, mending to do.
-  const owed = hasGovernor(town) ? bountiesOwed(content, state, town.nation).pay.length : 0;
+  // The governor's: bounties, missions done for him, and letters carried to him.
+  const letters = (state.captain?.missions ?? []).filter((m) => m.kind === 'courier' && m.done === undefined && (m.delivered === undefined ? m.to : m.from) === town.id).length;
+  const owed = hasGovernor(town) ? bountiesOwed(content, state, town.nation).pay.length + missionsOwed(state, town.id).pay.length + letters : 0;
   // The shipwright's badge counts the ships of the fleet (and any laid up here) he can mend, fit or sell;
   // with the flagship alone, mending to do.
   const yardShips = fleetOf(state).length + (state.captain?.laidUp ?? []).filter((l) => l.settlementId === town.id).length;
@@ -1075,6 +1079,7 @@ function Governor({
   const [last] = useState(() => state.captain?.calledOn?.[town.id]);
   useEffect(() => send({ type: 'CallOnGovernor', shipId }), []);
   const [declined, decline] = useState(false);
+  const [passed, pass] = useState(false);
   if (!hasGovernor(town)) {
     return <p class="port-sub">There is no governor here: only towns and cities have one.</p>;
   }
@@ -1084,6 +1089,10 @@ function Governor({
   const held = (state.captain?.marques ?? []).includes(nation);
   const price = marquePrice(content, state, nation);
   const owed = bountiesOwed(content, state, nation);
+  // His missions done, paid with the bounties; and the one he offers this week.
+  const done = missionsOwed(state, town.id);
+  const job = missionOffer(content, state, town, settlements);
+  const full = (state.captain?.missions ?? []).filter((m) => m.done === undefined).length >= content.politics.missions.open;
   const standing = state.captain?.standing?.[nation] ?? 0;
   const list = (ns: readonly string[]) => ns.map((n) => COUNTRY[n]).join(' and ');
   // Wars and peace made by his nation since the last call.
@@ -1091,8 +1100,16 @@ function Governor({
   const captives = owed.pay.flatMap((d) => (d.captive ? [content.pirates.captains.find((c) => c.id === d.captive)?.name ?? d.captive] : []));
   const ships = deedsSaid(owed.pay);
   const days = last === undefined ? 0 : Math.floor((state.tick - last) / content.calendar.ticksPerDay);
-  const line = owed.pay.length
-    ? `"${captives.length ? `${captives.join(' and ')} in irons! ` : ''}${ships ? `You've seen to ${ships} for us. ` : ''}${CROWN[nation]} is pleased."`
+  const beaten = done.pay.filter((m) => m.kind === 'hunt').map((m) => `the ${m.name}`);
+  const replies = done.pay.filter((m) => m.kind === 'courier').map((m) => settlements.find((x) => x.id === m.to)?.name ?? m.to);
+  const thanks = `${beaten.length ? `So ${beaten.join(' and ')} will trouble us no more! ` : ''}${replies.length ? `The reply from ${replies.join(' and ')}, at last. ` : ''}`;
+  // A letter carried to him, handed over this call: he writes his reply.
+  const letter = (state.captain?.missions ?? []).find((m) => m.kind === 'courier' && m.to === town.id && m.done === undefined && m.delivered === state.tick);
+  const sender = letter && settlements.find((x) => x.id === letter.from)?.name;
+  const line = letter
+    ? `"A letter from the governor of ${sender}? Wait while I write my reply, captain: see that he has it."`
+    : owed.pay.length || done.pay.length
+    ? `"${thanks}${captives.length ? `${captives.join(' and ')} in irons! ` : ''}${ships ? `You've seen to ${ships} for us. ` : ''}${CROWN[nation]} is pleased."`
     : since.length
       ? `"Since you were last here: ${newsText(content, since[since.length - 1]!, town.name)}"`
       : last === undefined
@@ -1124,14 +1141,21 @@ function Governor({
       </Speech>
       <div class="k-paper governor-card governor-bounty">
         <Art id="ui.icon.chest" class="governor-bounty-icon" />
-        {owed.pay.length ? (
+        {owed.pay.length || done.pay.length ? (
           <>
             <div class="governor-bounty-text">
-              <b>Bounties owed: {[...captives, ...(ships ? [ships] : [])].join(' and ')}</b>
-              <span class="k-sub">{owed.total.toLocaleString()} gold, paid into your purse.</span>
+              <b>
+                {owed.pay.length ? `Bounties owed: ${[...captives, ...(ships ? [ships] : [])].join(' and ')}` : ''}
+                {owed.pay.length && done.pay.length ? '; ' : ''}
+                {done.pay.length ? `Your reward for ${[...beaten, ...replies.map((r) => `the letter to ${r}`)].join(' and ')}` : ''}
+              </b>
+              <span class="k-sub">
+                {(owed.total + done.total).toLocaleString()} gold, paid into the plunder chest.
+                {done.merit ? ` ${done.merit} merit with ${COUNTRY[nation]} toward your next rank.` : ''}
+              </span>
             </div>
             <button class="k-btn ink" onClick={() => send({ type: 'CollectBounties', shipId })}>
-              {bountyLabel(content, owed.pay)} · {owed.total.toLocaleString()} gold
+              {owed.pay.length ? bountyLabel(content, owed.pay) : 'Collect your reward'} · {(owed.total + done.total).toLocaleString()} gold
             </button>
           </>
         ) : (
@@ -1177,6 +1201,7 @@ function Governor({
           <div class="governor-offer-means">
             Their ships become lawful prizes: each one you take raises your standing with {COUNTRY[nation]} and earns a bounty here.{' '}
             {list(enemies)} will think the worse of you for it.
+            {job ? ' He has other work for you too: say Not now to hear it.' : ''}
           </div>
           <div class="tavern-replies">
             <button class="k-btn small primary" onClick={() => send({ type: 'BuyMarque', shipId })}>
@@ -1194,6 +1219,64 @@ function Governor({
           </button>
         </div>
       )}
+      {/* One offer at a time: his mission waits while he offers his letter. */}
+      {job && !offer ? (
+        passed ? (
+          <div class="governor-row k-sub">
+            <button class="k-btn small" onClick={() => pass(false)}>
+              Ask about work for {COUNTRY[nation]}
+            </button>
+          </div>
+        ) : (
+          <MissionCard content={content} job={job} settlements={settlements} nation={nation} full={full} accept={() => send({ type: 'AcceptMission', shipId })} pass={() => pass(true)} />
+        )
+      ) : null}
+    </div>
+  );
+}
+
+/** The governor's mission this week: what he asks in his words, what it pays and how long it stands, and Accept or Not now. */
+function MissionCard({
+  content,
+  job,
+  settlements,
+  nation,
+  full,
+  accept,
+  pass,
+}: {
+  content: ContentPack;
+  job: MissionOffer;
+  settlements: PlacedSettlement[];
+  nation: PlacedSettlement['nation'];
+  full: boolean;
+  accept: () => void;
+  pass: () => void;
+}) {
+  const to = settlements.find((s) => s.id === job.to)?.name ?? job.to;
+  const m = content.politics.missions;
+  const pays = `${job.reward.toLocaleString()} gold into the chest and ${job.merit} merit with ${COUNTRY[nation]}`;
+  return (
+    <div class="k-paper governor-offer">
+      <div class="k-say">
+        {job.kind === 'hunt'
+          ? `“The pirate ${shipKind(job.classId!)} ${job.name} has been taking our ships off ${to}. Find her, and sink or take her.”`
+          : `“Carry this letter to the governor of ${to}, captain, and bring me back his reply.”`}
+      </div>
+      <div class="governor-offer-means">
+        {job.kind === 'hunt'
+          ? `She is a match for your ship, well manned. Beat her and come back to me: ${pays}, with the bounty for a pirate besides.`
+          : `A voyage there and back: ${pays} when his reply is in my hand.`}{' '}
+        The work stands {m.lapseWeeks} weeks, and there is no shame in leaving it.
+      </div>
+      <div class="tavern-replies">
+        <button class="k-btn small primary" disabled={full} title={full ? `You have ${m.open} missions in hand: finish one first` : undefined} onClick={accept}>
+          {full ? `${m.open} missions in hand already` : 'Accept'}
+        </button>
+        <button class="k-btn small paper" onClick={pass}>
+          Not now
+        </button>
+      </div>
     </div>
   );
 }

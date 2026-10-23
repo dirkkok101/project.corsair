@@ -1048,6 +1048,40 @@ test('a pirate who means to board: the warning, the repel window on the grapple 
   expect(errors).toEqual([]);
 });
 
+test("missions: the governor offers work once his letter is settled, and the mission in hand is the sea's goal, in the log and on the chart", async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await openService(page, 'Governor');
+  // One offer at a time: his letter first; turn it down and he has work instead.
+  await page.locator('.governor-offer').getByRole('button', { name: 'Not now' }).click();
+  const offer = page.locator('.governor-offer');
+  await expect(offer).toContainText('The work stands 10 weeks');
+  await page.screenshot({ path: 'test-results/governor-mission.png' });
+  await offer.getByRole('button', { name: 'Accept' }).click();
+  const mission = await page.evaluate(() => (window.__corsair.state.get('captain') as { missions: { kind: string; name?: string }[] }).missions[0]!);
+  // Taken, it is not offered again this week.
+  await expect(page.locator('.governor-offer')).toHaveCount(0);
+  await page.keyboard.press('l');
+  await page.locator('.log-mark', { hasText: 'Goals' }).click();
+  await expect(page.locator('.log')).toContainText('Missions');
+  await expect(page.locator('.log .goal', { hasText: mission.kind === 'hunt' ? 'Hunt the pirate' : 'Carry the governor' })).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/log-missions.png' });
+  await page.keyboard.press('l');
+
+  // At sea the pill says the mission, and a hunt's waters are ringed on the chart.
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await frames(page);
+  await expect(page.locator('.hud-goal')).toContainText('Mission');
+  await page.screenshot({ path: 'test-results/sea-mission.png' });
+  if (mission.kind === 'hunt') {
+    await page.keyboard.press('m');
+    await expect(page.locator('.chart-ring-label')).toContainText(`The ${mission.name}: hunt here`);
+    await page.screenshot({ path: 'test-results/chart-mission.png' });
+    await page.keyboard.press('m');
+  }
+  expect(errors).toEqual([]);
+});
+
 test('privateering: a letter of marque at war, a lawful attack, and a bounty at the governor', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   await page.evaluate(() => window.__corsair.sim.step(1));

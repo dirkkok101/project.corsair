@@ -1,5 +1,5 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, KnownPrices, LogEntry, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
+import type { Captain, Deed, EmittedEvent, FamousPirate, FleetShip, Hoard, KnownPrices, LogEntry, Mission, NewsItem, Ship, System, TownState, Wind, WorldState } from '@corsair/core';
 
 type WindAt = (state: WorldState, x: number, y: number) => Wind;
 import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigation';
@@ -237,6 +237,12 @@ export function bountiesOwed(content: ContentPack, state: WorldState, nation: Pl
     } else kept.push(d);
   }
   return { pay, kept, total };
+}
+
+/** The governor's missions done for him (the governor at `settlementId`) and not yet paid: what he owes for them. */
+export function missionsOwed(state: WorldState, settlementId: string): { pay: Mission[]; total: number; merit: number } {
+  const pay = (state.captain?.missions ?? []).filter((m) => m.done !== undefined && m.from === settlementId);
+  return { pay, total: pay.reduce((n, m) => n + m.reward, 0), merit: pay.reduce((n, m) => n + m.merit, 0) };
 }
 
 /**
@@ -1029,14 +1035,17 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             events: [{ type: 'MarqueBought', entityIds: [ship.id, s.id], payload: { nation, gold: price } }, ...promoted],
           };
         }
-        const { pay, kept, total } = bountiesOwed(content, state, nation);
-        if (!pay.length) return refuse(state, ship, 'nothing-owed');
+        const { pay, kept, total: bounties } = bountiesOwed(content, state, nation);
+        // His missions done are paid with the bounties, and their merit counts as theirs does.
+        const done = missionsOwed(state, s.id);
+        if (!pay.length && !done.pay.length) return refuse(state, ship, 'nothing-owed');
+        const total = bounties + done.total;
         // A famous pirate handed over counts for more with the governor's nation; she sails again only after
         // her time in his jail (pirates.json returnDays from now).
         const r = content.pirates.rules;
         const captives = pay.filter((d) => d.captive);
         const relieved = pay.filter((d) => d.relieved === nation).length;
-        const gain = pay.length - captives.length + captives.length * r.bountyStanding + relieved * (content.politics.bounty.blockadeMerit - 1);
+        const gain = pay.length - captives.length + captives.length * r.bountyStanding + relieved * (content.politics.bounty.blockadeMerit - 1) + done.merit;
         const standing = { ...state.captain.standing, [nation]: Math.min(100, (state.captain.standing?.[nation] ?? 0) + gain) };
         // The same deeds are merit with his nation: they raise his rank there while he holds its letter.
         const merit = { ...state.captain.merit, [nation]: (state.captain.merit?.[nation] ?? 0) + gain };
@@ -1060,8 +1069,15 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         }
         return {
           // Bounties are plunder: they go into the chest the crew sails for.
-          state: { ...state, captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing, merit }, ...(famous ? { famous } : {}) },
-          events: [{ type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive) } }, ...promoted],
+          state: {
+            ...state,
+            captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing, merit, missions: (state.captain.missions ?? []).filter((m) => !done.pay.includes(m)) },
+            ...(famous ? { famous } : {}),
+          },
+          events: [
+            { type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive), missions: done.pay.map((m) => m.id) } },
+            ...promoted,
+          ],
         };
       }
       if (command.type === 'BuyMapPiece') {
@@ -1437,7 +1453,23 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       if (command.type === 'CallOnGovernor') {
         const ship = state.ships[command.shipId];
         if (!ship?.docked) return ship ? refuse(state, ship, 'not-docked') : undefined;
-        return { state: { ...state, captain: { ...state.captain, calledOn: { ...state.captain.calledOn, [ship.docked]: state.tick } } }, events: [] };
+        // A governor's letter carried here is handed over, and his reply taken; the reply brought home is the
+        // mission done.
+        const here = ship.docked;
+        const events: EmittedEvent[] = [];
+        const missions = state.captain.missions?.map((m) => {
+          if (m.kind !== 'courier' || m.done !== undefined) return m;
+          if (m.delivered === undefined && m.to === here) {
+            events.push({ type: 'LetterDelivered', entityIds: [ship.id, here], payload: { id: m.id, from: m.from } });
+            return { ...m, delivered: state.tick };
+          }
+          if (m.delivered !== undefined && m.from === here) {
+            events.push({ type: 'MissionDone', entityIds: [ship.id, here], payload: { id: m.id, kind: m.kind, reward: m.reward } });
+            return { ...m, done: state.tick };
+          }
+          return m;
+        });
+        return { state: { ...state, captain: { ...state.captain, calledOn: { ...state.captain.calledOn, [here]: state.tick }, ...(missions ? { missions } : {}) } }, events };
       }
       if (command.type === 'SpawnShock') {
         const s = byId.get(command.settlementId);

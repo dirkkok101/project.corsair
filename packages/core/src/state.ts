@@ -79,6 +79,10 @@ export interface AiCaptain {
   prizes?: Prize[];
   /** One of the famous pirates (pirates.json id): her wealth and fate are kept in `WorldState.famous`. */
   famous?: string;
+  /** The quarry of a governor's mission (its id): kept on the sea until it is done or lapses. */
+  mission?: string;
+  /** Ports whose waters she keeps to (a mission's quarry), as a famous pirate keeps to her haunts. */
+  haunts?: string[];
   /** Her crew's grade (combat.json crewQuality); regular when unset. */
   crew?: CrewGrade;
   /** Her captain's skills, 0 to 100 (50 when unset): gunnery, seamanship, boarding, and resolve (how long she holds out). */
@@ -293,6 +297,33 @@ export interface Contract {
   newsId: string;
 }
 
+/**
+ * A governor's mission the captain took (docs/design/governor-missions.md): hunt a named pirate, or carry a
+ * letter to another governor and bring his reply. Done, the governor who gave it pays `reward` into the chest
+ * and `merit` with his nation; not done by `endTick`, it lapses with no penalty.
+ */
+export interface Mission {
+  id: string;
+  kind: 'hunt' | 'courier';
+  /** The governor who gave it (settlement id), and his nation. */
+  from: string;
+  nation: Nation;
+  /** Hunt: the port whose waters the quarry haunts. Courier: the town the letter goes to. */
+  to: string;
+  /** Hunt: the quarry, her ship id while she is afloat, her class and name. */
+  target?: string;
+  classId?: string;
+  name?: string;
+  reward: number;
+  merit: number;
+  tick: number;
+  endTick: number;
+  /** Courier: the letter given at `to`, his reply to carry back. */
+  delivered?: number;
+  /** Done (the quarry beaten, or the reply brought home): waiting for the governor at `from` to pay. */
+  done?: number;
+}
+
 /** What the captain has done, kept as she goes (the Goals page in the log reads it). */
 export interface CareerRecord {
   /** Gold made selling trade goods, over what they cost (plunder's sale goes to the chest, not here). */
@@ -335,6 +366,9 @@ export interface Captain {
   mapPieces?: Record<string, number>;
   /** The tavern strangers' offers already bought from (`town:week`). */
   strangerDeals?: string[];
+  /** The governors' missions taken and not yet paid for, and the offers already taken (`town:week`). */
+  missions?: Mission[];
+  missionDeals?: string[];
   /** Food bought from each ship spoken at sea (by her id): she has only so much to spare. */
   provisionsFrom?: Record<string, number>;
   /** Nations whose letter of marque the captain holds; each covers whoever that nation is at war with now. */
@@ -612,6 +646,8 @@ export type Command =
   /** At a governor: buy a letter of marque from his nation, or collect bounties owed for deeds. */
   | { type: 'BuyMarque'; shipId: string }
   | { type: 'CollectBounties'; shipId: string }
+  /** At a governor: take the mission he offers this week. */
+  | { type: 'AcceptMission'; shipId: string }
   /** Speak an AI ship within hailing range: learn who it is and hear its news. */
   | { type: 'Hail'; shipId: string; targetId: string }
   /** Buy provisions from a ship spoken at sea (her spare stores, dear): up to `units` of food. */

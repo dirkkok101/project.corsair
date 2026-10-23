@@ -165,6 +165,29 @@
     "blockade": 600,
     "blockadeMerit": 3
   },
+  "missions": {
+    "$comment": "Governors' missions (docs/design/governor-missions.md). Each governor offers one a week; the captain keeps up to 'open' at once, and one not done lapses after 'lapseWeeks' with no penalty. Done, the governor who gave it pays into the plunder chest, and its merit counts with his nation as for standing. Hunt: a named pirate haunting the waters about a port within 'areaTiles' of his town, in the class of 'classes' whose strength (men times one and a tenth a gun) comes nearest the flagship's times 'match', 'crew' of her berths manned; she pays 'rewardShare' of her class's price (at least 'minReward'). Courier: a letter to a governor of a friendly town 'tiles' away, and his reply brought back: 'goldPerTile' each way (at least 'minReward').",
+    "open": 3,
+    "lapseWeeks": 10,
+    "hunt": {
+      "weight": 2,
+      "classes": ["ship.sloop", "ship.war_sloop", "ship.brigantine", "ship.royal_sloop", "ship.brig", "ship.light_frigate", "ship.frigate"],
+      "match": 1.1,
+      "crew": 0.9,
+      "areaTiles": 320,
+      "ringTiles": 30,
+      "rewardShare": 0.15,
+      "minReward": 400,
+      "merit": 4
+    },
+    "courier": {
+      "weight": 1,
+      "tiles": [150, 900],
+      "goldPerTile": 0.8,
+      "minReward": 200,
+      "merit": 1
+    }
+  },
   "news": {
     "war": "{nation} and {other} are at war! Their ships are fair game to each other's privateers.",
     "peace": "{nation} and {other} have made peace. Letters of marque between them no longer hold.",

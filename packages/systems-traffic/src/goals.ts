@@ -22,6 +22,8 @@ export interface Goal {
   /** Where it gets done: a port to sail for, a page of the log, or the chart's voyages. */
   port?: string;
   page?: 'top' | 'maps' | 'chart';
+  /** A governor's mission, not a step of the career. */
+  mission?: boolean;
 }
 
 /** The career's goals, in order, from the state of the world. */

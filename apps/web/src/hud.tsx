@@ -218,7 +218,7 @@ export interface HudProps {
   /** The view's turn (degrees clockwise): the 3D camera from astern turns with her, and the compass with it. */
   viewDeg?: number;
   /** The career's next goal, shown in a pill (opens the log). */
-  goal?: { title: string; have: number; of: number; unit: string };
+  goal?: { title: string; have: number; of: number; unit: string; mission?: boolean };
   /** The strip: gold, the chest, men, food, morale, hull, hold; faded while nothing changes. */
   strip: { gold: number; chest: number; crew: number; berths: number; foodDays: number; morale: string; moraleLow: boolean; hull: string; hullLow: boolean; foul?: number; hold: number; capacity: number };
   faded: boolean;
@@ -306,8 +306,8 @@ export function Hud(p: HudProps) {
     <div class="hud">
       <div class="hud-top">
         {p.goal ? (
-          <div class="hud-pill hud-goal" title="Your next goal: the log (L) shows them all">
-            <span class="k-who">Goal</span> {p.goal.title}
+          <div class="hud-pill hud-goal" title={p.goal.mission ? 'The nearest of your missions: the log (L) shows them all' : 'Your next goal: the log (L) shows them all'}>
+            <span class="k-who">{p.goal.mission ? 'Mission' : 'Goal'}</span> {p.goal.title}
             {p.goal.unit ? ` · ${p.goal.have.toLocaleString()} of ${p.goal.of.toLocaleString()}` : ''}
           </div>
         ) : null}

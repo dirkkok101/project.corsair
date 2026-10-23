@@ -57,7 +57,23 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
       case 'MarqueBought':
         return { kind: 'deed', text: `Took ${p.nation === 'england' ? 'an' : 'a'} ${ADJECTIVE[String(p.nation)]} letter of marque at ${town(at)}.`, place: at };
       case 'BountiesPaid':
-        return { kind: 'deed', text: `Collected ${gold(p.gold)} in bounties at ${town(at)}.`, place: at };
+        return { kind: 'deed', text: `Collected ${gold(p.gold)} in ${(p.missions as unknown[] | undefined)?.length ? 'bounties and rewards' : 'bounties'} at ${town(at)}.`, place: at };
+      case 'MissionAccepted':
+        return p.kind === 'hunt'
+          ? { kind: 'deed', text: `Took the governor of ${town(at)}'s commission to hunt the pirate ${kind(p.classId)} ${p.name}, off ${town(String(p.to))}.`, place: at }
+          : { kind: 'deed', text: `Took the governor of ${town(at)}'s letter for ${town(String(p.to))}.`, place: at };
+      case 'LetterDelivered':
+        return { kind: 'deed', text: `Gave the governor of ${town(at)} the letter from ${town(String(p.from))}, and took his reply.`, place: at };
+      case 'MissionDone':
+        return p.kind === 'hunt'
+          ? { kind: 'deed', text: `The pirate ${p.name} is beaten: the governor of ${town(at)} owes ${gold(p.reward)}.`, place: at }
+          : { kind: 'deed', text: `Brought the reply home to the governor of ${town(at)}: he owes ${gold(p.reward)}.`, place: at };
+      case 'MissionLapsed':
+        return p.kind === 'hunt'
+          ? { kind: 'loss', text: `The governor of ${town(at)} has given up the hunt for ${p.name}.`, place: at }
+          : { kind: 'loss', text: `The governor of ${town(at)}'s letter for ${town(String(p.to))} is no longer wanted.`, place: at };
+      case 'MissionLost':
+        return { kind: 'loss', text: `Another ship has beaten the pirate ${p.name}: the governor of ${town(at)}'s hunt for her is over.`, place: at };
       case 'ContractFilled':
         return { kind: 'deed', text: `Filled the governor's contract for ${good(p.good)} at ${town(at)}: ${gold(p.reward)}.`, place: at };
       case 'MapPieceBought': {
