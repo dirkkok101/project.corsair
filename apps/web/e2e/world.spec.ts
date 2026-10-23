@@ -1315,6 +1315,21 @@ test('one action key: Sail ho! picks her, Space chases her down and hails her al
   await frames(page);
   await expect(page.locator('.hud-picked')).toContainText(name);
   await expect(page.locator('.ship-label.picked')).toContainText(name);
+  // A click on the ship herself picks her too: on her hull, or up in her sails; on open water, she is let go.
+  const at = await page.evaluate((id) => {
+    const s = (window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>)[id]!;
+    return (window as unknown as { __corsair3d: { project: (x: number, y: number) => { px: number; py: number } } }).__corsair3d.project(s.x, s.y);
+  }, target);
+  await page.mouse.click(at.px + 300, at.py - 200);
+  await frames(page);
+  await expect(page.locator('.hud-picked')).toHaveCount(0);
+  await page.mouse.click(at.px, at.py);
+  await frames(page);
+  await expect(page.locator('.hud-picked')).toContainText(name);
+  await page.keyboard.press('Escape');
+  await page.mouse.click(at.px + 5, at.py - 60);
+  await frames(page);
+  await expect(page.locator('.hud-picked')).toContainText(name);
   // The pad's A does what Space does: she chases her.
   await page.evaluate(() => (window as unknown as { padA: (on: boolean) => void }).padA(true));
   await frames(page, 3);

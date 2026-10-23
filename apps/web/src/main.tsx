@@ -204,8 +204,9 @@ const HOLD_COAST_TILES = 3;
 const HOLD_PORT_TILES = 5;
 /** A ship this near (tiles) is called out ("Sail ho!") and holds time at 1x. */
 const SAIL_HO_TILES = 15;
-/** A click this near a ship (tiles) picks her: she is drawn bigger than her tile. */
-const PICK_TILES = 3;
+/** A click this near a ship on the screen picks her (pixels): beside or below her, and up to her name banner above. */
+const PICK_PX = 40;
+const PICK_ABOVE_PX = 140;
 /** The HUD's strip fades after this long with nothing on it changing. */
 const STRIP_REST_MS = 6000;
 const SAIL_HO_MS = 3500;
@@ -1126,10 +1127,10 @@ async function main() {
     const reply = sim.events().slice(since).find((ev) => ev.type === 'Hailed');
     if (reply) hailing = { targetId: other.id, news: (reply.payload.news as string[]) ?? [] };
   };
-  /** An AI ship at sea under a tile (within `reach` tiles) and in her view (the view draws no other), nearest first. */
-  const shipAt = (x: number, y: number, reach = 1.5) =>
+  /** An AI ship at sea under a tile (within a tile and a half) and in her view (the view draws no other), nearest first. */
+  const shipAt = (x: number, y: number) =>
     Object.values(sim.state.ships)
-      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= reach && Math.hypot(s.x - player().x, s.y - player().y) <= view())
+      .filter((s) => s.ai && !inPort(s) && Math.hypot(s.x - x, s.y - y) <= 1.5 && Math.hypot(s.x - player().x, s.y - player().y) <= view())
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   /** A port under a tile (its town within two and a half tiles). */
   const portAt = (x: number, y: number) => settlements.find((s) => Math.hypot(s.x - x, s.y - y) <= 3.75);
@@ -1283,12 +1284,26 @@ async function main() {
     sim.applyCommands();
     hailing = undefined;
   };
-  // A click on a ship at sea (or her label) picks her; a click on open water lets her go.
-  sea3d.canvas.addEventListener('click', (e) => {
-    if (fight || player().docked || hailing) return;
+  // A click on a ship at sea picks her: on her hull, her sails or the name over her, at any distance (measured on the
+  // screen, where she is drawn); a click on open water lets her go. The 3D canvas takes no pointer events (the
+  // harbour canvas lies over it), so the click is heard on the viewport they share.
+  viewport.addEventListener('click', (e) => {
+    // Only a click on the sea itself: a label or a button heard on its way up has done its own work.
+    if (!(e.target instanceof HTMLCanvasElement) || fight || player().docked || hailing) return;
     const r = sea3d.canvas.getBoundingClientRect();
-    const tile = sea3d.pick(e.clientX - r.left, e.clientY - r.top);
-    if (tile) pick(shipAt(tile.x, tile.y, PICK_TILES)?.id);
+    const [cx, cy] = [e.clientX - r.left, e.clientY - r.top];
+    let best: { id: string; d: number } | undefined;
+    for (const s of shipsInSight()) {
+      const at = sea3d.project(s.x, s.y);
+      if (!at) continue;
+      // From her waterline up through her rig to the name banner above her mast.
+      const dx = Math.abs(cx - at.px);
+      const dy = cy - at.py;
+      if (dx > PICK_PX || dy > PICK_PX || dy < -PICK_ABOVE_PX) continue;
+      const d = dx + Math.max(0, dy) + Math.max(0, -dy - PICK_PX) / 3;
+      if (!best || d < best.d) best = { id: s.id, d };
+    }
+    pick(best?.id);
   });
   // One scene object per port, so the renderer sees the same one each frame and loads it once.
   const harbourScenes = new Map<string, ReturnType<typeof harbourFor>>();
