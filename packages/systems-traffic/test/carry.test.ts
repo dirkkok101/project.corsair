@@ -81,7 +81,8 @@ describe('plague at sea', () => {
     const royal = 'town.port_royal';
     sim.send({ type: 'SpawnPlague', settlementId: royal });
     sim.applyCommands();
-    for (let d = 0; d < 20; d++) {
+    // As long as it lasts (a debug plague runs the shortest spell).
+    for (let d = 0; d < 7 * content.economy.plague.weeks[0] - 1; d++) {
       const seen = sim.events().length;
       sim.step(day);
       // Pirates still lurk on the lanes toward it and an enemy may lie off it in blockade; nobody puts in.

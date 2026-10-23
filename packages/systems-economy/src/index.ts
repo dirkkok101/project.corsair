@@ -599,6 +599,17 @@ export function plagued(state: WorldState, settlementId: string): boolean {
   return (state.towns?.[settlementId]?.plague ?? 0) > state.tick;
 }
 
+/** The days a plague has left to run at a town (rounded up), or undefined when there is none. */
+export function plagueDaysLeft(content: ContentPack, state: WorldState, settlementId: string): number | undefined {
+  if (!plagued(state, settlementId)) return undefined;
+  return Math.ceil((state.towns![settlementId]!.plague! - state.tick) / content.calendar.ticksPerDay);
+}
+
+/** "12 more days", as the plague's end is said. */
+export function plagueLeftSaid(days: number): string {
+  return days <= 1 ? 'another day' : `${days} more days`;
+}
+
 /** A famine on now at a town (a famine shock on a staple). */
 export function famine(content: ContentPack, state: WorldState, settlementId: string): boolean {
   return (state.shocks ?? []).some((x) => x.settlementId === settlementId && x.kind === 'famine' && x.endTick > state.tick);

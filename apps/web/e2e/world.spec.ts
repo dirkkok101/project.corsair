@@ -1720,7 +1720,7 @@ test('a fleet leaves port in line: each ship comes out behind the flagship over 
   });
   await page.keyboard.press('e');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  expect(await page.evaluate(() => window.__corsair.view())).toBe('harbour');
+  await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('harbour');
   // Out of port, the two of them.
   await page.keyboard.press('e');
   const seen = await page.evaluate(async () => {

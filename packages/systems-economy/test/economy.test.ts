@@ -12,6 +12,7 @@ import {
   closedTo,
   crewOf,
   createEconomySystem,
+  plagueDaysLeft,
   DOCK_RANGE,
   fleetBerths,
   fleetHold,
@@ -1217,6 +1218,9 @@ describe('famine, plague and contracts', () => {
     sim.applyCommands();
     expect(player(sim.state).docked).toBeUndefined();
     expect(sim.events().some((e) => e.type === 'TradeRefused' && e.payload.reason === 'plague')).toBe(true);
+    // The days it has left are known, and count down.
+    expect(plagueDaysLeft(content, sim.state, portRoyal.id)).toBe(7 * content.economy.plague.weeks[0]);
+    expect(plagueDaysLeft(content, { ...sim.state, tick: sim.state.tick + day * 7 }, portRoyal.id)).toBe(7 * content.economy.plague.weeks[0] - 7);
     const healthy = moored();
     sim.step(day * 14);
     healthy.step(day * 14);

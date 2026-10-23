@@ -389,10 +389,7 @@
     "$comment": "Plague (PRD section 6, events): about 'perWeek' outbreaks a week across the map, at towns of 'minPeople' or more; it lasts 'weeks', shuts the port to all shipping (the player, merchants, coasting craft) and its people fall 'down' a week on top of any hunger. A ship that sailed from a plagued port brings it to her next port at 'spread' odds.",
     "perWeek": 0.06,
     "minPeople": 3000,
-    "weeks": [
-      3,
-      6
-    ],
+    "weeks": [2, 4],
     "down": 0.02,
     "spread": 0.3,
     "news": "Plague has broken out at {town}. The port is shut to shipping."

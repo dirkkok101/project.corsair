@@ -24,7 +24,7 @@ import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { PortNotice, Service } from './port';
-import { cargoUsed, closedTo, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { cargoUsed, closedTo, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, plagueDaysLeft, plagueLeftSaid, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -766,7 +766,8 @@ async function main() {
     pirateRangeTiles: content.traffic.pirateRangeTiles,
     welcome: (id) => {
       const s = settlements.find((x) => x.id === id);
-      if (s && plagued(sim.state, id)) return 'Plague: the port is shut to all shipping until it passes.';
+      const sick = plagueDaysLeft(content, sim.state, id);
+      if (s && sick !== undefined) return `Plague: the port is shut to all shipping for ${plagueLeftSaid(sick)}.`;
       if (!s || s.nation === 'pirate') return undefined;
       const flag = sim.state.captain?.nation;
       if (flag && closedTo(content, sim.state, s) === 'at-war') {
@@ -781,7 +782,7 @@ async function main() {
     people: (id) => {
       const s = settlements.find((x) => x.id === id)!;
       const t = townOf(content, sim.state, s);
-      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded: little gets in' : ''}${famine(content, sim.state, id) ? ', famine' : ''}${plagued(sim.state, id) ? ', plague: port shut' : ''}${
+      return `${(Math.round(t.people / 100) * 100).toLocaleString()} people${t.trend > 0 ? ', growing' : t.trend < 0 ? ', shrinking' : ''}${t.blockaded ? ', blockaded: little gets in' : ''}${famine(content, sim.state, id) ? ', famine' : ''}${plagued(sim.state, id) ? `, plague: port shut ${plagueLeftSaid(plagueDaysLeft(content, sim.state, id)!)}` : ''}${
         // A ship of the player's retaken from pirates waits here: marked, so she isn't forgotten once the news fades.
         (sim.state.captain?.laidUp ?? [])
           .filter((l) => l.settlementId === id)
@@ -835,7 +836,7 @@ async function main() {
       return Boolean(port && closedTo(content, sim.state, port) === 'at-war');
     },
     mark: (id) => {
-      if (plagued(sim.state, id)) return 'plague';
+      if (plagued(sim.state, id)) return `plague · ${plagueDaysLeft(content, sim.state, id)}d`;
       const me = player();
       const known = sim.state.captain?.knownPrices[id];
       // The best price there for something in her hold, above what it cost.
@@ -1784,11 +1785,18 @@ async function main() {
       }
       if (ev.type === 'MenStarved') {
         const n = ev.payload.count as number;
-        courseNote = { text: `${n} ${n === 1 ? 'man' : 'men'} died of hunger: make port, or hail a ship (H) and buy food`, kind: 'Starving', icon: 'ui.icon.food', tone: 'warn', until: now + 5000 };
+        courseNote = { text: `${n} ${n === 1 ? 'man' : 'men'} died of hunger: make port, or hail a ship (pick her, Space) and buy food`, kind: 'Starving', icon: 'ui.icon.food', tone: 'warn', until: now + 5000 };
       }
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
-        courseNote = { text: `Plague at ${name}: the port is shut to shipping`, kind: 'Port shut', icon: 'ui.icon.anchor', tone: 'warn', until: now + 4000 };
+        const left = plagueDaysLeft(content, sim.state, String(ev.payload.settlementId));
+        courseNote = {
+          text: `Plague at ${name}: the port is shut to shipping${left !== undefined ? ` for ${plagueLeftSaid(left)}` : ''}`,
+          kind: 'Port shut',
+          icon: 'ui.icon.anchor',
+          tone: 'warn',
+          until: now + 4000,
+        };
       }
       if (ev.type === 'AssistEnded' && ev.payload.reason === 'aground') {
         // Pressed onto the shore within reach of the port she was bound for: she goes in all the same.
