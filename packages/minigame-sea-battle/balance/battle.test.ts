@@ -72,7 +72,8 @@ describe('battle balance', () => {
   it('outfitting pays: a stock 10-gun brig, a full battery, and a fully fitted brig against a pirate sloop', () => {
     const wins = (outfit: Partial<Ship>) => {
       let n = 0;
-      for (let seed = 1; seed <= 40; seed++) {
+      // Eighty seeds: near the ceiling forty left a couple of wins either way to the luck of the seeds.
+      for (let seed = 1; seed <= 80; seed++) {
         const o = fight(ship('ship.sloop', 'pirate', 0.85), seed, 'cautious', outfit).result()!.outcome;
         if (o === 'sunk' || o === 'struck' || o === 'boarded') n++;
       }
@@ -81,7 +82,7 @@ describe('battle balance', () => {
     const stock = wins({ guns: 10 });
     const full = wins({});
     const fitted = wins({ upgrades: Object.keys(content.upgrades) });
-    console.log('OUTFIT brig vs pirate sloop wins of 40: 10 guns', stock, '18 guns', full, 'fully fitted', fitted);
+    console.log('OUTFIT brig vs pirate sloop wins of 80: 10 guns', stock, '18 guns', full, 'fully fitted', fitted);
     expect(full).toBeGreaterThanOrEqual(stock);
     // A full battery already wins nearly every one: at that ceiling, one seed either way is noise.
     expect(fitted).toBeGreaterThanOrEqual(full - 1);

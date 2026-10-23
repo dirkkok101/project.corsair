@@ -219,6 +219,7 @@ function battleNavigation(content: ContentPack): ContentPack {
       tilesPerSecondPerSpeedPoint: b.tilesPerSecondPerSpeedPoint,
       accelPerSecond: b.accelPerSecond,
       decelPerSecond: b.decelPerSecond,
+      turnDegPerSecondPerPoint: b.turnDegPerSecondPerPoint,
       tornSailsFloor: b.tornSailsFloor,
       // A fight's click-to-sail goes where she is told, as it was tuned.
       course: undefined,

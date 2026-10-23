@@ -370,6 +370,9 @@ export const combatSchema = z.object({
      * her way through a tack instead of stopping dead. */
     accelPerSecond: z.number().positive(),
     decelPerSecond: z.number().positive(),
+    /** Battle helm: navigation's degrees a second per turn point, quicker than at sea so a ship comes round inside
+     * her guns' reach (the world's playtest turn scale doesn't reach a fight). */
+    turnDegPerSecondPerPoint: z.number().positive(),
     /** In a fight, sails shot to nothing draw only this share: chain shot that strips her canvas all but stops her
      * (oars aside). The world map keeps navigation's tornSailsFloor, so a beaten ship can still limp home. */
     tornSailsFloor: z.number().min(0).max(1),

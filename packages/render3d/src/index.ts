@@ -117,11 +117,21 @@ const BRISK = 4.5;
 /** The battle camera's distance in tiles: no nearer or further than this, whatever the zoom. */
 const BATTLE_VIEW = { min: 6, max: 90 };
 /**
+ * The battle camera's pitch (degrees) at its nearest, and how much it steepens out to its furthest: low and astern of
+ * her, so port is left and starboard right whichever way she heads, and the sea and the enemy stand up in the frame.
+ */
+const BATTLE_PITCH = { min: 30, span: 18 };
+/** The wheel in battle scales the framing, no closer or further than this (a zoom of its own: the sea's stays the sea's). */
+const BATTLE_ZOOM = { min: 0.5, max: 3 };
+/**
  * In battle the camera frames the fight, as Pirates! does (the ships as big in the frame as keeps both in it): it
  * eases in or out until the further of the two lies this far from the middle of the screen (1 is the edge), as
  * the projection measures it (an oblique view shows the near sea larger than the far, so no rule of thumb fits).
  */
 const BATTLE_FIT = 0.68;
+/** Her own ship, nearest the camera and so drawn largest, is kept this far in (her hull and rigging stand well out
+ * from her middle). */
+const BATTLE_FIT_OWN = 0.5;
 /**
  * How hard each thing in a fight shakes the camera (shake.ts trauma, 0..1; the camera turns by its square): her own
  * broadside a kick, a ball through her side a jolt, a mast by the board or a magazine going up a blow. The same blow
@@ -189,11 +199,11 @@ export interface SeaRenderer {
   renderBattle(view: BattleViewState, nowMs: number, enemyNation?: string, enemyFamous?: string): void;
   /** CSS size of the view; the canvas renders at the device's pixel ratio. */
   resize(width: number, height: number): void;
-  /** Zoom by wheel steps (positive out); one zoom for the sea and its battles. */
+  /** Zoom by wheel steps (positive out): the sea's, or in battle the battle's own. */
   zoom(steps: number): void;
   /** Overhead or from astern. */
   toggleChase(): void;
-  /** Which way is up the screen (degrees clockwise from north): 0 overhead, her heading from astern. */
+  /** Which way is up the screen (degrees clockwise from north): 0 overhead, her heading from astern and in battle. */
   viewDeg(): number;
   /** The player's camera shake in battle: 1 the full shake, 0 none. */
   setShake(scale: number): void;
@@ -390,6 +400,8 @@ export async function createSeaRenderer(
   };
 
   let distance = ZOOM.start;
+  // The battle's wheel: a share of the framing, kept from one fight to the next.
+  let battleZoom = 1;
   let chase = false;
   /** The heading the camera from astern looks along (the player's, at sea or in battle). */
   let viewHeading = 0;
@@ -731,6 +743,8 @@ export async function createSeaRenderer(
   /** How far the battle camera's framing stands off its first guess, eased each frame to put the ships at BATTLE_FIT. */
   let battleFit = 1;
   const fitPoint = new THREE.Vector3();
+  const fitAhead = new THREE.Vector3();
+  const fitOff = new THREE.Vector3();
   let sinkingFrom: number | undefined;
   /** Masts going by the board, by ship and mast: when it began, and the way it falls on her bearings. */
   const falls = new Map<string, { from: number; towardDeg: number }>();
@@ -1054,16 +1068,18 @@ export async function createSeaRenderer(
       reloadSpan.clear();
       battleView = 0;
       battleFit = 1;
+      // The camera comes round astern of her at once, not from wherever the sea's chase camera last looked.
+      camYaw = undefined;
       shake.reset();
     }
     const wind = view.wind;
     const sea: SeaState = { toDeg: normalizeDeg(wind.fromDeg + 180), strength: strengthOf(wind) };
     const { player, enemy } = view.ships;
     const apart = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-    // Frame both ships (Pirates! keeps both in view, the camera high and oblique), closer as they close: a first
+    // Frame both ships (Pirates! keeps both in view), closer as they close: a first
     // guess by how far apart they lie, corrected each frame by where they fall on screen (battleFit); the wheel
     // pulls back from that, or closes in, as at sea.
-    const want = THREE.MathUtils.clamp((apart * 0.5 + 2) * battleFit * (distance / ZOOM.start), BATTLE_VIEW.min, BATTLE_VIEW.max);
+    const want = THREE.MathUtils.clamp((apart * 0.5 + 2) * battleFit * battleZoom, BATTLE_VIEW.min, BATTLE_VIEW.max);
     // The fight keeps the weather it began in: its wind's strength, and any storm it was joined in.
     gloomWant = Math.max(GLOOM_BY_WIND[view.wind.strength] ?? 0, battleStorm);
     stormShare = battleStorm;
@@ -1191,25 +1207,31 @@ export async function createSeaRenderer(
       viewHeight: renderer.domElement.height,
     });
 
-    // The camera: on the pair (a little toward the player), high and oblique; from astern of her on C.
-    target.set(player.x + (enemy.x - player.x) * 0.45, 0, player.y + (enemy.y - player.y) * 0.45);
+    // The camera: astern of her, turning lazily with her (as the chase camera does), on the pair a little toward her
+    // and low; from close astern of her alone on C.
+    target.set(player.x + (enemy.x - player.x) * 0.35, 0, player.y + (enemy.y - player.y) * 0.35);
     if (chase) target.set(player.x, 0, player.y);
-    // The sea's camera angle for this zoom.
     const zt = Math.log(Math.max(ZOOM.min, battleView * SHIP_SCALE) / ZOOM.min) / Math.log(ZOOM.max / ZOOM.min);
-    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : MAP_PITCH.min + zt * MAP_PITCH.span);
+    const zb = Math.log(battleView / BATTLE_VIEW.min) / Math.log(BATTLE_VIEW.max / BATTLE_VIEW.min);
+    const base = THREE.MathUtils.degToRad(chase ? CHASE_PITCH.min + zt * CHASE_PITCH.span : BATTLE_PITCH.min + zb * BATTLE_PITCH.span);
     const span = chase ? Math.min(battleView, 30) : battleView;
-    viewHeading = chase ? chaseYaw(player.headingDeg, dt) : player.headingDeg;
-    const pitch = chase ? chasePitch(base, span, viewHeading, dt) : base;
-    finishFrame(span, pitch, chase ? (-viewHeading * Math.PI) / 180 : 0, wind, sea, t, dt, chase ? span * CHASE_AHEAD : 0);
-    // Where the two ships fell on screen (their hulls and lower sails): ease the framing to put the further at BATTLE_FIT.
+    viewHeading = chaseYaw(player.headingDeg, dt);
+    const pitch = chasePitch(base, span, viewHeading, dt);
+    finishFrame(span, pitch, (-viewHeading * Math.PI) / 180, wind, sea, t, dt, chase ? span * CHASE_AHEAD : 0);
+    // Where the two ships fell on screen (their hulls and lower sails): ease the framing to put the further at BATTLE_FIT,
+    // and her own no further out than BATTLE_FIT_OWN.
+    // One behind the camera (an enemy close astern) projects mirrored, so it counts as off the screen.
     if (!chase) {
-      const edge = Math.max(
-        ...[player, enemy].map((s) => {
-          fitPoint.set(s.x, 1, s.y).project(camera);
-          return Math.max(Math.abs(fitPoint.x), Math.abs(fitPoint.y));
+      camera.getWorldDirection(fitAhead);
+      const over = Math.max(
+        ...([[player, BATTLE_FIT_OWN], [enemy, BATTLE_FIT]] as const).map(([s, fit]) => {
+          fitPoint.set(s.x, 1, s.y);
+          if (fitOff.subVectors(fitPoint, camera.position).dot(fitAhead) <= 0) return 2;
+          fitPoint.project(camera);
+          return Math.max(Math.abs(fitPoint.x), Math.abs(fitPoint.y)) / fit;
         }),
       );
-      battleFit = THREE.MathUtils.clamp(battleFit * Math.pow(Math.max(0.05, edge) / BATTLE_FIT, Math.min(1, dt * 2)), 0.4, 4);
+      battleFit = THREE.MathUtils.clamp(battleFit * Math.pow(Math.max(0.05, over), Math.min(1, dt * 2)), 0.4, 4);
     }
   };
 
@@ -1227,7 +1249,8 @@ export async function createSeaRenderer(
       guideMaterial.resolution.set(width, height);
     },
     zoom(steps) {
-      distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
+      if (inBattle) battleZoom = THREE.MathUtils.clamp(battleZoom * Math.pow(1.12, steps), BATTLE_ZOOM.min, BATTLE_ZOOM.max);
+      else distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);
     },
     pick(px, py) {
       const r = canvas.getBoundingClientRect();
@@ -1242,7 +1265,7 @@ export async function createSeaRenderer(
       if (v.z > 1) return undefined;
       return { px: ((v.x + 1) / 2) * r.width, py: ((1 - v.y) / 2) * r.height };
     },
-    viewDeg: () => (chase ? viewHeading : 0),
+    viewDeg: () => (chase || inBattle ? viewHeading : 0),
     wildlife: {
       spawn: (kind) => wildlife.spawn(kind),
       get count() {

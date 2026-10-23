@@ -255,6 +255,24 @@ describe('sea battle', () => {
     expect(c.state.boarding).toBe(false);
   });
 
+  it('turns at the battle helm: a brig comes round inside her guns\' reach, whatever the sea map turns at', () => {
+    const turned = (pack: typeof content) => {
+      const b = createBattle(pack, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig'), enemy: ship('ship.sloop', 'pirate'), seed: 1, bearingDeg: 0 });
+      const from = b.state.ships.player.headingDeg;
+      b.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
+      b.step(30);
+      return ((b.state.ships.player.headingDeg - from + 360) % 360);
+    };
+    const nav = content.navigation;
+    const rate = content.ships['ship.brig']!.turn * content.combat.battle.turnDegPerSecondPerPoint * nav.rigTurnFactor.square!;
+    expect(turned(content)).toBeCloseTo(rate, 0);
+    // The sea map's helm (the playtest halves it) doesn't reach a fight.
+    expect(turned({ ...content, navigation: { ...nav, turnDegPerSecondPerPoint: nav.turnDegPerSecondPerPoint / 2 } })).toBeCloseTo(rate, 0);
+    // A full circle at full speed fits inside twice her guns' reach.
+    const across = (2 * content.ships['ship.brig']!.speed * content.combat.battle.tilesPerSecondPerSpeedPoint) / ((rate * Math.PI) / 180);
+    expect(across).toBeLessThan(2 * content.combat.guns.rangeTiles);
+  });
+
   it('the more hands at the guns, the faster she reloads, up to full manning', () => {
     // A brig's 18 guns at 4 men a gun want 36 hands for a broadside.
     const reload = (crew: number) =>
@@ -545,9 +563,10 @@ describe('sea battle', () => {
 
   it('places every hit on her, and rigging hits bring masts down: canvas and men go with them', () => {
     // The brig works a big merchantman's rigging with chain (as a boarder would) until a mast goes: a boarder that
-    // closes from any range (tactics.utility close), so the merchant has her rig worked long before she strikes.
+    // won't close from any range (tactics.utility close), so she stalks, raking the merchant's rig from her bow or
+    // stern, rather than run straight in and board her whole.
     const u = content.combat.tactics.utility;
-    const anyRange = { ...content, combat: { ...content.combat, tactics: { ...content.combat.tactics, utility: { ...u, close: { ...u.close, tiles: 1000 } } } } };
+    const anyRange = { ...content, combat: { ...content.combat, tactics: { ...content.combat.tactics, utility: { ...u, close: { ...u.close, tiles: 0 } } } } };
     let seen = 0;
     for (let seed = 1; seed <= 12 && !seen; seed++) {
       const battle = createBattle(anyRange, {
