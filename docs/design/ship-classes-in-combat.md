@@ -163,6 +163,19 @@ The AI chooses by style as well as role and temperament:
 - **Flee only when she can**: weighs relative speed and pointing before running (a slow ship that can't escape
   fights on or strikes).
 
+Built (slice 4): a boarding captain's wish to stalk and to duel is multiplied by her style (`tactics.styles`: a
+raider stalks rather than duels, a fortress duels and barely stalks); a patrol, or a trader who can't get away,
+fights by her style (a raider stalks to the other's bow or stern and rakes; a fortress presents her broadside and
+closes to her reach from up to `fortressChase` times it and never follows further; a cruiser closes and duels, as
+before). A ship below `runSpeedShare` of the other's best pace on this wind (navigation's own: her fit, condition and
+hands, and her oars in a calm) can't get away: a trader turns and fights within her guns' reach (and chases no one
+beyond it), and a boarder wants to run only
+`utility.cornered` as much. Pointing is not weighed yet. Dodging at the tell
+was left out (see 4.2). The player's autopilot (tests and probes) still fights every ship as a cruiser.
+Measured over 80 fights against the cautious brig, the same sloop patrol with the same guns and timbers, her captain
+a raider against a cruiser: raked 27% less, raking 39% more, and doing a third more harm to the brig's hull. A
+cornered fluyt fights (her fights halve in length); a ship of the line patrol no longer runs down a brig.
+
 ### 4.7 How each class should feel (the intended matchups)
 
 | Matchup | Intended |

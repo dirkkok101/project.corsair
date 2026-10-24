@@ -25,10 +25,14 @@
   },
   "tactics": {
     "standoffShare": 0.75,
+    "$styles": "Captains who fight their ship (docs/design/ship-classes-in-combat.md 4.6): a boarding captain's wish to stalk and to duel is multiplied by her style's; a patrol or a cornered trader fights by her style (a raider stalks to the other's bow or stern and rakes, a fortress presents her broadside within her reach, closes to it from up to fortressChase times it and never follows further, a cruiser closes and duels); a ship below runSpeedShare of the other's best pace can't get away, so a trader turns and fights and a boarder wants to run only utility.cornered as much.",
+    "styles": { "raider": { "stalk": 1.4, "duel": 0.5 }, "cruiser": { "stalk": 1, "duel": 1 }, "fortress": { "stalk": 0.4, "duel": 1.25 } },
+    "runSpeedShare": 1,
+    "fortressChase": 1.5,
     "stationTiles": 2,
     "openingReload": 0.6,
-    "$utility": "A boarding captain weighs boarding, stalking and running each tick and does what she wants most (minigame-sea-battle captain.ts). Each reason rises through a curve round her temperament's threshold, soft by these many shares of hull or crew, sail points, and men ratio, so reasons add up; she changes her mind only for a choice wanted margin more. Holding the weather gauge adds gauge to boarding; her wish to board fades out beyond close.tiles (soft by close.soft), so from further off she stalks in rather than run straight at the other; she trades broadsides at range (a duel) once her guns times hull left is her temperament's duelOdds times the other's, wanting it at most duel.most (above stalking, below a sure boarding); stalk is how much she wants to stalk when nothing else calls.",
-    "utility": { "soft": { "share": 0.03, "sails": 5, "ratio": 0.05 }, "margin": 0.1, "gauge": 0.25, "close": { "tiles": 8, "soft": 1 }, "duel": { "soft": 0.1, "most": 0.8 }, "stalk": 0.5 },
+    "$utility": "A boarding captain weighs boarding, stalking and running each tick and does what she wants most (minigame-sea-battle captain.ts). Each reason rises through a curve round her temperament's threshold, soft by these many shares of hull or crew, sail points, and men ratio, so reasons add up; she changes her mind only for a choice wanted margin more. Holding the weather gauge adds gauge to boarding; her wish to board fades out beyond close.tiles (soft by close.soft), so from further off she stalks in rather than run straight at the other; she trades broadsides at range (a duel) once her guns times hull left is her temperament's duelOdds times the other's, wanting it at most duel.most times her style's duel (above stalking, below a sure boarding; a fortress's can match one); stalk is how much she wants to stalk when nothing else calls.",
+    "utility": { "soft": { "share": 0.03, "sails": 5, "ratio": 0.05 }, "margin": 0.1, "gauge": 0.25, "close": { "tiles": 8, "soft": 1 }, "duel": { "soft": 0.1, "most": 0.8 }, "stalk": 0.5, "cornered": 0.3 },
     "temperaments": {
       "bold": { "share": 0.3, "boardBelowSails": 50, "boardCrewRatio": 1.2, "seizeOpenings": true, "fleeBelowHull": 0.25, "fleeBelowCrew": 0.35, "duelOdds": 1.5, "attackOdds": 0.6 },
       "cautious": { "share": 0.3, "boardBelowSails": 35, "boardCrewRatio": 1.5, "seizeOpenings": false, "fleeBelowHull": 0.45, "fleeBelowCrew": 0.5, "duelOdds": 2, "attackOdds": 0.9 },

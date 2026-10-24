@@ -464,6 +464,12 @@ export const combatSchema = z.object({
   chasers: z.object({ arcDeg: z.number().positive(), everySeconds: z.number().positive() }),
   tactics: z.object({
     standoffShare: z.number().positive(),
+    /** How each style fights: a boarding captain's wish to stalk and to duel, as multiples (captain.ts StyleWeights). */
+    styles: z.record(z.enum(['raider', 'cruiser', 'fortress']), z.object({ stalk: z.number().min(0), duel: z.number().min(0) })),
+    /** A ship can get away only at this share of the other's best pace or more; slower, she fights. */
+    runSpeedShare: z.number().positive(),
+    /** A fortress closes to her guns' reach from up to this many times it; further, she won't follow, and lies broadside on. */
+    fortressChase: z.number().positive(),
     stationTiles: z.number().positive(),
     openingReload: z.number().min(0).max(1),
     /** A boarding captain's mind (minigame-sea-battle captain.ts): how she weighs boarding, stalking and running. */
@@ -474,6 +480,7 @@ export const combatSchema = z.object({
       close: z.object({ tiles: z.number().positive(), soft: z.number().positive() }),
       duel: z.object({ soft: z.number().positive(), most: z.number().min(0).max(1) }),
       stalk: z.number().min(0).max(1),
+      cornered: z.number().min(0).max(1),
     }),
     temperaments: z.record(
       z.string(),

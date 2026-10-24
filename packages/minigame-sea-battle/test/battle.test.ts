@@ -77,7 +77,9 @@ describe('sea battle', () => {
 
   it('drawing apart only ends a fight that keeps opening: turning back in time keeps it going', () => {
     const c = content.combat.battle;
-    const battle = createBattle(content, {
+    // A fluyt can't outrun a brig and would turn and fight; here she runs regardless, so the ships draw apart.
+    const runs = { ...content, combat: { ...content.combat, tactics: { ...content.combat.tactics, runSpeedShare: 0 } } };
+    const battle = createBattle(runs, {
       map,
       wind: { fromDeg: 0, strength: 'fresh' },
       player: ship('ship.brig'),
@@ -717,6 +719,82 @@ describe('sea battle', () => {
     process.stderr.write(`DODGE held ${JSON.stringify(held)} dodged ${JSON.stringify(dodged)}\n`);
     expect(held.fired).toBeGreaterThan(0);
     expect(dodged.hits).toBeLessThan(held.hits);
+  });
+
+  describe('captains who fight their ship', () => {
+    const apart = (b: ReturnType<typeof createBattle>) => Math.hypot(b.state.ships.enemy.x - b.state.ships.player.x, b.state.ships.enemy.y - b.state.ships.player.y);
+
+    it("a trader who can't outsail the other turns and fights within reach, and chases no one", () => {
+      // A fluyt (speed 6) and a brig (8): caught, she works her broadsides rather than show her stern.
+      const meet = (pack: typeof content, autopilot: 'cautious' | 'runner') => {
+        let broadsides = 0;
+        let apartAt = 0;
+        for (let seed = 1; seed <= 6; seed++) {
+          const b = createBattle(pack, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig'), enemy: ship('ship.fluyt', 'merchant'), seed, bearingDeg: 45 + seed * 37 });
+          for (let i = 0; i < 30 * 60 && !b.result(); i++) {
+            b.step(1, autopilot);
+            const e = b.state.ships.enemy;
+            broadsides += b.state.effects.filter((x) => x.kind === 'smoke' && (x.guns ?? 0) >= 2 && x.at === b.state.tick / 30 && Math.hypot(x.x - e.x, x.y - e.y) < 1).length;
+          }
+          apartAt += apart(b);
+        }
+        return { broadsides, apart: apartAt / 6 };
+      };
+      const runs = { ...content, combat: { ...content.combat, tactics: { ...content.combat.tactics, runSpeedShare: 0 } } };
+      expect(meet(content, 'cautious').broadsides).toBeGreaterThan(meet(runs, 'cautious').broadsides * 1.5);
+      // The brig breaks off: the fluyt lets her go, as far as one that runs would.
+      expect(meet(content, 'runner').apart).toBeGreaterThan(meet(runs, 'runner').apart * 0.8);
+    });
+
+    it('a fortress presents her broadside and lets the other come; a cruiser closes', () => {
+      // The brig lies to well beyond the patrol's reach: a frigate comes on; a ship of the line won't follow so far,
+      // and turns her side to her.
+      const closed = (classId: string) => {
+        const start = content.combat.guns.rangeTiles * (content.combat.tactics.fortressChase + 0.3);
+        const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: start } } }, {
+          map,
+          wind: { fromDeg: 70, strength: 'fresh' },
+          player: { ...ship('ship.brig'), headingDeg: 0 },
+          enemy: ship(classId, 'patrol'),
+          seed: 1,
+          bearingDeg: 90,
+        });
+        b.send({ type: 'SetSails', shipId: 'player', sails: 'furled' });
+        b.step(30 * 12);
+        return start - apart(b);
+      };
+      expect(closed('ship.frigate')).toBeGreaterThan(1);
+      expect(closed('ship.ship_of_the_line')).toBeLessThan(0.5);
+    });
+
+    it("a raider keeps off the other's broadside and works her ends: raked less, raking more, than the same sloop fought as a cruiser", () => {
+      // Fought as a cruiser but with a raider's guns and timbers, so only her captain differs; the brig keeps hers
+      // (filed as a 'fortress' for the purpose: her autopilot fights as it always has, whatever her style).
+      const rakes = (style: 'raider' | 'cruiser') => {
+        const s = content.combat.styles;
+        const ships = content.ships;
+        const pack = {
+          ...content,
+          combat: { ...content.combat, styles: { raider: s.raider, cruiser: s.raider, fortress: s.cruiser } },
+          ships: { ...ships, 'ship.sloop': { ...ships['ship.sloop']!, style }, 'ship.brig': { ...ships['ship.brig']!, style: 'fortress' as const } },
+        };
+        let given = 0;
+        let taken = 0;
+        // 60 fights: over fewer the spread between seeds hides the difference.
+        for (let seed = 1; seed <= 60; seed++) {
+          const b = createBattle(pack, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig', undefined, 0.8), enemy: ship('ship.sloop', 'patrol', 0.9), seed, bearingDeg: 45 + seed * 37 });
+          for (let i = 0; i < 30 * 600 && !b.result(); i++) {
+            b.step(1, 'cautious');
+            for (const e of b.state.effects) if (e.at === b.state.tick / 30 && e.place?.rake) e.ship === 'player' ? given++ : taken++;
+          }
+        }
+        return { given, taken };
+      };
+      const raider = rakes('raider');
+      const cruiser = rakes('cruiser');
+      expect(raider.taken).toBeLessThan(cruiser.taken * 0.85);
+      expect(raider.given).toBeGreaterThan(cruiser.given * 1.15);
+    });
   });
 
   describe('ends and edges', () => {

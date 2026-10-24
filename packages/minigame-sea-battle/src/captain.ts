@@ -32,6 +32,14 @@ export interface Situation {
   apart: number;
   /** Who holds the weather gauge: her, the other, or neither. */
   gauge: 'mine' | 'theirs' | undefined;
+  /** She is fast enough to get away (false: running only shows the other her stern). Unset: she can. */
+  canRun?: boolean;
+}
+
+/** How her kind of ship fights (combat.json tactics.styles): her wish to stalk and to duel, as multiples. */
+export interface StyleWeights {
+  stalk: number;
+  duel: number;
 }
 
 export interface Temperament {
@@ -63,6 +71,8 @@ export interface Weighing {
   duel: { soft: number; most: number };
   /** How much she wants to stalk (keep off the other's bow or stern and rake her): her course when nothing else calls. */
   stalk: number;
+  /** A ship that can't outrun the other wants to run only this share as much: she fights on, or strikes. */
+  cornered: number;
 }
 
 /** 0..1, past one half once `x` falls below `at`, steeper the smaller `soft`. A threshold of 0 never fires. */
@@ -71,15 +81,16 @@ const above = (x: number, at: number, soft: number) => 1 / (1 + Math.exp((at - x
 /** Reasons together: each takes its share of what the others leave. */
 const any = (...ws: number[]) => 1 - ws.reduce((left, w) => left * (1 - w), 1);
 
-export function weigh(s: Situation, t: Temperament, w: Weighing, last?: Intent): Mind {
-  const flee = any(below(s.hull, t.fleeBelowHull, w.soft.share), below(s.crew, t.fleeBelowCrew, w.soft.share));
+export function weigh(s: Situation, t: Temperament, w: Weighing, last?: Intent, style: StyleWeights = { stalk: 1, duel: 1 }): Mind {
+  const flee = any(below(s.hull, t.fleeBelowHull, w.soft.share), below(s.crew, t.fleeBelowCrew, w.soft.share)) * (s.canRun === false ? w.cornered : 1);
   // A ship falling apart doesn't board: the more she wants to run, the less she wants to close.
   const board =
     any(below(s.theirSails, t.boardBelowSails, w.soft.sails), above(s.menRatio, t.boardCrewRatio, w.soft.ratio), t.seizeOpenings && s.opening ? 1 : 0, s.gauge === 'mine' ? w.gauge : 0) *
     (1 - flee) *
     below(s.apart, w.close.tiles, w.close.soft);
-  const duel = w.duel.most * above(s.firepower, t.duelOdds, w.duel.soft) * (1 - flee);
-  const wants: Record<Intent, number> = { board, duel, stalk: w.stalk, flee };
+  // A raider would rather rake than trade broadsides; a fortress would rather stand and slug it out.
+  const duel = Math.min(1, w.duel.most * style.duel) * above(s.firepower, t.duelOdds, w.duel.soft) * (1 - flee);
+  const wants: Record<Intent, number> = { board, duel, stalk: Math.min(1, w.stalk * style.stalk), flee };
   const order: Intent[] = ['flee', 'board', 'duel', 'stalk'];
   let best = order.reduce((a, b) => (wants[b] > wants[a] ? b : a));
   if (last && best !== last && wants[best] < wants[last] + w.margin) best = last;

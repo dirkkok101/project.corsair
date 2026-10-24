@@ -5,7 +5,7 @@ import type { ContentPack, DifficultyLevel, TileMap } from '@corsair/data';
 import { weigh } from './captain';
 export type { Intent, Mind } from './captain';
 import type { Mind } from './captain';
-import { angleOffWind, atTheOars, bestUpwindDeg, createNavigationSystem, normalizeDeg } from '@corsair/systems-navigation';
+import { angleOffWind, atTheOars, bestUpwindDeg, createNavigationSystem, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 
 // The sea battle (PRD section 9.1): two ships on a local map cut from the world where they met, in
 // the world's wind. The player steers and fires broadsides; the enemy is steered by her captain's
@@ -569,10 +569,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         opening: d <= reach(me, 'round') && them.reload[facing] > reloadSeconds(them) * c.tactics.openingReload,
         apart: d,
         gauge: gauge === undefined ? undefined : gauge === side ? 'mine' : 'theirs',
+        // The enemy fights her ship; the player's autopilot (tests and probes) fights every ship as it always has.
+        ...(side === 'enemy' ? { canRun: canRun(me, them) } : {}),
       },
       t,
       c.tactics.utility,
       state.minds?.[side]?.intent,
+      c.tactics.styles[side === 'enemy' ? content.ships[me.classId]!.style : 'cruiser'],
     );
     if (state.grappling > 0) mind.intent = 'board';
     else if (sheering && mind.intent === 'board') mind.intent = mind.wants.flee > mind.wants.stalk ? 'flee' : 'stalk';
@@ -581,17 +584,28 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     if (mind.intent === 'flee') return { want: toThem + 180, board: false };
     // Trading broadsides: in to most of her guns' reach, then the loaded broadside to bear.
     if (mind.intent === 'duel') return { want: d > reach(me, 'round') * 0.8 ? toThem : ready === 'starboard' ? toThem - 90 : toThem + 90, board: false };
-    // Stalk: a station off her bow or stern (the nearer), where her broadsides can't bear.
+    return { want: stalk(me, them, toThem, ready), board: false };
+  };
+
+  /** Stalking: to a station off her bow or stern (the nearer), where her broadsides can't bear; there, rake her. */
+  const stalk = (me: BattleShip, them: BattleShip, toThem: number, ready: Broadside) => {
     const standoff = reach(me, 'round') * c.tactics.standoffShare;
     const r = (them.headingDeg * Math.PI) / 180;
     const ends = [1, -1].map((k) => ({ x: them.x + Math.sin(r) * k * standoff, y: them.y - Math.cos(r) * k * standoff }));
     const station = ends.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0]!;
-    if (Math.hypot(station.x - me.x, station.y - me.y) > c.tactics.stationTiles) {
-      return { want: normalizeDeg((Math.atan2(station.x - me.x, -(station.y - me.y)) * 180) / Math.PI), board: false };
-    }
+    if (Math.hypot(station.x - me.x, station.y - me.y) > c.tactics.stationTiles) return normalizeDeg((Math.atan2(station.x - me.x, -(station.y - me.y)) * 180) / Math.PI);
     // On station: turn the loaded broadside on her, raking her end on.
-    return { want: ready === 'starboard' ? toThem - 90 : toThem + 90, board: false };
+    return ready === 'starboard' ? toThem - 90 : toThem + 90;
   };
+
+  /**
+   * Her best pace on this wind, on whatever heading suits her: everything navigation weighs (her fit, torn canvas,
+   * hull, hands, a foul bottom), and her oars in a calm. Pointing (which way the other lies) is not weighed.
+   */
+  const topSpeed = (s: BattleShip) =>
+    Math.max(...Array.from({ length: 12 }, (_, k) => targetSpeed(battleContent, { ...s, headingDeg: k * 30, sails: 'full' } as unknown as Ship, state.wind)));
+  /** She can get away from the other: at least tactics.runSpeedShare of the other's best pace. */
+  const canRun = (me: BattleShip, them: BattleShip) => topSpeed(me) >= topSpeed(them) * c.tactics.runSpeedShare;
 
   /** Steering for an AI captain (the enemy, or the player under autopilot in the headless runner). */
   const steer = (side: Side, personality: 'runner' | 'cautious' | 'aggressive'): BattleCommand[] => {
@@ -601,12 +615,22 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const toThem = bearing(me, them);
     const ready: Broadside = me.reload.starboard <= me.reload.port ? 'starboard' : 'port';
     let want: number;
+    // How her kind of ship fights (the enemy's; the player's autopilot fights as it always has), and a trader who
+    // can't outrun the other doesn't show her stern within reach of her guns: she turns and fights. She chases no
+    // one: out of reach, she runs on.
+    const style = side === 'enemy' ? content.ships[me.classId]!.style : 'cruiser';
+    if (personality === 'runner' && side === 'enemy' && d <= reach(me, 'round') && !canRun(me, them)) personality = 'cautious';
     if (personality === 'runner') want = toThem + 180;
     else if (personality === 'aggressive') {
       const plan = pirate(side, me, them, d, toThem, ready, side === 'enemy' && seconds() < (state.sheerUntil ?? 0));
       want = plan.want;
       state = side === 'enemy' ? { ...state, enemyBoarding: plan.board } : { ...state, boarding: plan.board };
     }
+    // A raider keeps off the other's broadside and rakes her from bow or stern.
+    else if (style === 'raider') want = stalk(me, them, toThem, ready);
+    // A fortress presents her broadside within her reach, closes to it from a little beyond, and never follows far:
+    // past fortressChase times her reach she lies with her side to the other and lets her come, or go.
+    else if (style === 'fortress') want = d > reach(me, 'round') * 0.95 && d <= reach(me, 'round') * c.tactics.fortressChase ? toThem : ready === 'starboard' ? toThem - 90 : toThem + 90;
     else if (d > reach(me, 'round') * 0.8) want = toThem;
     else if (personality === 'cautious' && d < reach(me, 'round') * 0.5) want = toThem + 180;
     // Put the loaded broadside to bear: the target abeam on that side.

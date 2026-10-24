@@ -29,6 +29,24 @@ describe("a boarding captain's mind", () => {
     expect(weigh({ ...rig, menRatio: men.menRatio }, bold, w).intent).toBe('board');
   });
 
+  it('fights her ship: outgunning the other, a raider still stalks and rakes; a fortress stands and slugs it out', () => {
+    const s = content.combat.tactics.styles;
+    const outgun = { ...fair, firepower: bold.duelOdds + 1 };
+    expect(weigh(outgun, bold, w, undefined, s.cruiser).intent).toBe('duel');
+    expect(weigh(outgun, bold, w, undefined, s.raider).intent).toBe('stalk');
+    expect(weigh(outgun, bold, w, undefined, s.fortress).intent).toBe('duel');
+    // A fortress barely stalks: when nothing else calls she still wants it, but much less than a raider.
+    expect(weigh(fair, bold, w, undefined, s.fortress).wants.stalk).toBeLessThan(weigh(fair, bold, w, undefined, s.raider).wants.stalk / 2);
+  });
+
+  it("runs only when she can: a ship the other can outsail wants to run much less, and fights on", () => {
+    const hurt = { ...fair, hull: bold.fleeBelowHull - 0.1 };
+    expect(weigh(hurt, bold, w).intent).toBe('flee');
+    const cornered = weigh({ ...hurt, canRun: false }, bold, w);
+    expect(cornered.wants.flee).toBeCloseTo(weigh(hurt, bold, w).wants.flee * w.cornered, 5);
+    expect(cornered.intent).not.toBe('flee');
+  });
+
   it('runs when badly hurt, even with an opening: a ship falling apart does not board', () => {
     const mind = weigh({ ...fair, hull: bold.fleeBelowHull - 0.1, opening: true }, bold, w);
     expect(mind.intent).toBe('flee');
