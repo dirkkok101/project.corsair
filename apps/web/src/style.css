@@ -395,6 +395,16 @@ body {
   gap: 8px;
 }
 
+/* In port the notes sit top centre, over the painting and its buildings, clear of the harbour's own news (and
+   below F2's frame rate). */
+.in-port .hud-toasts {
+  top: 44px;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+}
+
 .hud-toast {
   display: flex;
   align-items: center;
@@ -1502,8 +1512,9 @@ body {
   color: #819796;
 }
 
-/* In port (and in battle) the sailing instruments and the sea's labels make way; "Saved" and the sound note stay. */
-.in-port .hud > :not(.hud-saved, .hud-sound),
+/* In port (and in battle) the sailing instruments and the sea's labels make way; "Saved", the sound note and the
+   notes (a goal done at the shipwright's is said there) stay. */
+.in-port .hud > :not(.hud-saved, .hud-sound, .hud-toasts),
 .in-port .hud-prompt,
 .in-port .hud-rose,
 .in-port .labels,

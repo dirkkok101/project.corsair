@@ -1046,3 +1046,22 @@ test('F2 shows the frame rate (and the resolution the sea is drawn at), F2 hides
   await expect(page.locator('.fps')).toHaveText(/ fps · /);
   expect(errors).toEqual([]);
 });
+
+test('notes show in port: a goal done at the shipwright is said there, over the harbour', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  // One gun short of a full battery: the last one completes the career's first goal, in port.
+  await continueWith(page, { player: { guns: 17 } });
+  await openService(page, 'Shipwright');
+  await page.locator('.shipwright').getByRole('button', { name: 'See the guns' }).click();
+  await page.locator('.shipwright').getByRole('button', { name: /^Buy 1/ }).click();
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  const note = page.locator('.hud-toast', { hasText: 'Goal done' });
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('Mount a full battery');
+  // Top centre, clear of the building's own panel below it.
+  const box = (await note.boundingBox())!;
+  const panel = (await page.locator('.shipwright').boundingBox())!;
+  expect(box.y + box.height).toBeLessThan(panel.y);
+  await page.screenshot({ path: 'test-results/port-note.png' });
+  expect(errors).toEqual([]);
+});
