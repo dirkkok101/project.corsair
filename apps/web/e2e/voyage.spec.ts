@@ -153,3 +153,60 @@ test('chapter 1, the helm: out at half sail, steer, more sail, the wind, and the
   await expect(card).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('chapter 2, the first prize: a pirate harrying a boat, chased and fought with round shot, she strikes, the plunder explained, then home', async ({ page }) => {
+  const errors = await voyageBegun(page);
+  await page.keyboard.press('e');
+  await expect(page.locator('.port')).toHaveCount(0);
+  const { cay } = await voyageOf(page);
+  await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
+  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
+  await page.keyboard.press(' ');
+  await expect(page.locator('.deed-standard')).toBeVisible();
+  await page.keyboard.press('Enter');
+  // Sail ho: the pirate and the boat she harries, the quartermaster's word, and her order.
+  const v = (await voyageOf(page)) as Voyage & { pirateId: string; pirate: string };
+  expect(v.pirate).toBe('Salt Rat');
+  await expect(page.locator('.voyage-ned')).toContainText("She's no great guns, Captain: take her.");
+  await expect(page.locator('.voyage-order.now')).toContainText('Take the pirate Salt Rat');
+  await expect(page.locator('.hud-prompt')).toContainText('Chase the');
+  await expect(page.locator('.hud-picked, .ship-card').first()).toContainText('Salt Rat');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'test-results/voyage-sailho.png' });
+  // Alongside, Space attacks her.
+  await page.evaluate((id) => {
+    const s = window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s[id]!.x + 1.2, y: s[id]!.y + 1.2 } as never);
+  }, v.pirateId);
+  await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate Salt Rat');
+  await page.keyboard.press(' ');
+  await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
+  // Ned's word as it begins, the arc lesson, and round shot only.
+  await expect(page.locator('.battle-ned')).toContainText('Put your side to her');
+  await expect(page.locator('.battle-lesson')).toBeVisible();
+  await expect(page.locator('.battle-ammo button', { hasText: 'Chain' })).toBeDisabled();
+  await expect(page.locator('.battle-ammo button', { hasText: 'Grape' })).toBeDisabled();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'test-results/voyage-fight.png' });
+  // Fought out (the battle has its own tests): she strikes.
+  await page.evaluate(() => {
+    for (let i = 0; i < 30 * 60 * 5 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'cautious');
+  });
+  expect(await page.evaluate(() => window.__corsair.battle.result()?.outcome)).toBe('struck');
+  await expect(page.locator('.plunder-ned')).toContainText("Plunder's the crew's till we're ashore");
+  // Not one to keep: she'd only slow the brig.
+  await expect(page.locator('.plunder')).toContainText("only slow us");
+  // The picked card is the pirate's (not the boat's) until she is taken: checked above by the prompt.
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'test-results/voyage-plunder.png' });
+  await page.keyboard.press('Enter');
+  const card = page.locator('.deed-standard');
+  await expect(card.locator('.deed-title')).toHaveText('First prize taken');
+  await expect(card.locator('.deed-next')).toContainText('bring it home to Port Royal');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/voyage-prize-deed.png' });
+  await page.keyboard.press('Enter');
+  expect((await voyageOf(page)).step).toBe('home');
+  await expect(page.locator('.hud-prompt')).toContainText('Sail home to Port Royal');
+  expect(errors).toEqual([]);
+});

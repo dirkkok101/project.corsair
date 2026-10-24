@@ -698,6 +698,76 @@ export function createTrafficSystem(
     return rung >= def.rung;
   };
   /**
+   * The First Voyage's first prize (docs/design/first-voyage.md, chapter 2): once the wreck is salvaged, a pirate
+   * (voyage.json pirate: no great guns, a green crew, no resolve) circling a fishing boat she harries, `offTiles`
+   * off the wreck on open water with room to circle. Undefined when the cay has no such water.
+   */
+  const voyagePrize = (state: WorldState, tick: number, rng: Rng): { state: WorldState; events: EmittedEvent[] } | undefined => {
+    const v = state.captain?.voyage;
+    const home = settlements.find((s) => s.id === v?.home);
+    if (!v || !home) return undefined;
+    const vp = content.voyage;
+    const room = vp.harry.orbitTiles + 1;
+    const clear = (x: number, y: number) =>
+      [0, 45, 90, 135, 180, 225, 270, 315].every((a) => !isLand(tileAt(map, x + Math.sin((a * Math.PI) / 180) * room, y - Math.cos((a * Math.PI) / 180) * room))) &&
+      !isLand(tileAt(map, x, y));
+    let spot: [number, number] | undefined;
+    for (let a = 0; a < 360 && !spot; a += 22.5) {
+      const x = v.cay.x + Math.sin((a * Math.PI) / 180) * vp.pirate.offTiles;
+      const y = v.cay.y - Math.cos((a * Math.PI) / 180) * vp.pirate.offTiles;
+      if (clear(x, y)) spot = [x, y];
+    }
+    if (!spot) return undefined;
+    const boat = spawn(content, state, 'merchant', home, spot, rng, tick, vp.boat.classId);
+    const boatShip: Ship = { ...boat.ship, sails: 'furled', ai: { ...boat.ship.ai!, name: vp.boat.name, route: [], waitUntil: undefined, purse: 0, voyage: {} } };
+    const pirate = spawn(content, boat.state, 'pirate', home, [spot[0], spot[1] - vp.harry.orbitTiles], rng, tick, vp.pirate.classId);
+    const { upgrades: _fits, ...bare } = pirate.ship;
+    const pirateShip: Ship = {
+      ...bare,
+      sails: 'half',
+      crew: vp.pirate.crew,
+      guns: 0,
+      ai: {
+        ...pirate.ship.ai!,
+        name: vp.pirate.name,
+        route: [],
+        waitUntil: undefined,
+        purse: vp.pirate.purse,
+        crew: 'green',
+        captain: { gunnery: 20, seamanship: 30, boarding: 10, resolve: 0 },
+        voyage: { harry: boatShip.id, meek: true },
+      },
+    };
+    const captain = { ...pirate.state.captain!, voyage: { ...v, pirateId: pirateShip.id, pirate: vp.pirate.name, boatId: boatShip.id } };
+    return {
+      state: { ...pirate.state, captain, ships: { ...pirate.state.ships, [boatShip.id]: boatShip, [pirateShip.id]: pirateShip } },
+      events: [{ type: 'PirateSighted', entityIds: ['player', pirateShip.id], payload: { name: vp.pirate.name, boat: vp.boat.name } }],
+    };
+  };
+  /**
+   * The First Voyage's ships at sea: the pirate circles the boat she harries (or lies where the boat was, once it is
+   * gone); the boat lies hove to, or once freed sails for home and leaves the sea there.
+   */
+  const voyageShip = (ship: Ship, ships: Record<string, Ship>, tick: number, dt: number): Ship | undefined => {
+    const h = content.voyage.harry;
+    const job = ship.ai!.voyage!;
+    if (job.harry) {
+      const boat = ships[job.harry];
+      if (!boat) return { ...ship, speed: 0, sails: 'furled' };
+      const a = tick * dt * h.radPerSecond;
+      const x = boat.x + Math.sin(a) * h.orbitTiles;
+      const y = boat.y - Math.cos(a) * h.orbitTiles;
+      // Heading along the circle (clockwise as the angle grows).
+      return { ...ship, x, y, headingDeg: ((a * 180) / Math.PI + 90) % 360, speed: h.radPerSecond * h.orbitTiles, sails: 'half' };
+    }
+    if (!job.freed) return { ...ship, speed: 0, sails: 'furled' };
+    // Freed: home by the lanes, an ordinary ship of the sea again.
+    const berth = lanes.berth(ship.ai!.from);
+    const way = berth ? lanes.path([ship.x, ship.y], berth) : undefined;
+    const { voyage: _done, ...ai } = ship.ai!;
+    return way ? { ...ship, sails: 'full', ai: { ...ai, to: ship.ai!.from, route: way, along: 0, waitUntil: undefined } } : undefined;
+  };
+  /**
    * Two ships fall on each other just beyond her view (`view`, where the haze lies on the horizon): a spot of open
    * water off her bow (traffic.json encounters.beyondTiles past it), the prey there, bound on for a port by the lanes,
    * and the hunter a few tiles further out, already after her. Neither shows until she sails the fight up over the
@@ -795,6 +865,7 @@ export function createTrafficSystem(
             !inPort(x) &&
             !x.ai.famous &&
             !x.ai.mission &&
+            !x.ai.voyage &&
             !x.ai.convoy &&
             !x.ai.skirmish &&
             !x.ai.target &&
@@ -812,14 +883,20 @@ export function createTrafficSystem(
 
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
   const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
+  // On the First Voyage, until the governor has seen her, no one hunts her: she learns the sea in peace.
+  const learning = (state: WorldState) => {
+    const step = state.captain?.voyage?.step;
+    return step !== undefined && step !== 'governor' && step !== 'done';
+  };
   const hunts = (state: WorldState, ship: Ship, player?: Ship) =>
-    (ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) ||
+    !learning(state) &&
+    ((ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) ||
     (ship.ai!.role === 'patrol' &&
       (standingWith(state, ship.ai!.nation) <= cb.standing.hostile ||
         (Boolean(state.captain?.nation && atWar(content, state, state.captain.nation, ship.ai!.nation)) &&
           // At war with her flag, only once she has made herself its enemy: a new captain they let pass. Save off a
           // port her warships blockade: there they challenge any ship of its flag, hers too, in or out.
-          (standingWith(state, ship.ai!.nation) <= cb.standing.warHunt || Boolean(player && inBlockade(state, ship, player))))));
+          (standingWith(state, ship.ai!.nation) <= cb.standing.warHunt || Boolean(player && inBlockade(state, ship, player)))))));
   /** Whether a ship lies within the blockade a blockader keeps (on her station, within blockade.tiles of the port). */
   const inBlockade = (state: WorldState, blockader: Ship, s: Ship) => {
     const port = blockader.ai!.blockadeOf ? byId.get(blockader.ai!.blockadeOf) : undefined;
@@ -921,7 +998,7 @@ export function createTrafficSystem(
 
   /** What a hunter goes after: pirates take merchants; patrols take pirates and their nation's enemies. */
   const isPrey = (state: WorldState, hunter: Ship, s: Ship) => {
-    if (!s.ai || s.id === hunter.id || inPort(s) || sheltered(state, hunter, s.x, s.y)) return false;
+    if (!s.ai || s.ai.voyage || s.id === hunter.id || inPort(s) || sheltered(state, hunter, s.x, s.y)) return false;
     // A merchant already fighting off a pirate is that pirate's; a pirate on someone is fair game for a patrol.
     if (hunter.ai!.role === 'pirate') return s.ai.role === 'merchant' && !s.ai.skirmish;
     return s.ai.role === 'pirate' || atWar(content, state, hunter.ai!.nation, s.ai.nation);
@@ -1534,8 +1611,10 @@ export function createTrafficSystem(
         const keep = Boolean(command.keep);
         if (keep) {
           const crewAfter = crewOf(content, player) + (command.volunteers ? prize.volunteers : 0);
-          const whyNot =
-            fleet.length + 2 > cb.fleet.maxShips ? 'fleet-full' : crewAfter < fleetMinCrew(content, [...fleet, prize.ship], player) ? 'too-few-men' : undefined;
+          const whyNot = prize.ship.ai?.voyage
+            ? 'voyage'
+            : fleet.length + 2 > cb.fleet.maxShips
+              ? 'fleet-full' : crewAfter < fleetMinCrew(content, [...fleet, prize.ship], player) ? 'too-few-men' : undefined;
           if (whyNot) return { state, events: [{ type: 'PlunderRefused', entityIds: [player.id, prize.ship.id], payload: { reason: whyNot } }] };
         }
         const capacity = fleetHold(content, state, player) + (keep ? content.ships[prize.ship.classId]!.cargo : 0);
@@ -1706,12 +1785,31 @@ export function createTrafficSystem(
       const seeingWind = watching ? windAt(state, watching.x, watching.y) : undefined;
       const sight = watching ? sightTiles(content, tick, seeingWind!, watching, state.weather?.storms) : t.sightTiles;
       const view = watching ? viewTiles(content, tick, seeingWind!, watching, state.weather?.storms) : t.viewTiles;
+      // The First Voyage's first prize comes onto the sea once the wreck is salvaged.
+      if (next.captain?.voyage?.step === 'prize' && !next.captain.voyage.pirateId) {
+        const made = voyagePrize(next, tick, rng);
+        if (made) {
+          next = made.state;
+          ships = { ...next.ships };
+          events.push(...made.events);
+        }
+      }
       for (const id of Object.keys(ships).sort()) {
         // A ship taken or sunk earlier this tick is gone.
         const ship = ships[id];
         if (!ship?.ai) continue;
         let moved: Ship;
         const p = ships.player;
+        // The First Voyage's ships keep to their own part.
+        if (ship.ai.voyage) {
+          const kept = voyageShip(ship, ships, tick, dt);
+          if (kept) ships = { ...ships, [id]: kept };
+          else {
+            const { [id]: _gone, ...rest } = ships;
+            ships = rest;
+          }
+          continue;
+        }
         // At sea: under way, or a pirate lying in wait on a lane (in port a ship has no route).
         const atSea = ship.ai.waitUntil === undefined || ship.ai.route.length > 0;
         // Hove to in a fight the player can see: until it's settled, or her foe is gone (the player took a

@@ -81,6 +81,12 @@ export interface AiCaptain {
   famous?: string;
   /** The quarry of a governor's mission (its id): kept on the sea until it is done or lapses. */
   mission?: string;
+  /**
+   * The First Voyage's own ships: the pirate harrying a fishing boat off the cay (`harry`, the boat's id), meek in
+   * battle (she strikes once beaten; never boards, flees or sinks), and the boat, which is `freed` once she is
+   * taken (and sails home by the lanes, an ordinary ship again). Neither hunts or is hunted meanwhile.
+   */
+  voyage?: { harry?: string; meek?: boolean; freed?: boolean };
   /** Ports whose waters she keeps to (a mission's quarry), as a famous pirate keeps to her haunts. */
   haunts?: string[];
   /** Her crew's grade (combat.json crewQuality); regular when unset. */
@@ -422,6 +428,11 @@ export interface Voyage {
   home: string;
   /** The lessons she has been shown (steer, sail, wind, ...). */
   lessons?: string[];
+  /** The pirate of the first prize, once she is on the sea: her ship's id and her name. */
+  pirateId?: string;
+  pirate?: string;
+  /** The fishing boat she harries. */
+  boatId?: string;
 }
 
 /** A deed said out loud: what kind, what she did (past tense), the one figure and where it went, up to two lines. */

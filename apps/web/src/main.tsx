@@ -38,7 +38,7 @@ import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf, purseRise } from './ui/kit';
 import { DEED_SMALL_MS, DeedCard, meritBar } from './ui/deed';
-import { CayMark, HelmLessons, OrdersCard, voyageOrders } from './voyage';
+import { CayMark, HelmLessons, NedSays, OrdersCard, voyageOrders } from './voyage';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
 import { createGamepad } from './gamepad';
 import { bindMouse } from './mouse';
@@ -1329,6 +1329,9 @@ async function main() {
   const shipAction = (her: Ship): SeaAction | undefined => {
     const me = player();
     if (her.ai?.chasing) return undefined;
+    // The First Voyage's pirate: alongside, straight into the fight (no hail to learn first).
+    if (her.ai?.voyage?.meek && Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles)
+      return { text: `Attack the pirate ${her.ai.name}`, run: () => sim.send({ type: 'Attack', shipId: me.id, targetId: her.id }) };
     if (Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles) return { text: `Hail the ${shipTitle(her)} ${her.ai!.name}`, run: () => hail(her) };
     if (me.assist?.mode === 'intercept' && me.assist.targetId === her.id) return { text: `Stop chasing the ${her.ai!.name}`, run: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }) };
     return { text: `Chase the ${shipTitle(her)} ${her.ai!.name}`, run: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: her.id }) };
@@ -1358,6 +1361,12 @@ async function main() {
           sim.send({ type: 'Salvage', shipId: me.id });
         },
       };
+    // Her first prize: Space goes after the pirate wherever she is.
+    const quarry = v?.step === 'prize' && v.pirateId ? sim.state.ships[v.pirateId] : undefined;
+    if (quarry) return shipAction(quarry);
+    // Home with her prize: Space sails her there.
+    const homeport = v?.step === 'home' ? settlements.find((s) => s.id === v.home) : undefined;
+    if (homeport && me.assist?.mode !== 'course') return { text: `Sail home to ${homeport.name}`, run: () => follow(homeport) };
     // The ship picked, alongside or not; else any ship alongside (the chance to speak her is brief).
     const her = targeted();
     const alongside = shipInHail();
@@ -1692,6 +1701,23 @@ async function main() {
           enemyTitle={fight.title}
           enemyNation={fight.nation}
           wavering={fight.battle.wavering()}
+          lesson={(() => {
+            // The First Voyage's first prize: Ned's word as it begins, then the arc, and round shot only.
+            const v = sim.state.captain?.voyage;
+            if (v?.step !== 'prize' || fight.targetId !== v.pirateId || bs.result) return undefined;
+            const bearing = fight.battle.aim('port') === 'ready' || fight.battle.aim('starboard') === 'ready';
+            return {
+              ...(bs.tick < 8 * TICKS_PER_SECOND ? { ned: `"She's no great guns, Captain. Put your side to her and she'll strike in a broadside or two."` } : {}),
+              prompt: bearing ? "She's in your arc: fire! · Space" : 'Put your side to her: fire when the arc turns gold',
+              shotsLocked: true,
+            };
+          })()}
+          plunderSay={(() => {
+            const v = sim.state.captain?.voyage;
+            if (!v || fight.targetId !== v.pirateId) return undefined;
+            const cut = Math.round(content.crew.captainShare * 100);
+            return `"Plunder's the crew's till we're ashore, Captain. We share it out in the tavern: ${cut === 20 ? 'a fifth' : `${cut} in a hundred`} to you, the rest keeps them sweet."`;
+          })()}
           under={fight.battle.underGuns()}
           shoals={fight.battle.shoals()}
           showMind={showMind}
@@ -1718,8 +1744,9 @@ async function main() {
                     const cls = content.ships[prize.ship.classId]!;
                     const men = crewOf(content, me) + prize.volunteers;
                     const needs = fleetMinCrew(content, [...fleet, prize.ship], me);
-                    const whyNot =
-                      fleet.length + 2 > content.combat.fleet.maxShips
+                    const whyNot = prize.ship.ai?.voyage
+                      ? `"A periagua'd only slow us, Captain. Let her go or sink her."`
+                      : fleet.length + 2 > content.combat.fleet.maxShips
                         ? `Your fleet is full (${content.combat.fleet.maxShips} ships): sell one at a shipwright first.`
                         : men < needs
                           ? `Too few men to sail her too: the fleet would need ${needs}, you have ${men}${prize.volunteers ? ' with her volunteers' : ''}.`
@@ -2140,6 +2167,15 @@ async function main() {
       ) : null,
       hailRoot,
     );
+    // The First Voyage's first prize: the pirate is the ship picked (not the boat she harries), until she is taken.
+    {
+      const v = sim.state.captain?.voyage;
+      const boat = v?.boatId ? sim.state.ships[v.boatId] : undefined;
+      if (v?.step === 'prize' && v.pirateId && sim.state.ships[v.pirateId] && target !== v.pirateId && (!target || target === v.boatId)) {
+        target = v.pirateId;
+        chosen = false;
+      } else if (v && v.step !== 'prize' && target && target === v.boatId && !boat?.ai?.voyage) target = undefined;
+    }
     // The career's goals: the next is the sea's goal pill and a deed card's "Next", the rest wait in the log.
     const goals = careerGoals(content, sim.state, settlements);
     // Bound for the cay on the First Voyage, the voyage guides her: its orders stand for the goal, its lesson for the prompt.
@@ -2193,8 +2229,9 @@ async function main() {
     sea3d.wreck(wrecked, toCay);
     const irons = Boolean(bound?.step === 'helm' && ship.sails !== 'furled' && pointOfSail(content, offWind).id === 'irons');
     if (irons) windShown = true;
-    // Where the order in hand is to be done: the cay, then home.
-    const mark = bound && (toCay ? bound.cay : settlements.find((s) => s.id === bound.home));
+    // Where the order in hand is to be done: the cay, the pirate, then home.
+    const quarry = bound?.step === 'prize' && bound.pirateId ? sim.state.ships[bound.pirateId] : undefined;
+    const mark = bound && (toCay ? bound.cay : (quarry ?? settlements.find((s) => s.id === bound.home)));
     render(
       bound ? (
         <div class="voyage-sea">
@@ -2203,6 +2240,7 @@ async function main() {
             far={mark && `${Math.max(1, Math.round(Math.hypot(ship.x - mark.x, ship.y - mark.y) * kmPerTile))} km`}
           />
           {bound.step === 'helm' && !moments[0] ? <HelmLessons v={bound} irons={irons} windShown={windShown} /> : null}
+          {quarry && !moments[0] && !deedQueue.length ? <NedSays label="Sail ho!" line={`"A pirate's harrying a fishing boat off the cay. She's no great guns, Captain: take her."`} /> : null}
           {toCay ? (
             <CayMark
               name={bound.cay.name}

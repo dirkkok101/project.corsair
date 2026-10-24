@@ -6,7 +6,8 @@ import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-
 import { rowing, shotHarmOf, weatherGauge } from '@corsair/minigame-sea-battle';
 import { Compass, Help } from './hud';
 import type { CompassProps } from './hud';
-import { bandOf, Key } from './ui/kit';
+import { bandOf, Bust, curly, Key } from './ui/kit';
+import { NED } from './voyage';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 
 // The sea battle HUD (storyboard 5.1-5.4): both ships' hull, sails and men as named bands, each broadside's state and
@@ -223,7 +224,7 @@ function fateText(content: ContentPack, offer: PlunderOffer, release: boolean, k
  * of it already chosen; her fate as three cards, each with what it costs; signing on her men; a famous prisoner's
  * fate; and one big button that does it all (Enter). Picking the goods by hand is a click away.
  */
-function Plunder({ content, offer, name, report, onPlunder }: { content: ContentPack; offer: PlunderOffer; name: string; report: ComponentChildren; onPlunder: (choice: PlunderChoice) => void }) {
+function Plunder({ content, offer, name, report, onPlunder, say }: { content: ContentPack; offer: PlunderOffer; name: string; report: ComponentChildren; onPlunder: (choice: PlunderChoice) => void; say?: string }) {
   const used = Object.values(offer.mine).reduce((a, b) => a + b, 0);
   const [take, setTake] = useState(() => bestTake(content, offer.theirs, offer.capacity - used));
   const [jettison, setJettison] = useState<Record<string, number>>({});
@@ -285,6 +286,12 @@ function Plunder({ content, offer, name, report, onPlunder }: { content: Content
   ];
   return (
     <div class="k-wood victory plunder">
+      {say ? (
+        <div class="battle-call battle-ned plunder-ned">
+          <Bust id={NED.bust} label={NED.who} />
+          <span>{curly(say)}</span>
+        </div>
+      ) : null}
       <div class="victory-top">
         <div class="victory-what">{report}</div>
         <div class="victory-hold">
@@ -599,6 +606,13 @@ export interface BattleHudProps {
   offer?: PlunderOffer;
   /** What to do next, after a fight that left her hurt (where to repair). */
   advice?: string;
+  /**
+   * The First Voyage's first fight: the quartermaster's word before it, the one thing to do now (its key after " · "),
+   * and only round shot to learn on.
+   */
+  lesson?: { ned?: string; prompt: string; shotsLocked: boolean };
+  /** The quartermaster's word over the plunder of the First Voyage's first prize. */
+  plunderSay?: string;
   /** The compass: the wind on the battle water, her heading, speed and point of sail. */
   compass: CompassProps;
   /**
@@ -616,7 +630,7 @@ export interface BattleHudProps {
   showMind?: boolean;
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, under, shoals, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help, showMind }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, under, shoals, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help, showMind, lesson, plunderSay }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
@@ -723,6 +737,18 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
         </div>
       ) : null}
       <div class="battle-calls">
+        {lesson?.ned ? (
+          <div class="battle-call battle-ned">
+            <Bust id={NED.bust} label={NED.who} />
+            <span>{curly(lesson.ned)}</span>
+          </div>
+        ) : null}
+        {lesson ? (
+          <div class="battle-call battle-lesson">
+            {lesson.prompt.includes(' · ') ? <Key k={lesson.prompt.split(' · ')[1]!} /> : null}
+            <span>{lesson.prompt.split(' · ')[0]}</span>
+          </div>
+        ) : null}
         {!state.result && now < mastCall.current.until ? <div class="battle-call battle-mast">{mastCall.current.text}</div> : null}
         {/* Shoal water: she draws too much for it (a raider doesn't). */}
         {!state.result && shoals.player ? (
@@ -854,7 +880,13 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
           </div>
           <div class="battle-ammo">
             {SHOTS.map((s) => (
-              <button key={s.id} class={`k-btn small${you.shot === s.id ? ' active' : ''}`} onClick={() => you.chooseShot(s.id)}>
+              <button
+                key={s.id}
+                class={`k-btn small${you.shot === s.id ? ' active' : ''}`}
+                disabled={lesson?.shotsLocked && s.id !== 'round'}
+                title={lesson?.shotsLocked && s.id !== 'round' ? 'Round shot first: chain and grape after your first prize' : undefined}
+                onClick={() => you.chooseShot(s.id)}
+              >
                 <Art id={s.icon} class="inline-icon" /> {s.name}
               </button>
             ))}
@@ -890,7 +922,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
       )}
       {state.result && offer ? (
         <div class="battle-report-screen">
-          <Plunder content={content} offer={offer} name={enemyName} report={reportBody(state.result)} onPlunder={onPlunder} />
+          <Plunder content={content} offer={offer} name={enemyName} report={reportBody(state.result)} onPlunder={onPlunder} say={plunderSay} />
           {advice ? <div class="battle-advice">{advice}</div> : null}
         </div>
       ) : state.result ? (

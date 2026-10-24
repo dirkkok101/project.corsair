@@ -19,11 +19,12 @@ export interface Order {
 const AFTER: Voyage['step'][] = ['harbour', 'helm', 'salvage', 'prize', 'home', 'governor', 'done'];
 const past = (v: Voyage, step: Voyage['step']) => AFTER.indexOf(v.step) > AFTER.indexOf(step);
 
-/** The first chapter's orders, as the governor's letter gives them. */
+/** Her orders: the governor's three, with the pirate to take put in once she is sighted off the cay. */
 export function voyageOrders(v: Voyage, home: string): Order[] {
   return [
     { text: `Sail out to ${v.cay.name}`, sub: `a short sail ${v.cay.bearing} · the smoke on the horizon`, done: past(v, 'helm') },
     { text: 'See what the storm left', done: past(v, 'salvage') },
+    ...(past(v, 'salvage') ? [{ text: `Take the pirate${v.pirate ? ` ${v.pirate}` : ''}`, sub: "she's no great guns", done: past(v, 'prize') }] : []),
     { text: `Bring it home to ${home}`, done: past(v, 'home') },
   ];
 }

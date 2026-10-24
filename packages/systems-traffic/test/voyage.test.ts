@@ -3,7 +3,7 @@ import { createSim } from '@corsair/core';
 import { isLand, shipStats, tileAt } from '@corsair/data';
 import { createEconomySystem, crewOf, quote } from '@corsair/systems-economy';
 import { createNavigationSystem } from '@corsair/systems-navigation';
-import { bearingWord, createHonoursSystem, createVoyageSystem, withVoyage } from '../src';
+import { bearingWord, createHonoursSystem, createTrafficSystem, createVoyageSystem, withVoyage } from '../src';
 import { content, settlements, lanes, map, windAt, world } from './fixtures';
 
 const capitals = (['england', 'spain', 'france', 'netherlands'] as const).map((n) => ({ nation: n, home: settlements.find((s) => s.nation === n && s.type === 'capital')! }));
@@ -113,5 +113,42 @@ describe('the First Voyage, sailed', () => {
     sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 });
     sim.applyCommands();
     expect(refused(sim)).toEqual([]);
+  });
+});
+
+describe('the First Voyage, the first prize', () => {
+  const royal = settlements.find((s) => s.id === 'town.port_royal')!;
+  it('salvaged, a pirate comes out harrying a fishing boat off the cay; she hunts no one; taken, home, and the boat sails for home too', () => {
+    const w = withVoyage(world(3).state, content, map, settlements, lanes, royal.id, 'england', 3);
+    const v = w.captain!.voyage!;
+    // At the cay, salvaged.
+    const at = { ...w, ships: { ...w.ships, player: { ...w.ships.player!, x: v.cay.x + 1, y: v.cay.y } }, captain: { ...w.captain!, voyage: { ...v, step: 'prize' as const } } };
+    const sim = createSim(at, [
+      createEconomySystem(content, settlements, map, windAt),
+      createTrafficSystem(content, settlements, lanes, map, windAt),
+      createNavigationSystem(content, map, windAt, settlements),
+      createVoyageSystem(content, settlements),
+      createHonoursSystem(content, settlements),
+    ]);
+    sim.step(1);
+    const voyage = sim.state.captain!.voyage!;
+    expect(voyage.pirate).toBe(content.voyage.pirate.name);
+    const pirate = () => sim.state.ships[voyage.pirateId!]!;
+    const boat = () => sim.state.ships[voyage.boatId!]!;
+    expect(pirate()).toMatchObject({ classId: content.voyage.pirate.classId, guns: 0, crew: content.voyage.pirate.crew, ai: { role: 'pirate', purse: content.voyage.pirate.purse, voyage: { meek: true } } });
+    expect(Math.hypot(boat().x - v.cay.x, boat().y - v.cay.y)).toBeCloseTo(content.voyage.pirate.offTiles, 0);
+    // She circles the boat for days, never chasing the captain alongside.
+    sim.step(content.calendar.ticksPerDay * 2);
+    expect(Math.hypot(pirate().x - boat().x, pirate().y - boat().y)).toBeCloseTo(content.voyage.harry.orbitTiles, 1);
+    expect(pirate().ai!.chasing).toBeFalsy();
+    expect(sim.events().filter((e) => e.type === 'BattleJoined')).toHaveLength(0);
+    // Taken: home with her, the boat freed onto the lanes.
+    sim.send({ type: 'BattleEnded', shipId: 'player', targetId: voyage.pirateId!, result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 70, guns: 10 }, enemy: { hull: 8, sailCondition: 60, crew: 20, guns: 0 } } });
+    sim.applyCommands();
+    expect(sim.state.captain!.voyage!.step).toBe('home');
+    expect(sim.state.captain!.honours!.some((h) => h.id === 'first:prize')).toBe(true);
+    sim.step(2);
+    expect(boat().ai!.voyage).toBeUndefined();
+    expect(boat().ai!.route.length).toBeGreaterThan(0);
   });
 });

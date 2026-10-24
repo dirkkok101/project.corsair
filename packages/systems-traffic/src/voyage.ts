@@ -131,8 +131,17 @@ export function createVoyageSystem(content: ContentPack, settlements: PlacedSett
     observe(state, events) {
       const v = state.captain?.voyage;
       const me = state.ships.player;
-      if (v?.step !== 'harbour' || !me || !events.some((e) => e.type === 'Undocked' && e.entityIds[0] === me.id)) return state;
-      return { ...state, ships: { ...state.ships, [me.id]: { ...me, sails: 'half' } }, captain: { ...state.captain!, voyage: { ...v, step: 'helm' } } };
+      if (!v || !me) return state;
+      if (v.step === 'harbour' && events.some((e) => e.type === 'Undocked' && e.entityIds[0] === me.id))
+        return { ...state, ships: { ...state.ships, [me.id]: { ...me, sails: 'half' } }, captain: { ...state.captain!, voyage: { ...v, step: 'helm' } } };
+      // Her first prize taken: home with it, and the fishing boat she freed sails for home too.
+      const won = events.find((e) => e.type === 'BattleOver' && e.entityIds[1] === v.pirateId && (e.payload.outcome === 'struck' || e.payload.outcome === 'boarded'));
+      if (v.step === 'prize' && won) {
+        const boat = v.boatId ? state.ships[v.boatId] : undefined;
+        const ships = boat?.ai ? { ...state.ships, [boat.id]: { ...boat, ai: { ...boat.ai, voyage: { freed: true } } } } : state.ships;
+        return { ...state, ships, captain: { ...state.captain!, voyage: { ...v, step: 'home' } } };
+      }
+      return state;
     },
   };
 }

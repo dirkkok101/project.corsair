@@ -1239,3 +1239,21 @@ describe('difficulty in battle', () => {
     expect(harm('apprentice')).toBeGreaterThan(harm('adventurer'));
   });
 });
+
+describe("the First Voyage's pirate", () => {
+  // The periagua of voyage.json: no great guns, a green crew, no resolve, meek.
+  const meek = (): Ship => {
+    const s = ship(content.voyage.pirate.classId, 'pirate');
+    return { ...s, crew: content.voyage.pirate.crew, guns: 0, ai: { ...s.ai!, crew: 'green', captain: { gunnery: 20, seamanship: 30, boarding: 10, resolve: 0 }, voyage: { meek: true } } };
+  };
+
+  it('strikes once she is hurt, every time: never sunk, never boarding, never away', () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const b = fight(meek(), seed);
+      expect(b.result()?.outcome).toBe('struck');
+      expect(b.grapples).toBe(0);
+      // A broadside or two: a quick lesson, not a long chase.
+      expect(b.volleys).toBeLessThanOrEqual(6);
+    }
+  });
+});

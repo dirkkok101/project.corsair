@@ -19,6 +19,11 @@ export type Broadside = 'port' | 'starboard';
 export type Aim = 'ready' | 'loading' | 'no-target' | 'out-of-range' | 'running-out' | 'no-guns';
 
 export interface BattleShip extends Ship {
+  /**
+   * The First Voyage's pirate (voyage.json meek): she strikes once her hull or crew falls below these shares of what
+   * she had, never boards, never runs, and sails gently round, half-canvassed, for a new captain to learn on.
+   */
+  meek?: { hull: number; crew: number };
   hull: number;
   sailCondition: number;
   crew: number;
@@ -338,6 +343,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       doctrine: ship.ai?.doctrine ?? doctrine.ammo ?? 'round',
       boardingDefence: doctrine.boardingDefence ?? 1,
       resolve: ship.ai?.captain?.resolve ?? 50,
+      ...(ship.ai?.voyage?.meek ? { meek: content.voyage.meek } : {}),
       swivels: stats.swivels,
       chasers: stats.chasers,
       sailWear: stats.sailWear,
@@ -661,7 +667,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     // one: out of reach, she runs on.
     const style = side === 'enemy' ? content.ships[me.classId]!.style : 'cruiser';
     if (personality === 'runner' && side === 'enemy' && d <= reach(me, 'round') && !canRun(me, them)) personality = 'cautious';
-    if (personality === 'runner') want = toThem + 180;
+    if (side === 'enemy' && me.meek) want = me.headingDeg + 10;
+    else if (personality === 'runner') want = toThem + 180;
     else if (personality === 'aggressive') {
       const plan = pirate(side, me, them, d, toThem, ready, side === 'enemy' && seconds() < (state.sheerUntil ?? 0));
       want = plan.want;
@@ -725,7 +732,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const diff = ((want - me.headingDeg + 540) % 360) - 180;
     const helm = Math.abs(diff) < 6 ? 0 : diff > 0 ? 1 : -1;
     const cmds: BattleCommand[] = [{ type: 'SetHelm', shipId: side, helm }];
-    if (me.sails !== 'full') cmds.push({ type: 'SetSails', shipId: side, sails: 'full' });
+    const canvas = side === 'enemy' && me.meek ? 'half' : 'full';
+    if (me.sails !== canvas) cmds.push({ type: 'SetSails', shipId: side, sails: canvas });
     // Ammo: pirates cripple with chain, then sweep the deck with grape before boarding; others fire round shot.
     // Her doctrine's shot; the player's autopilot fires as its personality would (a boarder's chain and grape).
     const doctrine = side === 'enemy' ? me.doctrine : personality === 'aggressive' ? 'pirate' : 'round';
@@ -866,6 +874,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   };
 
   /** Beaten enough that she may strike: each second, at strike.chance. */
+  /** The player is sailing away from her. */
+  const away = (p: BattleShip, e: BattleShip) => {
+    const rad = (p.headingDeg * Math.PI) / 180;
+    return (p.speed * (Math.sin(rad) * (e.x - p.x) - Math.cos(rad) * (e.y - p.y))) / distance() < 0;
+  };
   const beaten = (e: BattleShip) => e.hull < e.hullMax * c.strike.hull || e.crew < e.crewStart * c.strike.crew;
   /** Her men and guns, as a captain weighs the odds. */
   const might = (s: BattleShip) => Math.max(1, s.crew) * (1 + s.guns / 10);
@@ -1185,7 +1198,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const wreck = salvage(state.wreck, p);
           state = { ...state, wreck, grappling: 0, parting: 0 };
           if (seconds() >= wreck.until || (!wreck.barrels.length && !wreck.survivors.length)) end('sunk');
-        } else if (e.hull <= 0) sink(e, rng);
+        } else if (e.meek && (e.hull < e.hullMax * e.meek.hull || e.crew < e.crewStart * e.meek.crew)) end('struck');
+        else if (e.hull <= 0) sink(e, rng);
         else if (p.hull <= 0) end('lost');
         // (Less a hair: the grapple's seconds are summed a frame at a time.)
         else if (state.grappling >= c.battle.grappleSeconds - 1e-6) {
@@ -1197,12 +1211,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const eLoss = Math.round(e.crew * c.boarding.losses * (ps / (ps + es)));
           state = { ...state, ships: { player: { ...p, crew: p.crew - pLoss }, enemy: { ...e, crew: e.crew - eLoss } } };
           end(won ? 'boarded' : 'lost');
-        } else if (state.parting >= c.battle.escapeSeconds) {
-          // If the player was sailing away from her, the player broke off; otherwise she got away.
-          const rad = (p.headingDeg * Math.PI) / 180;
-          const toward = (Math.sin(rad) * (e.x - p.x) - Math.cos(rad) * (e.y - p.y)) / distance();
-          end(p.speed * toward < 0 ? 'fled' : 'escaped');
-        } else if (seconds() >= c.battle.maxSeconds) end('escaped');
+        } else if (state.parting >= c.battle.escapeSeconds && !(e.meek && !away(p, e))) {
+          // If the player was sailing away from her, the player broke off; otherwise she got away (a meek one never does).
+          end(away(p, e) ? 'fled' : 'escaped');
+        } else if (seconds() >= c.battle.maxSeconds && !e.meek) end('escaped');
         else if (state.tick % TPS === 0) {
           // Once a second: a merchant that can't run or can't fight gives up; a beaten enemy may haul down
           // her colours.
