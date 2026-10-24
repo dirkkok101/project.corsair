@@ -14,6 +14,7 @@
     "probe:raider": "cd packages/systems-traffic/probe && vitest run --config vitest.config.ts raider",
     "verify": "tsc --noEmit -p tsconfig.json && vitest run && vite build apps/web && playwright test",
     "verify:balance": "vitest run --config vitest.balance.config.ts",
+    "perf:sea": "vite build apps/web && node tools/perf/sea.mjs",
     "release": "npm run verify && cd apps/web && npx --yes wrangler@4.152.0 deploy"
   },
   "devDependencies": {

@@ -51,6 +51,19 @@ const SHIP_SCALE = 1.6;
 const MODEL_SCALE = (96 / 3.7 / 24) * SHIP_SCALE;
 /** Camera distance from the ship, in tiles: from close aboard to the whole region. */
 const ZOOM = { min: 9, max: 630, start: 32 };
+/** Tiles round the camera's target within which land gets the sun's shadows (the shadow box is 30 either way). */
+const SHADOW_REACH = 42;
+/** The view's top corners (NDC x), and how far along a ray toward the sea it must meet it for the sky to be hidden. */
+const SKY_CORNERS = [-1, 1];
+const SKY_SEA_REACH = 1800;
+/**
+ * The 3D view's resolution, in device pixels per CSS pixel (the HUD is HTML and stays sharp whatever this is): the
+ * screen's own (up to 2 on a Retina screen) on a machine that keeps up, stepping down by `step` toward `min` while
+ * frames run slower than `slowMs` (smoothed) for `slowSeconds`, and back up after `fastSeconds` under `fastMs`,
+ * never again to a step that proved slow. The first `warmSeconds` of frames (shaders compiling, textures loading)
+ * don't count.
+ */
+const RENDER_SCALE = { min: 1, step: 0.25, slowMs: 22, slowSeconds: 2, fastMs: 17.5, fastSeconds: 8, warmSeconds: 5 };
 /** The chase camera holds its heading while hers stays within this of it, so small helm corrections don't swing it. */
 const CHASE_SLACK_DEG = 20;
 /** Past the slack it catches up over about this (s); on a steady course it settles back astern over this. */
@@ -199,6 +212,8 @@ export interface SeaRenderer {
   renderBattle(view: BattleViewState, nowMs: number, enemyNation?: string, enemyFamous?: string): void;
   /** CSS size of the view; the canvas renders at the device's pixel ratio. */
   resize(width: number, height: number): void;
+  /** The resolution the 3D view is drawn at now, in device pixels per CSS pixel (it adapts to the machine). */
+  renderScale(): number;
   /** Zoom by wheel steps (positive out): the sea's, or in battle the battle's own. */
   zoom(steps: number): void;
   /** Overhead or from astern. */
@@ -255,12 +270,23 @@ export async function createSeaRenderer(
   },
 ): Promise<SeaRenderer> {
   prepareKits(Object.values(RIGS));
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  // No multisampling on the canvas itself: the scene is drawn into the composer's own (multisampled) target, and
+  // the canvas only ever receives the finished image.
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  // ?quality=high holds the screen's own resolution (up to 2), ?quality=low holds 1; otherwise it adapts down from
+  // the screen's own.
+  const quality = new URLSearchParams(location.search).get('quality');
+  const screenScale = Math.min(2, devicePixelRatio);
+  const ceiling = quality === 'low' ? 1 : screenScale;
+  let renderScale = ceiling;
+  renderer.setPixelRatio(renderScale);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.9;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Drawn only while land lies within the sun's shadow box (finishFrame).
+  renderer.shadowMap.autoUpdate = false;
+  // (Soft PCF is gone from three: it fell back to this with a warning.)
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   const canvas = renderer.domElement;
   canvas.className = 'sea3d';
 
@@ -274,7 +300,8 @@ export async function createSeaRenderer(
   // Mouse picks: a ray from the camera onto the sea's mean level.
   const pickRay = new THREE.Raycaster();
   const SEA_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  // The finished image: soft bloom on sun, sails and foam (Pirates!'s glow), anti-aliased, tone-mapped last.
+  // The finished image: soft bloom on sun, sails and foam (Pirates!'s glow), anti-aliased, tone-mapped last. (4x
+  // multisampling of the half-float scene target measured dearer than SMAA's passes on a Mac.)
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1920, 1080), 0.22, 0.45, 0.94);
@@ -459,6 +486,51 @@ export async function createSeaRenderer(
   };
   const strengthOf = (w: Wind) => content.navigation.windStrength[w.strength] ?? 0.8;
   let lastMs = 0;
+  const skyRay = new THREE.Vector3();
+  /** Land within `r` tiles of (x, z), sampled every few tiles; remembered while she stays on the same tile. */
+  let landSeen = { key: '', near: false };
+  const landWithin = (x: number, z: number, r: number) => {
+    const key = `${Math.round(x)},${Math.round(z)}`;
+    if (key === landSeen.key) return landSeen.near;
+    let near = false;
+    for (let dz = -r; dz <= r && !near; dz += 3) for (let dx = -r; dx <= r && !near; dx += 3) near = isLand(tileAt(map, x + dx, z + dz));
+    landSeen = { key, near };
+    return near;
+  };
+  // The view's CSS size, and the resolution it is drawn at (RENDER_SCALE).
+  const cssSize = { width: 1, height: 1 };
+  const applySize = () => {
+    renderer.setPixelRatio(renderScale);
+    renderer.setSize(cssSize.width, cssSize.height);
+    composer.setPixelRatio(renderScale);
+    composer.setSize(cssSize.width, cssSize.height);
+  };
+  let frameMs = 1000 / 60;
+  let slowFor = 0;
+  let fastFor = 0;
+  let provedSlow = Infinity;
+  let warmFor = 0;
+  /** Draw at the finest resolution the machine keeps up with (RENDER_SCALE), unless ?quality holds it. */
+  const adaptScale = (dt: number) => {
+    if (quality || dt <= 0) return;
+    // Not while the first frames are still compiling shaders and loading textures: they'd prove any scale slow.
+    warmFor += dt;
+    if (warmFor < RENDER_SCALE.warmSeconds) return;
+    frameMs += (dt * 1000 - frameMs) * 0.1;
+    slowFor = frameMs > RENDER_SCALE.slowMs ? slowFor + dt : 0;
+    fastFor = frameMs < RENDER_SCALE.fastMs ? fastFor + dt : 0;
+    let next = renderScale;
+    if (slowFor > RENDER_SCALE.slowSeconds && renderScale > RENDER_SCALE.min) {
+      provedSlow = renderScale;
+      next = Math.max(RENDER_SCALE.min, renderScale - RENDER_SCALE.step);
+    } else if (fastFor > RENDER_SCALE.fastSeconds && renderScale + RENDER_SCALE.step < Math.min(provedSlow, ceiling + 1e-6)) {
+      next = renderScale + RENDER_SCALE.step;
+    }
+    if (next === renderScale) return;
+    renderScale = next;
+    slowFor = fastFor = 0;
+    applySize();
+  };
   /** The game's tick, for the time of day (calendar.json daylight), held through a battle; and ?sky='s shift of it. */
   let skyTick = 0;
   let skyShift = 0;
@@ -474,6 +546,7 @@ export async function createSeaRenderer(
   const beginFrame = (nowMs: number, view: number, around?: { x: number; z: number; reach: number }) => {
     const dt = lastMs ? Math.min(0.1, (nowMs - lastMs) / 1000) : 0;
     lastMs = nowMs;
+    adaptScale(dt);
     const hour = hourOf(content.calendar, skyTick + skyShift);
     // The weather's overcast, easing in and out (the first frame takes it as it is).
     gloom = gloomSeen ? gloom + (gloomWant - gloom) * (1 - Math.exp(-dt * GLOOM_EASE)) : gloomWant;
@@ -659,9 +732,12 @@ export async function createSeaRenderer(
     cloudMat.opacity = shown('clouds') ? 0.85 * THREE.MathUtils.smoothstep(view, CLOUDS_FROM[0]!, CLOUDS_FROM[1]!) : 0;
     const drift = strengthOf(wind) * CLOUD_SPEED * dt;
     const to = ((wind.fromDeg + 180) * Math.PI) / 180;
+    // Faded right out (close in), the sprites aren't drawn at all: three draws a transparent sprite all the same.
+    const cloudsShow = cloudMat.opacity > 0.01;
     for (const c of clouds) {
       c.position.x = (c.position.x + Math.sin(to) * drift + map.width) % map.width;
       c.position.z = (c.position.z - Math.cos(to) * drift + map.height) % map.height;
+      c.visible = cloudsShow;
     }
     const back = new THREE.Vector3(0, Math.sin(pitch), Math.cos(pitch)).multiplyScalar(view);
     back.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
@@ -697,10 +773,20 @@ export async function createSeaRenderer(
     sprayShips = [];
     sun.position.copy(target).addScaledVector(sunDir, 200);
     sun.target.position.copy(target);
+    // Only land, towns and landmarks take shadows (the sea and the ships don't): on open water the shadow map isn't
+    // drawn at all. (Turning the light's shadow off instead would recompile every material as land came and went.)
+    renderer.shadowMap.needsUpdate = landWithin(target.x, target.z, SHADOW_REACH);
     ground.update(camera.position, target);
     ocean.update(target, sea, t, light);
     // The sky's horizon in its own colour, paler than the far sea below it (the same, under a storm's mist).
     sky.update(camera.position, zenith, skyLine, sunDir, light.sun);
+    // Looking down on the sea (the usual view) no sky shows past the view's top corners: the dome would be shaded
+    // across the whole screen only for the sea to cover it.
+    camera.updateMatrixWorld();
+    sky.mesh.visible = SKY_CORNERS.some((c) => {
+      const ray = skyRay.set(c, 1, 0.5).unproject(camera).sub(camera.position).normalize();
+      return ray.y > -0.02 || camera.position.y / -ray.y > SKY_SEA_REACH;
+    });
     towns.update(t);
     // A blow in a fight shakes the frame drawn, and only that: the labels, the framing and picks see the camera still.
     drawShaken(camera, shake.update(dt), () => composer.render(dt));
@@ -1234,13 +1320,14 @@ export async function createSeaRenderer(
     render,
     renderBattle,
     resize(width, height) {
-      renderer.setSize(width, height);
-      composer.setPixelRatio(renderer.getPixelRatio());
-      composer.setSize(width, height);
+      cssSize.width = width;
+      cssSize.height = height;
+      applySize();
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       guideMaterial.resolution.set(width, height);
     },
+    renderScale: () => renderScale,
     zoom(steps) {
       if (inBattle) battleZoom = THREE.MathUtils.clamp(battleZoom * Math.pow(1.12, steps), BATTLE_ZOOM.min, BATTLE_ZOOM.max);
       else distance = THREE.MathUtils.clamp(distance * Math.pow(1.12, steps), ZOOM.min, ZOOM.max);

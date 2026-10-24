@@ -252,10 +252,16 @@ void main() {
   float crest = 0.0;
   float pinch = 1.0;
   float spread = 0.0;
+  // The pixel's footprint on the sea, once (a wave's phase changes by k times it along her direction): a wave too
+  // fine to see here costs nothing, and the derivatives stay out of the loop's branches.
+  vec2 dx = dFdx(xz);
+  vec2 dy = dFdy(xz);
   for (int i = 0; i < ${COUNT * 2}; i++) {
     if (uWave[i].w <= 0.0) continue;
+    float across = uWave[i].z * (abs(dot(uWave[i].xy, dx)) + abs(dot(uWave[i].xy, dy)));
+    if (across >= 1.6) continue;
     float arg = uWave[i].z * dot(uWave[i].xy, xz) - uPhase[i];
-    float fine = 1.0 - smoothstep(0.8, 1.6, fwidth(arg));
+    float fine = 1.0 - smoothstep(0.8, 1.6, across);
     float wa = uWave[i].z * uWave[i].w * fine * uShowSwell;
     float c = cos(arg);
     float s = sin(arg);
