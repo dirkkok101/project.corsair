@@ -67,6 +67,11 @@ export interface ShipPlan {
   bowsprit: [[number, number], [number, number]];
 }
 
+/**
+ * How long her canvas takes to answer a new point of sail or a tack (seconds to come most of the way, eased): the
+ * yards hauled round, the booms and jibs swung across, the sails filling or spilling, the flags blowing round.
+ */
+const SAIL_EASE = { yards: 1.1, booms: 0.8, belly: 0.6, flags: 0.5 };
 /** Points of sail, as the sprites had them: yard brace (degrees), belly, fore-and-aft swing (degrees). */
 const POINTS: Record<string, { brace: number; belly: number; swing: number }> = {
   run: { brace: 0, belly: 1.25, swing: 75 },
@@ -1819,6 +1824,9 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
   frames[plan.masts.indexOf(main)]!.add(pennant);
 
   let lastBrace = Number.NaN;
+  // Her canvas as it is now, eased toward what the wind asks (SAIL_EASE): yards braced (radians), the fore-and-aft
+  // sails' swing (degrees, to starboard positive), the sails' belly, the flags' streaming; and when it was last set.
+  const canvas = { brace: 0, swing: 0, belly: 1, flag: 0, at: Number.NaN };
   // Her fit, built when it changes.
   let fitKey = '';
   const fitGroup = new THREE.Group();
@@ -1899,13 +1907,30 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
       root.updateMatrixWorld();
       u.uShipInverse.value.copy(root.matrixWorld).invert();
       u.uTime.value = t;
-      u.uBelly.value = point === 'irons' ? 0.1 : p.belly;
+      // What the wind asks of her canvas now: yards braced round toward the wind's side (square at furled), the
+      // fore-and-aft sails swung to leeward, the sails' belly, the flags streaming downwind.
+      const want = {
+        brace: THREE.MathUtils.degToRad(setting === 'furled' ? 0 : side * p.brace),
+        swing: -side * p.swing,
+        belly: point === 'irons' ? 0.1 : p.belly,
+        flag: -side * 0.6,
+      };
+      // Her people haul it round, they don't teleport it: each eases toward the new set (a tack swings the yards
+      // through square and the booms across), the first frame taking it as it is.
+      const dt = Number.isNaN(canvas.at) ? Infinity : Math.min(0.25, Math.max(0, (nowMs - canvas.at) / 1000));
+      canvas.at = nowMs;
+      const ease = (now: number, to: number, seconds: number) => (dt === Infinity ? to : now + (to - now) * (1 - Math.exp(-dt / seconds)));
+      canvas.brace = ease(canvas.brace, want.brace, SAIL_EASE.yards);
+      canvas.swing = ease(canvas.swing, want.swing, SAIL_EASE.booms);
+      canvas.belly = ease(canvas.belly, want.belly, SAIL_EASE.belly);
+      canvas.flag = ease(canvas.flag, want.flag, SAIL_EASE.flags);
+      u.uBelly.value = canvas.belly;
       u.uLuff.value = point === 'irons' ? 1 : 0;
       flagMat.userData.uniforms.uTime.value = t;
       pennantMat.userData.uniforms.uTime.value = t;
-      // Yards braced round toward the wind's side; courses furled at half sail, everything at furled.
-      const braced = THREE.MathUtils.degToRad(setting === 'furled' ? 0 : side * p.brace);
-      if (braced !== lastBrace) {
+      // Courses furled at half sail, everything at furled. The braces are laid again only as the yards move.
+      const braced = canvas.brace;
+      if (!(Math.abs(braced - lastBrace) < 1e-4)) {
         lastBrace = braced;
         layBraces(braced);
       }
@@ -1917,16 +1942,17 @@ export function buildShip(plan: ShipPlan, nation: string, flag?: FlagDesign): Bu
           s.furl.visible = !set;
         }
       }
-      // Fore-and-aft sails swing to leeward (away from the wind's side); furled, they're stowed out of sight.
+      // Fore-and-aft sails swing to leeward (away from the wind's side); furled, they're stowed out of sight. Their
+      // camber goes over to the other side as they swing across the middle.
       for (const f of flats) {
         f.mesh.visible = setting === 'full' || (setting === 'half' && f.kind !== 'spanker');
-        const swing = f.kind === 'jib' ? p.swing * 0.35 : p.swing;
-        f.group.rotation.y = THREE.MathUtils.degToRad(-side * swing);
-        f.mesh.scale.x = -side || 1;
+        const swing = f.kind === 'jib' ? canvas.swing * 0.35 : canvas.swing;
+        f.group.rotation.y = THREE.MathUtils.degToRad(swing);
+        f.mesh.scale.x = canvas.swing > 0 ? 1 : canvas.swing < 0 ? -1 : -side || 1;
       }
       // The flags stream downwind: away from the wind's side.
-      ensign.rotation.y = -Math.PI / 2 - side * 0.6;
-      pennant.rotation.y = -Math.PI / 2 - side * 0.6;
+      ensign.rotation.y = -Math.PI / 2 + canvas.flag;
+      pennant.rotation.y = -Math.PI / 2 + canvas.flag;
     },
     setMast(index, fallen, towardDeg) {
       const m = sticks[index];
