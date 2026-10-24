@@ -142,6 +142,18 @@ masts there (her canvas as ever), and the HUD says so. Both ships' arcs came wit
 - The water's depth shows as it does on the sea map (lighter water), and the HUD warns "Shoal water: she draws too
   much" before she touches.
 
+Built (slice 6): in the map's shallows a ship of more than `shoals.freeDraft` (1: raiders and the pink go free)
+drags at `touchSpeed` (half) of her top pace; one of `groundDraft` (3: fortresses, frigates, the big traders)
+grounds, crawling at `groundSpeed` (0.3) and losing `groundHarm` (1%) of her hull a second, never below
+`groundFloor` (30%): a crossing of a typical band costs a frigate about 5%, which her carpenters may later patch.
+The shoals bite only once she has had sea room (stood on deep water this fight): on this map shoal water covers
+most of the coast (82% of the water beside land), so many fights near a port start in it, and a ship met there
+came in by the channel. A ship that would ground is placed off the shoals when any bearing allows. AI captains who
+would ground won't steer into them and, in them, make for open deep water (never dead into the wind). Not over a
+wreck. The HUD warns `warnTiles` ahead, says when she touches or grounds, and tags a grounded ship's card. The
+shallows already show as lighter water. Before shoals carry more weight, the map wants real reefs and banks (the
+"finer map" above). A grounded ship's hull can bring a famous pirate's call to strike (his demandHull) on its own.
+
 ### 4.5 Damage control (the fortress's endurance)
 
 - Her carpenters patch the hull as the fight goes on: a slow regain while she's not been hit for a few seconds,

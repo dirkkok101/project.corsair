@@ -454,6 +454,20 @@ export const combatSchema = z.object({
    */
   raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive(), sternDamage: z.number().positive(), rudderChance: share, rudderSeconds: z.number().positive(), rudderTurn: share }),
   /**
+   * Shoals: more than `freeDraft` (ships.json draft) drags in shoal water at `touchSpeed` of her top pace;
+   * `groundDraft` or more grounds, at `groundSpeed`, losing `groundHarm` of her hull a second down to `groundFloor`
+   * of it. The player is warned `warnTiles` ahead.
+   */
+  shoals: z.object({
+    freeDraft: z.number(),
+    groundDraft: z.number(),
+    touchSpeed: share,
+    groundSpeed: share,
+    groundHarm: z.number().min(0),
+    groundFloor: share,
+    warnTiles: z.number().int().min(0),
+  }),
+  /**
    * Damage control: after `quietSeconds` unholed, her carpenters patch `perSecond` (by style) of her hull a second at
    * full crew, up to `share` of what she lost; a fallen mast is fished once after `fishSeconds`, a stump of `stump`
    * strength carrying `stumpSail` of its canvas.

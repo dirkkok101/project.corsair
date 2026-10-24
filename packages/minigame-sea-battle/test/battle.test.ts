@@ -1,5 +1,5 @@
 import type { Ship } from '@corsair/core';
-import { difficultyOf } from '@corsair/data';
+import { difficultyOf, Tile, tileAt } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
 import { createBattle, weatherGauge } from '../src';
 import { content, fight, map, SEA, ship } from './fixtures';
@@ -719,6 +719,134 @@ describe('sea battle', () => {
     process.stderr.write(`DODGE held ${JSON.stringify(held)} dodged ${JSON.stringify(dodged)}\n`);
     expect(held.fired).toBeGreaterThan(0);
     expect(dodged.hits).toBeLessThan(held.hits);
+  });
+
+  describe('shoals by draft', () => {
+    const sh = content.combat.shoals;
+    /** The nearest stretch of shoal water to the test sea: a 7 x 7 block of it, so a ship there stays in it a while. */
+    const shoalAt = (() => {
+      const all = (x: number, y: number) => {
+        for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (tileAt(map, x + dx, y + dy) !== Tile.Shallow) return false;
+        return true;
+      };
+      for (let r = 0; r < 400; r++)
+        for (let dy = -r; dy <= r; dy++)
+          for (const dx of [-r, r]) {
+            if (all(SEA.x + dx, SEA.y + dy)) return { x: SEA.x + dx + 0.5, y: SEA.y + dy + 0.5 };
+            if (all(SEA.x + dy, SEA.y + dx)) return { x: SEA.x + dy + 0.5, y: SEA.y + dx + 0.5 };
+          }
+      throw new Error('no shoal water near the test sea');
+    })();
+    /**
+     * `classId` at full sail in the shoals for two seconds, the other ship far off: her pace, what her hull lost, and
+     * whether she is still in them. `seaRoom`: she came in from deep water (else she was met there, and knows the channel).
+     */
+    const inShoals = (classId: string, hull?: number, seaRoom = true) => {
+      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 25, escapeTiles: 1e6 } } }, {
+        map,
+        wind: { fromDeg: 70, strength: 'fresh' },
+        player: { ...ship(classId), ...shoalAt, headingDeg: 160, speed: 2, ...(hull !== undefined ? { hull } : {}) },
+        enemy: ship('ship.fluyt', 'merchant'),
+        seed: 1,
+        bearingDeg: 90,
+      });
+      (b.state.ships.player as { seaRoom: boolean }).seaRoom = seaRoom;
+      const start = b.state.ships.player.hull;
+      b.step(60);
+      const p = b.state.ships.player;
+      return { speed: p.speed, lost: start - p.hull, hull: p.hull, hullMax: p.hullMax, shoal: b.shoals().player, stillIn: tileAt(map, p.x, p.y) === Tile.Shallow };
+    };
+    const top = (classId: string) => content.ships[classId]!.speed * content.combat.battle.tilesPerSecondPerSpeedPoint;
+
+    it('a ship that draws too much grounds in shoal water: she crawls and her bottom suffers, never to a wreck', () => {
+      const frigate = inShoals('ship.frigate');
+      expect(frigate.shoal).toBe('aground');
+      expect(frigate.speed).toBeLessThanOrEqual(top('ship.frigate') * sh.groundSpeed + 1e-9);
+      expect(frigate.lost).toBeGreaterThan(0);
+      // Already low: the scrape stops at her floor.
+      const low = inShoals('ship.frigate', content.ships['ship.frigate']!.hull * sh.groundFloor + 0.5);
+      expect(low.hull).toBeCloseTo(low.hullMax * sh.groundFloor, 5);
+    });
+
+    it('a ship met inshore came in by the channel: the shoals bite only once she has had sea room', () => {
+      const met = inShoals('ship.frigate', undefined, false);
+      expect(met.stillIn).toBe(true);
+      expect(met.shoal).toBeUndefined();
+      expect(met.lost).toBe(0);
+      expect(met.speed).toBeGreaterThan(top('ship.frigate') * sh.groundSpeed);
+    });
+
+    it('aground, a captain makes for open deep water, never dead into the wind', () => {
+      // The wind set dead on each way out in turn: she must still get clear.
+      for (const fromDeg of [0, 90, 180, 270]) {
+        const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 25, escapeTiles: 1e6 } } }, {
+          map,
+          wind: { fromDeg, strength: 'fresh' },
+          player: { ...ship('ship.frigate'), ...shoalAt, headingDeg: fromDeg, speed: 0 },
+          enemy: ship('ship.fluyt', 'merchant'),
+          seed: 1,
+          bearingDeg: 90,
+        });
+        (b.state.ships.player as { seaRoom: boolean }).seaRoom = true;
+        let clear = false;
+        for (let i = 0; i < 30 * 60 && !clear; i++) {
+          b.step(1, 'cautious');
+          clear = tileAt(map, b.state.ships.player.x, b.state.ships.player.y) !== Tile.Shallow;
+        }
+        expect(clear).toBe(true);
+      }
+    });
+
+    it('a brig drags in the shoals, unhurt; a sloop works them freely', () => {
+      const brig = inShoals('ship.brig');
+      expect(brig.shoal).toBe('touching');
+      expect(brig.speed).toBeLessThanOrEqual(top('ship.brig') * sh.touchSpeed + 1e-9);
+      expect(brig.lost).toBe(0);
+      const sloop = inShoals('ship.sloop');
+      expect(sloop.stillIn).toBe(true);
+      expect(sloop.shoal).toBeUndefined();
+      expect(sloop.speed).toBeGreaterThan(top('ship.sloop') * sh.touchSpeed);
+    });
+
+    it('a deep ship is warned of shoal water ahead, and her captain steers clear of it', () => {
+      // On open deep water a few tiles off the shoals, heading into them.
+      const openDeep = (x: number, y: number) => {
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (tileAt(map, x + dx, y + dy) !== Tile.Deep) return false;
+        return true;
+      };
+      const deepNear = (() => {
+        for (let k = 4; k < 80; k++)
+          for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]] as const) {
+            const x = shoalAt.x + dx;
+            const y = shoalAt.y + dy;
+            // Open water, the shoals within the warning on her course back toward them.
+            const back = tileAt(map, x - Math.sign(dx) * sh.warnTiles, y - Math.sign(dy) * sh.warnTiles) === Tile.Shallow;
+            if (openDeep(x, y) && back) return { x, y, headingDeg: (Math.atan2(-dx, dy) * 180) / Math.PI };
+          }
+        throw new Error('no open deep water by the shoals');
+      })();
+      const heading = ((deepNear.headingDeg % 360) + 360) % 360;
+      const b = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.frigate'), x: deepNear.x, y: deepNear.y, headingDeg: heading }, enemy: ship('ship.fluyt', 'merchant'), seed: 1, bearingDeg: 90 });
+      b.step(1);
+      expect(b.shoals().player).toBe('ahead');
+      // A sloop on the same course is not.
+      const s = createBattle(content, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.sloop'), x: deepNear.x, y: deepNear.y, headingDeg: heading }, enemy: ship('ship.fluyt', 'merchant'), seed: 1, bearingDeg: 90 });
+      expect(s.shoals().player).toBeUndefined();
+      // Running from a ship astern, straight for the shoals a few tiles off: her helm keeps her out of them (or
+      // brings her straight out), where a captain who paid them no mind would run in.
+      const ticksIn = (pack: typeof content) => {
+        const b = createBattle(pack, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: { ...ship('ship.frigate'), x: deepNear.x, y: deepNear.y, headingDeg: heading, speed: 1 }, enemy: ship('ship.fluyt', 'merchant'), seed: 1, bearingDeg: (heading + 180) % 360 });
+        let n = 0;
+        for (let i = 0; i < 30 * 15 && !b.result(); i++) {
+          b.step(1, 'runner');
+          if (tileAt(map, b.state.ships.player.x, b.state.ships.player.y) === Tile.Shallow) n++;
+        }
+        return n;
+      };
+      const heedless = { ...content, combat: { ...content.combat, shoals: { ...sh, freeDraft: 99, groundDraft: 99 } } };
+      expect(ticksIn(heedless)).toBeGreaterThan(30);
+      expect(ticksIn(content)).toBeLessThan(ticksIn(heedless) / 2);
+    });
   });
 
   describe('damage control', () => {

@@ -3122,6 +3122,10 @@ body {
   border-color: var(--k-gold);
 }
 
+.battle-shoal {
+  border-color: #ff9a7a;
+}
+
 .battle-parting,
 .battle-grapple {
   border-color: #ff9a7a;

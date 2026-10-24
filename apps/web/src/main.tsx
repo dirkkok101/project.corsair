@@ -1564,6 +1564,7 @@ async function main() {
           enemyNation={fight.nation}
           wavering={fight.battle.wavering()}
           under={fight.battle.underGuns()}
+          shoals={fight.battle.shoals()}
           showMind={showMind}
           demand={
             fight.battle.demands()

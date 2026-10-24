@@ -1,6 +1,6 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, BattleResult, Command, RngState, Ship, Wind, WorldState } from '@corsair/core';
-import { crewQualityOf, isLand, shipStats, tileAt } from '@corsair/data';
+import { crewQualityOf, isLand, shipStats, Tile, tileAt } from '@corsair/data';
 import type { ContentPack, DifficultyLevel, TileMap } from '@corsair/data';
 import { weigh } from './captain';
 export type { Intent, Mind } from './captain';
@@ -75,6 +75,11 @@ export interface BattleShip extends Ship {
    */
   hurtAt: number;
   holed: number;
+  /**
+   * She has had sea room this fight (stood on deep water): only then do the shoals bite. A ship met inshore came in
+   * by the channel and knows her way out.
+   */
+  seaRoom: boolean;
   patched: number;
   fellAt: (number | undefined)[];
   fished: boolean[];
@@ -283,6 +288,20 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   // The fight's own wind: the world's where they met, veering through the fight on the harder levels.
   const nav = createNavigationSystem(battleContent, setup.map, () => state.wind);
   const water = (x: number, y: number) => !isLand(tileAt(setup.map, x, y));
+  /** Shoal water (within the map's shallows of land), and whether she draws too much for it (combat.json shoals). */
+  const shoal = (x: number, y: number) => tileAt(setup.map, x, y) === Tile.Shallow;
+  const drawsTooMuch = (s: BattleShip) => content.ships[s.classId]!.draft > c.shoals.freeDraft;
+  /**
+   * Her keel and the shoals: 'aground' (she draws groundDraft or more, in shoal water), 'touching' (more than
+   * freeDraft), 'ahead' (shoal water within warnTiles on her course), or clear.
+   */
+  const shoalOf = (s: BattleShip): 'aground' | 'touching' | 'ahead' | undefined => {
+    if (!drawsTooMuch(s) || !s.seaRoom) return undefined;
+    if (shoal(s.x, s.y)) return content.ships[s.classId]!.draft >= c.shoals.groundDraft ? 'aground' : 'touching';
+    const r = (s.headingDeg * Math.PI) / 180;
+    for (let k = 1; k <= c.shoals.warnTiles; k++) if (shoal(s.x + Math.sin(r) * k, s.y - Math.cos(r) * k)) return 'ahead';
+    return undefined;
+  };
   const rng0 = rngStream(seedRng(setup.seed, 'battle'));
 
   const arm = (ship: Ship, side: Side): BattleShip => {
@@ -340,6 +359,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
             : (content.crew.enemyMorale[ship.ai?.role ?? 'merchant'] ?? 50),
       masts: cls.masts.map(() => 100),
       hurtAt: -Infinity,
+      seaRoom: false,
       holed: 0,
       patched: 0,
       fellAt: cls.masts.map(() => undefined),
@@ -358,13 +378,20 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const candidates = [...(setup.fair ? across : []), ...Array.from({ length: 24 }, (_, k) => setup.bearingDeg + k * 15)];
   let enemyAt = { x: mid.x, y: mid.y };
   let line = setup.bearingDeg;
-  for (const deg of candidates) {
-    const rad = (deg * Math.PI) / 180;
+  // A ship that would ground is placed off the shoals if any bearing allows it; else on any open water.
+  const grounds = content.ships[setup.enemy.classId]!.draft >= c.shoals.groundDraft;
+  for (const avoidShoals of grounds ? [true, false] : [false]) {
+    const found = candidates.find((deg) => {
+      const rad = (deg * Math.PI) / 180;
+      const far = setup.fair ? c.battle.fairApart : c.battle.startApart;
+      const at = { x: mid.x + Math.sin(rad) * far, y: mid.y - Math.cos(rad) * far };
+      return water(at.x, at.y) && !(avoidShoals && shoal(at.x, at.y));
+    });
+    if (found === undefined) continue;
+    const rad = (found * Math.PI) / 180;
     const far = setup.fair ? c.battle.fairApart : c.battle.startApart;
-    const at = { x: mid.x + Math.sin(rad) * far, y: mid.y - Math.cos(rad) * far };
-    if (!water(at.x, at.y)) continue;
-    enemyAt = at;
-    line = normalizeDeg(deg);
+    enemyAt = { x: mid.x + Math.sin(rad) * far, y: mid.y - Math.cos(rad) * far };
+    line = normalizeDeg(found);
     break;
   }
   // Fair: each heads fairAngle off the line to the other, turned downwind (never in irons; 90 is side by side on
@@ -658,13 +685,38 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       const off = (h: number) => Math.abs(((h - want + 540) % 360) - 180);
       want = off(a) <= off(b) ? a : b;
     }
-    // Shy off land ahead: try the course, then swing either way until it is clear for three tiles.
+    // Shy off land ahead (and shoal water, for a ship that would ground in it): try the course, then swing
+    // either way until it is clear for three tiles.
+    // Already in them, she steers for the nearest open deep water instead (three tiles of it, not a pocket). Only a
+    // ship that would ground minds them: one that merely drags will follow the other in.
+    const deep = me.seaRoom && content.ships[me.classId]!.draft >= c.shoals.groundDraft;
+    if (deep && shoal(me.x, me.y)) {
+      const out = Array.from({ length: 16 }, (_, k) => k * 22.5)
+        // Never a way out dead into the wind: she'd lie in irons in the shoals.
+        .filter((h) => angleOffWind(h, state.wind.fromDeg) >= best)
+        .map((h) => {
+          const r = (h * Math.PI) / 180;
+          const at = (k: number) => ({ x: me.x + Math.sin(r) * k, y: me.y - Math.cos(r) * k });
+          const open = (k: number) => [0, 1, 2].every((j) => water(at(k + j).x, at(k + j).y) && !shoal(at(k + j).x, at(k + j).y));
+          for (let k = 1; k <= 12; k++) {
+            if (!water(at(k).x, at(k).y)) return { h, k: Infinity };
+            if (open(k)) return { h, k };
+          }
+          return { h, k: Infinity };
+        })
+        .sort((a, b) => a.k - b.k)[0]!;
+      if (out.k < Infinity) want = out.h;
+    }
     const clearAhead = (h: number) => {
       const r = (h * Math.PI) / 180;
-      for (let k = 1; k <= 3; k++) if (!water(me.x + Math.sin(r) * k, me.y - Math.cos(r) * k)) return false;
+      for (let k = 1; k <= 3; k++) {
+        const x = me.x + Math.sin(r) * k;
+        const y = me.y - Math.cos(r) * k;
+        if (!water(x, y) || (deep && !shoal(me.x, me.y) && shoal(x, y))) return false;
+      }
       return true;
     };
-    for (const swing of [0, 30, -30, 60, -60, 90, -90, 135, -135]) {
+    for (const swing of [0, 30, -30, 60, -60, 90, -90, 135, -135, 180]) {
       if (clearAhead(normalizeDeg(want + swing))) {
         want = normalizeDeg(want + swing);
         break;
@@ -900,6 +952,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
     /** The enemy's guns, for her arcs on the water: her reach with the shot loaded, and each broadside's aim. */
+    /** Each ship and the shoals: aground, touching, shoal water ahead, or clear. */
+    shoals: () => ({ player: shoalOf(state.ships.player), enemy: shoalOf(state.ships.enemy) }),
     /** Each ship lies under the other's guns: hers fly high over the player, or the player's over her. */
     underGuns: () => ({ player: under(state.ships.enemy, state.ships.player), enemy: under(state.ships.player, state.ships.enemy) }),
     enemyGuns: () => ({ rangeTiles: reach(state.ships.enemy), port: aim('enemy', 'port'), starboard: aim('enemy', 'starboard') }),
@@ -935,6 +989,23 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         const moved = nav.tick({ tick: state.tick, wind: state.wind, ships: helmed } as unknown as WorldState, DT);
         const ships = moved.state.ships as Record<Side, BattleShip>;
         for (const side of ['player', 'enemy'] as const) ships[side] = { ...ships[side], helm: steering[side].helm };
+        // In shoal water a ship that draws too much drags (touchSpeed of her top pace); one that draws groundDraft or
+        // more grounds: she crawls and her bottom suffers, never below groundFloor of her hull (a scrape, not a wreck).
+        for (const side of ['player', 'enemy'] as const) {
+          // Sea room: once she has stood on deep water the shoals bite. Not over a wreck: the fight is done.
+          if (!ships[side].seaRoom && !shoal(ships[side].x, ships[side].y)) ships[side] = { ...ships[side], seaRoom: true };
+          const s = ships[side];
+          if (state.wreck || !s.seaRoom || !drawsTooMuch(s) || !shoal(s.x, s.y)) continue;
+          const aground = content.ships[s.classId]!.draft >= c.shoals.groundDraft;
+          const top = content.ships[s.classId]!.speed * c.battle.tilesPerSecondPerSpeedPoint;
+          let next: BattleShip = { ...s, speed: Math.min(s.speed, top * (aground ? c.shoals.groundSpeed : c.shoals.touchSpeed)) };
+          const floor = s.hullMax * c.shoals.groundFloor;
+          if (aground && s.hull > floor) {
+            const scrape = Math.min(s.hull - floor, c.shoals.groundHarm * s.hullMax * DT);
+            next = { ...next, hull: s.hull - scrape, hurtAt: seconds(), holed: s.holed + scrape };
+          }
+          ships[side] = next;
+        }
         for (const side of ['player', 'enemy'] as const) {
           const s = ships[side];
           const reload = { port: Math.max(0, s.reload.port - DT), starboard: Math.max(0, s.reload.starboard - DT) };
