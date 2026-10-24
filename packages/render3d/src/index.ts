@@ -241,6 +241,8 @@ export interface SeaRenderer {
   wildlife: { spawn(kind: WildlifeKind): void; readonly count: number };
   /** Two other ships firing on each other at (x, y) tiles: a bank of gun smoke there, drifting and thinning. */
   seaFight(x: number, y: number): void;
+  /** A wreck burning at (x, y) tiles: a column of dark smoke rising there, seen from afar, until cleared (undefined). */
+  beacon(at: { x: number; y: number } | undefined): void;
   /** The plotted route to the destination (waypoints after the ship, tiles), drawn on the sea until cleared. */
   guide(points: [number, number][] | undefined): void;
   /** For review: a row of these classes under sail, abeam of the player, drawn only (not in the world). */
@@ -385,8 +387,12 @@ export async function createSeaRenderer(
   // Sea life about her: dolphins, flying fish, a whale, gulls near land.
   const wildlife = createWildlife(ground.heightAt, options.sound ?? (() => {}));
   scene.add(wildlife.object);
-  const smokes: { sprite: THREE.Sprite; at: number; size: number; drift: number }[] = [];
+  const smokes: { sprite: THREE.Sprite; at: number; size: number; drift: number; column?: boolean }[] = [];
   let smokeClock = 0;
+  // A wreck's smoke: a puff every BEACON_EVERY seconds, rising high as it thins.
+  const BEACON_EVERY = 0.3;
+  let beacon: { x: number; y: number } | undefined;
+  let beaconDue = 0;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
   /** The ships in company with each flagship, kept in line astern on her track (consorts.ts). */
   const consorts = createConsorts();
@@ -883,6 +889,13 @@ export async function createSeaRenderer(
     // The smoke of distant fights: swelling, rising downwind, thinning to nothing.
     smokeClock += dt;
     const downwind = (options.windAt(state, me.x, me.y).fromDeg + 180) * (Math.PI / 180);
+    if (beacon && smokeClock >= beaconDue) {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, color: '#8a837b', transparent: true, depthWrite: false, opacity: 0 }));
+      sprite.position.set(beacon.x + (Math.random() - 0.5) * 0.3, 0.6, beacon.y + (Math.random() - 0.5) * 0.3);
+      smokeLayer.add(sprite);
+      smokes.push({ sprite, at: smokeClock, size: 1.1 + Math.random() * 0.6, drift: Math.random(), column: true });
+      beaconDue = smokeClock + BEACON_EVERY;
+    }
     for (let i = smokes.length - 1; i >= 0; i--) {
       const p = smokes[i]!;
       const age = (smokeClock - p.at) / SMOKE_SECONDS;
@@ -896,8 +909,8 @@ export async function createSeaRenderer(
       p.sprite.scale.setScalar(p.size * (1 + k * 3));
       p.sprite.position.x += Math.sin(downwind) * dt * (0.5 + p.drift * 0.3);
       p.sprite.position.z -= Math.cos(downwind) * dt * (0.5 + p.drift * 0.3);
-      p.sprite.position.y = 0.4 + k * 2.5;
-      p.sprite.material.opacity = 0.55 * (1 - k) * Math.min(1, (smokeClock - p.at) * 6 + 0.2);
+      p.sprite.position.y = p.column ? 0.6 + k * 14 : 0.4 + k * 2.5;
+      p.sprite.material.opacity = (p.column ? 0.7 : 0.55) * (1 - k) * Math.min(1, (smokeClock - p.at) * 6 + 0.2);
     }
     // The course she is sailing (the autopilot's route to its mark, or the ship she is intercepting), else the
     // route plotted to the destination picked on the chart.
@@ -1363,6 +1376,9 @@ export async function createSeaRenderer(
     },
     guide(points) {
       guidePoints = points;
+    },
+    beacon(at) {
+      beacon = at;
     },
     toggleChase() {
       chase = !chase;

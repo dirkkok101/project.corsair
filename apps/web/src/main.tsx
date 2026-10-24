@@ -38,7 +38,7 @@ import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf, purseRise } from './ui/kit';
 import { DEED_SMALL_MS, DeedCard, meritBar } from './ui/deed';
-import { voyageOrders } from './voyage';
+import { CayMark, HelmLessons, OrdersCard, voyageOrders } from './voyage';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
 import { createGamepad } from './gamepad';
 import { bindMouse } from './mouse';
@@ -46,7 +46,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createHavensSystem, createHonoursSystem, createSeaLanes, createTrafficSystem, withVoyage, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createHavensSystem, createHonoursSystem, createSeaLanes, createTrafficSystem, createVoyageSystem, withVoyage, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -338,6 +338,8 @@ async function main() {
     createNavigationSystem(content, map, windAt, settlements),
     // Finding the pirate coves, from what the others did.
     createHavensSystem(content, settlements),
+    // The First Voyage's chapters, while she sails it.
+    createVoyageSystem(content),
     // Her deeds said out loud, from what the others did.
     createHonoursSystem(content, settlements),
     // Last, so it writes up what the others did.
@@ -417,6 +419,10 @@ async function main() {
   const portRoot = stage.appendChild(document.createElement('div'));
   const hailRoot = stage.appendChild(document.createElement('div'));
   const logRoot = stage.appendChild(document.createElement('div'));
+  // The First Voyage at sea: her orders, the lesson in hand, the cay's name over its smoke.
+  const voyageRoot = stage.appendChild(document.createElement('div'));
+  // The wind's lesson has been shown (she pointed into the wind): bearing away again learns it.
+  let windShown = false;
   // Deed cards (docs/design/first-voyage.md): her honours said out loud, one at a time, under the moments.
   const deedRoot = stage.appendChild(document.createElement('div'));
   // The honours already there when the career was loaded say nothing; each new one is queued once.
@@ -2126,6 +2132,8 @@ async function main() {
     );
     // The career's goals: the next is the sea's goal pill and a deed card's "Next", the rest wait in the log.
     const goals = careerGoals(content, sim.state, settlements);
+    // Bound for the cay on the First Voyage, the voyage guides her: its orders stand for the goal, its lesson for the prompt.
+    const guided = !ship.docked && (sim.state.captain?.voyage?.step === 'helm' || sim.state.captain?.voyage?.step === 'salvage') ? sim.state.captain.voyage.step : undefined;
     // Her new honours, queued; a rank and a hoard have their own moments.
     for (const h of sim.state.captain?.honours ?? []) {
       if (deedsSeen.has(h.id)) continue;
@@ -2165,6 +2173,25 @@ async function main() {
         />
       ) : null,
       logRoot,
+    );
+    // The First Voyage at sea, bound for the cay: the orders, the lesson, the smoke.
+    const voyage = sim.state.captain?.voyage;
+    const bound = voyage && !ship.docked && !fight && (voyage.step === 'helm' || voyage.step === 'salvage') ? voyage : undefined;
+    sea3d.beacon(bound ? bound.cay : undefined);
+    const irons = Boolean(bound?.step === 'helm' && ship.sails !== 'furled' && pointOfSail(content, offWind).id === 'irons');
+    if (irons) windShown = true;
+    render(
+      bound ? (
+        <div class="voyage-sea">
+          <OrdersCard orders={voyageOrders(bound, settlements.find((s) => s.id === bound.home)?.name ?? '')} far={`${Math.max(1, Math.round(Math.hypot(ship.x - bound.cay.x, ship.y - bound.cay.y) * kmPerTile))} km`} />
+          {bound.step === 'helm' && !moments[0] ? <HelmLessons v={bound} irons={irons} windShown={windShown} /> : null}
+          <CayMark name={bound.cay.name} at={(() => {
+            const at = sea3d.project(bound.cay.x, bound.cay.y);
+            return at && { px: at.px, py: at.py - 110 };
+          })()} />
+        </div>
+      ) : null,
+      voyageRoot,
     );
     // The deed at the head of the queue, once nothing else holds the screen: small at sea (it slides away), standing
     // in port or for a first or a mission (after a fight), until dismissed.
@@ -2215,6 +2242,7 @@ async function main() {
     stage.classList.toggle('in-port', Boolean(town));
     stage.classList.toggle('log-open', logOpen);
     stage.classList.toggle('moment-open', Boolean(moments[0] && !fight));
+    stage.classList.toggle('voyage-guided', Boolean(bound));
     stage.classList.toggle('deed-small-on', Boolean(deed && deedShownAt && !deedStays));
     stage.classList.toggle('hail-open', Boolean(hailing));
     render(
@@ -2342,6 +2370,8 @@ async function main() {
         prompt={
           hunter
             ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
+            : guided === 'helm'
+              ? undefined
             : action
               ? `${action.text} · Space`
               : raider && raided?.ai
@@ -2390,6 +2420,7 @@ async function main() {
         })()}
         toasts={[...[digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
+          if (guided) return undefined;
           const g = missions[0] ?? nextGoal(goals, sim.state.captain?.gold ?? 0);
           return g && { title: g.title, have: g.have, of: g.of, unit: g.unit, mission: g.mission };
         })()}

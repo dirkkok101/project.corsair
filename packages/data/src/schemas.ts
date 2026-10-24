@@ -1125,7 +1125,9 @@ export type RewardsConfig = z.infer<typeof rewardsSchema>;
 export const voyageSchema = z.object({
   cayTiles: z.tuple([z.number().positive(), z.number().positive()]),
   shoreTiles: z.number().int().positive(),
+  islandTiles: z.number().int().positive(),
   clearOfPortsTiles: z.number().positive(),
+  arriveTiles: z.number().positive(),
   cays: z.record(z.string(), z.string()),
 });
 export type VoyageConfig = z.infer<typeof voyageSchema>;

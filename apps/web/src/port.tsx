@@ -61,6 +61,8 @@ import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
+import { voyageOpen } from '@corsair/systems-economy';
+import { harbourLine, NedSays, OrdersCard, shutWhy, voyageOrders } from './voyage';
 
 export interface PortProps {
   state: WorldState;
@@ -501,8 +503,10 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   // The docks: the ships in harbour, and retiring.
   const [docks, setDocks] = useState(false);
   useEffect(() => onOpen(open), [open]);
+  // On the First Voyage a building opens as she needs it.
+  const voyage = state.captain?.voyage;
   useEffect(() => {
-    if (request) setOpen(request.service);
+    if (request && voyageOpen(voyage, request.service)) setOpen(request.service);
   }, [request]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -554,6 +558,14 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
     const r = hotspots[s.id]!;
     const ready = READY.includes(s.id);
+    // Shuttered on the voyage: its name dimmed, and why, in a line.
+    if (voyage && !voyageOpen(voyage, s.id))
+      return (
+        <div key={s.id} class="port-spot shut" style={{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }}>
+          <span>{s.name}</span>
+          <small class="spot-why">{shutWhy(voyage, s.id)}</small>
+        </div>
+      );
     return (
       <button
         key={s.id}
@@ -588,7 +600,10 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     const berths = fleetBerths(content, state, ship);
     const food = Math.floor(foodDays(content, ship));
     const morale = moraleOf(content, state);
-    const news = arrivalNews(content, state, town, settlements, ship);
+    // One thing at a time on the voyage: the quartermaster speaks, the port's news waits.
+    const news = voyage && voyage.step !== 'done' ? undefined : arrivalNews(content, state, town, settlements, ship);
+    const said = voyage && harbourLine(voyage);
+    const home = voyage && settlements.find((x) => x.id === voyage.home)?.name;
     // The ships lying here, by the date: how many, and whose.
     const moored = Object.values(state.ships).filter((s) => inPort(s) && s.ai!.from === town.id);
     const flags = [...new Set(moored.map((s) => s.ai!.nation))];
@@ -620,6 +635,8 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             ) : null}
           </div>
         </div>
+        {voyage && home && voyage.step !== 'done' ? <OrdersCard orders={voyageOrders(voyage, home)} /> : null}
+        {said ? <NedSays line={said} /> : null}
         {news || notice ? (
           <div class="harbour-news">
             {news ? (
@@ -667,7 +684,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
               Log <Key k="L" />
             </button>
           ) : null}
-          <button class="k-btn primary" onClick={() => send({ type: 'Undock', shipId })}>
+          <button class={`k-btn primary${voyage?.step === 'harbour' ? ' voyage-go' : ''}`} onClick={() => send({ type: 'Undock', shipId })}>
             Set sail <Key k="E" />
           </button>
         </div>

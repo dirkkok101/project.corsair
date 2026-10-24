@@ -7,9 +7,11 @@ import { atWar, enemiesOf, NATIONS } from '@corsair/systems-politics';
 import { isLand, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { careerScore, hasPerk, landOf, perkPrice, rankOf, tradeEdge } from './career';
+import { voyageShut } from './voyage';
 
 export * from './career';
 export * from './logbook';
+export * from './voyage';
 
 // Markets per settlement (PRD section 6). Each town keeps a stock S and a normal stock T per good;
 // price = base * (T / max(S, 1)) ^ elasticity, and every unit traded moves S, so a glut in one port
@@ -961,6 +963,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     name: 'economy',
     command(state, command) {
       if (!state.markets || !state.captain) return undefined;
+      // On the First Voyage, a building not yet open does no business.
+      const shut = voyageShut(state.captain.voyage, command);
+      if (shut && 'shipId' in command && state.ships[command.shipId]) return refuse(state, state.ships[command.shipId]!, 'shuttered', { service: shut });
       if (command.type === 'Dock') {
         const ship = state.ships[command.shipId];
         const s = byId.get(command.settlementId);

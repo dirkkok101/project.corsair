@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { createSim } from '@corsair/core';
 import { isLand, tileAt } from '@corsair/data';
-import { bearingWord, withVoyage } from '../src';
-import { content, settlements, lanes, map, world } from './fixtures';
+import { createEconomySystem } from '@corsair/systems-economy';
+import { createNavigationSystem } from '@corsair/systems-navigation';
+import { bearingWord, createVoyageSystem, withVoyage } from '../src';
+import { content, settlements, lanes, map, windAt, world } from './fixtures';
 
 const capitals = (['england', 'spain', 'france', 'netherlands'] as const).map((n) => ({ nation: n, home: settlements.find((s) => s.nation === n && s.type === 'capital')! }));
 
@@ -37,5 +40,60 @@ describe('the First Voyage', () => {
     expect(a.captain!.voyage).toEqual(b.captain!.voyage);
     const { voyage: _v, ...rest } = a.captain!;
     expect(rest).toEqual(world(5).state.captain);
+  });
+});
+
+describe('the First Voyage, sailed', () => {
+  const royal = settlements.find((s) => s.id === 'town.port_royal')!;
+  /** A new career on the voyage, in port at Port Royal. */
+  const begun = (seed = 3) => {
+    const w = withVoyage(world(seed).state, content, map, settlements, lanes, royal.id, 'england', seed);
+    const sim = createSim(w, [createEconomySystem(content, settlements, map, windAt), createNavigationSystem(content, map, windAt, settlements), createVoyageSystem(content)]);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
+    sim.applyCommands();
+    return sim;
+  };
+  const refused = (sim: ReturnType<typeof begun>) => sim.events().filter((e) => e.type === 'TradeRefused').map((e) => e.payload.reason);
+
+  it('in the harbour every building is shut: its business is refused', () => {
+    const sim = begun();
+    for (const command of [
+      { type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 },
+      { type: 'BuyGuns', shipId: 'player', count: 1 },
+      { type: 'Recruit', shipId: 'player', count: 1 },
+      { type: 'CollectBounties', shipId: 'player' },
+    ] as const) {
+      sim.send(command);
+      sim.applyCommands();
+    }
+    expect(refused(sim)).toEqual(['shuttered', 'shuttered', 'shuttered', 'shuttered']);
+  });
+
+  it('sailing from home takes her out at half sail, bound for the cay; the helm and more sail are lessons learned; the cay reached', () => {
+    const sim = begun();
+    sim.send({ type: 'Undock', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.voyage!.step).toBe('helm');
+    expect(sim.state.ships.player!.sails).toBe('half');
+    sim.step(30);
+    expect(sim.state.captain!.voyage!.lessons ?? []).toEqual([]);
+    sim.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
+    sim.step(5);
+    sim.send({ type: 'SetSails', shipId: 'player', sails: 'full' });
+    sim.step(5);
+    expect(sim.state.captain!.voyage!.lessons).toEqual(['steer', 'sail']);
+    const { x, y } = sim.state.captain!.voyage!.cay;
+    sim.send({ type: 'Teleport', shipId: 'player', x: x + 1, y });
+    sim.step(1);
+    expect(sim.state.captain!.voyage!.step).toBe('salvage');
+    expect(sim.events().filter((e) => e.type === 'CayReached')).toHaveLength(1);
+  });
+
+  it("a veteran's career has no voyage, and every building open", () => {
+    const sim = createSim(world(3).state, [createEconomySystem(content, settlements, map, windAt), createVoyageSystem(content)]);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 });
+    sim.applyCommands();
+    expect(refused(sim)).toEqual([]);
   });
 });
