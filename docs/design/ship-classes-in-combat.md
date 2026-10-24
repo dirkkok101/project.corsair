@@ -124,6 +124,13 @@ quick turns already spill about half the player's shot (a frigate or ship of the
 - **Under her guns**: within about a tile of a ship much taller than her, a broadside flies high into her rigging
   (*Speedy*). Hull harm small, sails harm as normal. Brave close play is rewarded; it's also boarding range.
 
+Built (slice 3): a stern rake does `raking.sternDamage` (x3), a bow rake `raking.damage` (x2); a round shot from
+astern jams her rudder at `raking.rudderChance` a ball, her helm biting half the time for `raking.rudderSeconds`
+(a "rudder jammed" tag on her card, and a call). Within `underGuns.tiles` of the side of a ship `underGuns.tallerBy`
+times her rail height (a ship of the line, galleon or frigate over a sloop; not a brig over one), the tall ship's
+round and grape are laid into her rigging, doing `underGuns.harm` (a quarter) of their harm to her hull, men and
+masts there (her canvas as ever), and the HUD says so. Both ships' arcs came with slice 2.
+
 ### 4.4 Shoals by draft
 
 - The battle is fought on the real map, which has two depths: shallows (water within `shallowsTiles` of land,

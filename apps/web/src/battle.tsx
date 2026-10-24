@@ -515,7 +515,7 @@ const GAUGE_CALL_SECONDS = 8;
  * A ship's card (storyboard 5.1): her flag, name, what she is and her men, and hull, sails and men as named bands.
  * Light, as Pirates! keeps it: lettering over the sea on a faint shade, not a panel, so the fight stays the picture.
  */
-function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; style: string; hint?: string; wavering?: boolean; oars?: boolean }) {
+function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars, now }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; style: string; hint?: string; wavering?: boolean; oars?: boolean; now: number }) {
   const up = ship.masts.filter((m) => m > 0).length;
   const hull = ship.hull / ship.hullMax;
   const sails = ship.sailCondition / 100;
@@ -528,6 +528,8 @@ function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars }: 
         {wavering ? <span class="k-tag gold">wavering</span> : null}
         {/* At the oars she goes where her sails can't take her, even into the wind: cut her off, don't chase. */}
         {oars ? <span class="k-tag" title="Rowing: she can row into the wind, where you must tack. Cut her off rather than chase, and grape thins her rowers.">rowing</span> : null}
+        {/* A stern rake jammed her rudder: she comes round slowly until it is cleared. */}
+        {ship.rudderUntil !== undefined && now < ship.rudderUntil ? <span class="k-tag war" title="Her rudder is jammed by a stern rake: she turns at half her rate for a few seconds.">rudder jammed</span> : null}
       </div>
       <div class="battle-title">
         {what} · {Math.round(ship.crew)} men
@@ -571,6 +573,8 @@ export interface BattleHudProps {
   you: YourShip;
   /** She may strike any moment now. */
   wavering: boolean;
+  /** Each ship lies under the other's guns (close alongside one much taller): the taller one's broadside flies high. */
+  under: { player: boolean; enemy: boolean };
   /** A famous pirate calls on her to strike: who, the plunder chest she'd give up, and his flag (a picture). */
   demand?: { name: string; chest: number; flag?: string };
   /** Strike your colours to a famous pirate's demand (Y). */
@@ -600,13 +604,13 @@ export interface BattleHudProps {
   showMind?: boolean;
 }
 
-export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help, showMind }: BattleHudProps) {
+export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, reloadSeconds, aim, you, wavering, under, report, attacked, offer, advice, compass, board, onPlunder, onContinue, demand, onStrike, shake, help, showMind }: BattleHudProps) {
   const me = state.ships.player;
   const b = content.combat.battle;
   const apart = Math.hypot(state.ships.enemy.x - me.x, state.ships.enemy.y - me.y);
   const [fightOn, setFightOn] = useState(false);
   // A mast going by the board, called out for a few seconds (the sim's own record of it lasts a moment).
-  const mastCall = useRef<{ text: string; until: number; seen: number }>({ text: '', until: -1, seen: -1 });
+  const mastCall = useRef<{ text: string; until: number; seen: number; rudder?: boolean }>({ text: '', until: -1, seen: -1 });
   const now = state.tick / 30;
   for (const e of state.effects) {
     if (e.kind !== 'mast' || e.at <= mastCall.current.seen || e.mast === undefined || !e.ship) continue;
@@ -615,10 +619,16 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     const text = e.ship === 'enemy' ? `Her ${mast} goes by the board!` : `Your ${mast} is shot away!`;
     mastCall.current = { text, until: e.at + 3.5, seen: e.at };
   }
-  // A raking shot, called out for a moment (a mast going by the board says more, and wins).
+  // A raking shot, called out for a moment (a mast going by the board says more, and wins); a jammed rudder longer.
   for (const e of state.effects) {
-    if (!e.place?.rake || e.at <= mastCall.current.seen || !e.ship) continue;
-    mastCall.current = { text: e.ship === 'enemy' ? 'Raked her, bow to stern!' : 'She rakes you!', until: e.at + 1.5, seen: e.at };
+    if (!e.place?.rake || e.at < mastCall.current.seen || (e.at === mastCall.current.seen && !e.place.rudder) || !e.ship) continue;
+    // A jammed rudder's call stands its time: a plain rake after it doesn't cut it short.
+    if (!e.place.rudder && mastCall.current.rudder && now < mastCall.current.until) continue;
+    const ours = e.ship === 'enemy';
+    const text = e.place.rudder
+      ? ours ? 'Raked her stern: her rudder is jammed! She turns slowly.' : 'Raked astern: your rudder is jammed! You turn slowly.'
+      : e.place.stern ? (ours ? 'Raked her stern!' : 'She rakes your stern!') : ours ? 'Raked her, bow to stern!' : 'She rakes you!';
+    mastCall.current = { text, until: e.at + (e.place.rudder ? 3 : 1.5), seen: e.at, rudder: e.place.rudder };
   }
   const gun = (side: Broadside) => {
     const left = me.reload[side];
@@ -670,7 +680,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     <div class="battle">
       {state.result ? null : (
         <div class="battle-cards">
-          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} style={styleLine(content, me.classId)} oars={rowing(content, state, 'player')} />
+          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} style={styleLine(content, me.classId)} oars={rowing(content, state, 'player')} now={now} />
           <ShipCard
             ship={enemy}
             tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'}
@@ -680,6 +690,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
             hint={matchupHint(content, me.classId, enemy.classId)}
             wavering={wavering}
             oars={rowing(content, state, 'enemy')}
+            now={now}
           />
         </div>
       )}
@@ -692,6 +703,9 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
       ) : null}
       <div class="battle-calls">
         {!state.result && now < mastCall.current.until ? <div class="battle-call battle-mast">{mastCall.current.text}</div> : null}
+        {/* Under a taller ship's guns: her broadside flies high (Speedy and El Gamo). */}
+        {!state.result && !state.wreck && under.player ? <div class="battle-call battle-under">Under her guns: her broadside flies high, into your rigging. Close in and board her.</div> : null}
+        {!state.result && !state.wreck && under.enemy ? <div class="battle-call battle-under">She's under your guns: your round and grape fly high, into her rigging.</div> : null}
         {wavering && !state.result ? <div class="battle-call battle-waver">She's wavering: {waverWhy(content, enemy, me, apart)}. Keep at her and she'll strike.</div> : null}
       </div>
       {demand && !report && !fightOn ? (

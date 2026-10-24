@@ -447,8 +447,17 @@ export const combatSchema = z.object({
    */
   styles: z.record(z.enum(['raider', 'cruiser', 'fortress']), z.object({ shot: z.enum(['light', 'medium', 'heavy']), timbers: z.enum(['thin', 'stout', 'massive']), reload: z.number().positive() })),
   shotHarm: z.record(z.enum(['light', 'medium', 'heavy']), z.record(z.enum(['thin', 'stout', 'massive']), z.number().positive())),
-  /** A ball down her length (within `cos` of her heading) does `damage` times the harm. */
-  raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive() }),
+  /**
+   * A ball down her length (within `cos` of her heading) does `damage` times the harm, `sternDamage` from astern;
+   * a round shot from astern jams her rudder at `rudderChance`, her helm biting `rudderTurn` of the time for
+   * `rudderSeconds`.
+   */
+  raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive(), sternDamage: z.number().positive(), rudderChance: share, rudderSeconds: z.number().positive(), rudderTurn: share }),
+  /**
+   * Under her guns: within `tiles` of the side of a ship `tallerBy` times her rail height, its round and grape fly
+   * into her rigging, doing `harm` of their harm to her hull, men and masts.
+   */
+  underGuns: z.object({ tiles: z.number().min(0), tallerBy: z.number().positive(), harm: share }),
   /** Swivel guns: reach in tiles, how often they fire, and men each one fells. */
   swivels: z.object({ tiles: z.number().positive(), everySeconds: z.number().positive(), crewPer: z.number().min(0) }),
   /** Bow and stern chasers: the arc either side of her head or stern, and how often they fire. */

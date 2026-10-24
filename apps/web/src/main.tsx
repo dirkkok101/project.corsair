@@ -1563,6 +1563,7 @@ async function main() {
           enemyTitle={fight.title}
           enemyNation={fight.nation}
           wavering={fight.battle.wavering()}
+          under={fight.battle.underGuns()}
           showMind={showMind}
           demand={
             fight.battle.demands()

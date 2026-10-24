@@ -34,6 +34,8 @@ export interface BattleShip extends Ship {
   runOut: Record<Broadside, number>;
   /** A broadside ordered to fire while her guns were still running out: it goes off the moment they are out. */
   firing?: Broadside;
+  /** A stern rake jammed her rudder: until then (battle seconds) her helm bites only raking.rudderTurn of the time. */
+  rudderUntil?: number;
   ammo: Ammo;
   /** Enemy only: her role, which sets how she fights and how hard she boards. */
   role?: AiCaptain['role'];
@@ -78,8 +80,12 @@ export interface HitPlace {
   part: 'hull' | 'rigging' | 'deck';
   up: number;
   across: number;
-  /** Down her length, from bow or stern: double the harm. */
+  /** Down her length, from bow or stern (combat.json raking): more harm, the most from astern. */
   rake?: boolean;
+  /** Raked from astern, in at her stern windows. */
+  stern?: boolean;
+  /** And it jammed her rudder. */
+  rudder?: boolean;
 }
 
 /**
@@ -104,6 +110,8 @@ export interface Shot {
   ammo: Ammo;
   /** Her force by the range she was fired at (combat.json guns.pointBlank, longShotPower): 1 close in. */
   power?: number;
+  /** Fired from above at a ship under her guns: it goes through her rigging, sparing her hull, men and masts. */
+  high?: boolean;
 }
 
 /** Where a ball is `k` of the way along its flight (0 at the gun, 1 at its aim point, on beyond). */
@@ -384,6 +392,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     return { length: s.length * k, beam: s.beam * k, rail: s.rail * k, mast: s.mast * k, yard: s.yard * k };
   };
   const distance = () => Math.hypot(state.ships.enemy.x - state.ships.player.x, state.ships.enemy.y - state.ships.player.y);
+  /** The other lies under her guns: within underGuns.tiles of her side, and she stands underGuns.tallerBy higher. */
+  const under = (ship: BattleShip, target: BattleShip) => {
+    const mine = sizeOf(ship.classId);
+    const theirs = sizeOf(target.classId);
+    const gap = Math.hypot(target.x - ship.x, target.y - ship.y) - mine.beam - theirs.beam;
+    return gap <= c.underGuns.tiles && mine.rail >= theirs.rail * c.underGuns.tallerBy;
+  };
   const bearing = (from: BattleShip, to: BattleShip) => normalizeDeg((Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI);
   /** Which broadside bears on the target, if either: within arcDeg of the beam. */
   const bears = (ship: BattleShip, target: BattleShip): Broadside | undefined => {
@@ -504,7 +519,10 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     const tr = (target.headingDeg * Math.PI) / 180;
     const flight = d / c.guns.shotTilesPerSecond;
     const lead = [target.x + Math.sin(tr) * target.speed * flight, target.y - Math.cos(tr) * target.speed * flight] as const;
-    const aimH = ship.ammo === 'chain' ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
+    // Close under the side of a much taller ship, her guns can't depress far enough: round and grape fly high into
+    // the other's rigging (the Speedy under El Gamo's guns).
+    const high = ship.ammo !== 'chain' && under(ship, target);
+    const aimH = ship.ammo === 'chain' || high ? (theirs.rail + theirs.mast) * 0.45 : ship.ammo === 'grape' ? theirs.rail * 1.05 : theirs.rail * 0.55;
     // Grape leaves the muzzle as a tight cone of small shot: it holds together over its short reach.
     // Scattered in proportion to the ships' size in the fight (battle.shipScale), so a bigger target is no likelier hit.
     const sigma = (c.guns.spread + c.guns.spreadPerTile * d) * (ship.ammo === 'grape' ? c.guns.grapeSpread : 1) * ship.spreadMult * unsteady(ship) * c.battle.shipScale;
@@ -518,7 +536,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       const y = ship.y + fwd[1] * along + stbd[1] * size.beam * out;
       const tx = lead[0] + gauss() * sigma;
       const ty = lead[1] + gauss() * sigma;
-      const shot = { from: side, x, y, tx, ty, t: flight, flight, h0: size.rail * 0.55, h1: aimH, rise: d * c.guns.arcPerTile, ammo: ship.ammo, power: power(ship, d) } as Omit<Shot, 'at'>;
+      const shot = { from: side, x, y, tx, ty, t: flight, flight, h0: size.rail * 0.55, h1: aimH, rise: d * c.guns.arcPerTile, ammo: ship.ammo, power: power(ship, d), ...(high ? { high } : {}) } as Omit<Shot, 'at'>;
       shots.push({ ...shot, at: shotAt(shot, 0) });
     }
     state = {
@@ -844,6 +862,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
     /** The enemy's guns, for her arcs on the water: her reach with the shot loaded, and each broadside's aim. */
+    /** Each ship lies under the other's guns: hers fly high over the player, or the player's over her. */
+    underGuns: () => ({ player: under(state.ships.enemy, state.ships.player), enemy: under(state.ships.player, state.ships.enemy) }),
     enemyGuns: () => ({ rangeTiles: reach(state.ships.enemy), port: aim('enemy', 'port'), starboard: aim('enemy', 'starboard') }),
     /** The player's guns now: a broadside's reload, how far the shot loaded reaches, and how many guns she can work. */
     gunnery: () => ({ reloadSeconds: reloadSeconds(state.ships.player), rangeTiles: reach(state.ships.player), guns: gunsManned(state.ships.player) }),
@@ -868,10 +888,15 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           else if (state.boarding && !state.wreck) for (const cmd of closeToBoard()) apply('player', cmd, rng, true);
         }
 
-        // Sail: the world's navigation at battle pace.
+        // Sail: the world's navigation at battle pace. A jammed rudder answers the helm only rudderTurn of the ticks,
+        // so she comes round that much slower; her helm stays where it was put.
         const apartBefore = distance();
-        const moved = nav.tick({ tick: state.tick, wind: state.wind, ships: state.ships } as unknown as WorldState, DT);
+        const bites = (s: BattleShip) => s.rudderUntil === undefined || seconds() >= s.rudderUntil || Math.floor((state.tick + 1) * c.raking.rudderTurn) > Math.floor(state.tick * c.raking.rudderTurn);
+        const steering = { player: state.ships.player, enemy: state.ships.enemy };
+        const helmed = { player: bites(steering.player) ? steering.player : { ...steering.player, helm: 0 as const }, enemy: bites(steering.enemy) ? steering.enemy : { ...steering.enemy, helm: 0 as const } };
+        const moved = nav.tick({ tick: state.tick, wind: state.wind, ships: helmed } as unknown as WorldState, DT);
         const ships = moved.state.ships as Record<Side, BattleShip>;
+        for (const side of ['player', 'enemy'] as const) ships[side] = { ...ships[side], helm: steering[side].helm };
         for (const side of ['player', 'enemy'] as const) {
           const s = ships[side];
           const reload = { port: Math.max(0, s.reload.port - DT), starboard: Math.max(0, s.reload.starboard - DT) };
@@ -956,18 +981,27 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const dx = shot.tx - shot.x;
           const dy = shot.ty - shot.y;
           const raking = Math.abs((dx * Math.sin(vr) - dy * Math.cos(vr)) / Math.max(1e-6, Math.hypot(dx, dy))) >= c.raking.cos;
+          // From astern the ball flies the way she sails, in at her stern windows: the worst rake of all.
+          const stern = raking && dx * Math.sin(vr) - dy * Math.cos(vr) > 0;
           if (raking) place.rake = true;
-          const harm = (shot.power ?? 1) * (raking ? c.raking.damage : 1);
+          if (stern) place.stern = true;
+          const harm = (shot.power ?? 1) * (stern ? c.raking.sternDamage : raking ? c.raking.damage : 1);
+          // A round shot through her stern may carry away her tiller ropes: her rudder jams for a while.
+          if (stern && shot.ammo === 'round' && rng.float() < c.raking.rudderChance) place.rudder = true;
           // Canvas taken in is canvas spared: her sails and masts take the share her sail setting leaves.
           const rigHarm = harm * c.battle.sailHarm[v.sails];
           // Weight of shot against her timbers: a light ball barely marks a fortress's side, a heavy one guts a sloop's.
-          const weight = shot.ammo === 'round' ? shotHarmOf(content, state.ships[shot.from].classId, v.classId) : 1;
+          // Fired down from a tall side at a ship under her guns, a ball through her rigging spares her hull, men and
+          // masts (underGuns.harm); her canvas takes it as ever.
+          const spared = shot.high && place.part === 'rigging' ? c.underGuns.harm : 1;
+          const weight = (shot.ammo === 'round' ? shotHarmOf(content, state.ships[shot.from].classId, v.classId) : 1) * spared;
           let hurt: BattleShip = {
             ...v,
             hull: v.hull - a.hull * harm * weight,
             sailCondition: Math.max(0, v.sailCondition - a.sails * rigHarm * v.sailWear),
             crew: Math.max(0, v.crew - a.crew * harm * weight),
             guns,
+            ...(place.rudder ? { rudderUntil: seconds() + c.raking.rudderSeconds } : {}),
           };
           effects.push({ kind: shot.ammo === 'grape' ? 'grape' : place.part === 'rigging' ? 'sail' : 'hit', x: at[0], y: at[1], at: seconds(), ship: victimSide, place });
           // Into her rigging: the nearest standing mast takes it, and may go by the board.
@@ -977,7 +1011,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
             const i = standing.sort((p, q) => Math.abs(at[p]! - place.along) - Math.abs(at[q]! - place.along))[0];
             if (i !== undefined) {
               const masts = [...hurt.masts];
-              masts[i] = Math.max(0, masts[i]! - c.masts.damage[shot.ammo]! * c.battle.sailHarm[v.sails]);
+              masts[i] = Math.max(0, masts[i]! - c.masts.damage[shot.ammo]! * c.battle.sailHarm[v.sails] * spared);
               hurt = { ...hurt, masts };
               if (masts[i] === 0) {
                 // Gone: her canvas on that mast with it (never more than her standing masts can carry), and the

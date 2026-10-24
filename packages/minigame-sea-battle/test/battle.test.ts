@@ -719,6 +719,110 @@ describe('sea battle', () => {
     expect(dodged.hits).toBeLessThan(held.hits);
   });
 
+  describe('ends and edges', () => {
+    const now = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, tellSeconds: 0 } } };
+    /** The brig's starboard broadside into a sloop lying `apart` tiles east, heading `heading`; her first wound. */
+    const raked = (heading: number, pack = now) => {
+      const b = createBattle({ ...pack, combat: { ...pack.combat, battle: { ...pack.combat.battle, startApart: 2.5 } } }, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig'), headingDeg: 0 },
+        enemy: { ...ship('ship.sloop', 'merchant'), headingDeg: heading },
+        seed: 3,
+        bearingDeg: 90,
+      });
+      b.send({ type: 'Fire', side: 'starboard' });
+      const start = b.state.ships.enemy.hull;
+      for (let i = 0; i < 60; i++) {
+        b.step(1);
+        const hit = b.state.effects.find((e) => e.ship === 'enemy' && e.place && e.at === b.state.tick / 30);
+        if (hit) return { b, hull: start - b.state.ships.enemy.hull, place: hit.place! };
+      }
+      throw new Error('never hit');
+    };
+
+    it('a rake from astern does the most harm: sternDamage against a bow rake\'s damage', () => {
+      // Sailing away from the guns her stern takes it; sailing at them, her bow.
+      const stern = raked(90);
+      const bow = raked(270);
+      expect(stern.place.rake && stern.place.stern).toBe(true);
+      expect(bow.place.rake).toBe(true);
+      expect(bow.place.stern).toBeUndefined();
+      expect(stern.hull / bow.hull).toBeCloseTo(content.combat.raking.sternDamage / content.combat.raking.damage, 5);
+    });
+
+    it('a round shot from astern can jam her rudder: she comes round at rudderTurn of her rate for rudderSeconds', () => {
+      const sure = { ...now, combat: { ...now.combat, raking: { ...now.combat.raking, rudderChance: 1 } } };
+      const { b, place } = raked(90, sure);
+      expect(place.rudder).toBe(true);
+      const until = b.state.ships.enemy.rudderUntil!;
+      expect(until).toBeCloseTo(b.state.tick / 30 + content.combat.raking.rudderSeconds, 1);
+      // The player's own helm, jammed and free, over the same second.
+      const turned = (jam: boolean) => {
+        const c = createBattle(now, { map, wind: { fromDeg: 0, strength: 'fresh' }, player: { ...ship('ship.brig'), headingDeg: 0 }, enemy: ship('ship.sloop', 'pirate'), seed: 1, bearingDeg: 90 });
+        if (jam) (c.state.ships.player as { rudderUntil?: number }).rudderUntil = 99;
+        c.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
+        c.step(30);
+        expect(c.state.ships.player.helm).toBe(1);
+        return c.state.ships.player.headingDeg;
+      };
+      expect(turned(true) / turned(false)).toBeCloseTo(content.combat.raking.rudderTurn, 1);
+    });
+
+    it('under her guns: close alongside a much taller ship, her broadside flies high into the rigging and spares her', () => {
+      /** `shooter`'s starboard broadside into a sloop lying alongside: where its balls are laid, where they strike, what they cost her. */
+      const alongside = (shooter: string, pack = now, seed = 3) => {
+        const sz = (id: string) => content.ships[id]!.size;
+        const k = content.combat.battle.shipScale;
+        const gap = (sz(shooter).beam + sz('ship.sloop').beam) * k + 0.5;
+        const b = createBattle({ ...pack, combat: { ...pack.combat, battle: { ...pack.combat.battle, startApart: gap } } }, {
+          map,
+          wind: { fromDeg: 0, strength: 'fresh' },
+          player: { ...ship(shooter), headingDeg: 0 },
+          enemy: { ...ship('ship.sloop', 'merchant'), headingDeg: 0 },
+          seed,
+          bearingDeg: 90,
+        });
+        const start = b.state.ships.enemy;
+        const under = b.underGuns().enemy;
+        b.send({ type: 'Fire', side: 'starboard' });
+        b.step(1);
+        const laid = b.state.shots.filter((s) => s.from === 'player').map((s) => s.h1);
+        const parts: string[] = [];
+        for (let i = 0; i < 30; i++) {
+          b.step(1);
+          parts.push(...b.state.effects.filter((e) => e.ship === 'enemy' && e.place && e.at === b.state.tick / 30).map((e) => e.place!.part));
+        }
+        const end = b.state.ships.enemy;
+        return { under, laid, parts, rail: sz('ship.sloop').rail * k, hull: start.hull - end.hull, crew: start.crew - end.crew, mast: end.masts[0]! };
+      };
+      const tall = alongside('ship.ship_of_the_line');
+      expect(tall.under).toBe(true);
+      expect(tall.laid.every((h) => h > tall.rail)).toBe(true);
+      expect(tall.parts.length).toBeGreaterThan(0);
+      expect(tall.parts.every((p) => p === 'rigging')).toBe(true);
+      // A brig is not tall enough to overshoot her: her balls go into the sloop's side.
+      const brig = alongside('ship.brig');
+      expect(brig.under).toBe(false);
+      expect(brig.parts).toContain('hull');
+      // What it costs her: a frigate's broadside laid high, against the same broadside with no such rule.
+      const off = { ...now, combat: { ...now.combat, underGuns: { ...now.combat.underGuns, tallerBy: 99 } } };
+      let spared = { hull: 0, crew: 0, mast: 0 };
+      let struck = { hull: 0, crew: 0, mast: 0 };
+      for (let seed = 1; seed <= 6; seed++) {
+        const on = alongside('ship.frigate', now, seed);
+        const no = alongside('ship.frigate', off, seed);
+        expect(on.under).toBe(true);
+        spared = { hull: spared.hull + on.hull, crew: spared.crew + on.crew, mast: spared.mast + on.mast };
+        struck = { hull: struck.hull + no.hull, crew: struck.crew + no.crew, mast: struck.mast + no.mast };
+      }
+      expect(spared.hull).toBeLessThan(struck.hull * 0.6);
+      expect(spared.crew).toBeLessThan(struck.crew);
+      // Her mast still stands.
+      expect(spared.mast).toBeGreaterThan(0);
+    });
+  });
+
   it('the tell: her guns run out before she fires, so a broadside never comes without warning', () => {
     const battle = createBattle(content, {
       map,

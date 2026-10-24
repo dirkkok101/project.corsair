@@ -30,8 +30,9 @@ export interface BattleViewPlace {
   part: 'hull' | 'rigging' | 'deck';
   up?: number;
   across?: number;
-  /** A raking shot, down her length. */
+  /** A raking shot, down her length (from astern: `stern`). */
   rake?: boolean;
+  stern?: boolean;
 }
 export interface BattleViewState {
   tick: number;

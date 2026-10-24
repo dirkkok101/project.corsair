@@ -12,12 +12,14 @@ describe('battle balance', () => {
     };
     const losses = (crew: 'green' | 'veteran', skill: number) => {
       let n = 0;
-      for (let seed = 1; seed <= 30; seed++) if (fight(pirate(crew, skill), seed).result()!.outcome === 'lost') n++;
+      // 60 seeds: over 30 the gap (about a quarter of the fights) sat at the margin, and a change anywhere in the
+      // fight could tip it either way.
+      for (let seed = 1; seed <= 60; seed++) if (fight(pirate(crew, skill), seed).result()!.outcome === 'lost') n++;
       return n;
     };
     const easy = losses('green', 20);
     const hard = losses('veteran', 90);
-    expect(hard).toBeGreaterThan(easy + 5);
+    expect(hard).toBeGreaterThan(easy + 8);
   }, 120_000);
 
   it('surrender: a captain of resolve holds out longer than a faint-hearted one', () => {
