@@ -435,6 +435,8 @@ export interface Voyage {
   boatId?: string;
   /** Home with her prize, in port: the chores before the governor (sold, battery, shared, in `lessons`). */
   ashore?: boolean;
+  /** The commission she chose from the governor's three: her first on her own. */
+  commission?: 'courier' | 'trade' | 'hunt';
 }
 
 /** A deed said out loud: what kind, what she did (past tense), the one figure and where it went, up to two lines. */
@@ -707,7 +709,11 @@ export type Command =
   | { type: 'BuyMarque'; shipId: string }
   | { type: 'CollectBounties'; shipId: string }
   /** At a governor: take the mission he offers this week. */
-  | { type: 'AcceptMission'; shipId: string }
+  /** Take the governor's mission this week; `kind` asks for one of that kind (the First Voyage's commissions). */
+  | { type: 'AcceptMission'; shipId: string; kind?: 'hunt' | 'courier' }
+  /** The First Voyage: the governor's free letter of marque, and the commission she chooses (which ends the voyage). */
+  | { type: 'VoyageMarque'; shipId: string }
+  | { type: 'ChooseCommission'; shipId: string; kind: 'courier' | 'trade' | 'hunt' }
   /** Speak an AI ship within hailing range: learn who it is and hear its news. */
   | { type: 'Hail'; shipId: string; targetId: string }
   /** Buy provisions from a ship spoken at sea (her spare stores, dear): up to `units` of food. */

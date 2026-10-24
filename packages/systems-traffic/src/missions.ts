@@ -53,6 +53,7 @@ export function missionOffer(
   state: WorldState,
   town: PlacedSettlement,
   settlements: PlacedSettlement[],
+  only?: 'hunt' | 'courier',
 ): MissionOffer | undefined {
   const captain = state.captain;
   if (!captain || !state.ships.player || !hasGovernor(town)) return undefined;
@@ -70,7 +71,7 @@ export function missionOffer(
   const letters = ports.filter(
     (s) => s.id !== town.id && hasGovernor(s) && !atWar(content, state, town.nation, s.nation) && !plagued(state, s.id) && far(s) >= m.courier.tiles[0] && far(s) <= m.courier.tiles[1],
   );
-  const weights = { hunt: areas.length ? m.hunt.weight : 0, courier: letters.length ? m.courier.weight : 0 };
+  const weights = { hunt: areas.length && only !== 'courier' ? m.hunt.weight : 0, courier: letters.length && only !== 'hunt' ? m.courier.weight : 0 };
   if (weights.hunt + weights.courier <= 0) return undefined;
   const kind = draw.weighted(weights);
   const base = { key, kind, from: town.id, nation: town.nation };
@@ -80,7 +81,8 @@ export function missionOffer(
     return { ...base, to: to.id, reward, merit: m.courier.merit };
   }
   const to = areas[Math.floor(draw.float() * areas.length)]!;
-  const classId = quarryClass(content, state);
+  // The First Voyage's hunt is a lighter one than her match: her first real fight.
+  const classId = captain.voyage && captain.voyage.step !== 'done' ? content.voyage.commissions.quarry : quarryClass(content, state);
   const names = content.traffic.names.pirate ?? [];
   const name = names[Math.floor(draw.float() * names.length)] ?? 'Revenge';
   const reward = Math.max(m.hunt.minReward, Math.round((content.ships[classId]!.price * m.hunt.rewardShare) / 10) * 10);

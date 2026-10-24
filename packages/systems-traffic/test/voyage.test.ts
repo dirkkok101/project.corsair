@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createSim } from '@corsair/core';
 import { isLand, shipStats, tileAt } from '@corsair/data';
-import { createEconomySystem, crewOf, quote } from '@corsair/systems-economy';
+import { createEconomySystem, crewOf, quote, suggestTrade } from '@corsair/systems-economy';
 import { createNavigationSystem } from '@corsair/systems-navigation';
-import { bearingWord, createHonoursSystem, createTrafficSystem, createVoyageSystem, withVoyage } from '../src';
+import { bearingWord, createHonoursSystem, createTrafficSystem, createVoyageSystem, missionOffer, withVoyage } from '../src';
 import { content, settlements, lanes, map, windAt, world } from './fixtures';
 
 const capitals = (['england', 'spain', 'france', 'netherlands'] as const).map((n) => ({ nation: n, home: settlements.find((s) => s.nation === n && s.type === 'capital')! }));
@@ -167,5 +167,25 @@ describe('the First Voyage, the first prize', () => {
     sim.send({ type: 'DividePlunder', shipId: 'player' });
     sim.applyCommands();
     expect(sim.state.captain!.voyage!.step).toBe('governor');
+    // The governor: no commission before his letter; the letter free, then her pick of his three.
+    sim.send({ type: 'ChooseCommission', shipId: 'player', kind: 'courier' });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.type).toBe('VoyageRefused');
+    const gold = sim.state.captain!.gold;
+    sim.send({ type: 'VoyageMarque', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.marques).toEqual(['england']);
+    // (The marque goal it completes pays its little.)
+    expect(sim.state.captain!.gold - gold).toBeLessThanOrEqual(content.rewards.goals.gold);
+    const run = suggestTrade(content, sim.state, royal, settlements)!;
+    expect(run.profit).toBeGreaterThan(0);
+    expect(run.units * run.buy).toBeLessThanOrEqual(sim.state.captain!.gold);
+    expect(missionOffer(content, sim.state, royal, settlements, 'hunt')).toMatchObject({ kind: 'hunt', classId: content.voyage.commissions.quarry });
+    sim.send({ type: 'AcceptMission', shipId: 'player', kind: 'courier' });
+    sim.send({ type: 'ChooseCommission', shipId: 'player', kind: 'courier' });
+    sim.applyCommands();
+    expect(sim.state.captain!.voyage).toMatchObject({ step: 'done', commission: 'courier' });
+    expect(sim.state.captain!.missions!.map((m) => m.kind)).toEqual(['courier']);
+    expect(sim.state.captain!.honours!.some((h) => h.id === 'first:voyage')).toBe(true);
   });
 });

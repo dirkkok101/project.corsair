@@ -1714,7 +1714,7 @@ export function createTrafficSystem(
         const town = player.docked ? byId.get(player.docked) : undefined;
         const fail = (reason: string) => ({ state, events: [{ type: 'MissionRefused', entityIds: [player.id], payload: { reason } }] as EmittedEvent[] });
         if (!town) return fail('not-docked');
-        const offer = missionOffer(content, state, town, settlements);
+        const offer = missionOffer(content, state, town, settlements, command.kind);
         if (!offer) return fail('no-offer');
         const m = content.politics.missions;
         const open = state.captain.missions ?? [];

@@ -110,13 +110,17 @@ export function createHonoursSystem(content: ContentPack, settlements: PlacedSet
             break;
           }
           case 'MarqueBought':
-            add({ id: `marque:${p.nation}`, kind: 'marque', title: `${p.nation === 'england' ? 'An' : 'A'} ${ADJECTIVE[String(p.nation)]} letter of marque`, lines: ['Her prizes are lawful now'], goal: 'marque', ...base });
+            // The First Voyage's letter has its ceremony (the promotion moment), as a rank does.
+            add({ id: `marque:${p.nation}`, kind: p.voyage ? 'rank' : 'marque', title: `${p.nation === 'england' ? 'An' : 'A'} ${ADJECTIVE[String(p.nation)]} letter of marque`, lines: ['Her prizes are lawful now'], goal: 'marque', ...base });
             break;
           case 'Promoted':
             add({ id: `rank:${p.nation}:${p.rank}`, kind: 'rank', title: `Made ${p.rank}`, lines: [`In the service of ${COUNTRY[String(p.nation)] ?? p.nation}`], ...base });
             break;
           case 'HoardFound':
             add({ id: `hoard:${p.pirateId}`, kind: 'hoard', title: `${p.name}'s hoard dug up`, gold: Number(p.gold), into: 'chest', tick: e.tick });
+            break;
+          case 'VoyageDone':
+            add({ id: 'first:voyage', kind: 'first', title: 'The First Voyage sailed', lines: ["Ned Tully: “You'll not need me at your elbow now, Captain. The sea's yours.”"], ...base });
             break;
           case 'Salvaged':
             add({ id: 'first:salvage', kind: 'first', title: 'First salvage', lines: [`${p.units} ${good(p.good).toLowerCase()} and ${p.men} castaways, off ${p.name}`], tick: e.tick });

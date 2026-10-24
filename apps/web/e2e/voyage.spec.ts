@@ -312,3 +312,81 @@ async function dismissDeeds(page: Page) {
     await page.keyboard.press('Enter');
   }
 }
+
+/** Chapter 3's chores done quickly (it has its own test): sold, a full battery, the plunder shared. */
+async function toGovernor(page: Page) {
+  const errors = await toHome(page);
+  await page.evaluate(() => {
+    const send = (c: unknown) => window.__corsair.cmd.send(c as never);
+    send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 1000 });
+    send({ type: 'BuyGuns', shipId: 'player', count: 20 });
+    send({ type: 'DividePlunder', shipId: 'player' });
+    window.__corsair.sim.step(1);
+  });
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('governor');
+  await dismissDeeds(page);
+  return errors;
+}
+
+test('chapter 4, the governor: a letter of marque with its ceremony, then three matters on his desk; one taken, the voyage done', async ({ page }) => {
+  const errors = await toGovernor(page);
+  await page.locator('.port-spot', { hasText: 'Governor' }).click();
+  // The ceremony: her first rung.
+  const moment = page.locator('.moment-promotion');
+  await expect(moment).toContainText('Letter of marque');
+  await expect(moment).toContainText('in the service of England');
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: 'test-results/voyage-marque.png' });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.moment')).toHaveCount(0);
+  // His three matters, in character.
+  const desk = page.locator('.commissions');
+  await expect(desk.locator('.commissions-title')).toHaveText('Three matters on his desk');
+  await expect(desk.locator('.commission')).toHaveCount(3);
+  await expect(desk.locator('.commission-courier')).toContainText('Carry a letter');
+  await expect(desk.locator('.commission-trade')).toContainText('Run a cargo');
+  await expect(desk.locator('.commission-hunt')).toContainText('Lighter than your ship');
+  await expect(desk).not.toContainText(/course/i);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/voyage-commissions.png' });
+  // A letter to carry: the mission taken, the voyage done, said out loud.
+  await desk.getByRole('button', { name: "I'll carry it" }).click();
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('done');
+  const missions = (await page.evaluate(() => window.__corsair.state.get('captain.missions'))) as { kind: string }[];
+  expect(missions.map((m) => m.kind)).toEqual(['courier']);
+  await expect(page.locator('.deed-standard .deed-title')).toHaveText('The First Voyage sailed');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/voyage-done.png' });
+  await dismissDeeds(page);
+  // Off the voyage: his own screen again, every building open, no orders.
+  await expect(page.locator('.governor')).toBeVisible();
+  await expect(page.locator('.voyage-orders')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('chapter 4, the cargo run: the hold filled and the course plotted for where it sells', async ({ page }) => {
+  await toGovernor(page);
+  await page.locator('.port-spot', { hasText: 'Governor' }).click();
+  await expect(page.locator('.moment-promotion')).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Enter');
+  const card = page.locator('.commission-trade');
+  const line = await card.locator('.commission-line').first().innerText();
+  const [, units, good] = /^Buy (\d+) (\w+)/.exec(line)!;
+  await card.getByRole('button', { name: "I'll run it" }).click();
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('done');
+  const cargo = (await page.evaluate(() => window.__corsair.state.get('ships.player.cargo'))) as Record<string, number>;
+  expect(cargo[good!.toLowerCase()]).toBe(Number(units));
+});
+
+test('chapter 4, the hunt: a pirate lighter than her match put on the sea', async ({ page }) => {
+  await toGovernor(page);
+  await page.locator('.port-spot', { hasText: 'Governor' }).click();
+  await expect(page.locator('.moment-promotion')).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Enter');
+  await page.locator('.commission-hunt').getByRole('button', { name: "I'll hunt her" }).click();
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('done');
+  const missions = (await page.evaluate(() => window.__corsair.state.get('captain.missions'))) as { kind: string; classId: string }[];
+  expect(missions).toMatchObject([{ kind: 'hunt', classId: 'ship.sloop' }]);
+});

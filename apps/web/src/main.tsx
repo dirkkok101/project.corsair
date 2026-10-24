@@ -1878,6 +1878,10 @@ async function main() {
         if (brought.length > 1) portNotice = { text: `Your ${brought.length} prizes lie here: mend, fit or sell them at the shipwright.`, icon: 'ui.icon.anchor', tone: 'gold' };
       }
       // A promotion from the governor, as his commission; a title brings land.
+      // The First Voyage's letter of marque, given by the governor: its ceremony, as a promotion to the first rung.
+      if (ev.type === 'MarqueBought' && ev.payload.voyage) {
+        moments.push({ kind: 'promotion', nation: ev.payload.nation as string, rank: content.politics.ranks.ladder[0]!.name, acres: 0, town: settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '' });
+      }
       if (ev.type === 'Promoted') {
         const p = ev.payload as { nation: string; rank: string; acres: number };
         moments.push({ kind: 'promotion', ...p, town: settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '' });

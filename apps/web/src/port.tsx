@@ -56,12 +56,12 @@ import { enemiesOf, legalTarget } from '@corsair/systems-politics';
 import { havenKnown, missionOffer, topTen } from '@corsair/systems-traffic';
 import type { MissionOffer } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
-import { Bust, Key, Rise, risen, Speech, Stat } from './ui/kit';
+import { Bust, curly, Key, Rise, risen, Speech, Stat } from './ui/kit';
 import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
-import { voyageOpen } from '@corsair/systems-economy';
+import { suggestTrade, voyageOpen } from '@corsair/systems-economy';
 import { harbourLine, homeNeed, NedSays, OrdersCard, shutWhy, voyageOrders } from './voyage';
 
 export interface PortProps {
@@ -138,6 +138,110 @@ function contractLine(content: ContentPack, state: WorldState, c: Contract, town
  * buttons. Clicking a good opens why it costs what it does; pointing at a button says what the trade comes to.
  * Two one-click actions do the usual thing: sell what sells at a profit, fill the hold with the best buy.
  */
+/**
+ * The First Voyage's last page (Design canvas board 10): three matters on the governor's desk, each with what it pays
+ * and what it teaches; whichever she takes is her own first commission, and the voyage is done.
+ */
+function Commissions({
+  content,
+  state,
+  town,
+  settlements,
+  shipId,
+  send,
+  plot,
+}: {
+  content: ContentPack;
+  state: WorldState;
+  town: PlacedSettlement;
+  settlements: PlacedSettlement[];
+  shipId: string;
+  send: (command: import('@corsair/core').Command) => void;
+  plot?: (x: number, y: number) => void;
+}) {
+  const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
+  const courier = missionOffer(content, state, town, settlements, 'courier');
+  const hunt = missionOffer(content, state, town, settlements, 'hunt');
+  const run = suggestTrade(content, state, town, settlements);
+  const country = COUNTRY[town.nation];
+  const good = (id: string) => content.goods.find((g) => g.id === id)?.name ?? id;
+  const is = (id: string) => (good(id).endsWith('s') ? 'are' : 'is');
+  const take = (kind: 'courier' | 'trade' | 'hunt') => {
+    if (kind === 'trade' && run) {
+      send({ type: 'Buy', shipId, good: run.good, quantity: run.units });
+      const to = settlements.find((s) => s.id === run.to);
+      if (to) plot?.(to.x, to.y);
+    } else send({ type: 'AcceptMission', shipId, kind: kind as 'courier' | 'hunt' });
+    send({ type: 'ChooseCommission', shipId, kind });
+  };
+  const cards: { kind: 'courier' | 'trade' | 'hunt'; tag: string; title: string; say: string; lines: string[]; teaches: string; go: string }[] = [
+    ...(courier?.kind === 'courier'
+      ? [
+          {
+            kind: 'courier' as const,
+            tag: 'Safe',
+            title: 'Carry a letter',
+            say: `"To the governor of ${name(courier.to)}, and bring me back his reply."`,
+            lines: [`Pays ${courier.reward.toLocaleString('en-GB')} gold · into your purse`, `And ${courier.merit} merit with ${country}`, 'Two legs: there, and back'],
+            teaches: 'Teaches the chart and a long voyage.',
+            go: "I'll carry it",
+          },
+        ]
+      : []),
+    ...(run
+      ? [
+          {
+            kind: 'trade' as const,
+            tag: 'Profitable',
+            title: 'Run a cargo',
+            say: `"${good(run.good)} ${is(run.good)} cheap at our quay and dear in ${name(run.to)}. Fill your hold."`,
+            lines: [`Buy ${run.units} ${good(run.good).toLowerCase()} here · ${run.buy} each`, `Sell in ${name(run.to)} · about ${run.sell}`, `Profit about ${run.profit.toLocaleString('en-GB')}`],
+            teaches: 'Teaches buying low and selling high.',
+            go: "I'll run it",
+          },
+        ]
+      : []),
+    ...(hunt?.kind === 'hunt'
+      ? [
+          {
+            kind: 'hunt' as const,
+            tag: 'Dangerous',
+            title: 'Hunt a pirate',
+            say: `"The pirate ${shipKind(hunt.classId!)} ${hunt.name} is taking our ships off ${name(hunt.to)}."`,
+            lines: [`Pays ${hunt.reward.toLocaleString('en-GB')} gold · into your purse`, `And ${hunt.merit} merit · a pirate's bounty`, 'Lighter than your ship: a fair first fight'],
+            teaches: 'Teaches chain, grape and boarding.',
+            go: "I'll hunt her",
+          },
+        ]
+      : []),
+  ];
+  return (
+    <div class="k-wood commissions">
+      <Speech bust={`bust.governor.${town.nation}`} who={`The governor of ${town.name}`} line={`"A captain with a letter of marque is a captain I can use. ${cards.length === 3 ? 'Three matters' : 'These matters'} want one. Which will you take?"`} />
+      <h2 class="commissions-title">{cards.length === 3 ? 'Three matters on his desk' : 'Matters on his desk'}</h2>
+      <div class="commissions-cards">
+        {cards.map((c) => (
+          <div key={c.kind} class={`k-paper commission commission-${c.kind}`}>
+            <span class="commission-tag">{c.tag}</span>
+            <h3 class="commission-title">{c.title}</h3>
+            <p class="commission-say">{curly(c.say)}</p>
+            {c.lines.map((l) => (
+              <div key={l} class="commission-line">
+                {l}
+              </div>
+            ))}
+            <div class="commission-teaches">{c.teaches}</div>
+            <button class="k-btn primary" onClick={() => take(c.kind)}>
+              {c.go}
+            </button>
+          </div>
+        ))}
+      </div>
+      <div class="commissions-foot">{curly(`"The other two will keep, Captain: ask me for them."`)} Whichever you take is marked on your chart.</div>
+    </div>
+  );
+}
+
 /**
  * The First Voyage's first sale (Design canvas board 8): the merchant, the one good she brought, what he pays, and one
  * button. His whole market opens after it.
@@ -542,6 +646,10 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   useEffect(() => {
     if (request && voyageOpen(voyage, request.service)) setOpen(request.service);
   }, [request]);
+  // The First Voyage's governor: he gives her his letter of marque the moment she comes in (its ceremony follows).
+  useEffect(() => {
+    if (open === 'governor' && voyage?.step === 'governor' && !(state.captain?.marques ?? []).includes(town.nation)) send({ type: 'VoyageMarque', shipId });
+  }, [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -747,7 +855,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         </div>
         {notice ? <div class={`hud-toast interior-notice ${notice.tone}`}>{notice.text}</div> : null}
 
-        {open === 'governor' ? (
+        {open === 'governor' && voyage?.step === 'governor' && (state.captain?.marques ?? []).includes(town.nation) ? (
+          <Commissions content={content} state={state} town={town} settlements={settlements} shipId={shipId} send={send} plot={plot} />
+        ) : open === 'governor' ? (
           <Governor content={content} state={state} town={town} settlements={settlements} shipId={shipId} send={send} />
         ) : open === 'shipwright' ? (
           <Shipwright content={content} state={state} town={town} shipId={shipId} send={send} />

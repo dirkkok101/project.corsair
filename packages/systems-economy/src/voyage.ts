@@ -1,7 +1,7 @@
 import type { Command, Voyage, WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { quote } from './index';
+import { cargoUsed, closedTo, fleetHold, quote, tradeEdge, tradePreview } from './index';
 
 // The First Voyage's port (docs/design/first-voyage.md): a building opens as she needs it. The rest stand shuttered,
 // and what would be done in them is refused, so the sim and the screen agree.
@@ -66,4 +66,40 @@ export function salvageUnits(content: ContentPack, state: WorldState, home: Plac
   const lack = Math.max(0, (maxGuns - guns) * content.combat.port.gunGold - state.captain.gold);
   const sell = quote(content, home, sv.good, state.markets?.[home.id]?.[sv.good] ?? 0).sell;
   return Math.max(sv.minUnits, Math.ceil((lack * sv.cover) / Math.max(1, sell)));
+}
+
+/** A cargo to run: the good bought here, how many, at what each (on average), sold where for about what each. */
+export interface TradeRun {
+  good: string;
+  units: number;
+  buy: number;
+  to: string;
+  sell: number;
+  profit: number;
+}
+
+/**
+ * The First Voyage's trade commission: of the goods sold here, the run of up to `tradeUnits` (as many as her hold
+ * takes and her purse pays for, the prices sliding as she buys and sells) that clears the most at an open port within
+ * `tradeTiles`; undefined if nothing here pays to carry.
+ */
+export function suggestTrade(content: ContentPack, state: WorldState, town: PlacedSettlement, settlements: PlacedSettlement[]): TradeRun | undefined {
+  const ship = state.ships.player;
+  if (!ship || !state.captain) return undefined;
+  const c = content.voyage.commissions;
+  const room = Math.max(0, fleetHold(content, state, ship) - cargoUsed(ship));
+  let best: TradeRun | undefined;
+  for (const g of content.goods) {
+    if (g.id === 'food') continue;
+    const bought = tradePreview(content, town, g.id, state.markets?.[town.id]?.[g.id] ?? 0, 'Buy', c.tradeUnits, { gold: state.captain.gold, room, held: 0 }, tradeEdge(content, state.captain, town.nation));
+    if (!bought.units) continue;
+    for (const s of settlements) {
+      if (s.id === town.id || s.type === 'haven' || Math.hypot(s.x - town.x, s.y - town.y) > c.tradeTiles || closedTo(content, state, s)) continue;
+      const sold = tradePreview(content, s, g.id, state.markets?.[s.id]?.[g.id] ?? 0, 'Sell', bought.units, { gold: 0, room: 0, held: bought.units }, tradeEdge(content, state.captain, s.nation));
+      const profit = sold.total - bought.total;
+      if (sold.units === bought.units && profit > (best?.profit ?? 0))
+        best = { good: g.id, units: bought.units, buy: Math.round(bought.total / bought.units), to: s.id, sell: Math.round(sold.total / sold.units), profit };
+    }
+  }
+  return best;
 }

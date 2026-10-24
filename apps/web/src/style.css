@@ -5285,3 +5285,75 @@ body {
   align-self: flex-start;
   font-size: 18px;
 }
+
+/* The governor's commissions (Design canvas board 10): three matters, each its own sheet. */
+.commissions {
+  width: min(1180px, calc(100vw - 60px));
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.commissions-title {
+  margin: 0;
+  font: 34px/1 var(--k-display);
+  color: var(--k-cream);
+}
+
+.commissions-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.commission {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commission-tag {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--k-ink);
+  color: var(--k-gold);
+  font: 800 11px var(--k-body);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.commission-hunt .commission-tag {
+  color: #ff9a7a;
+}
+
+.commission-title {
+  margin: 0;
+  font: 30px/1 var(--k-display);
+}
+
+.commission-say {
+  margin: 0;
+  font: 17px/1.3 var(--k-voice);
+}
+
+.commission-line {
+  font: 700 15px var(--k-body);
+}
+
+.commission-teaches {
+  margin-top: auto;
+  font-size: 14px;
+  color: #6b5233;
+}
+
+.commission .k-btn {
+  align-self: flex-start;
+}
+
+.commissions-foot {
+  font: 16px var(--k-voice);
+  color: #e9dcbc;
+}

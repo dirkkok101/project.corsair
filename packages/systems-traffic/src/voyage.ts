@@ -116,6 +116,27 @@ export function createVoyageSystem(content: ContentPack, settlements: PlacedSett
   return {
     name: 'voyage',
     command(state, command) {
+      if (command.type === 'VoyageMarque' || command.type === 'ChooseCommission') {
+        const v = state.captain?.voyage;
+        const me = state.ships[command.shipId];
+        const nation = settlements.find((s) => s.id === v?.home)?.nation;
+        const refused = { state, events: [{ type: 'VoyageRefused', entityIds: [command.shipId], payload: { command: command.type } }] };
+        if (!v || !me || !nation || nation === 'pirate' || v.step !== 'governor' || me.docked !== v.home) return refused;
+        const held = state.captain!.marques ?? [];
+        if (command.type === 'VoyageMarque') {
+          // The governor's letter, given: her first rung with her nation (in peace too: it covers pirates).
+          if (held.includes(nation)) return refused;
+          return {
+            state: { ...state, captain: { ...state.captain!, marques: [...held, nation] } },
+            events: [{ type: 'MarqueBought', entityIds: [me.id, v.home], payload: { nation, gold: 0, voyage: true } }],
+          };
+        }
+        if (!held.includes(nation)) return refused;
+        return {
+          state: { ...state, captain: { ...state.captain!, voyage: { ...v, step: 'done', commission: command.kind } } },
+          events: [{ type: 'VoyageDone', entityIds: [me.id, v.home], payload: { commission: command.kind } }],
+        };
+      }
       if (command.type !== 'Salvage') return undefined;
       const v = state.captain?.voyage;
       const me = state.ships[command.shipId];
