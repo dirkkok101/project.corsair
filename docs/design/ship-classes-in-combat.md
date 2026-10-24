@@ -107,6 +107,14 @@ Today a broadside lands where her course said; nothing gives her the chance to t
 - **Splashes say where it went**: a near miss throws a tall plume, so she learns.
 - Both sides alike: the AI raider dodges the player's broadside the same way (by seamanship skill).
 
+Built (slice 2): the tell is both ships' rule (guns run out over `battle.tellSeconds` once loaded and bearing; an
+order to fire meanwhile goes off the moment they are out), her arcs show red on the water and light as her guns run
+out, the gun trucks rumble, balls fly at 4.5 tiles a second (6 before), and a near miss throws a taller plume. An AI
+dodge (helm hard over on the player's tell or broadside, by seamanship) was built and measured over whole fights
+and dropped: it moved neither the player's hit rate nor the hull she lost (within noise, seamanship 0 against 100),
+because at fighting range the balls' scatter dwarfs what a turn in a second can change. The raider's small hull and
+quick turns already spill about half the player's shot (a frigate or ship of the line takes over 90%).
+
 ### 4.3 Ends and edges: raking, the rudder, under her guns
 
 - **Stern rakes hit hardest** (x3; bow x2 as today), and a stern rake can jam her rudder: her turn halves for a

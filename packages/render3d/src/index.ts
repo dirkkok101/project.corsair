@@ -749,8 +749,6 @@ export async function createSeaRenderer(
   /** Masts going by the board, by ship and mast: when it began, and the way it falls on her bearings. */
   const falls = new Map<string, { from: number; towardDeg: number }>();
   let fallsSeen = -Infinity;
-  /** Each side's longest reload seen since it last fired, for how far its guns are run out. */
-  const reloadSpan = new Map<string, number>();
   /** Back to the sea map: the fight's ships and its wreckage go; the world's ships return. */
   const leaveBattle = () => {
     inBattle = false;
@@ -1065,7 +1063,6 @@ export async function createSeaRenderer(
       sinkingFrom = undefined;
       falls.clear();
       fallsSeen = -Infinity;
-      reloadSpan.clear();
       battleView = 0;
       battleFit = 1;
       // The camera comes round astern of her at once, not from wherever the sea's chase camera last looked.
@@ -1125,17 +1122,11 @@ export async function createSeaRenderer(
           f.built.hole(e.place.along, starboard >= 0 ? 1 : -1, 0.25 + Math.random() * 0.6);
         }
       }
-      // Guns recoil when a broadside fires and run out again as she reloads: each side's share of its reload done
-      // (its full time is the longest seen since that side last fired).
-      if (s.reload) {
-        const runOut = (b: 'port' | 'starboard') => {
-          const key = `${side}:${b}`;
-          const left = s.reload![b];
-          const full = Math.max(left, reloadSpan.get(key) ?? 0);
-          reloadSpan.set(key, left > 0 ? full : 0);
-          return full > 0 ? 1 - left / full : 1;
-        };
-        f.built.setRunOut(runOut('port'), runOut('starboard'));
+      // Guns recoil when a broadside fires and stay in while she loads; loaded and bearing, they roll out over the
+      // tell (combat.json battle.tellSeconds), so the other ship sees a broadside coming.
+      if (s.runOut) {
+        const tell = Math.max(1e-6, content.combat.battle.tellSeconds);
+        f.built.setRunOut(Math.min(1, s.runOut.port / tell), Math.min(1, s.runOut.starboard / tell));
       }
       // Guns knocked out show as empty ports.
       const battery = content.ships[s.classId]?.guns;

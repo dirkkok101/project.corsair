@@ -275,7 +275,7 @@ const KEYS: { group: string; keys: [string, string][] }[] = [
     keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship, or a port to plot a course there'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port'], ['K', 'careen on a beach'], ['E', 'set sail, in port']],
   },
   { group: 'Controller', keys: [['Stick', 'steer'], ['RT LT', 'more or less sail'], ['A', 'what Space does'], ['B', 'back, let her go'], ['LB', 'next ship (in battle: next shot)'], ['X', 'attack in a hail, board in battle'], ['Y', 'repel boarders; set sail in port'], ['Back', 'the chart; strike your colours in battle'], ['Start', 'the log; take the plunder in battle']] },
-  { group: 'Battle', keys: [['Space', 'fire whichever side bears'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
+  { group: 'Battle', keys: [['Space', 'fire whichever side bears (her guns run out first: so do hers, the red arc, your cue to turn away)'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
   { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['Esc', 'close, or leave port']] },
 ];
 

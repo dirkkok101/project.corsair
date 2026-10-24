@@ -458,6 +458,8 @@ async function main() {
         /** Her going down, and the fight's end, heard once. */
         sankHeard?: boolean;
         endHeard?: boolean;
+        /** Her guns were running out at the last frame: the trucks are heard as they start. */
+        runningOut?: boolean;
         /** Who she is, kept from the start: a ship taken or sunk is gone from the world by the report. */
         name: string;
         title: string;
@@ -1516,6 +1518,11 @@ async function main() {
           audio.battle.boarding(enemyPan, 1);
           fight.meleeAt = now + BOARDING_SOUND_MS;
         } else if (bs.grappling === 0) fight.meleeAt = undefined;
+        // Her guns running out (the tell): the rumble of the trucks as they start, before she fires.
+        const theirGuns = fight.battle.enemyGuns();
+        const runningOut = theirGuns.port === 'running-out' || theirGuns.starboard === 'running-out';
+        if (runningOut && !fight.runningOut) audio.battle.runOut(enemyPan, 1 / (1 + Math.hypot(enemy.x - me.x, enemy.y - me.y) / 8));
+        fight.runningOut = runningOut;
         // She goes down: once, as the wreck appears.
         if (bs.wreck && !fight.sankHeard) {
           fight.sankHeard = true;
@@ -1540,11 +1547,12 @@ async function main() {
             port: fight.battle.aim('port'),
             starboard: fight.battle.aim('starboard'),
           };
+      const enemyArcs = bs.result || bs.wreck ? undefined : { arcDeg: content.combat.guns.arcDeg, ...fight.battle.enemyGuns() };
       // The fight is drawn on the same sea as the map.
       sea3d.canvas.style.display = '';
       // Her grapples' reach round the player, red while she means to board.
       const grapple = bs.result || bs.wreck ? undefined : { tiles: content.combat.battle.boardTiles, threat: Boolean(bs.enemyBoarding) };
-      sea3d.renderBattle({ ...bs, arcs, grapple }, now, fight.nation, fight.famous);
+      sea3d.renderBattle({ ...bs, arcs, enemyArcs, grapple }, now, fight.nation, fight.famous);
       const me = player();
       const prize = sim.state.prize;
       render(

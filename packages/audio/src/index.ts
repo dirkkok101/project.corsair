@@ -40,6 +40,7 @@ const BATTLE_MIX = {
   explosion: 1.5,
   cheer: 0.7,
   splash: 1.1,
+  runOut: 0.9,
 };
 /**
  * Ducking: the sea, the wind and the band dip under a blow and come back, so the guns land on a quieter bed rather than
@@ -449,6 +450,40 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
           t += recorded ? 0.07 + Math.random() * 0.09 : 0.03 + Math.random() * 0.04;
         }
         duck(DUCK.broadside.db, gain, t - ctx.currentTime + DUCK.broadside.holdS);
+      },
+      /**
+       * Her guns running out: the low rumble of the trucks rolling up to the ports, a ragged run of thuds as each
+       * comes home. The tell before a broadside.
+       */
+      runOut(pan: number, gain: number) {
+        if (ctx?.state !== 'running' || !noise) return;
+        const t = ctx.currentTime;
+        const out = placed(t, pan, gain * BATTLE_MIX.runOut);
+        const src = ctx.createBufferSource();
+        src.buffer = noise;
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 160;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.8, t + 0.15);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+        src.connect(lp).connect(g).connect(out);
+        src.start(t, Math.random() * 2);
+        src.stop(t + 0.8);
+        for (let i = 0; i < 4; i++) {
+          const at = t + 0.35 + i * 0.08 + Math.random() * 0.06;
+          const osc = ctx.createOscillator();
+          osc.frequency.setValueAtTime(110 + Math.random() * 30, at);
+          osc.frequency.exponentialRampToValueAtTime(55, at + 0.08);
+          const og = ctx.createGain();
+          og.gain.setValueAtTime(0.0001, at);
+          og.gain.exponentialRampToValueAtTime(0.5, at + 0.005);
+          og.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+          osc.connect(og).connect(out);
+          osc.start(at);
+          osc.stop(at + 0.14);
+        }
       },
       /** A ball passing close by her: a rush of air as it goes over, `delayS` from now (its flight). */
       whistle(delayS: number, pan: number, gain: number) {

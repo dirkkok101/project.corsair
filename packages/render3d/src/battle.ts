@@ -94,6 +94,7 @@ const MAX_BALLS = 400;
 const BALL = '#15171c';
 const GOLD = '#e8c170';
 const PALE = '#ebede9';
+const RED = '#e0503c';
 
 export function createBattleFx() {
   const puff = dotTexture();
@@ -183,25 +184,28 @@ export function createBattleFx() {
   grappleRing.renderOrder = 1;
   object.add(grappleRing);
 
-  // The player's firing arcs on the water: gold when that broadside bears and is loaded, so she steers into one.
-  const arcs = new THREE.Group();
-  object.add(arcs);
-  const arcSide = (mirror: number) => {
-    const fill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-    const edge = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }));
-    fill.scale.x = edge.scale.x = mirror;
-    fill.renderOrder = edge.renderOrder = 1;
-    arcs.add(fill, edge);
-    return { fill, edge };
+  // Firing arcs on the water. The player's: gold when that broadside bears and is loaded, so she steers into one.
+  // The enemy's: faint red, brightening as her guns run out (the tell to turn out of her broadside).
+  const arcSet = () => {
+    const group = new THREE.Group();
+    object.add(group);
+    const side = (mirror: number) => {
+      const fill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      const edge = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }));
+      fill.scale.x = edge.scale.x = mirror;
+      fill.renderOrder = edge.renderOrder = 1;
+      group.add(fill, edge);
+      return { fill, edge };
+    };
+    return { group, port: side(-1), starboard: side(1), shape: '' };
   };
-  const port = arcSide(-1);
-  const starboard = arcSide(1);
-  let arcShape = '';
+  const arcs = arcSet();
+  const enemyArcs = arcSet();
   /** A sector off the starboard beam (local +x; port mirrors it), `deg` either side, `reach` tiles. */
-  const shapeArcs = (deg: number, reach: number) => {
+  const shapeArcs = (set: ReturnType<typeof arcSet>, deg: number, reach: number) => {
     const key = `${deg}:${reach}`;
-    if (key === arcShape) return;
-    arcShape = key;
+    if (key === set.shape) return;
+    set.shape = key;
     const n = 40;
     const fill: number[] = [];
     const edge: number[] = [0, 0, 0];
@@ -214,19 +218,22 @@ export function createBattleFx() {
       }
     }
     edge.push(0, 0, 0);
-    for (const side of [port, starboard]) {
+    for (const side of [set.port, set.starboard]) {
       side.fill.geometry.dispose();
       side.fill.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
       side.edge.geometry.dispose();
       side.edge.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(edge, 3));
     }
   };
-  const paintArc = (side: { fill: THREE.Mesh; edge: THREE.Line }, aim: string) => {
+  const paintArc = (side: { fill: THREE.Mesh; edge: THREE.Line }, aim: string, theirs = false) => {
     const fill = side.fill.material as THREE.MeshBasicMaterial;
     const edge = side.edge.material as THREE.LineBasicMaterial;
-    // Light on the water: a faint gold fill only when that broadside is ready, a gold edge when she bears but is
-    // out of reach, otherwise just a faint edge (the sea and the ships stay the picture).
-    const [fc, fa, ec, ea] = aim === 'ready' ? [GOLD, 0.14, GOLD, 0.85] : aim === 'out-of-range' ? [PALE, 0, GOLD, 0.5] : [PALE, 0, PALE, 0.14];
+    // Light on the water: a faint gold fill only when that broadside is ready (running out, the edge already gold),
+    // a gold edge when she bears but is out of reach, otherwise just a faint edge (the sea and the ships stay the
+    // picture). Hers in red: her guns running out light it, ready to fire fills it.
+    const [fc, fa, ec, ea] = theirs
+      ? aim === 'ready' ? [RED, 0.2, RED, 0.95] : aim === 'running-out' ? [RED, 0.1, RED, 0.8] : [RED, 0, RED, 0.12]
+      : aim === 'ready' ? [GOLD, 0.14, GOLD, 0.85] : aim === 'out-of-range' || aim === 'running-out' ? [PALE, 0, GOLD, 0.5] : [PALE, 0, PALE, 0.14];
     fill.color.set(fc);
     fill.opacity = fa;
     edge.color.set(ec);
@@ -356,7 +363,8 @@ export function createBattleFx() {
         // Where the ball struck (the battle reports the point and how high); else placed on her by its part.
         const at = fx.place?.up !== undefined ? { x: fx.x, y: fx.place.up, z: fx.y } : fx.place ? placeOn(h, fx.place, rand()) : { x: fx.x, y: 0, z: fx.y };
         if (fx.kind === 'smoke') broadside(t, h, h === hulls.player ? hulls.enemy : hulls.player);
-        else if (fx.kind === 'splash') splash(t, fx.x, f.seaAt(fx.x, fx.y), fx.y);
+        // A near miss throws up a taller column, so she sees how close it came.
+        else if (fx.kind === 'splash') splash(t, fx.x, f.seaAt(fx.x, fx.y), fx.y, fx.near ? 1.7 : 1);
         else if (fx.kind === 'mast') fallen(t, h, fx.mast ?? 0, fx.towardDeg ?? 0);
         else if (fx.kind === 'hit') {
           strike(t, at.x, fx.place ? at.y : h.deck * (0.5 + rand() * 0.5), at.z);
@@ -536,14 +544,15 @@ export function createBattleFx() {
         grappleRing.material.opacity = view.grapple.threat ? 0.85 : 0.25;
       }
 
-      // The player's arcs, round her on the water.
-      arcs.visible = Boolean(view.arcs);
-      if (view.arcs) {
-        shapeArcs(view.arcs.arcDeg, view.arcs.rangeTiles);
-        paintArc(port, view.arcs.port);
-        paintArc(starboard, view.arcs.starboard);
-        arcs.position.set(hulls.player.x, 0.12, hulls.player.z);
-        arcs.rotation.set(0, -THREE.MathUtils.degToRad(hulls.player.headingDeg), 0);
+      // Each ship's arcs, round her on the water.
+      for (const [set, a, h, theirs] of [[arcs, view.arcs, hulls.player, false], [enemyArcs, view.enemyArcs, hulls.enemy, true]] as const) {
+        set.group.visible = Boolean(a && h);
+        if (!a || !h) continue;
+        shapeArcs(set, a.arcDeg, a.rangeTiles);
+        paintArc(set.port, a.port, theirs);
+        paintArc(set.starboard, a.starboard, theirs);
+        set.group.position.set(h.x, 0.12, h.z);
+        set.group.rotation.set(0, -THREE.MathUtils.degToRad(h.headingDeg), 0);
       }
     },
   };

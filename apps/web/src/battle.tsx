@@ -436,6 +436,7 @@ const AIM: Record<Aim, string> = {
   loading: 'Loading',
   'no-target': 'Not bearing',
   'out-of-range': 'Out of range',
+  'running-out': 'Running out',
   'no-guns': 'No guns',
 };
 

@@ -368,6 +368,8 @@ export const combatSchema = z.object({
     tilesPerSecondPerSpeedPoint: z.number().positive(),
     /** Ships in a fight are this many times their size (ships.json size): hulls, rigging and guns, drawn and hit alike. */
     shipScale: z.number().positive(),
+    /** Seconds a broadside's guns take to run out once it is loaded and bears: the tell before it can fire. */
+    tellSeconds: z.number().min(0),
     /** Battle handling: how fast a ship gathers way, and the slower rate she loses it, so she carries
      * her way through a tack instead of stopping dead. */
     accelPerSecond: z.number().positive(),

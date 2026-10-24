@@ -16,7 +16,7 @@ import { angleOffWind, atTheOars, bestUpwindDeg, createNavigationSystem, normali
 export type Side = 'player' | 'enemy';
 export type Ammo = 'round' | 'chain' | 'grape';
 export type Broadside = 'port' | 'starboard';
-export type Aim = 'ready' | 'loading' | 'no-target' | 'out-of-range' | 'no-guns';
+export type Aim = 'ready' | 'loading' | 'no-target' | 'out-of-range' | 'running-out' | 'no-guns';
 
 export interface BattleShip extends Ship {
   hull: number;
@@ -27,6 +27,13 @@ export interface BattleShip extends Ship {
   guns: number;
   /** Seconds until each broadside can fire again. */
   reload: Record<Broadside, number>;
+  /**
+   * Seconds each broadside's guns have been run out (loaded, and bearing within reach): at battle.tellSeconds they
+   * can fire. The other ship sees them go out, the tell to turn away on.
+   */
+  runOut: Record<Broadside, number>;
+  /** A broadside ordered to fire while her guns were still running out: it goes off the moment they are out. */
+  firing?: Broadside;
   ammo: Ammo;
   /** Enemy only: her role, which sets how she fights and how hard she boards. */
   role?: AiCaptain['role'];
@@ -123,6 +130,8 @@ export interface BattleEffect {
   towardDeg?: number;
   /** A broadside's smoke: how many guns fired. */
   guns?: number;
+  /** A splash close by her: a near miss. */
+  near?: boolean;
 }
 
 export interface BattleState {
@@ -302,6 +311,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       terror: ship.ai?.terror ?? 1,
       ...(ship.ai?.famous ? { famous: ship.ai.famous } : {}),
       reload: { port: 0, starboard: 0 },
+      runOut: { port: 0, starboard: 0 },
       ammo: 'round',
       role: ship.ai?.role,
       // A famous pirate's veterans (pirates.json) fight in better heart than any other crew.
@@ -414,10 +424,12 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const aim = (side: Side, broadside: Broadside): Aim => {
     const ship = state.ships[side];
     const target = state.ships[side === 'player' ? 'enemy' : 'player'];
-    if (ship.guns < 2) return 'no-guns';
+    // A sunk ship fires nothing more, whatever she had loaded.
+    if (ship.guns < 2 || (side === 'enemy' && state.wreck)) return 'no-guns';
     if (ship.reload[broadside] > 0) return 'loading';
     if (bears(ship, target) !== broadside) return 'no-target';
     if (distance() > reach(ship)) return 'out-of-range';
+    if (ship.runOut[broadside] < c.battle.tellSeconds - 1e-6) return 'running-out';
     return 'ready';
   };
 
@@ -711,8 +723,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     // Taking the helm by hand drops "close to board".
     if (cmd.type === 'SetHelm' && side === 'player' && !byAi && state.boarding) state = { ...state, boarding: false };
     if (cmd.type === 'Fire') {
-      const broadside = cmd.side ?? (['port', 'starboard'] as const).find((b) => aim(side, b) === 'ready');
-      return broadside ? fire(side, broadside, rng) : undefined;
+      const sides = ['port', 'starboard'] as const;
+      const broadside = cmd.side ?? sides.find((b) => aim(side, b) === 'ready') ?? sides.find((b) => aim(side, b) === 'running-out');
+      if (!broadside) return;
+      // Guns still running out: the order stands, and she fires the moment they are out.
+      if (aim(side, broadside) === 'running-out') state = { ...state, ships: { ...state.ships, [side]: { ...state.ships[side], firing: broadside } } };
+      else fire(side, broadside, rng);
+      return;
     }
     if (cmd.type === 'SetAmmo') {
       // For the player, switching shot is instant: loaded guns take the new shot at once (choosing it is
@@ -826,6 +843,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
     demands,
     /** The player's broadside: ready to fire, or why not. */
     aim: (broadside: Broadside) => aim('player', broadside),
+    /** The enemy's guns, for her arcs on the water: her reach with the shot loaded, and each broadside's aim. */
+    enemyGuns: () => ({ rangeTiles: reach(state.ships.enemy), port: aim('enemy', 'port'), starboard: aim('enemy', 'starboard') }),
     /** The player's guns now: a broadside's reload, how far the shot loaded reaches, and how many guns she can work. */
     gunnery: () => ({ reloadSeconds: reloadSeconds(state.ships.player), rangeTiles: reach(state.ships.player), guns: gunsManned(state.ships.player) }),
     /** Advance `ticks` thirtieths of a second. `autopilot` steers the player too (the headless runner). */
@@ -855,9 +874,24 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
         const ships = moved.state.ships as Record<Side, BattleShip>;
         for (const side of ['player', 'enemy'] as const) {
           const s = ships[side];
-          ships[side] = { ...s, reload: { port: Math.max(0, s.reload.port - DT), starboard: Math.max(0, s.reload.starboard - DT) } };
+          const reload = { port: Math.max(0, s.reload.port - DT), starboard: Math.max(0, s.reload.starboard - DT) };
+          // Her guns run out while that broadside is loaded and bears within reach, and are run in when it doesn't:
+          // a ship coming into range always shows the tell before she fires.
+          const other = ships[side === 'player' ? 'enemy' : 'player'];
+          const facing = Math.hypot(other.x - s.x, other.y - s.y) <= reach(s) ? bears(s, other) : undefined;
+          const out = (b: Broadside) => (facing === b && reload[b] === 0 ? s.runOut[b] + DT : 0);
+          ships[side] = { ...s, reload, runOut: { port: out('port'), starboard: out('starboard') } };
         }
         state = { ...state, tick: state.tick + 1, ships };
+        // An order to fire given while her guns ran out: now they are, or it lapses if she no longer bears.
+        for (const side of ['player', 'enemy'] as const) {
+          const b = state.ships[side].firing;
+          if (!b) continue;
+          const now = aim(side, b);
+          if (now === 'running-out') continue;
+          state = { ...state, ships: { ...state.ships, [side]: { ...state.ships[side], firing: undefined } } };
+          if (now === 'ready') fire(side, b, rng);
+        }
         // Beyond escape range the parting clock runs while the gap widens and holds while it closes;
         // back within range it starts over, so a wide turn never ends a fight by accident.
         const apart = distance();
@@ -903,7 +937,8 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const inHull = Math.abs(along) <= half + slack && Math.abs(across) <= width && at[2] <= sz.rail + slack && at[2] > -0.05;
           const inRig = !state.wreck && Math.abs(along) <= half * 0.85 && Math.abs(across) <= sz.yard && at[2] > sz.rail && at[2] <= sz.mast;
           if (!inHull && !inRig) {
-            if (at[2] <= 0 || k > 2) effects.push({ kind: 'splash', x: at[0], y: at[1], at: seconds() });
+            // A near miss, within a hull's length of her, throws up a tall plume: she sees how close it came.
+            if (at[2] <= 0 || k > 2) effects.push({ kind: 'splash', x: at[0], y: at[1], at: seconds(), ...(Math.hypot(rx, ry) <= sz.length ? { near: true } : {}) });
             else flying.push({ ...shot, t, at });
             continue;
           }

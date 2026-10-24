@@ -130,14 +130,19 @@ describe('sea battle', () => {
     close.step(1);
     expect(close.state.ships.player.ammo).toBe('grape');
     expect(close.aim('port')).toBe('no-target');
-    expect(close.aim('starboard')).toBe('ready');
-    // Fire with no side: the starboard broadside, the one that bears.
+    // Her guns are still running out (the tell): an order to fire now stands, and goes off the moment they are out.
+    expect(close.aim('starboard')).toBe('running-out');
     close.send({ type: 'Fire' });
     close.step(1);
+    expect(close.state.shots.some((s) => s.from === 'player')).toBe(false);
+    expect(close.state.ships.player.firing).toBe('starboard');
+    close.step(Math.ceil(content.combat.battle.tellSeconds * 30));
     expect(close.state.shots.some((s) => s.from === 'player' && s.ammo === 'grape')).toBe(true);
+    expect(close.state.ships.player.firing).toBeUndefined();
     expect(close.state.ships.player.reload.starboard).toBeGreaterThan(0);
     expect(close.state.ships.player.reload.port).toBe(0);
-    // Again at once: starboard is loading and port doesn't bear, so nothing fires.
+    // Fired, her guns are run in to load; again at once: starboard is loading and port doesn't bear, so nothing fires.
+    expect(close.state.ships.player.runOut.starboard).toBe(0);
     const shots = close.state.shots.length;
     close.send({ type: 'Fire' });
     close.step(1);
@@ -357,7 +362,7 @@ describe('sea battle', () => {
     // A brig's broadside is 9 guns, wanting 36 hands; at half that she works 9 x sqrt(0.5), about 6.
     const broadside = (crew: number) => {
       // The enemy seated abeam to starboard, well within reach.
-      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } }, {
+      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4, tellSeconds: 0 } } }, {
         map,
         wind: { fromDeg: 90, strength: 'fresh' },
         player: { ...ship('ship.brig'), headingDeg: 0, crew },
@@ -455,7 +460,7 @@ describe('sea battle', () => {
   });
 
   it('fires half her mounted guns a broadside, and reports the guns she has left', () => {
-    const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4 } } };
+    const quick = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 4, tellSeconds: 0 } } };
     const broadside = (guns?: number) => {
       const b = createBattle(quick, {
         map,
@@ -531,7 +536,7 @@ describe('sea battle', () => {
 
   it('guns and range: a ball is full force close in and weaker at long shot; a ball down her length rakes her', () => {
     const at = (apart: number, enemyHeading: number) => {
-      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: apart } } }, {
+      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: apart, tellSeconds: 0 } } }, {
         map,
         wind: { fromDeg: 0, strength: 'fresh' },
         player: { ...ship('ship.brig'), headingDeg: 0 },
@@ -603,7 +608,7 @@ describe('sea battle', () => {
   });
 
   it('the fits in battle: bronze cannon cool after three quick broadsides, nettings stiffen the boarded', () => {
-    const close = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 3 } } };
+    const close = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 3, tellSeconds: 0 } } };
     const brig = (upgrades: string[]) => createBattle(close, { map, wind: { fromDeg: 0, strength: 'fresh' }, player: { ...ship('ship.brig', undefined, 0.8), headingDeg: 0, upgrades }, enemy: { ...ship('ship.frigate', 'patrol'), headingDeg: 0 }, seed: 2, bearingDeg: 90 });
     // Three broadsides in quick succession: her guns must cool, and the next reload is the long one.
     const hot = brig(['bronze_cannon']);
@@ -713,16 +718,105 @@ describe('sea battle', () => {
     expect(held.fired).toBeGreaterThan(0);
     expect(dodged.hits).toBeLessThan(held.hits);
   });
+
+  it('the tell: her guns run out before she fires, so a broadside never comes without warning', () => {
+    const battle = createBattle(content, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: { ...ship('ship.brig', undefined, 0.9), headingDeg: 90 },
+      enemy: { ...ship('ship.frigate', 'patrol', 0.9), headingDeg: 90 },
+      seed: 1,
+      bearingDeg: 180,
+    });
+    const st = battle.state as unknown as { ships: Record<string, { x: number; y: number }> };
+    st.ships.enemy!.x = st.ships.player!.x;
+    st.ships.enemy!.y = st.ships.player!.y + 4;
+    let outSeen = false;
+    let ticks = 0;
+    while (!battle.state.shots.some((s) => s.from === 'enemy') && ticks < 90) {
+      if (battle.state.ships.enemy.runOut.port > 0 || battle.state.ships.enemy.runOut.starboard > 0) outSeen = true;
+      battle.step(1);
+      ticks++;
+    }
+    expect(battle.state.shots.some((s) => s.from === 'enemy')).toBe(true);
+    expect(outSeen).toBe(true);
+    expect(ticks).toBeGreaterThanOrEqual(Math.round(content.combat.battle.tellSeconds * 30));
+  });
+
+  it('the tell comes within reach: a ship bearing from beyond it runs her guns out only as she comes into range', () => {
+    const battle = createBattle(content, {
+      map,
+      wind: { fromDeg: 0, strength: 'fresh' },
+      player: { ...ship('ship.brig', undefined, 0.9), headingDeg: 90 },
+      enemy: { ...ship('ship.frigate', 'patrol', 0.9), headingDeg: 90 },
+      seed: 1,
+      bearingDeg: 180,
+    });
+    const seat = (apart: number) => {
+      const st = battle.state as unknown as { ships: Record<string, { x: number; y: number; speed: number }> };
+      st.ships.enemy!.x = st.ships.player!.x;
+      st.ships.enemy!.y = st.ships.player!.y + apart;
+      st.ships.enemy!.speed = st.ships.player!.speed = 0;
+    };
+    // Abeam beyond her reach: her guns stay in.
+    seat(content.combat.guns.rangeTiles + 1);
+    battle.step(30);
+    expect(battle.state.ships.enemy.runOut).toEqual({ port: 0, starboard: 0 });
+    // Brought within it: she runs them out first, and doesn't fire on the tick she comes in.
+    seat(content.combat.guns.rangeTiles - 1);
+    battle.step(1);
+    expect(battle.state.shots.some((s) => s.from === 'enemy')).toBe(false);
+    expect([battle.enemyGuns().port, battle.enemyGuns().starboard]).toContain('running-out');
+  });
+
+  it('a near miss throws up a plume: a splash within her length says how close it came', () => {
+    let near = 0;
+    let far = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const b = createBattle(content, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.brig', undefined, 0.9), headingDeg: 90 },
+        enemy: { ...ship('ship.sloop', 'patrol', 0.9), headingDeg: 90 },
+        seed,
+        bearingDeg: 0,
+      });
+      const st = b.state as unknown as { ships: Record<string, { x: number; y: number }> };
+      st.ships.enemy!.x = st.ships.player!.x;
+      st.ships.enemy!.y = st.ships.player!.y - 5.5;
+      for (let i = 0; i < 60 && !b.state.shots.some((s) => s.from === 'player'); i++) {
+        b.send({ type: 'Fire', side: 'port' });
+        b.step(1);
+      }
+      for (let i = 0; i < 90 && b.state.shots.some((s) => s.from === 'player'); i++) {
+        b.step(1);
+        const e = b.state.ships.enemy;
+        const length = content.ships['ship.sloop']!.size.length * content.combat.battle.shipScale;
+        for (const fx of b.state.effects.filter((x) => x.kind === 'splash' && x.at === b.state.tick / 30)) {
+          const d = Math.hypot(fx.x - e.x, fx.y - e.y);
+          if (fx.near) {
+            near++;
+            expect(d).toBeLessThanOrEqual(length + 1e-6);
+          } else {
+            far++;
+            expect(d).toBeGreaterThan(length);
+          }
+        }
+      }
+    }
+    expect(near).toBeGreaterThan(0);
+    expect(far).toBeGreaterThan(0);
+  });
 });
 
 describe('difficulty in battle', () => {
-  const duel = (difficulty?: string) =>
+  const duel = (difficulty?: string, seed = 7) =>
     createBattle(content, {
       map,
       wind: { fromDeg: 0, strength: 'fresh' },
       player: ship('ship.brig', undefined, 0.8),
       enemy: ship('ship.brig', 'patrol', 0.8),
-      seed: 7,
+      seed,
       bearingDeg: 90,
       ...(difficulty ? { difficulty: difficultyOf(content, difficulty) } : {}),
     });
@@ -745,11 +839,15 @@ describe('difficulty in battle', () => {
 
   it('the easiest level forgives the player near misses: the same broadsides do more harm', () => {
     const harm = (difficulty: string) => {
-      const b = duel(difficulty);
-      // A gunnery fight held at range, stopped before either strikes.
-      for (let i = 0; i < 30 * 45 && !b.result(); i++) b.step(1, 'cautious');
-      const e = b.state.ships.enemy;
-      return e.hullMax - e.hull + (100 - e.sailCondition);
+      let done = 0;
+      for (let seed = 1; seed <= 6; seed++) {
+        const b = duel(difficulty, seed);
+        // A gunnery fight held at range, stopped before either strikes.
+        for (let i = 0; i < 30 * 45 && !b.result(); i++) b.step(1, 'cautious');
+        const e = b.state.ships.enemy;
+        done += e.hullMax - e.hull + (100 - e.sailCondition);
+      }
+      return done;
     };
     expect(harm('apprentice')).toBeGreaterThan(harm('adventurer'));
   });

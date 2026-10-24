@@ -19,8 +19,8 @@ export interface BattleViewShip {
   /** Her men aboard, and her guns still mounted. */
   crew?: number;
   guns?: number;
-  /** Seconds until each broadside is loaded again. */
-  reload?: { port: number; starboard: number };
+  /** Seconds each broadside's guns have been running out (the tell): drawn rolling out to the ports. */
+  runOut?: { port: number; starboard: number };
   /** Her shipwright's fit (upgrades.json ids), drawn on her. */
   upgrades?: string[];
 }
@@ -50,10 +50,14 @@ export interface BattleViewState {
     place?: BattleViewPlace;
     mast?: number;
     towardDeg?: number;
+    /** A splash close by her: a near miss, thrown up higher. */
+    near?: boolean;
   }[];
   /** The player's firing arcs: degrees either side of each beam, reach in tiles for the shot loaded, and
    * whether each broadside can fire now (as the battle's aim reports it). */
   arcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
+  /** The enemy's arcs, the same way: her guns running out ('running-out') are the tell. */
+  enemyArcs?: { arcDeg: number; rangeTiles: number; port: string; starboard: string };
   /** Her grapples' reach round the player (tiles), and whether she means to board now. */
   grapple?: { tiles: number; threat: boolean };
   /** She has gone down: barrels and men in the water where she sank. */
