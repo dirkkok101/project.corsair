@@ -339,7 +339,7 @@ async function main() {
     // Finding the pirate coves, from what the others did.
     createHavensSystem(content, settlements),
     // The First Voyage's chapters, while she sails it.
-    createVoyageSystem(content),
+    createVoyageSystem(content, settlements),
     // Her deeds said out loud, from what the others did.
     createHonoursSystem(content, settlements),
     // Last, so it writes up what the others did.
@@ -1348,6 +1348,16 @@ async function main() {
     const port = portInReach();
     if (port) return { text: `Enter ${port.name}`, run: () => sim.send({ type: 'Dock', shipId: me.id, settlementId: port.id }) };
     if (Object.values(sim.state.ships).some((s) => s.ai?.chasing)) return undefined;
+    // The First Voyage's wreck, alongside: heave to and take off what the storm left.
+    const v = sim.state.captain?.voyage;
+    if (v?.step === 'salvage' && Math.hypot(me.x - v.cay.x, me.y - v.cay.y) <= content.voyage.arriveTiles + 1)
+      return {
+        text: 'Salvage the wreck',
+        run: () => {
+          sim.send({ type: 'SetSails', shipId: me.id, sails: 'furled' });
+          sim.send({ type: 'Salvage', shipId: me.id });
+        },
+      };
     // The ship picked, alongside or not; else any ship alongside (the chance to speak her is brief).
     const her = targeted();
     const alongside = shipInHail();
@@ -2133,7 +2143,7 @@ async function main() {
     // The career's goals: the next is the sea's goal pill and a deed card's "Next", the rest wait in the log.
     const goals = careerGoals(content, sim.state, settlements);
     // Bound for the cay on the First Voyage, the voyage guides her: its orders stand for the goal, its lesson for the prompt.
-    const guided = !ship.docked && (sim.state.captain?.voyage?.step === 'helm' || sim.state.captain?.voyage?.step === 'salvage') ? sim.state.captain.voyage.step : undefined;
+    const guided = !ship.docked && sim.state.captain?.voyage && !['harbour', 'done'].includes(sim.state.captain.voyage.step) ? sim.state.captain.voyage.step : undefined;
     // Her new honours, queued; a rank and a hoard have their own moments.
     for (const h of sim.state.captain?.honours ?? []) {
       if (deedsSeen.has(h.id)) continue;
@@ -2176,19 +2186,32 @@ async function main() {
     );
     // The First Voyage at sea, bound for the cay: the orders, the lesson, the smoke.
     const voyage = sim.state.captain?.voyage;
-    const bound = voyage && !ship.docked && !fight && (voyage.step === 'helm' || voyage.step === 'salvage') ? voyage : undefined;
-    sea3d.beacon(bound ? bound.cay : undefined);
+    const bound = voyage && !ship.docked && !fight && voyage.step !== 'harbour' && voyage.step !== 'done' ? voyage : undefined;
+    const toCay = bound?.step === 'helm' || bound?.step === 'salvage';
+    // The wreck lies on the cay until she has done with it; it smokes until she has salvaged it.
+    const wrecked = voyage && ['helm', 'salvage', 'prize'].includes(voyage.step) ? voyage.cay : undefined;
+    sea3d.wreck(wrecked, toCay);
     const irons = Boolean(bound?.step === 'helm' && ship.sails !== 'furled' && pointOfSail(content, offWind).id === 'irons');
     if (irons) windShown = true;
+    // Where the order in hand is to be done: the cay, then home.
+    const mark = bound && (toCay ? bound.cay : settlements.find((s) => s.id === bound.home));
     render(
       bound ? (
         <div class="voyage-sea">
-          <OrdersCard orders={voyageOrders(bound, settlements.find((s) => s.id === bound.home)?.name ?? '')} far={`${Math.max(1, Math.round(Math.hypot(ship.x - bound.cay.x, ship.y - bound.cay.y) * kmPerTile))} km`} />
+          <OrdersCard
+            orders={voyageOrders(bound, settlements.find((s) => s.id === bound.home)?.name ?? '')}
+            far={mark && `${Math.max(1, Math.round(Math.hypot(ship.x - mark.x, ship.y - mark.y) * kmPerTile))} km`}
+          />
           {bound.step === 'helm' && !moments[0] ? <HelmLessons v={bound} irons={irons} windShown={windShown} /> : null}
-          <CayMark name={bound.cay.name} at={(() => {
-            const at = sea3d.project(bound.cay.x, bound.cay.y);
-            return at && { px: at.px, py: at.py - 110 };
-          })()} />
+          {toCay ? (
+            <CayMark
+              name={bound.cay.name}
+              at={(() => {
+                const at = sea3d.project(bound.cay.x, bound.cay.y);
+                return at && { px: at.px, py: at.py - 110 };
+              })()}
+            />
+          ) : null}
         </div>
       ) : null,
       voyageRoot,
@@ -2210,7 +2233,10 @@ async function main() {
         (() => {
           const bar = meritBar(content, sim.state.captain, deed.nation);
           const goal = nextGoal(goals, sim.state.captain?.gold ?? 0);
-          const next = bar?.next ?? (goal && goal.title[0]!.toLowerCase() + goal.title.slice(1));
+          // On the First Voyage the next thing is her next order.
+          const order = voyage && voyage.step !== 'done' ? voyageOrders(voyage, settlements.find((s) => s.id === voyage.home)?.name ?? '').find((o) => !o.done) : undefined;
+          const lower = (t: string) => t[0]!.toLowerCase() + t.slice(1);
+          const next = bar?.next ?? (voyage && voyage.step !== 'done' ? order && lower(order.text) : goal && lower(goal.title));
           return <DeedCard honour={deed} weight={deedStays ? 'standard' : 'small'} age={now - deedShownAt} next={next} bar={bar?.share} close={closeDeed} />;
         })()
       ) : null,

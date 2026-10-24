@@ -136,7 +136,20 @@ test('chapter 1, the helm: out at half sail, steer, more sail, the wind, and the
   const { cay } = await voyageOf(page);
   await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
   await expect.poll(async () => (await voyageOf(page)).step).toBe('salvage');
+  // Alongside the wreck, Space salvages it.
+  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'test-results/voyage-cay.png' });
+  await page.keyboard.press(' ');
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('prize');
+  const card = page.locator('.deed-standard');
+  await expect(card.locator('.deed-title')).toHaveText('First salvage');
+  await expect(card).toContainText(/\d+ sugar and 4 castaways, off Gallows Cay/);
+  const sugar = (await page.evaluate(() => window.__corsair.state.get('ships.player.cargo.sugar'))) as number;
+  expect(sugar).toBeGreaterThanOrEqual(20);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'test-results/voyage-salvage.png' });
+  await page.keyboard.press('Enter');
+  await expect(card).toHaveCount(0);
   expect(errors).toEqual([]);
 });

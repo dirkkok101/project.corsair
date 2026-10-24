@@ -661,6 +661,8 @@ export type Command =
     }
   /** Go ashore on the nearest beach and dig for a hoard whose map the captain holds a piece of. */
   | { type: 'Dig'; shipId: string }
+  /** The First Voyage: take off what the storm left on the cay's wreck. */
+  | { type: 'Salvage'; shipId: string }
   /** In a tavern: buy the piece of a famous pirate's map the shady stranger offers this week. */
   | { type: 'BuyMapPiece'; shipId: string; pirateId: string }
   /** At the shipwright: sell a ship of the fleet, or make one the flagship. */

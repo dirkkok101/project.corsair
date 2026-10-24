@@ -86,6 +86,8 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
           ? { kind: 'deed', text: `Dug up ${p.name}'s hoard near ${near.name}: ${gold(p.gold)}.`, place: near.id }
           : { kind: 'deed', text: `Dug up ${p.name}'s hoard: ${gold(p.gold)}.` };
       }
+      case 'Salvaged':
+        return { kind: 'deed', text: `Salvaged ${p.units} ${good(p.good)} and ${p.men} castaways from the wreck on ${p.name}.` };
       case 'ShipBought':
         return { kind: 'deed', text: `Bought the ${kind(p.classId)} ${p.name} at ${town(at)}.`, place: at };
       case 'ShipSold':

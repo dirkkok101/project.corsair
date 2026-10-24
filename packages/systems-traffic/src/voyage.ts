@@ -1,6 +1,7 @@
 import { rngStream, seedRng } from '@corsair/core';
 import type { EmittedEvent, Nation, System, Voyage, WorldState } from '@corsair/core';
 import { isLand, tileAt } from '@corsair/data';
+import { cargoUsed, crewOf, fleetBerths, fleetHold, salvageUnits } from '@corsair/systems-economy';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { SeaLanes } from './lanes';
 
@@ -93,11 +94,27 @@ export function withVoyage(world: WorldState, content: ContentPack, map: TileMap
 /**
  * The voyage's chapters as they happen. Sailing from home the first time, she goes at half sail, bound for the cay;
  * on the way the lessons she has shown she knows are kept (the helm used, more sail set); within `arriveTiles` of
- * the wreck she has reached it.
+ * the wreck she has reached it, and salvages it: its casks into her hold, its castaways into her crew.
  */
-export function createVoyageSystem(content: ContentPack): System {
+export function createVoyageSystem(content: ContentPack, settlements: PlacedSettlement[]): System {
   return {
     name: 'voyage',
+    command(state, command) {
+      if (command.type !== 'Salvage') return undefined;
+      const v = state.captain?.voyage;
+      const me = state.ships[command.shipId];
+      const home = settlements.find((s) => s.id === v?.home);
+      if (!v || !me || !home || v.step !== 'salvage' || me.docked || Math.hypot(me.x - v.cay.x, me.y - v.cay.y) > content.voyage.arriveTiles + 1)
+        return { state, events: [{ type: 'SalvageRefused', entityIds: [command.shipId], payload: {} }] };
+      const sv = content.voyage.salvage;
+      const units = Math.min(salvageUnits(content, state, home), Math.max(0, fleetHold(content, state, me) - cargoUsed(me)));
+      const men = Math.min(sv.men, Math.max(0, fleetBerths(content, state, me) - crewOf(content, me)));
+      const ship = { ...me, cargo: { ...me.cargo, [sv.good]: (me.cargo[sv.good] ?? 0) + units }, crew: crewOf(content, me) + men };
+      return {
+        state: { ...state, ships: { ...state.ships, [me.id]: ship }, captain: { ...state.captain!, voyage: { ...v, step: 'prize' } } },
+        events: [{ type: 'Salvaged', entityIds: [me.id], payload: { good: sv.good, units, men, name: v.cay.name } }],
+      };
+    },
     tick(state) {
       const v = state.captain?.voyage;
       const me = state.ships.player;

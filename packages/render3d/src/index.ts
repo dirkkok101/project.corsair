@@ -241,8 +241,8 @@ export interface SeaRenderer {
   wildlife: { spawn(kind: WildlifeKind): void; readonly count: number };
   /** Two other ships firing on each other at (x, y) tiles: a bank of gun smoke there, drifting and thinning. */
   seaFight(x: number, y: number): void;
-  /** A wreck burning at (x, y) tiles: a column of dark smoke rising there, seen from afar, until cleared (undefined). */
-  beacon(at: { x: number; y: number } | undefined): void;
+  /** A wrecked sloop on her beam ends at (x, y) tiles, smoke rising over her while `smoking`, until cleared (undefined). */
+  wreck(at: { x: number; y: number } | undefined, smoking: boolean): void;
   /** The plotted route to the destination (waypoints after the ship, tiles), drawn on the sea until cleared. */
   guide(points: [number, number][] | undefined): void;
   /** For review: a row of these classes under sail, abeam of the player, drawn only (not in the world). */
@@ -393,6 +393,7 @@ export async function createSeaRenderer(
   const BEACON_EVERY = 0.3;
   let beacon: { x: number; y: number } | undefined;
   let beaconDue = 0;
+  let wreck: { root: THREE.Object3D; x: number; y: number } | undefined;
   const ships = new Map<string, { root: THREE.Object3D; setSails(anim: string): void; setCrew(share: number): void; built: BuiltShip; holes: number; classId: string }>();
   /** The ships in company with each flagship, kept in line astern on her track (consorts.ts). */
   const consorts = createConsorts();
@@ -1377,8 +1378,23 @@ export async function createSeaRenderer(
     guide(points) {
       guidePoints = points;
     },
-    beacon(at) {
-      beacon = at;
+    wreck(at, smoking) {
+      beacon = smoking ? at : undefined;
+      if (wreck && (!at || wreck.x !== at.x || wreck.y !== at.y)) {
+        worldShips.remove(wreck.root);
+        wreck = undefined;
+      }
+      if (!at || wreck) return;
+      // Driven onto the cay by the storm: furled and in rags, heeled over and settled in the shallows.
+      const built = buildShip(RIGS['ship.sloop']!, 'player');
+      built.setSails('furled', 'beam', 1, 0);
+      built.setTatters(1);
+      built.root.position.set(at.x, -0.25, at.y);
+      built.root.rotateY(0.7);
+      built.root.rotateZ(0.5);
+      built.root.scale.setScalar(MODEL_SCALE);
+      worldShips.add(built.root);
+      wreck = { root: built.root, x: at.x, y: at.y };
     },
     toggleChase() {
       chase = !chase;

@@ -1,4 +1,7 @@
-import type { Command, Voyage } from '@corsair/core';
+import type { Command, Voyage, WorldState } from '@corsair/core';
+import { shipStats } from '@corsair/data';
+import type { ContentPack, PlacedSettlement } from '@corsair/data';
+import { quote } from './index';
 
 // The First Voyage's port (docs/design/first-voyage.md): a building opens as she needs it. The rest stand shuttered,
 // and what would be done in them is refused, so the sim and the screen agree.
@@ -49,4 +52,18 @@ export function voyageOpen(voyage: Voyage | undefined, service: PortService): bo
 export function voyageShut(voyage: Voyage | undefined, command: Command): PortService | undefined {
   const service = SERVICE[command.type];
   return service && !voyageOpen(voyage, service) ? service : undefined;
+}
+
+/**
+ * The casks the cay's wreck gives up: enough that, sold at home, they cover `cover` times what a full battery costs
+ * beyond her purse (at least `minUnits`), so the first sale fills her guns.
+ */
+export function salvageUnits(content: ContentPack, state: WorldState, home: PlacedSettlement): number {
+  const sv = content.voyage.salvage;
+  const ship = state.ships.player;
+  if (!ship || !state.captain) return sv.minUnits;
+  const { guns, maxGuns } = shipStats(content, ship);
+  const lack = Math.max(0, (maxGuns - guns) * content.combat.port.gunGold - state.captain.gold);
+  const sell = quote(content, home, sv.good, state.markets?.[home.id]?.[sv.good] ?? 0).sell;
+  return Math.max(sv.minUnits, Math.ceil((lack * sv.cover) / Math.max(1, sell)));
 }

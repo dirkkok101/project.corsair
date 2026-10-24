@@ -1128,6 +1128,7 @@ export const voyageSchema = z.object({
   islandTiles: z.number().int().positive(),
   clearOfPortsTiles: z.number().positive(),
   arriveTiles: z.number().positive(),
+  salvage: z.object({ good: z.string(), minUnits: z.number().int().positive(), cover: z.number().positive(), men: z.number().int().min(0) }),
   cays: z.record(z.string(), z.string()),
 });
 export type VoyageConfig = z.infer<typeof voyageSchema>;

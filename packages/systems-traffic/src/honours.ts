@@ -118,6 +118,9 @@ export function createHonoursSystem(content: ContentPack, settlements: PlacedSet
           case 'HoardFound':
             add({ id: `hoard:${p.pirateId}`, kind: 'hoard', title: `${p.name}'s hoard dug up`, gold: Number(p.gold), into: 'chest', tick: e.tick });
             break;
+          case 'Salvaged':
+            add({ id: 'first:salvage', kind: 'first', title: 'First salvage', lines: [`${p.units} ${good(p.good).toLowerCase()} and ${p.men} castaways, off ${p.name}`], tick: e.tick });
+            break;
           case 'ContractFilled':
             add({ id: `contract:${e.tick}:${p.good}`, kind: 'contract', title: `The ${good(p.good).toLowerCase()} contract filled`, gold: Number(p.reward), into: 'purse', lines: [`${p.units} delivered to ${town(at)}`], ...base });
             break;

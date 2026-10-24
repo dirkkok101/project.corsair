@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createSim } from '@corsair/core';
-import { isLand, tileAt } from '@corsair/data';
-import { createEconomySystem } from '@corsair/systems-economy';
+import { isLand, shipStats, tileAt } from '@corsair/data';
+import { createEconomySystem, crewOf, quote } from '@corsair/systems-economy';
 import { createNavigationSystem } from '@corsair/systems-navigation';
-import { bearingWord, createVoyageSystem, withVoyage } from '../src';
+import { bearingWord, createHonoursSystem, createVoyageSystem, withVoyage } from '../src';
 import { content, settlements, lanes, map, windAt, world } from './fixtures';
 
 const capitals = (['england', 'spain', 'france', 'netherlands'] as const).map((n) => ({ nation: n, home: settlements.find((s) => s.nation === n && s.type === 'capital')! }));
@@ -48,7 +48,7 @@ describe('the First Voyage, sailed', () => {
   /** A new career on the voyage, in port at Port Royal. */
   const begun = (seed = 3) => {
     const w = withVoyage(world(seed).state, content, map, settlements, lanes, royal.id, 'england', seed);
-    const sim = createSim(w, [createEconomySystem(content, settlements, map, windAt), createNavigationSystem(content, map, windAt, settlements), createVoyageSystem(content)]);
+    const sim = createSim(w, [createEconomySystem(content, settlements, map, windAt), createNavigationSystem(content, map, windAt, settlements), createVoyageSystem(content, settlements), createHonoursSystem(content, settlements)]);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
     sim.applyCommands();
     return sim;
@@ -87,10 +87,28 @@ describe('the First Voyage, sailed', () => {
     sim.step(1);
     expect(sim.state.captain!.voyage!.step).toBe('salvage');
     expect(sim.events().filter((e) => e.type === 'CayReached')).toHaveLength(1);
+    // The salvage: sugar enough that its sale at home fills her battery, and castaways into her crew.
+    const crew = crewOf(content, sim.state.ships.player!);
+    sim.send({ type: 'Salvage', shipId: 'player' });
+    sim.step(1);
+    const me = sim.state.ships.player!;
+    const casks = me.cargo.sugar!;
+    expect(casks).toBeGreaterThanOrEqual(content.voyage.salvage.minUnits);
+    expect(me.crew).toBe(crew + content.voyage.salvage.men);
+    expect(sim.state.captain!.voyage!.step).toBe('prize');
+    expect(sim.state.captain!.honours!.find((h) => h.id === 'first:salvage')).toMatchObject({ kind: 'first', title: 'First salvage' });
+    // Sold at home it covers the guns she lacks.
+    const sell = quote(content, royal, 'sugar', sim.state.markets![royal.id]!.sugar ?? 0).sell;
+    const lack = (shipStats(content, me).maxGuns - shipStats(content, me).guns) * content.combat.port.gunGold - sim.state.captain!.gold;
+    expect(casks * sell).toBeGreaterThanOrEqual(lack);
+    // Once only.
+    sim.send({ type: 'Salvage', shipId: 'player' });
+    sim.step(1);
+    expect(sim.state.ships.player!.cargo.sugar).toBe(casks);
   });
 
   it("a veteran's career has no voyage, and every building open", () => {
-    const sim = createSim(world(3).state, [createEconomySystem(content, settlements, map, windAt), createVoyageSystem(content)]);
+    const sim = createSim(world(3).state, [createEconomySystem(content, settlements, map, windAt), createVoyageSystem(content, settlements)]);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
     sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 });
     sim.applyCommands();
