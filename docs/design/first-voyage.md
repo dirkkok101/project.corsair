@@ -70,3 +70,19 @@ S13 skip, polish, balance, playtests.
 
 Each slice: vitest for the sim, e2e for what the player sees, and a playtest (screenshots of every new screen,
 read as a newcomer would) before the next.
+
+## 7. As built (2026-10-24)
+
+- The cay lies 35 to 50 tiles off (12 to 20 proved a six-second sail: no time for a lesson), off a small island
+  where the home waters have one; a wrecked sloop smokes on it. A newcomer steering by eye reaches it in about 20 s
+  at the playtest pace, having been shown to steer and set more sail.
+- The first prize is a gunless periagua (the Salt Rat) circling a fishing ketch; no one else hunts her until the
+  governor has seen her. In battle the lesson follows the aim: steer for her, put your side to her, fire. She strikes
+  once hurt (voyage.json meek), in about 20 s of a newcomer's fighting; she can't be kept (she'd only slow the brig).
+- Home: each open building tagged with its chore; the merchant opens on one good and one button; the tavern on the
+  sailors and their share. The governor gives his letter (the promotion moment at its first rung), then his three
+  commissions; the trade run is bought and plotted in one click.
+- The first five goals done pay 100 gold each (rewards.json). Every voyage chapter has a vitest and an e2e, and the
+  playtests in apps/web/e2e/voyage.spec.ts sail chapters 1 and 2 on the real clock with keys alone.
+- The quartermaster can be sent ashore from the log at any time (SkipVoyage): every port opens, his ships leave.
+

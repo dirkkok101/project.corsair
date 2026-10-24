@@ -5357,3 +5357,19 @@ body {
   font: 16px var(--k-voice);
   color: #e9dcbc;
 }
+
+/* The First Voyage given up from the log (the career's third step promises it). */
+.log-ashore {
+  position: absolute;
+  top: 12px;
+  right: 110px;
+  z-index: 2;
+}
+
+.log-ashore.asking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 15px var(--k-voice);
+  color: var(--k-ink);
+}

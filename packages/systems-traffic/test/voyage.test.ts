@@ -76,12 +76,13 @@ describe('the First Voyage, sailed', () => {
     expect(sim.state.captain!.voyage!.step).toBe('helm');
     expect(sim.state.ships.player!.sails).toBe('half');
     sim.step(30);
-    expect(sim.state.captain!.voyage!.lessons ?? []).toEqual([]);
+    // Nothing learned of sail yet (the helm may be, if she left with her head on the smoke).
+    expect(sim.state.captain!.voyage!.lessons ?? []).not.toContain('sail');
     sim.send({ type: 'SetHelm', shipId: 'player', helm: 1 });
     sim.step(5);
     sim.send({ type: 'SetSails', shipId: 'player', sails: 'full' });
     sim.step(5);
-    expect(sim.state.captain!.voyage!.lessons).toEqual(['steer', 'sail']);
+    expect(sim.state.captain!.voyage!.lessons).toEqual(expect.arrayContaining(['steer', 'sail']));
     const { x, y } = sim.state.captain!.voyage!.cay;
     sim.send({ type: 'Teleport', shipId: 'player', x: x + 1, y });
     sim.step(1);
@@ -187,5 +188,27 @@ describe('the First Voyage, the first prize', () => {
     expect(sim.state.captain!.voyage).toMatchObject({ step: 'done', commission: 'courier' });
     expect(sim.state.captain!.missions!.map((m) => m.kind)).toEqual(['courier']);
     expect(sim.state.captain!.honours!.some((h) => h.id === 'first:voyage')).toBe(true);
+  });
+});
+
+describe('the First Voyage, given up', () => {
+  it('sending the quartermaster ashore ends it: every building open, its ships gone', () => {
+    const royal = settlements.find((s) => s.id === 'town.port_royal')!;
+    const w = withVoyage(world(3).state, content, map, settlements, lanes, royal.id, 'england', 3);
+    const at = { ...w, captain: { ...w.captain!, voyage: { ...w.captain!.voyage!, step: 'prize' as const } } };
+    const sim = createSim(at, [createEconomySystem(content, settlements, map, windAt), createTrafficSystem(content, settlements, lanes, map, windAt), createVoyageSystem(content, settlements)]);
+    sim.step(1);
+    expect(Object.values(sim.state.ships).filter((s) => s.ai?.voyage)).toHaveLength(2);
+    sim.send({ type: 'SkipVoyage', shipId: 'player' });
+    sim.step(1);
+    expect(sim.state.captain!.voyage!.step).toBe('done');
+    expect(Object.values(sim.state.ships).filter((s) => s.ai?.voyage)).toHaveLength(0);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
+    sim.send({ type: 'Teleport', shipId: 'player', x: royal.x + 2, y: royal.y + 2 });
+    sim.step(1);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
+    sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 });
+    sim.applyCommands();
+    expect(sim.events().filter((e) => e.type === 'TradeRefused' && e.payload.reason === 'shuttered')).toHaveLength(0);
   });
 });

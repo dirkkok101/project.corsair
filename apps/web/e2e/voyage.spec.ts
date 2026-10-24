@@ -100,25 +100,27 @@ test('chapter 1, the helm: out at half sail, steer, more sail, the wind, and the
   await expect(page.locator('.port')).toHaveCount(0);
   expect((await voyageOf(page)).step).toBe('helm');
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.sails'))).toBe('half');
-  // One prompt: steer, its keys shown.
+  // One prompt at a time: steer (its keys shown), unless she left harbour with her head on the smoke already.
   const prompt = page.locator('.voyage-prompt');
-  await expect(prompt).toContainText('Steer her toward the smoke');
-  await expect(prompt.locator('.k-key')).toHaveText(['A', 'D']);
+  await expect(prompt).toContainText(/Steer her toward the smoke|More sail/);
   await expect(page.locator('.voyage-sea .voyage-orders')).toContainText(/Sail out to Gallows Cay\s*\d+ km/);
   await expect(page.locator('.voyage-cay')).toContainText('Gallows Cay · smoke');
   // The goal pill and the port's own prompt keep quiet.
   await expect(page.locator('.hud-goal')).toHaveCount(0);
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/voyage-steer.png' });
-  await page.keyboard.down('d');
-  await page.waitForTimeout(400);
-  await page.keyboard.up('d');
+  if ((await prompt.innerText()).includes('Steer')) {
+    await expect(prompt.locator('.k-key')).toHaveText(['A', 'D']);
+    await page.keyboard.down('d');
+    await page.waitForTimeout(400);
+    await page.keyboard.up('d');
+  }
   await expect(prompt).toContainText("More sail: she'll go faster");
   await expect(page.locator('.voyage-pip.done')).toHaveText(['Steer']);
   await page.screenshot({ path: 'test-results/voyage-sail.png' });
   await page.keyboard.press('w');
   await expect(prompt).toHaveCount(0);
-  expect((await voyageOf(page)).lessons).toEqual(['steer', 'sail']);
+  expect((await voyageOf(page)).lessons).toEqual(expect.arrayContaining(['steer', 'sail']));
   // Into the wind: the quartermaster says so; bearing away again, the lesson is learned.
   await page.evaluate(() => {
     const me = window.__corsair.state.get('ships.player') as { headingDeg: number };
@@ -174,15 +176,12 @@ test('chapter 2, the first prize: a pirate harrying a boat, chased and fought wi
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/voyage-sailho.png' });
   // Alongside, Space attacks her.
-  await page.evaluate((id) => {
-    const s = window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>;
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s[id]!.x + 1.2, y: s[id]!.y + 1.2 } as never);
-  }, v.pirateId);
+  await alongside(page, v.pirateId);
   await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate Salt Rat');
   await page.keyboard.press(' ');
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
   // Ned's word as it begins, the arc lesson, and round shot only.
-  await expect(page.locator('.battle-ned')).toContainText('Put your side to her');
+  await expect(page.locator('.battle-ned')).toContainText('put your side to her');
   await expect(page.locator('.battle-lesson')).toBeVisible();
   await expect(page.locator('.battle-ammo button', { hasText: 'Chain' })).toBeDisabled();
   await expect(page.locator('.battle-ammo button', { hasText: 'Grape' })).toBeDisabled();
@@ -223,10 +222,7 @@ async function toHome(page: Page) {
   await expect(page.locator('.deed-standard')).toBeVisible();
   await page.keyboard.press('Enter');
   const v = (await voyageOf(page)) as Voyage & { pirateId: string };
-  await page.evaluate((id) => {
-    const s = window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>;
-    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s[id]!.x + 1.2, y: s[id]!.y + 1.2 } as never);
-  }, v.pirateId);
+  await alongside(page, v.pirateId);
   await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate');
   await page.keyboard.press(' ');
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
@@ -390,3 +386,135 @@ test('chapter 4, the hunt: a pirate lighter than her match put on the sea', asyn
   const missions = (await page.evaluate(() => window.__corsair.state.get('captain.missions'))) as { kind: string; classId: string }[];
   expect(missions).toMatchObject([{ kind: 'hunt', classId: 'ship.sloop' }]);
 });
+
+test('the quartermaster can be sent ashore from the log: asked once, then every port open', async ({ page }) => {
+  const errors = await voyageBegun(page);
+  await page.keyboard.press('l');
+  await page.getByRole('button', { name: 'Send the quartermaster ashore' }).click();
+  await expect(page.locator('.log-ashore')).toContainText('End the First Voyage?');
+  await page.screenshot({ path: 'test-results/voyage-ashore.png' });
+  await page.getByRole('button', { name: 'Send him ashore' }).click();
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('done');
+  await page.keyboard.press('l');
+  await expect(page.locator('.port-spot.shut')).toHaveCount(0);
+  await expect(page.locator('.voyage-orders')).toHaveCount(0);
+  await expect(page.locator('.voyage-ned')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// The playtests sail on the real clock with a newcomer's keys: a tool for judging the voyage's pace, run alone
+// (PLAYTEST=1 npx playwright test -g playtest --workers=1), not with the gate's eight browsers at once.
+test('playtest, chapter 1 as a newcomer: out of harbour and to the smoke with A, D and W alone, on the real clock', async ({ page }) => {
+  test.skip(!process.env.PLAYTEST, 'run with PLAYTEST=1 --workers=1');
+  test.setTimeout(240_000);
+  const errors = await voyageBegun(page);
+  const started = Date.now();
+  await page.keyboard.press('e');
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('helm');
+  const seen = new Set<string>();
+  let reached = false;
+  let held: string | undefined;
+  for (let i = 0; i < 1200 && !reached; i++) {
+    const s = await page.evaluate(() => {
+      const me = window.__corsair.state.get('ships.player') as { x: number; y: number; headingDeg: number; sails: string };
+      const v = window.__corsair.state.get('captain.voyage') as { step: string; cay: { x: number; y: number } };
+      const prompt = document.querySelector('.voyage-prompt')?.textContent ?? '';
+      const wind = (document.querySelector('.voyage-ned')?.textContent ?? '').includes('Too close to the wind');
+      return { me, v, prompt, wind };
+    });
+    if (s.prompt) seen.add(s.prompt.replace(/^[A-Z ]+(?=[A-Z][a-z])/, ''));
+    // A moment (a sighting, a letter) is read and put away, as a player would.
+    if (await page.locator('.moment').count()) await page.keyboard.press('Enter');
+    if (s.wind) seen.add('the wind');
+    if (s.v.step !== 'helm') {
+      reached = true;
+      break;
+    }
+    // A newcomer's helm: point her at the smoke (the sea's own channels round the land are the lanes' job, not his).
+    const want = ((Math.atan2(s.v.cay.x - s.me.x, -(s.v.cay.y - s.me.y)) * 180) / Math.PI + 360) % 360;
+    const off = ((want - s.me.headingDeg + 540) % 360) - 180;
+    const key = Math.abs(off) < 8 ? undefined : off > 0 ? 'd' : 'a';
+    if (key !== held) {
+      if (held) await page.keyboard.up(held);
+      if (key) await page.keyboard.down(key);
+      held = key;
+    }
+    // He sets more sail when told to.
+    if (s.prompt.includes('More sail')) await page.keyboard.press('w');
+    await page.waitForTimeout(150);
+  }
+  if (held) await page.keyboard.up(held);
+  const seconds = Math.round((Date.now() - started) / 1000);
+  console.log(`PLAYTEST chapter 1: reached the cay in ${seconds}s; prompts seen: ${[...seen].join(' | ')}`);
+  expect(reached).toBe(true);
+  // More sail; or, pointed into the wind on the way, the wind's lesson in its place.
+  // (The helm's prompt only if she left harbour off the smoke's bearing: on it, there is nothing to steer.)
+  expect(seen.has("More sail: she'll go faster") || seen.has('the wind')).toBe(true);
+  // Long enough to learn the helm, short enough not to bore.
+  expect(seconds).toBeLessThan(150);
+  await page.screenshot({ path: 'test-results/playtest-cay.png' });
+  expect(errors).toEqual([]);
+});
+
+test('playtest, chapter 2 as a newcomer: Space to chase, Space to attack, then side to her and Space held, on the real clock', async ({ page }) => {
+  test.skip(!process.env.PLAYTEST, 'run with PLAYTEST=1 --workers=1');
+  test.setTimeout(300_000);
+  const errors = await voyageBegun(page);
+  await page.keyboard.press('e');
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('helm');
+  const { cay } = await voyageOf(page);
+  await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
+  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
+  await page.keyboard.press(' ');
+  await dismissDeeds(page);
+  const started = Date.now();
+  // Space chases her; alongside, Space attacks.
+  await expect(page.locator('.hud-prompt')).toContainText('Chase the');
+  await page.keyboard.press(' ');
+  await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate', { timeout: 90_000 });
+  const chased = Math.round((Date.now() - started) / 1000);
+  await page.keyboard.press(' ');
+  await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
+  const fought = Date.now();
+  // In battle: keep her abeam and hold Space (fire as the guns bear).
+  await page.keyboard.down(' ');
+  let held: string | undefined;
+  for (let i = 0; i < 1200; i++) {
+    const b = await page.evaluate(() => {
+      const s = window.__corsair.battle.state();
+      return s ? { me: s.ships.player, her: s.ships.enemy, done: Boolean(window.__corsair.battle.result()), lesson: document.querySelector('.battle-lesson')?.textContent ?? '' } : undefined;
+    });
+    if (!b || b.done) break;
+    const to = ((Math.atan2(b.her.x - b.me.x, -(b.her.y - b.me.y)) * 180) / Math.PI + 360) % 360;
+    // As the lesson says: steer for her while she is out of reach, else her abeam to starboard.
+    const want = b.lesson.startsWith('Steer for her') ? to : (to - 90 + 360) % 360;
+    const off = ((want - b.me.headingDeg + 540) % 360) - 180;
+    const key = Math.abs(off) < 10 ? undefined : off > 0 ? 'd' : 'a';
+    if (key !== held) {
+      if (held) await page.keyboard.up(held);
+      if (key) await page.keyboard.down(key);
+      held = key;
+    }
+    await page.waitForTimeout(150);
+  }
+  if (held) await page.keyboard.up(held);
+  await page.keyboard.up(' ');
+  const outcome = await page.evaluate(() => window.__corsair.battle.result()?.outcome);
+  const seconds = Math.round((Date.now() - fought) / 1000);
+  console.log(`PLAYTEST chapter 2: chased in ${chased}s, fought ${seconds}s, she ${outcome}`);
+  expect(outcome).toBe('struck');
+  expect(seconds).toBeLessThan(120);
+  expect(errors).toEqual([]);
+});
+
+/** Put her alongside a ship, on open water (the cay's reefs refuse a ship put on them). */
+async function alongside(page: Page, id: string) {
+  await page.evaluate((target) => {
+    const s = (window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>)[target]!;
+    for (const [dx, dy] of [[1.2, 1.2], [-1.2, 1.2], [1.2, -1.2], [-1.2, -1.2], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]] as const) {
+      if (window.__corsair.land(s.x + dx, s.y + dy)) continue;
+      window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s.x + dx, y: s.y + dy } as never);
+      return;
+    }
+  }, id);
+}

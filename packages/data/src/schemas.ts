@@ -1128,6 +1128,7 @@ export const voyageSchema = z.object({
   islandTiles: z.number().int().positive(),
   clearOfPortsTiles: z.number().positive(),
   arriveTiles: z.number().positive(),
+  onCourseDeg: z.number().positive(),
   pirate: z.object({ classId: z.string(), name: z.string(), crew: z.number().int().positive(), purse: z.number().int().min(0), offTiles: z.number().positive() }),
   boat: z.object({ classId: z.string(), name: z.string() }),
   harry: z.object({ orbitTiles: z.number().positive(), radPerSecond: z.number().positive() }),

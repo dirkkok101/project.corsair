@@ -503,6 +503,26 @@ function Fleet({ content, state, settlements, shipId }: Pick<LogProps, 'content'
 }
 
 /** The captain's log (L, storyboard 6.1-6.3): a book with bookmarks, open at sea or in port. */
+/** The First Voyage given up: the quartermaster sent ashore, asked once more before it is done. */
+function SendAshore({ send }: { send: () => void }) {
+  const [asking, setAsking] = useState(false);
+  return asking ? (
+    <div class="log-ashore asking">
+      <span>End the First Voyage? Every port opens, and no one at your elbow.</span>
+      <button class="k-btn small paper" onClick={send}>
+        Send him ashore
+      </button>
+      <button class="k-btn small paper" onClick={() => setAsking(false)}>
+        Keep him
+      </button>
+    </div>
+  ) : (
+    <button class="k-btn small paper log-ashore" onClick={() => setAsking(true)}>
+      Send the quartermaster ashore
+    </button>
+  );
+}
+
 export function Log({ content, state, map, settlements, shipId, send, plot, close, openChart, goals, date }: LogProps) {
   const pieces = state.captain?.mapPieces ?? {};
   const maps = content.pirates.captains.flatMap((c) => {
@@ -513,6 +533,7 @@ export function Log({ content, state, map, settlements, shipId, send, plot, clos
   return (
     <div class="log">
       <div class="k-paper log-book">
+        {state.captain?.voyage && state.captain.voyage.step !== 'done' ? <SendAshore send={() => send({ type: 'SkipVoyage', shipId })} /> : null}
         <button class="k-btn small paper log-close" onClick={close}>
           Close · L
         </button>

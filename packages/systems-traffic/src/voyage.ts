@@ -116,6 +116,16 @@ export function createVoyageSystem(content: ContentPack, settlements: PlacedSett
   return {
     name: 'voyage',
     command(state, command) {
+      if (command.type === 'SkipVoyage') {
+        const v = state.captain?.voyage;
+        if (!v || v.step === 'done') return { state, events: [{ type: 'VoyageRefused', entityIds: [command.shipId], payload: { command: command.type } }] };
+        // Its own ships (the pirate and the boat she harries, if still at it) leave the sea with it.
+        const ships = Object.fromEntries(Object.entries(state.ships).filter(([, s]) => !s.ai?.voyage || s.ai.voyage.freed));
+        return {
+          state: { ...state, ships, captain: { ...state.captain!, voyage: { ...v, step: 'done' } } },
+          events: [{ type: 'VoyageSkipped', entityIds: [command.shipId], payload: { step: v.step } }],
+        };
+      }
       if (command.type === 'VoyageMarque' || command.type === 'ChooseCommission') {
         const v = state.captain?.voyage;
         const me = state.ships[command.shipId];
@@ -157,7 +167,10 @@ export function createVoyageSystem(content: ContentPack, settlements: PlacedSett
       const me = state.ships.player;
       if (!v || !me || v.step !== 'helm') return { state, events: [] };
       const learned = new Set(v.lessons ?? []);
-      if (me.helm !== 0) learned.add('steer');
+      // Steering learned: the helm used, or her head on the smoke (what the lesson asks, done either way).
+      const toCay = (Math.atan2(v.cay.x - me.x, -(v.cay.y - me.y)) * 180) / Math.PI;
+      const onCourse = Math.abs((((toCay - me.headingDeg) % 360) + 540) % 360 - 180) < content.voyage.onCourseDeg;
+      if (me.helm !== 0 || (onCourse && me.speed > 0)) learned.add('steer');
       if (me.sails === 'full') learned.add('sail');
       const there = Math.hypot(me.x - v.cay.x, me.y - v.cay.y) <= content.voyage.arriveTiles;
       if (!there && learned.size === (v.lessons ?? []).length) return { state, events: [] };

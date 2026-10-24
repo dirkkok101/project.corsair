@@ -714,6 +714,8 @@ export type Command =
   /** The First Voyage: the governor's free letter of marque, and the commission she chooses (which ends the voyage). */
   | { type: 'VoyageMarque'; shipId: string }
   | { type: 'ChooseCommission'; shipId: string; kind: 'courier' | 'trade' | 'hunt' }
+  /** The First Voyage given up (the quartermaster sent ashore): every port open, no one at her elbow. */
+  | { type: 'SkipVoyage'; shipId: string }
   /** Speak an AI ship within hailing range: learn who it is and hear its news. */
   | { type: 'Hail'; shipId: string; targetId: string }
   /** Buy provisions from a ship spoken at sea (her spare stores, dear): up to `units` of food. */

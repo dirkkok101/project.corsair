@@ -1363,7 +1363,11 @@ async function main() {
       };
     // Her first prize: Space goes after the pirate wherever she is.
     const quarry = v?.step === 'prize' && v.pirateId ? sim.state.ships[v.pirateId] : undefined;
-    if (quarry) return shipAction(quarry);
+    if (quarry) {
+      const act = shipAction(quarry);
+      // Hove to at the wreck, she makes sail to go after her.
+      return act && me.sails === 'furled' && act.text.startsWith('Chase') ? { ...act, run: () => (sim.send({ type: 'SetSails', shipId: me.id, sails: 'full' }), act.run()) } : act;
+    }
     // Home with her prize: Space sails her there.
     const homeport = v?.step === 'home' ? settlements.find((s) => s.id === v.home) : undefined;
     if (homeport && me.assist?.mode !== 'course') return { text: `Sail home to ${homeport.name}`, run: () => follow(homeport) };
@@ -1705,10 +1709,19 @@ async function main() {
             // The First Voyage's first prize: Ned's word as it begins, then the arc, and round shot only.
             const v = sim.state.captain?.voyage;
             if (v?.step !== 'prize' || fight.targetId !== v.pirateId || bs.result) return undefined;
-            const bearing = fight.battle.aim('port') === 'ready' || fight.battle.aim('starboard') === 'ready';
+            const aims = [fight.battle.aim('port'), fight.battle.aim('starboard')];
+            const apart = Math.hypot(bs.ships.enemy.x - bs.ships.player.x, bs.ships.enemy.y - bs.ships.player.y);
+            // One thing at a time: close with her, put your side to her, fire.
+            const prompt = aims.includes('ready')
+              ? "She's in your arc: fire! · Space"
+              : apart > fight.battle.gunnery().rangeTiles
+                ? 'Steer for her: close within reach of your guns'
+                : aims.includes('loading')
+                  ? 'Reloading: keep your side to her'
+                  : 'Put your side to her: fire when the arc turns gold';
             return {
-              ...(bs.tick < 8 * TICKS_PER_SECOND ? { ned: `"She's no great guns, Captain. Put your side to her and she'll strike in a broadside or two."` } : {}),
-              prompt: bearing ? "She's in your arc: fire! · Space" : 'Put your side to her: fire when the arc turns gold',
+              ...(bs.tick < 8 * TICKS_PER_SECOND ? { ned: `"She's no great guns, Captain. Close with her, put your side to her, and she'll strike in a broadside or two."` } : {}),
+              prompt,
               shotsLocked: true,
             };
           })()}
