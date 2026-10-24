@@ -38,6 +38,7 @@ import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf, purseRise } from './ui/kit';
 import { DEED_SMALL_MS, DeedCard, meritBar } from './ui/deed';
+import { voyageOrders } from './voyage';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
 import { createGamepad } from './gamepad';
 import { bindMouse } from './mouse';
@@ -45,7 +46,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createHavensSystem, createHonoursSystem, createSeaLanes, createTrafficSystem, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createHavensSystem, createHonoursSystem, createSeaLanes, createTrafficSystem, withVoyage, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -293,7 +294,8 @@ async function main() {
           }),
           defaultFlag: 'england',
         })
-      : { difficulty: difficultyOf(content, params.get('difficulty') ?? undefined).id, nation: params.get('nation') ?? 'england' };
+      : // A seed run leaves the First Voyage off (every test keeps its world) unless `&voyage=1` asks for it.
+        { difficulty: difficultyOf(content, params.get('difficulty') ?? undefined).id, nation: params.get('nation') ?? 'england', voyage: params.get('voyage') === '1' };
   if (titled) loading = showLoading(stage, sceneUrl('loading.dawn'));
   loading.progress(0.7, 'Raising the wind');
   const resumed = 'save' in choice ? choice.save : undefined;
@@ -324,7 +326,8 @@ async function main() {
       lanes,
       seed,
     );
-    return withPolitics({ ...w, captain: { ...w.captain!, nation, standing: { ...w.captain!.standing, [nation]: content.politics.flag.standing } } }, seed);
+    const p = withPolitics({ ...w, captain: { ...w.captain!, nation, standing: { ...w.captain!.standing, [nation]: content.politics.flag.standing } } }, seed);
+    return 'voyage' in choice && choice.voyage ? withVoyage(p, content, map, settlements, lanes, home.id, nation, seed) : p;
   };
   const world = resumed?.state ?? fresh();
   const sim = createSim(world, [
@@ -431,9 +434,23 @@ async function main() {
   // at a time, over everything, the world waiting.
   const momentRoot = stage.appendChild(document.createElement('div'));
   const moments: Moment[] = [];
+  // A career on the First Voyage opens with the governor's letter of the storm's wreck, and her orders (a seed run
+  // too, when it asks for the voyage).
+  const voyage = sim.state.captain?.voyage;
+  if (!resumed && voyage) {
+    moments.push({
+      kind: 'voyage',
+      town: home.name,
+      date: formatDate(dateOf(def.startDate, Math.floor(sim.state.tick / content.calendar.ticksPerDay))),
+      ship: shipKind(sim.state.ships[def.start.shipId]!.classId),
+      cay: voyage.cay.name,
+      bearing: voyage.cay.bearing,
+      orders: voyageOrders(voyage, home.name),
+    });
+  }
   // A career begun from the start screen opens with the governor's letter and the first goal (a ?seed= run, for
   // tests and replays, goes straight in).
-  if (!resumed && titled && def.start.port) {
+  if (!resumed && titled && def.start.port && !voyage) {
     const me = sim.state.ships[def.start.shipId]!;
     const town = home;
     const at = enemiesOf(content, sim.state, town.nation).filter((n) => n !== 'pirate');

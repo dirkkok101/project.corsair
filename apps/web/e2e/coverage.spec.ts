@@ -16,6 +16,9 @@ async function setSail(page: Page, url: string) {
   if (url.includes('seed=')) return;
   // A new career: the flag (England unless changed), then the sea.
   await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
+  // Then how well she knows the sea: these tests sail as a veteran (the First Voyage has its own).
+  await page.getByRole('button', { name: 'Next: how well you know the sea' }).click();
+  await page.locator('.know-card', { hasText: 'I know these waters' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
   await page.keyboard.press('Enter');
@@ -880,6 +883,9 @@ test("the title screen: Back from each step of a new career, and another flag ma
   await expect(page.locator('.start-h2')).toHaveText('Under whose flag?');
   await expect(france).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
+  // Then how well she knows the sea: these tests sail as a veteran (the First Voyage has its own).
+  await page.getByRole('button', { name: 'Next: how well you know the sea' }).click();
+  await page.locator('.know-card', { hasText: 'I know these waters' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
   await page.keyboard.press('Enter');

@@ -1120,3 +1120,12 @@ export const rewardsSchema = z.object({
   bigTrade: z.number().positive(),
 });
 export type RewardsConfig = z.infer<typeof rewardsSchema>;
+
+/** The First Voyage (voyage.json): where the cay of its first chapter lies, and its name by the home nation. */
+export const voyageSchema = z.object({
+  cayTiles: z.tuple([z.number().positive(), z.number().positive()]),
+  shoreTiles: z.number().int().positive(),
+  clearOfPortsTiles: z.number().positive(),
+  cays: z.record(z.string(), z.string()),
+});
+export type VoyageConfig = z.infer<typeof voyageSchema>;

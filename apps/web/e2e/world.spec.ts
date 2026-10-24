@@ -18,6 +18,9 @@ async function setSail(page: Page, url: string) {
   if (url.includes('seed=')) return;
   // A new career: the flag (England unless changed), then the sea.
   await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
+  // Then how well she knows the sea: these tests sail as a veteran (the First Voyage has its own).
+  await page.getByRole('button', { name: 'Next: how well you know the sea' }).click();
+  await page.locator('.know-card', { hasText: 'I know these waters' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
   await page.keyboard.press('Enter');
@@ -181,6 +184,9 @@ test('the title stays up after the loading screen has faded, until a career is c
 test('sound starts on the first key, plays, and V mutes it', async ({ page }) => {
   await page.goto('/?pace=1&turn=1');
   await page.getByRole('button', { name: 'Next: how hard a sea' }).click();
+  // Then how well she knows the sea: these tests sail as a veteran (the First Voyage has its own).
+  await page.getByRole('button', { name: 'Next: how well you know the sea' }).click();
+  await page.locator('.know-card', { hasText: 'I know these waters' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.locator('.moment-opening').waitFor();
   // Nothing pressed in the game yet: the sound waits.
@@ -348,6 +354,9 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   await page.getByRole('button', { name: 'Rogue' }).click();
   await expect(page.locator('.level-card.picked')).toContainText('the wind shifts in battle');
   await page.screenshot({ path: 'test-results/start-difficulty.png' });
+  // Then how well she knows the sea: these tests sail as a veteran (the First Voyage has its own).
+  await page.getByRole('button', { name: 'Next: how well you know the sea' }).click();
+  await page.locator('.know-card', { hasText: 'I know these waters' }).click();
   await page.getByRole('button', { name: 'Set sail' }).click();
   await page.waitForFunction(() => Boolean(window.__corsair));
   // The governor's letter opens the career, with its first goal.

@@ -22,6 +22,7 @@ import trafficJson from '../content/traffic.json';
 import treasureJson from '../content/treasure.json';
 import upgradesJson from '../content/upgrades.json';
 import rewardsJson from '../content/rewards.json';
+import voyageJson from '../content/voyage.json';
 import {
   calendarSchema,
   combatSchema,
@@ -33,6 +34,7 @@ import {
   navigationSchema,
   piratesSchema,
   rewardsSchema,
+  voyageSchema,
   polarSchema,
   proceduralMapSchema,
   rasterMapSchema,
@@ -52,6 +54,7 @@ import type {
   Combat,
   CrewConfig,
   RewardsConfig,
+  VoyageConfig,
   PiratesConfig,
   TreasureConfig,
   PoliticsConfig,
@@ -104,6 +107,7 @@ export interface ContentPack {
   pirates: PiratesConfig;
   treasure: TreasureConfig;
   rewards: RewardsConfig;
+  voyage: VoyageConfig;
 }
 
 /**
@@ -138,6 +142,7 @@ export function loadContent(): ContentPack {
     politics: politicsSchema.parse(politicsJson),
     crew: crewSchema.parse(crewJson),
     rewards: rewardsSchema.parse(rewardsJson),
+    voyage: voyageSchema.parse(voyageJson),
     upgrades: Object.fromEntries(upgradesSchema.parse(upgradesJson).upgrades.map((u) => [u.id, u])),
     upgradePriceFor: upgradesSchema.parse(upgradesJson).priceFor,
     pirates: piratesSchema.parse(piratesJson),

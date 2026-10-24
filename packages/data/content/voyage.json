@@ -1,0 +1,7 @@
+{
+  "$comment": "The First Voyage (docs/design/first-voyage.md): a new captain's first chapters, taught by the quartermaster. The cay a storm wrecked a sloop on lies 'cayTiles' (from, to) from the home port's berth, by sea, on water within 'shoreTiles' of land, and at least 'clearOfPortsTiles' from every port and haven (so Space there is the salvage, not a port); it is named for the home nation in 'cays'.",
+  "cayTiles": [12, 20],
+  "shoreTiles": 2,
+  "clearOfPortsTiles": 8,
+  "cays": { "england": "Gallows Cay", "spain": "Cayo de la Horca", "france": "Îlet du Gibet", "netherlands": "Galgenrif" }
+}

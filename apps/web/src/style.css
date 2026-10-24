@@ -3972,7 +3972,8 @@ body {
 }
 
 /* A new career's opening letter (storyboard 1.4): sealed, signed, and the first goal at its foot. */
-.moment-opening {
+.moment-opening,
+.moment-voyage {
   position: relative;
   width: min(660px, 92vw);
   padding: 40px 54px 34px;
@@ -4855,4 +4856,131 @@ body {
   flex: none;
   font: 700 14px var(--k-body);
   color: #2f6b3a;
+}
+
+/* The new career's third step (Design canvas board 1): the First Voyage or the open sea, two cards side by side. */
+.know-note {
+  margin: 0;
+  font: 21px var(--k-voice);
+  color: #e9dcbc;
+  text-align: center;
+}
+
+.know-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  width: min(1200px, 100%);
+}
+
+.know-card {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 26px 28px;
+  font: inherit;
+  text-align: left;
+  color: var(--k-cream);
+  cursor: pointer;
+  border-color: #6b4d2c;
+}
+
+.know-card.picked {
+  border-color: #f2d58f;
+  box-shadow: 0 0 0 3px var(--k-gold), 0 12px 30px rgb(0 0 0 / 0.5);
+}
+
+.know-card .k-bust {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border: 2px solid var(--k-brass);
+  border-radius: 4px;
+}
+
+.know-mark {
+  flex: none;
+  width: 96px;
+  display: flex;
+  justify-content: center;
+  padding-top: 20px;
+}
+
+.know-mark img {
+  width: 56px;
+  height: 56px;
+  image-rendering: pixelated;
+}
+
+.know-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.know-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 34px/1 var(--k-display);
+}
+
+.know-about {
+  font-size: 18px;
+  line-height: 1.45;
+  color: #e9dcbc;
+}
+
+.know-small {
+  font-size: 15px;
+  color: #c9b993;
+}
+
+/* The First Voyage's orders (Design canvas boards 2 to 4): numbered, struck through once done. */
+.orders {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.orders li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font: 18px var(--k-voice);
+}
+
+.orders-n {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--k-ink);
+  color: var(--k-gold);
+  font: 800 13px var(--k-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orders-sub {
+  font: 15px var(--k-body);
+  color: #6b5233;
+}
+
+.orders li.done .orders-text {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.moment-voyage .moment-kicker {
+  color: #7a4a00;
+}
+
+.moment-voyage .moment-actions {
+  margin-top: 18px;
+  justify-content: flex-end;
 }

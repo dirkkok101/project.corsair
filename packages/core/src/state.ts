@@ -405,6 +405,23 @@ export interface Captain {
   honours?: Honour[];
   /** The career's goals done (careerGoals ids, sorted), so a goal newly done is said once; absent until first seen. */
   goalsDone?: string[];
+  /** The First Voyage, while she sails it (docs/design/first-voyage.md); absent: a veteran's career, nothing guided. */
+  voyage?: Voyage;
+}
+
+/**
+ * The First Voyage: the chapter she is in (in port before the first sailing, at the helm bound for the cay, the
+ * salvage, the first prize, home with it, the governor), the cay a storm wrecked a sloop on, and what she has been
+ * taught.
+ */
+export interface Voyage {
+  step: 'harbour' | 'helm' | 'salvage' | 'prize' | 'home' | 'governor' | 'done';
+  /** The wreck's place (water, off the cay's shore), its name, and its bearing and distance from the home berth. */
+  cay: { x: number; y: number; name: string; bearing: string; tiles: number };
+  /** The home capital she sails from and returns to. */
+  home: string;
+  /** The lessons she has been shown (steer, sail, wind, ...). */
+  lessons?: string[];
 }
 
 /** A deed said out loud: what kind, what she did (past tense), the one figure and where it went, up to two lines. */

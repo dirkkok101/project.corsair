@@ -6,6 +6,8 @@ import { useEffect } from 'preact/hooks';
 import { Parchment, quartersHeld, waterNear } from '../log';
 import { ART } from '../ui-art';
 import { Bust, curly, Key } from './kit';
+import { OrdersList } from '../voyage';
+import type { Order } from '../voyage';
 
 // Moments (storyboard 2.13): short full-screen beats that reward and then get out of the way, one at a time from a
 // queue, the world stopped while one shows. Enter or Escape closes one.
@@ -21,6 +23,8 @@ export type Moment =
   | { kind: 'hoard'; name: string; gold: number; fame: number; revenge: boolean }
   /** A piece of a treasure map: whose, the line that came with it. */
   | { kind: 'map'; pirateId: string; line: string }
+  /** The First Voyage's letter: the storm's wreck on the cay, and her orders. */
+  | { kind: 'voyage'; town: string; date: string; ship: string; cay: string; bearing: string; orders: Order[] }
   /** A new career's opening letter (storyboard 1.4): her ship, the war, and the first goal. */
   | { kind: 'opening'; town: string; date: string; ship: string; guns: number; men: number; enemies: string; goal?: { title: string; have: string; where: string } };
 
@@ -92,6 +96,35 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
       </div>
     );
   }
+
+  if (moment.kind === 'voyage')
+    return (
+      <div class="moment moment-dim">
+        <div class="k-paper moment-letter moment-voyage">
+          <div class="moment-seal" aria-hidden="true" />
+          <div class="moment-dateline">
+            {moment.town}, {moment.date}
+          </div>
+          <div class="moment-body">
+            <p>Captain,</p>
+            <p>
+              Your uncle's {moment.ship} is yours. Last night's storm drove a sloop onto {moment.cay}, a short sail to the {moment.bearing}: whatever she
+              carried is anyone's who gets there first.
+            </p>
+            <p>Take her out and see. Your quartermaster knows the way, and he knows the ship.</p>
+          </div>
+          <div class="moment-signed">the Governor of {moment.town}</div>
+          <div class="book-rule" />
+          <div class="moment-kicker">Your orders</div>
+          <OrdersList orders={moment.orders} />
+          <div class="moment-actions">
+            <button class="k-btn primary" onClick={close}>
+              To the harbour <Key k="Enter" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
 
   if (moment.kind === 'opening')
     return (

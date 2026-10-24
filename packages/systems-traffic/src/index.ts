@@ -22,6 +22,7 @@ export function prizePapers(content: ContentPack, state: WorldState, from: Natio
 export { createSeaLanes } from './lanes';
 export { careerGoals, nextGoal } from './goals';
 export { createHonoursSystem, HONOURS_SIZE } from './honours';
+export { bearingWord, chooseCay, withVoyage } from './voyage';
 export { missionGoals, missionOffer, missionTitle, quarryClass } from './missions';
 export type { MissionOffer } from './missions';
 export type { Goal } from './goals';
