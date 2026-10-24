@@ -112,6 +112,8 @@ export interface Ship {
   gentleWind?: boolean;
   /** Her bottom's fouling: the share of her speed it costs (economy.json fouling), cleaned by careening. */
   fouling?: number;
+  /** Hove down on a beach until this tick (a careen): out of the water, her bottom gathers nothing. */
+  hoveDownUntil?: number;
   /** Fine-grain powder aboard keeps till this tick, then it is spent. */
   powderUntil?: number;
   /** The player's flagship's name: the career's first ship's, or a prize's (her class's name when unset). */

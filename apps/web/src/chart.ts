@@ -151,6 +151,8 @@ export interface ChartMarket {
   mark: (settlementId: string) => string | undefined;
   /** The wind now at a spot on the map: where it blows from, in degrees, and how hard. */
   wind: (x: number, y: number) => { fromDeg: number; strength: string };
+  /** M leaves the chart shut while this holds (a battle or a hail): the fight or the talk would go on beneath it. */
+  shut?: () => boolean;
 }
 
 /** A trade from what the captain has seen: buy at `from`, sell at `to`. */
@@ -633,7 +635,7 @@ export function createCharts(
     }
   };
   window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'm') toggle();
+    if (e.key.toLowerCase() === 'm' && !(chart.hidden && market.shut?.())) toggle();
     if (!chart.hidden && (e.key === '=' || e.key === '+')) zoomBy(CHART_ZOOM.step);
     if (!chart.hidden && e.key === '-') zoomBy(1 / CHART_ZOOM.step);
     if (e.key === 'Escape') {

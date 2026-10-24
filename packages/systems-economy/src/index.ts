@@ -1410,8 +1410,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           for (let dy = -r; dy <= r && !shore; dy++)
             for (let dx = -r; dx <= r && !shore; dx++) shore = Boolean(map) && isLand(tileAt(map!, ship.x + dx, ship.y + dy)) && Math.hypot(dx, dy) <= f.beachTiles;
           if (!shore) return refuse(state, ship, 'no-beach');
+          const hoveDownUntil = state.tick + Math.round(content.calendar.ticksPerDay * f.beachDays);
           return {
-            state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, fouling: 0 } } },
+            state: { ...state, ships: { ...state.ships, [ship.id]: { ...ship, fouling: 0, hoveDownUntil } } },
             events: [{ type: 'Careened', entityIds: [ship.id], payload: { beach: true, gold: 0, days: f.beachDays } }],
           };
         }
@@ -1630,7 +1631,9 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         const player = next.ships.player;
         if (player) {
           const f = content.economy.fouling;
-          const fouling = shipStats(content, player).cleanBottom ? 0 : Math.min(f.max, (player.fouling ?? 0) + f.perDay);
+          // Not while she lies hove down on a beach (her days of careening): she comes off it clean.
+          const ashore = player.hoveDownUntil !== undefined && tick <= player.hoveDownUntil;
+          const fouling = ashore || shipStats(content, player).cleanBottom ? 0 : Math.min(f.max, (player.fouling ?? 0) + f.perDay);
           const spent = player.upgrades?.includes('powder') && player.powderUntil !== undefined && player.powderUntil <= tick;
           if (fouling !== (player.fouling ?? 0) || spent) {
             const upgrades = spent ? player.upgrades!.filter((u) => u !== 'powder') : player.upgrades;

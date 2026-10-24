@@ -140,6 +140,11 @@ const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/c
 
 /** Mouse sailing and combat (left-click to move, right-click to act): off until it plays better; keyboard first. */
 const MOUSE_CONTROLS = false;
+/** The frame-rate readout (F2) is redrawn this often, from the frames since. */
+const FPS_EVERY_MS = 500;
+
+/** The wind keys ([ ] and 1 to 5) are for tuning, not play: live only in a dev build or with `?debug=1`. */
+const DEBUG_KEYS = import.meta.env.DEV || new URLSearchParams(location.search).get('debug') === '1';
 
 /**
  * Playtest switches, for feeling out the sailing before tuning navigation.json: `?pace=0.4` sails every ship at sea
@@ -850,6 +855,7 @@ async function main() {
       return best ? `${(content.goods.find((x) => x.id === best.g)?.name ?? best.g).toLowerCase()} ${best.sell}` : undefined;
     },
     wind: (x, y) => windAt(sim.state, x, y),
+    shut: () => Boolean(fight || hailing),
   });
   // 1 next to a town, falling to 0 about 18 tiles (30 km) out: within earshot of bells and quays.
   const harbourNearness = (x: number, y: number) => {
@@ -891,6 +897,17 @@ async function main() {
       // Space too, and it presses no button underneath.
       if (e.key === ' ') e.preventDefault();
       if ((e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') && !e.repeat) closeMoment();
+      e.stopImmediatePropagation();
+    },
+    true,
+  );
+  // Esc closes the help first, and only the help: caught before the chart's own listener, so the chart, the ship
+  // picked, a hail or the log under it stays as it was.
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Escape' || !helpOpen) return;
+      helpOpen = false;
       e.stopImmediatePropagation();
     },
     true,
@@ -969,11 +986,13 @@ async function main() {
     if (e.key.toLowerCase() === 'k' && !e.repeat && !e.ctrlKey && !e.metaKey && !fight && !logOpen && !hailing && !player().docked) {
       const before = sim.events().length;
       const me = player();
-      sim.send({ type: 'SetSails', shipId: me.id, sails: 'furled' });
       sim.send({ type: 'Careen', shipId: me.id, beach: true });
       sim.applyCommands();
       const ev = sim.events().slice(before).find((x) => x.type === 'Careened' || x.type === 'TradeRefused');
       if (ev?.type === 'Careened') {
+        // Furled for the days hove down, only once there is a beach: refused, she keeps her sails and her way.
+        sim.send({ type: 'SetSails', shipId: me.id, sails: 'furled' });
+        sim.applyCommands();
         sim.step(Math.round(content.calendar.ticksPerDay * content.economy.fouling.beachDays));
         digNote = { text: `Hove down on the beach for ${content.economy.fouling.beachDays} days: her bottom is clean, and she sails at her best again`, kind: 'Careened on a beach', icon: 'ui.icon.hull', until: performance.now() + 7000 };
       } else digNote = { text: 'No beach within reach to heave her down on: close the shore first', kind: 'No beach', icon: 'ui.icon.anchor', until: performance.now() + 4000 };
@@ -1124,7 +1143,7 @@ async function main() {
     },
     def.start.shipId,
     () => windAt(sim.state, player().x, player().y),
-    () => !fight,
+    () => DEBUG_KEYS && !fight,
   );
 
   /** The nearest AI ship close enough to hail: in sight, at sea and within hailing range. */
@@ -1401,6 +1420,53 @@ async function main() {
   // gentle wind.
   // For tuning a pirate's mind (?mind=1): her wants shown over the battle.
   const showMind = new URLSearchParams(location.search).get('mind') === '1';
+  // F2: the frame rate (frames a second, the average and slowest frame of the last half second, and the resolution
+  // the 3D view is drawn at), for a player who finds it slow and for us to read in their report. Remembered;
+  // ?fps=1 shows it from the start.
+  const FPS_KEY = 'corsair.fps';
+  const fpsBox = stage.appendChild(document.createElement('div'));
+  fpsBox.className = 'fps';
+  fpsBox.hidden = !(
+    new URLSearchParams(location.search).get('fps') === '1' ||
+    (() => {
+      try {
+        return localStorage.getItem(FPS_KEY) === 'on';
+      } catch {
+        return false;
+      }
+    })()
+  );
+  const fpsSeen = { since: 0, frames: 0, slowest: 0 };
+  const countFrame = (now: number, ms: number) => {
+    if (fpsBox.hidden) return;
+    fpsSeen.frames++;
+    fpsSeen.slowest = Math.max(fpsSeen.slowest, ms);
+    const span = now - fpsSeen.since;
+    if (span < FPS_EVERY_MS) return;
+    if (fpsSeen.since) {
+      const fps = (fpsSeen.frames * 1000) / span;
+      fpsBox.textContent = `${Math.round(fps)} fps · ${(span / fpsSeen.frames).toFixed(1)} ms (slowest ${Math.round(fpsSeen.slowest)}) · view ${sea3d.renderScale()}×`;
+    }
+    fpsSeen.since = now;
+    fpsSeen.frames = 0;
+    fpsSeen.slowest = 0;
+  };
+  const toggleFps = () => {
+    fpsBox.hidden = !fpsBox.hidden;
+    fpsSeen.since = 0;
+    fpsBox.textContent = '… fps';
+    try {
+      localStorage.setItem(FPS_KEY, fpsBox.hidden ? 'off' : 'on');
+    } catch {
+      // Not remembered across reloads, but the toggle still works.
+    }
+  };
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'F2' && !e.repeat) {
+      e.preventDefault();
+      toggleFps();
+    }
+  });
   const SHAKE_KEY = 'corsair.shake';
   let shakeOn = (() => {
     try {
@@ -1477,11 +1543,12 @@ async function main() {
   const frame = (now: number) => {
     pad.poll(fight ? 'battle' : player().docked ? 'port' : 'sea');
     const elapsed = (now - last) / 1000;
+    countFrame(now, elapsed * 1000);
     acc = loop.paused ? 0 : Math.min(acc + elapsed * speedNow, 0.25 * speedNow);
     last = now;
     if (fight) {
-      // The battle runs in real time (no acceleration) while the world waits.
-      if (!loop.paused && !fight.battle.result()) {
+      // The battle runs in real time (no acceleration) while the world waits; it holds while F1's help is read.
+      if (!loop.paused && !helpOpen && !fight.battle.result()) {
         // Fire held: each broadside goes off as soon as she bears and it is loaded.
         if (fireHeld) fight.battle.send({ type: 'Fire' });
         fight.acc = Math.min(fight.acc + elapsed, 0.25);
@@ -1661,9 +1728,9 @@ async function main() {
     render(null, battleRoot);
     // The HUD's strip (at sea) and the harbour's (in port) replace the old ship card; the battle HUD has its own.
     render(null, panelRoot);
-    if (player().docked || hailing || charts.open || logOpen || moments.length) {
-      // World time stops in port (PRD section 2), while hailing, and while the chart is open; commands
-      // still apply at once.
+    if (player().docked || hailing || charts.open || logOpen || moments.length || helpOpen) {
+      // World time stops in port (PRD section 2), while hailing, while the chart, the log or F1's help is open;
+      // commands still apply at once.
       sim.applyCommands();
       acc = 0;
     }
@@ -1846,9 +1913,10 @@ async function main() {
       const me = player();
       if (Math.hypot(prey.x - me.x, prey.y - me.y) > view()) continue;
       unseenFights.delete(preyId);
-      const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : `a ${({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' } as Record<string, string>)[ship.ai!.nation] ?? ''}`} ${shipKind(ship.classId)}`;
+      // "an English" as the port-closed note says it, not "a English".
+      const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : ({ spain: 'a Spanish', england: 'an English', france: 'a French', netherlands: 'a Dutch' } as Record<string, string>)[ship.ai!.nation] ?? 'a'} ${shipKind(ship.classId)}`;
       courseNote = {
-        text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: I to close, H to hail`.replace(/^./, (c) => c.toUpperCase()),
+        text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: pick her (Tab), Space to close`.replace(/^./, (c) => c.toUpperCase()),
         kind: 'Sea fight',
         icon: 'ui.icon.cannon_loaded',
         until: now + 6000,
@@ -1923,7 +1991,8 @@ async function main() {
       (s) => s.ai?.role === 'pirate' && s.ai.skirmish && Math.hypot(s.x - ship.x, s.y - ship.y) <= view(),
     );
     const raided = raider?.ai?.skirmish ? sim.state.ships[raider.ai.skirmish.with] : undefined;
-    // The crew's needs, when they press: food running out, or a grumbling crew.
+    // The crew's needs, when they press: food running out, or a grumbling crew. (A hail is Space on the ship picked:
+    // there is no H key, so the warnings name the keys that work.)
     const days = foodDays(content, ship);
     const mood = moraleOf(content, sim.state);
     const left = Math.floor(days);
@@ -1933,9 +2002,9 @@ async function main() {
     const crewWarning: Toast | undefined = ship.docked
       ? undefined
       : days < 1
-        ? { text: 'The food is gone: the crew is starving. Make port, or hail a passing ship (H) and buy food from her', kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
+        ? { text: 'The food is gone: the crew is starving. Make port, or hail a passing ship (pick her, Space) and buy food from her', kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
         : days <= 3
-          ? { text: `Food for ${left === 1 ? 'one more day' : `${left} days`}: buy food in port, or from a passing ship (H)`, kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
+          ? { text: `Food for ${left === 1 ? 'one more day' : `${left} days`}: buy food in port, or from a passing ship (pick her, Space)`, kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
           : crippled
             ? {
                 text: `Badly damaged (sails ${Math.round(ship.sailCondition ?? 100)}%, hull ${Math.round(((ship.hull ?? hullMax) / hullMax) * 100)}%): she sails slowly. Her crew rig jury sails as she goes, but only a shipwright mends her properly`,
@@ -2210,7 +2279,8 @@ async function main() {
             ? `${her.ai.name} himself, in a ${shipKind(her.classId)},`
             : wanted
               ? `The pirate ${shipKind(her.classId)} ${her.ai.name}, the one ${by} wants,`
-              : `A ${shipTitle(her)}`;
+              : // "An English fluyt", not "A English".
+                `${/^[aeiou]/i.test(shipTitle(her)) ? 'An' : 'A'} ${shipTitle(her)}`;
           const act = picked?.id === her.id ? shipAction(her) : undefined;
           return { text: `${who} ${fromTheBow(ship, her)}`, act: act && (act.text.startsWith('Hail') ? 'hail' : act.text.startsWith('Stop') ? 'stop' : 'chase') };
         })()}

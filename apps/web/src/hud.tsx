@@ -268,15 +268,17 @@ function Prompt({ text }: { text: string }) {
   );
 }
 
+// What each key really does (main.tsx, input.ts, chart.ts): the arrows are the helm and sails too; Esc never leaves
+// port (E does), and Enter is the chart's and the moments' key.
 const KEYS: { group: string; keys: [string, string][] }[] = [
-  { group: 'Sailing', keys: [['A D', 'steer'], ['W S', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern']] },
+  { group: 'Sailing', keys: [['A D ← →', 'steer'], ['W S ↑ ↓', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern, in battle too']] },
   {
     group: 'At sea',
-    keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship, or a port to plot a course there'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port'], ['K', 'careen on a beach'], ['E', 'set sail, in port']],
+    keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship, or a port to plot a course there'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port, Enter sets the course'], ['K', 'careen on a beach'], ['E', 'enter the port in reach; set sail, in port']],
   },
   { group: 'Controller', keys: [['Stick', 'steer'], ['RT LT', 'more or less sail'], ['A', 'what Space does'], ['B', 'back, let her go'], ['LB', 'next ship (in battle: next shot)'], ['X', 'attack in a hail, board in battle'], ['Y', 'repel boarders; set sail in port'], ['Back', 'the chart; strike your colours in battle'], ['Start', 'the log; take the plunder in battle']] },
-  { group: 'Battle', keys: [['Space', 'fire whichever side bears (her guns run out first: so do hers, the red arc, your cue to turn away)'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'take the plunder']] },
-  { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['Esc', 'close, or leave port']] },
+  { group: 'Battle', keys: [['Space', 'fire whichever side bears (her guns run out first: so do hers, the red arc, your cue to turn away)'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'leave the wreck; take the plunder']] },
+  { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['F2', 'frame rate'], ['Enter', 'close a letter or a moment'], ['Esc', 'close the help, chart, log or a hail']] },
 ];
 
 /** F1: every key, grouped as the storyboard's help (artboard 4.5). */
@@ -285,7 +287,7 @@ export function Help({ close }: { close: () => void }) {
     <div class="hud-help">
       <div class="hud-help-head">
         <span class="k-title">Every key</span>
-        <span class="k-sub">At sea only the key you need right now shows · F1 closes this</span>
+        <span class="k-sub">At sea only the key you need right now shows · F1 or Esc closes this</span>
         <button class="k-btn small" onClick={close}>
           Close · F1
         </button>
