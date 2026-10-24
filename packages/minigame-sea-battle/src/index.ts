@@ -30,7 +30,7 @@ export interface BattleShip extends Ship {
   ammo: Ammo;
   /** Enemy only: her role, which sets how she fights and how hard she boards. */
   role?: AiCaptain['role'];
-  /** Her guns' reach and reload as multiples of combat.json's (bronze cannon, fine-grain powder). */
+  /** Her guns' reach and reload as multiples of combat.json's (bronze cannon, fine-grain powder; light guns load quicker). */
   rangeMult: number;
   /** A pirate captain's temperament (combat.json tactics): how soon she boards and how soon she runs. */
   temperament?: string;
@@ -243,6 +243,12 @@ export function weatherGauge(state: Pick<BattleState, 'wind' | 'ships'>, margin 
   return windward > margin ? 'enemy' : windward < -margin ? 'player' : undefined;
 }
 
+/** What her round shot does to their hull and men, by her guns' weight and their timbers (combat.json shotHarm). */
+export function shotHarmOf(content: ContentPack, from: string, to: string): number {
+  const s = content.combat.styles;
+  return content.combat.shotHarm[s[content.ships[from]!.style].shot][s[content.ships[to]!.style].timbers];
+}
+
 export function createBattle(content: ContentPack, setup: BattleSetup) {
   const c = content.combat;
   // Battle pace and handling: the same sailing model, slower, so a crossing takes long enough to fight
@@ -280,7 +286,7 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
       crewStart: crew,
       guns: stats.guns,
       rangeMult: stats.rangeMult,
-      reloadMult: stats.reloadMult * quality.reload,
+      reloadMult: stats.reloadMult * quality.reload * c.styles[cls.style].reload,
       spreadMult: quality.spread,
       boardMult: quality.boarding,
       thinkTicks: quality.thinkTicks,
@@ -919,11 +925,13 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           const harm = (shot.power ?? 1) * (raking ? c.raking.damage : 1);
           // Canvas taken in is canvas spared: her sails and masts take the share her sail setting leaves.
           const rigHarm = harm * c.battle.sailHarm[v.sails];
+          // Weight of shot against her timbers: a light ball barely marks a fortress's side, a heavy one guts a sloop's.
+          const weight = shot.ammo === 'round' ? shotHarmOf(content, state.ships[shot.from].classId, v.classId) : 1;
           let hurt: BattleShip = {
             ...v,
-            hull: v.hull - a.hull * harm,
+            hull: v.hull - a.hull * harm * weight,
             sailCondition: Math.max(0, v.sailCondition - a.sails * rigHarm * v.sailWear),
-            crew: Math.max(0, v.crew - a.crew * harm),
+            crew: Math.max(0, v.crew - a.crew * harm * weight),
             guns,
           };
           effects.push({ kind: shot.ammo === 'grape' ? 'grape' : place.part === 'rigging' ? 'sail' : 'hit', x: at[0], y: at[1], at: seconds(), ship: victimSide, place });

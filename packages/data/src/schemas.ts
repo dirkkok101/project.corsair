@@ -8,6 +8,8 @@ export const shipClassSchema = z.object({
   id: z.string(),
   family: z.string(),
   rig,
+  /** How she fights (combat.json styles): a raider's light guns and thin sides, a cruiser's, a fortress's heavy guns and massive sides. */
+  style: z.enum(['raider', 'cruiser', 'fortress']),
   speed: z.number().min(1).max(10),
   turn: z.number().min(1).max(10),
   /** Her masts, fore to aft: each one's place along her length from the middle (bow positive, -0.5 .. 0.5). */
@@ -436,6 +438,13 @@ export const combatSchema = z.object({
   }),
   /** Upgrades in battle: reload while rowing, bronze guns' cooling (three broadsides within overheatSeconds), and nettings' boarding multiples (defending, going over). */
   upgrades: z.object({ rowingReload: z.number().positive(), overheatSeconds: z.number().positive(), overheatReload: z.number().positive(), nettingsDefence: z.number().positive(), nettingsBoarding: z.number().positive() }),
+  /**
+   * Weight of shot and stoutness of timbers by her style: her round shot's tier, her sides' tier, and her reload as
+   * a multiple of guns.reloadSeconds (light guns load quicker). shotHarm[her shot][their timbers] multiplies the
+   * hull and men a round shot takes; chain and grape take canvas and men as readily from any ship.
+   */
+  styles: z.record(z.enum(['raider', 'cruiser', 'fortress']), z.object({ shot: z.enum(['light', 'medium', 'heavy']), timbers: z.enum(['thin', 'stout', 'massive']), reload: z.number().positive() })),
+  shotHarm: z.record(z.enum(['light', 'medium', 'heavy']), z.record(z.enum(['thin', 'stout', 'massive']), z.number().positive())),
   /** A ball down her length (within `cos` of her heading) does `damage` times the harm. */
   raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive() }),
   /** Swivel guns: reach in tiles, how often they fire, and men each one fells. */

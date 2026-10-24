@@ -293,6 +293,54 @@ describe('sea battle', () => {
     expect(torn('half')).toBeLessThan(full * 0.75);
   });
 
+  describe('weight of shot against her timbers', () => {
+    // The same brig, told she fights as another style: her hit box, guns and men stay as they are, so the fights
+    // go alike up to the first ball that strikes her. No chasers on either ship: only the frigate's broadside flies.
+    const as = (style: 'raider' | 'cruiser' | 'fortress') => {
+      const s = content.ships;
+      return { ...content, ships: { ...s, 'ship.brig': { ...s['ship.brig']!, style, chasers: 0 }, 'ship.frigate': { ...s['ship.frigate']!, chasers: 0 } } };
+    };
+    /** What her first wound from the patrol frigate's guns cost her (hull, men), firing `nation`'s shot. */
+    const firstWound = (pack: typeof content, nation: 'england' | 'france') => {
+      const enemy = { ...ship('ship.frigate', 'patrol'), ai: { ...ship('ship.frigate', 'patrol').ai!, nation } };
+      const b = createBattle(pack, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig'), enemy, seed: 2, bearingDeg: 90 });
+      const start = b.state.ships.player;
+      for (let i = 0; i < 30 * 120 && !b.result(); i++) {
+        b.step(1);
+        const now = b.state.ships.player;
+        if (now.hull < start.hull) return { hull: start.hull - now.hull, crew: start.crew - now.crew };
+      }
+      throw new Error('never hit');
+    };
+
+    it('a heavier ball, or thinner sides, takes more hull and men from her', () => {
+      const s = content.combat;
+      const stout = firstWound(as('cruiser'), 'england');
+      const thin = firstWound(as('raider'), 'england');
+      const massive = firstWound(as('fortress'), 'england');
+      expect(thin.hull / stout.hull).toBeCloseTo(s.shotHarm.medium.thin / s.shotHarm.medium.stout, 5);
+      expect(massive.hull / stout.hull).toBeCloseTo(s.shotHarm.medium.massive / s.shotHarm.medium.stout, 5);
+      expect(thin.crew / stout.crew).toBeCloseTo(s.shotHarm.medium.thin / s.shotHarm.medium.stout, 5);
+      expect(thin.hull).toBeGreaterThan(stout.hull);
+      expect(massive.hull).toBeLessThan(stout.hull);
+    });
+
+    it('chain shot tears a thin-sided ship and a massive one alike', () => {
+      // A French patrol fires chain: what little hull it takes, it takes from any ship the same.
+      expect(firstWound(as('raider'), 'france').hull).toBeCloseTo(firstWound(as('fortress'), 'france').hull, 5);
+    });
+
+    it('light guns load quicker, heavy ones slower', () => {
+      const reload = (style: 'raider' | 'cruiser' | 'fortress') =>
+        createBattle(as(style), { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig'), enemy: ship('ship.sloop', 'pirate'), seed: 1, bearingDeg: 0 }).gunnery().reloadSeconds;
+      const s = content.combat.styles;
+      expect(reload('raider')).toBeCloseTo(reload('cruiser') * s.raider.reload, 5);
+      expect(reload('fortress')).toBeCloseTo(reload('cruiser') * s.fortress.reload, 5);
+      expect(reload('raider')).toBeLessThan(reload('cruiser'));
+      expect(reload('fortress')).toBeGreaterThan(reload('cruiser'));
+    });
+  });
+
   it('the more hands at the guns, the faster she reloads, up to full manning', () => {
     // A brig's 18 guns at 4 men a gun want 36 hands for a broadside.
     const reload = (crew: number) =>

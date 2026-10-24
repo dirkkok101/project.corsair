@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { BattleResult, Command, SailSetting } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import type { Aim, Broadside, BattleShip, BattleState } from '@corsair/minigame-sea-battle';
-import { rowing, weatherGauge } from '@corsair/minigame-sea-battle';
+import { rowing, shotHarmOf, weatherGauge } from '@corsair/minigame-sea-battle';
 import { Compass, Help } from './hud';
 import type { CompassProps } from './hud';
 import { bandOf, Key } from './ui/kit';
@@ -451,6 +451,28 @@ const TITLE: Record<BattleResult['outcome'], string> = {
 
 const NATION_TAG: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'Dutch', pirate: 'Pirate' };
 
+/** How she fights, in words (combat.json styles): "Raider · light guns · thin hull" (a boat with none: swivels). */
+function styleLine(content: ContentPack, classId: string) {
+  const cls = content.ships[classId]!;
+  const s = content.combat.styles[cls.style];
+  return `${capital(cls.style)} · ${cls.guns ? `${s.shot} guns` : 'swivels'} · ${s.timbers} hull`;
+}
+
+const capital = (word: string) => word[0]!.toUpperCase() + word.slice(1);
+
+/** Below this, her round shot barely marks their sides (combat.json shotHarm). */
+const BARELY_MARKS = 0.5;
+
+/** The matchup in a line: whose guns tell, and what to do about it. */
+function matchupHint(content: ContentPack, mine: string, theirs: string) {
+  const given = shotHarmOf(content, mine, theirs);
+  const taken = shotHarmOf(content, theirs, mine);
+  if (given < BARELY_MARKS) return 'Your round shot barely marks her sides: chain her rigging, grape her deck, then board.';
+  if (taken > given) return 'Her guns outweigh yours: keep off her broadside, rake her, or board.';
+  if (given > taken) return 'Your guns outweigh hers: give her your broadside.';
+  return undefined;
+}
+
 /** Why she may strike (the battle's own tests, combat.json strike), in words that match her card's bars. */
 function waverWhy(content: ContentPack, e: BattleShip, p: BattleShip, apart: number) {
   const s = content.combat.strike;
@@ -492,7 +514,7 @@ const GAUGE_CALL_SECONDS = 8;
  * A ship's card (storyboard 5.1): her flag, name, what she is and her men, and hull, sails and men as named bands.
  * Light, as Pirates! keeps it: lettering over the sea on a faint shade, not a panel, so the fight stays the picture.
  */
-function ShipCard({ ship, tag, gold, name, what, wavering, oars }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; wavering?: boolean; oars?: boolean }) {
+function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; style: string; hint?: string; wavering?: boolean; oars?: boolean }) {
   const up = ship.masts.filter((m) => m > 0).length;
   const hull = ship.hull / ship.hullMax;
   const sails = ship.sailCondition / 100;
@@ -510,6 +532,8 @@ function ShipCard({ ship, tag, gold, name, what, wavering, oars }: { ship: Battl
         {what} · {Math.round(ship.crew)} men
         {up < ship.masts.length ? ` · ${up} of ${ship.masts.length} masts standing` : ''}
       </div>
+      <div class="battle-style">{style}</div>
+      {hint ? <div class="battle-hint">{hint}</div> : null}
       <Bar label="Hull" share={hull} word={bandOf(hull, [[0, 'Sinking'], [0.25, 'Badly hurt'], [0.6, 'Holed'], [0.9, 'Sound']])} />
       <Bar label="Sails" share={sails} word={bandOf(sails, [[0, 'In rags'], [0.3, 'Torn'], [0.6, 'Holed'], [0.9, 'Whole']])} />
       <Bar label="Men" share={men} men word={bandOf(men, [[0, 'A handful'], [0.3, 'Shaken'], [0.6, 'Steady'], [0.9, 'Eager']])} />
@@ -645,8 +669,17 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     <div class="battle">
       {state.result ? null : (
         <div class="battle-cards">
-          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} oars={rowing(content, state, 'player')} />
-          <ShipCard ship={enemy} tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'} name={enemyName} what={`${enemyTitle} · ${enemy.guns} guns`} wavering={wavering} oars={rowing(content, state, 'enemy')} />
+          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} style={styleLine(content, me.classId)} oars={rowing(content, state, 'player')} />
+          <ShipCard
+            ship={enemy}
+            tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'}
+            name={enemyName}
+            what={`${enemyTitle} · ${enemy.guns} guns`}
+            style={styleLine(content, enemy.classId)}
+            hint={matchupHint(content, me.classId, enemy.classId)}
+            wavering={wavering}
+            oars={rowing(content, state, 'enemy')}
+          />
         </div>
       )}
       {state.result ? null : <Compass {...compass} className="battle-compass" />}
@@ -784,6 +817,10 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
             <span class="k-sub">Starboard</span>
             <b class={aim.starboard === 'ready' ? 'ready' : ''}>{gun('starboard')}</b>
           </div>
+          {/* Her round shot won't bite those sides: say so where she chooses her shot. */}
+          {you.shot === 'round' && shotHarmOf(content, me.classId, enemy.classId) < BARELY_MARKS ? (
+            <div class="battle-gun-hint">{capital(content.combat.styles[content.ships[me.classId]!.style].shot)} shot barely marks her hull. Chain and grape still bite.</div>
+          ) : null}
           <button
             class="k-btn small battle-sails"
             title={you.sails === 'full' ? 'Full sail: click for half sail, tighter turns and half the harm to her sails and masts (S)' : 'Half sail: click for full sail (W)'}
