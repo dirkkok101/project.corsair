@@ -1,6 +1,6 @@
 import { createAudio } from '@corsair/audio';
 import { contentFingerprint, createSim, dateOf, formatDate, inPort, TICKS_PER_SECOND, toSave } from '@corsair/core';
-import type { Nation, Ship, WorldState } from '@corsair/core';
+import type { Honour, Nation, Ship, WorldState } from '@corsair/core';
 import { careerSettlements, decodeRasterMap, difficultyOf, gameplayContent, hourOf, isLand, loadContent, placeSettlements, shipStats, tickAtHour, tileAt, viewTiles } from '@corsair/data';
 import { createHarbourRenderer, fitView, parseGpl } from '@corsair/render';
 import { createSeaRenderer, flagPicture } from '@corsair/render3d';
@@ -37,6 +37,7 @@ import { letterMeans, MomentView } from './ui/moment';
 import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
 import { bandOf, purseRise } from './ui/kit';
+import { DEED_SMALL_MS, DeedCard, meritBar } from './ui/deed';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
 import { createGamepad } from './gamepad';
 import { bindMouse } from './mouse';
@@ -44,7 +45,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createHavensSystem, createSeaLanes, createTrafficSystem, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createHavensSystem, createHonoursSystem, createSeaLanes, createTrafficSystem, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -334,6 +335,8 @@ async function main() {
     createNavigationSystem(content, map, windAt, settlements),
     // Finding the pirate coves, from what the others did.
     createHavensSystem(content, settlements),
+    // Her deeds said out loud, from what the others did.
+    createHonoursSystem(content, settlements),
     // Last, so it writes up what the others did.
     createLogbookSystem(content, settlements),
   ]);
@@ -411,6 +414,19 @@ async function main() {
   const portRoot = stage.appendChild(document.createElement('div'));
   const hailRoot = stage.appendChild(document.createElement('div'));
   const logRoot = stage.appendChild(document.createElement('div'));
+  // Deed cards (docs/design/first-voyage.md): her honours said out loud, one at a time, under the moments.
+  const deedRoot = stage.appendChild(document.createElement('div'));
+  // The honours already there when the career was loaded say nothing; each new one is queued once.
+  const deedsSeen = new Set((sim.state.captain?.honours ?? []).map((h) => h.id));
+  const deedQueue: Honour[] = [];
+  // When the card at the head of the queue was first shown (0: not yet), and whether it waits to be dismissed.
+  let deedShownAt = 0;
+  let deedStays = false;
+  let deedInPort = false;
+  const closeDeed = () => {
+    deedQueue.shift();
+    deedShownAt = 0;
+  };
   // Moments (storyboard 2.13): a letter, a promotion, a famous pirate's first sighting, a hoard, a map piece; one
   // at a time, over everything, the world waiting.
   const momentRoot = stage.appendChild(document.createElement('div'));
@@ -903,6 +919,18 @@ async function main() {
     },
     true,
   );
+  // A deed card that stays (in port, after a fight) is closed by Enter, Escape or Space, and only it.
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (!deedShownAt || !deedStays || moments.length || fight) return;
+      if (e.key !== 'Enter' && e.key !== 'Escape' && e.key !== ' ') return;
+      e.preventDefault();
+      if (!e.repeat) closeDeed();
+      e.stopImmediatePropagation();
+    },
+    true,
+  );
   // Esc closes the help first, and only the help: caught before the chart's own listener, so the chart, the ship
   // picked, a hail or the log under it stays as it was.
   window.addEventListener(
@@ -1209,9 +1237,6 @@ async function main() {
   };
   // What the last dig turned up, said a while.
   let digNote: (Toast & { until: number }) | undefined;
-  // A goal just done (careerGoals), said a while; the goals already done when the career was loaded say nothing.
-  let goalNote: (Toast & { until: number }) | undefined;
-  let goalsDone: Set<string> | undefined;
   /**
    * G: heave to, put the men ashore on the nearest beach and dig. Half a day passes (treasure.json dig hours) while
    * they do; then what they found, or which way the landmark lies.
@@ -1798,10 +1823,6 @@ async function main() {
         moments.push({ kind: 'promotion', ...p, town: settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '' });
       }
       // A governor's mission done, given up or beaten to: a note at sea says so, and what comes next.
-      if (ev.type === 'MissionDone' && ev.payload.kind === 'hunt') {
-        const by = settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '';
-        courseNote = { text: `The ${ev.payload.name as string} is beaten: the governor of ${by} will pay ${(ev.payload.reward as number).toLocaleString()} gold`, kind: 'Mission done', icon: 'ui.icon.chest', tone: 'gold', until: now + 7000 };
-      }
       if (ev.type === 'MissionLapsed' || ev.type === 'MissionLost') {
         const by = settlements.find((s) => s.id === ev.entityIds[1])?.name ?? '';
         const text =
@@ -2086,15 +2107,14 @@ async function main() {
       ) : null,
       hailRoot,
     );
-    // The career's goals: done ones are noticed the moment they are (the HUD says so), the rest wait in the log.
+    // The career's goals: the next is the sea's goal pill and a deed card's "Next", the rest wait in the log.
     const goals = careerGoals(content, sim.state, settlements);
-    const doneNow = new Set(goals.filter((g) => g.done).map((g) => g.id));
-    const fresh = goalsDone ? goals.find((g) => g.done && !goalsDone!.has(g.id)) : undefined;
-    if (fresh) {
-      const next = nextGoal(goals, sim.state.captain?.gold ?? 0);
-      goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, kind: 'Goal done', icon: 'ui.icon.cannon_loaded', tone: 'gold', until: now + 7000 };
+    // Her new honours, queued; a rank and a hoard have their own moments.
+    for (const h of sim.state.captain?.honours ?? []) {
+      if (deedsSeen.has(h.id)) continue;
+      deedsSeen.add(h.id);
+      if (h.kind !== 'rank' && h.kind !== 'hoard') deedQueue.push(h);
     }
-    goalsDone = doneNow;
     // The governors' missions in hand: the nearest is the sea's goal pill, and the log lists them all.
     const missions = missionGoals(sim.state, settlements);
     if (fight) logOpen = false;
@@ -2129,6 +2149,29 @@ async function main() {
       ) : null,
       logRoot,
     );
+    // The deed at the head of the queue, once nothing else holds the screen: small at sea (it slides away), standing
+    // in port or for a first or a mission (after a fight), until dismissed.
+    const deed = !fight && !moments[0] && !logOpen && !hailing ? deedQueue[0] : undefined;
+    if (deed && !deedShownAt) {
+      deedShownAt = now;
+      deedInPort = Boolean(ship.docked);
+      deedStays = deedInPort || deed.kind === 'first' || deed.kind === 'mission' || deed.kind === 'marque';
+      // Gold rings its own coins; a deed without gold rings the bell.
+      if (deed.gold === undefined) audio.honour();
+    }
+    // A small card slides away; one shown in port goes when she sails.
+    if (deed && deedShownAt && ((!deedStays && now - deedShownAt > DEED_SMALL_MS) || (deedInPort && !ship.docked))) closeDeed();
+    render(
+      deed && deedShownAt ? (
+        (() => {
+          const bar = meritBar(content, sim.state.captain, deed.nation);
+          const goal = nextGoal(goals, sim.state.captain?.gold ?? 0);
+          const next = bar?.next ?? (goal && goal.title[0]!.toLowerCase() + goal.title.slice(1));
+          return <DeedCard honour={deed} weight={deedStays ? 'standard' : 'small'} age={now - deedShownAt} next={next} bar={bar?.share} close={closeDeed} />;
+        })()
+      ) : null,
+      deedRoot,
+    );
     render(
       moments[0] && !fight ? (
         <MomentView
@@ -2155,6 +2198,7 @@ async function main() {
     stage.classList.toggle('in-port', Boolean(town));
     stage.classList.toggle('log-open', logOpen);
     stage.classList.toggle('moment-open', Boolean(moments[0] && !fight));
+    stage.classList.toggle('deed-small-on', Boolean(deed && deedShownAt && !deedStays));
     stage.classList.toggle('hail-open', Boolean(hailing));
     render(
       sim.state.captain?.retired ? (
@@ -2327,7 +2371,7 @@ async function main() {
             },
           };
         })()}
-        toasts={[...[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
+        toasts={[...[digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
           const g = missions[0] ?? nextGoal(goals, sim.state.captain?.gold ?? 0);
           return g && { title: g.title, have: g.have, of: g.of, unit: g.unit, mission: g.mission };

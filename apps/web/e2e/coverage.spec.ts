@@ -517,7 +517,11 @@ test('the shipwright: mend a hurt ship, careen a foul one, sell a gun, take back
   });
   await openService(page, 'Shipwright');
   const yard = page.locator('.shipwright');
-  const gold = async () => (await captain(page)).gold;
+  // Her gold less what goals done paid (the patched purse puts her in the Top Ten on her first deed here).
+  const gold = async () => {
+    const c = (await captain(page)) as { gold: number; honours?: { kind: string; gold?: number }[] };
+    return c.gold - (c.honours ?? []).filter((h) => h.kind === 'goal').reduce((n, h) => n + (h.gold ?? 0), 0);
+  };
   // Mending: the whole fleet, for what the button says.
   await expect(yard.locator('.yard-row').first()).toContainText('hull 40 of 85');
   const mend = yard.locator('.yard-rows').getByRole('button', { name: /^Mend · / });
@@ -1047,22 +1051,41 @@ test('F2 shows the frame rate (and the resolution the sea is drawn at), F2 hides
   expect(errors).toEqual([]);
 });
 
-test('notes show in port: a goal done at the shipwright is said there, over the harbour', async ({ page }) => {
+test('a goal done in port is a deed card: said in the past tense, paid, what next, kept on the Deeds page', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   // One gun short of a full battery: the last one completes the career's first goal, in port.
   await continueWith(page, { player: { guns: 17 } });
   await openService(page, 'Shipwright');
   await page.locator('.shipwright').getByRole('button', { name: 'See the guns' }).click();
+  const gold = await page.evaluate(() => window.__corsair.state.get('captain.gold') as number);
   await page.locator('.shipwright').getByRole('button', { name: /^Buy 1/ }).click();
   await page.evaluate(() => window.__corsair.sim.step(1));
-  const note = page.locator('.hud-toast', { hasText: 'Goal done' });
-  await expect(note).toBeVisible();
-  await expect(note).toContainText('Mount a full battery');
-  // Top centre, clear of the building's own panel below it.
-  const box = (await note.boundingBox())!;
-  const panel = (await page.locator('.shipwright').boundingBox())!;
-  expect(box.y + box.height).toBeLessThan(panel.y);
-  await page.screenshot({ path: 'test-results/port-note.png' });
+  const card = page.locator('.deed-standard');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.deed-kind')).toHaveText(/goal done/i);
+  await expect(card.locator('.deed-title')).toHaveText('A full battery');
+  // The figure counts up to the goal's pay, which is in her purse.
+  await expect(card.locator('.deed-gold')).toHaveText('+100');
+  await expect(card.locator('.deed-into')).toHaveText('gold into your purse');
+  await expect(card.locator('.deed-next')).toContainText('Next:');
+  expect(await page.evaluate(() => window.__corsair.state.get('captain.gold') as number)).toBe(gold - 150 + 100);
+  // Top centre, over the harbour and the building.
+  const box = (await card.boundingBox())!;
+  const view = page.viewportSize()!;
+  expect(Math.abs(box.x + box.width / 2 - view.width / 2)).toBeLessThan(4);
+  await page.screenshot({ path: 'test-results/deed-port.png' });
+  // It stays until dismissed: Escape closes the card, and only the card (the shipwright stays open).
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  await expect(page.locator('.shipwright')).toBeVisible();
+  // The log keeps it on its Deeds page.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('l');
+  await page.locator('.log-mark', { hasText: 'Deeds' }).click();
+  await expect(page.locator('.deeds-line').first()).toContainText('Goal done: a full battery');
+  await expect(page.locator('.deeds-line').first().locator('.deeds-figure')).toHaveText('+100');
+  await page.screenshot({ path: 'test-results/deeds-page.png' });
   expect(errors).toEqual([]);
 });
 
@@ -1104,6 +1127,13 @@ test("a courier's letter: marked on the chart, a quarter paid on delivery, the r
   await expect(page.locator('.governor')).toContainText('A letter from the governor of Port Royal');
   await expect(page.locator('.governor')).toContainText('200 gold for your trouble');
   expect((await gold()).gold - before).toBe(200);
+  // And a deed card says it, with what is still to come.
+  const card = page.locator('.deed-standard');
+  await expect(card.locator('.deed-title')).toHaveText('Letter delivered, Bridgetown');
+  await expect(card.locator('.deed-gold')).toHaveText('+200');
+  await expect(card).toContainText('600 more when the reply is home');
+  await card.getByRole('button', { name: 'Done' }).click();
+  await expect(card).toHaveCount(0);
   // Now the chart marks the way home.
   await page.keyboard.press('Escape');
   await page.keyboard.press('e');
@@ -1119,8 +1149,61 @@ test("a courier's letter: marked on the chart, a quarter paid on delivery, the r
   await page.locator('.governor-bounty').getByRole('button', { name: /Collect your reward/ }).click();
   await page.evaluate(() => window.__corsair.sim.step(1));
   const paid = await gold();
-  expect(paid.gold - home.gold).toBe(600);
+  // (A goal it completes, the Top Ten at this purse, pays a little more of its own.)
+  const goals = ((await page.evaluate(() => window.__corsair.state.get('captain.honours'))) as { kind: string; gold?: number }[]).filter((h) => h.kind === 'goal');
+  expect(paid.gold - home.gold - goals.reduce((n, h) => n + (h.gold ?? 0), 0)).toBe(600);
   expect(paid.chest ?? 0).toBe(home.chest ?? 0);
+  // The letter carried: the pay into her purse, the merit it earned with England, and the bar it moved.
+  await expect(card.locator('.deed-title')).toHaveText('The letter carried');
+  await expect(card.locator('.deed-gold')).toHaveText('+600');
+  await expect(card.locator('.deed-into')).toHaveText('gold into your purse');
+  await expect(card).toContainText('+1 merit with England');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/deed-letter.png' });
+  expect(errors).toEqual([]);
+});
+
+test('deeds at sea: her first prize stays until dismissed, then a goal it completed slides in small and away', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  // In a sloop, so any pirate is her own size.
+  await continueWith(page, { player: { classId: 'ship.sloop', guns: 6, crew: 60 } });
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await expect(page.locator('.port')).toHaveCount(0);
+  // A pirate brought alongside, and the fight settled straight through the sim (the battle has its own tests).
+  const id = await page.evaluate(() => {
+    window.__corsair.cmd.send({ type: 'SpawnShip', role: 'pirate', from: 'town.tortuga', to: 'town.port_royal' } as never);
+    window.__corsair.sim.step(1);
+    const ships = window.__corsair.state.get('ships') as Record<string, { ai?: { name: string } }>;
+    const id = Object.keys(ships).filter((k) => ships[k]!.ai).sort((a, b) => Number(a.split('.')[1]) - Number(b.split('.')[1])).at(-1)!;
+    return { id, name: ships[id]!.ai!.name };
+  });
+  await page.evaluate((targetId) => {
+    window.__corsair.cmd.send({
+      type: 'BattleEnded',
+      shipId: 'player',
+      targetId,
+      result: { outcome: 'struck', player: { hull: 80, sailCondition: 90, crew: 55, guns: 6 }, enemy: { hull: 10, sailCondition: 40, crew: 5, guns: 4 } },
+    } as never);
+    window.__corsair.sim.step(1);
+  }, id.id);
+  const card = page.locator('.deed-standard');
+  await expect(card.locator('.deed-title')).toHaveText('First prize taken');
+  await expect(card.locator('.deed-kind')).toHaveText(/a first/i);
+  await expect(card).toContainText(`The ${id.name} struck`);
+  // The prize goal is this card's too: its pay is a line here, not a second card.
+  await expect(card).toContainText('+100 gold: a goal done');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/deed-prize.png' });
+  await page.keyboard.press('Enter');
+  await expect(card).toHaveCount(0);
+  // A pirate of her own rung beaten is the next goal done: a small card, in the notes' corner, gone by itself.
+  const small = page.locator('.deed-small');
+  await expect(small.locator('.deed-title')).toHaveText('A pirate your own size beaten');
+  await expect(small.locator('.deed-note')).toContainText('gold into your purse');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'test-results/deed-small.png' });
+  await expect(small).toHaveCount(0, { timeout: 8000 });
   expect(errors).toEqual([]);
 });
 

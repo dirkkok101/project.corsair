@@ -1113,3 +1113,10 @@ export const treasureSchema = z.object({
   landmarks: z.array(z.string()).min(1),
 });
 export type TreasureConfig = z.infer<typeof treasureSchema>;
+
+/** The rewards layer (rewards.json): what a goal done pays, and the profit that makes a sale a deed. */
+export const rewardsSchema = z.object({
+  goals: z.object({ paid: z.number().int().min(0), gold: z.number().int().min(0) }),
+  bigTrade: z.number().positive(),
+});
+export type RewardsConfig = z.infer<typeof rewardsSchema>;

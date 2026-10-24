@@ -7,6 +7,7 @@ import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { papersLine, TopTen } from "./port";
 import { Art, shipIcon, shipKind } from "./ui-art";
+import { deedFigure } from "./ui/deed";
 
 /** The parchment's size on screen, in pixels. */
 const PARCHMENT_PX = 216;
@@ -198,11 +199,12 @@ export interface LogProps {
   date: (tick: number) => string;
 }
 
-type Page = 'log' | 'goals' | 'fleet' | 'career' | 'top' | 'maps';
+type Page = 'log' | 'goals' | 'deeds' | 'fleet' | 'career' | 'top' | 'maps';
 /** The book's bookmarks, top to bottom. */
 const BOOKMARKS: [Page, string][] = [
   ['log', 'Log'],
   ['goals', 'Goals'],
+  ['deeds', 'Deeds'],
   ['fleet', 'Fleet'],
   ['career', 'Career'],
   ['top', 'Top Ten'],
@@ -253,6 +255,51 @@ function LogPage({ state, settlements, date, plot }: Pick<LogProps, 'state' | 's
               {spread + 1} of {Math.ceil(lines.length / per)}
             </span>
             <button class="k-btn small paper" disabled={(spread + 1) * per >= lines.length} onClick={() => setSpread(spread + 1)}>
+              Older
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/** The Deeds page: every deed card she has had, newest first, each with its figure, over a spread of two pages. */
+function DeedsPage({ state, date }: Pick<LogProps, 'state' | 'date'>) {
+  const deeds = [...(state.captain?.honours ?? [])].reverse();
+  const [spread, setSpread] = useState(0);
+  const per = LINES_PER_PAGE * 2;
+  const shown = deeds.slice(spread * per, spread * per + per);
+  const page = (entries: typeof deeds) =>
+    entries.map((h) => (
+      <div key={h.id} class="logbook-line deeds-line">
+        <span class="deeds-seal" />
+        <div class="logbook-text">
+          {h.kind === 'goal' ? `Goal done: ${h.title[0]!.toLowerCase()}${h.title.slice(1)}` : h.title}
+          <span class="logbook-date"> · {date(h.tick)}</span>
+        </div>
+        <span class="deeds-figure">{deedFigure(h)}</span>
+      </div>
+    ));
+  return (
+    <>
+      <div class="book-page">
+        <h2 class="book-title">Deeds</h2>
+        <div class="book-sub">Everything you have done that was worth saying, newest first.</div>
+        <div class="book-rule" />
+        {deeds.length ? page(shown.slice(0, LINES_PER_PAGE)) : <p class="book-sub">No deeds yet: sell a cargo, take a prize, or carry a governor's letter.</p>}
+      </div>
+      <div class="book-page">
+        {page(shown.slice(LINES_PER_PAGE))}
+        {deeds.length > per ? (
+          <div class="book-turn">
+            <button class="k-btn small paper" disabled={spread === 0} onClick={() => setSpread(spread - 1)}>
+              Newer
+            </button>
+            <span class="book-sub">
+              {spread + 1} of {Math.ceil(deeds.length / per)}
+            </span>
+            <button class="k-btn small paper" disabled={(spread + 1) * per >= deeds.length} onClick={() => setSpread(spread + 1)}>
               Older
             </button>
           </div>
@@ -474,6 +521,8 @@ export function Log({ content, state, map, settlements, shipId, send, plot, clos
             <LogPage state={state} settlements={settlements} date={date} plot={plot} />
           ) : page === 'goals' ? (
             <Goals goals={goals} settlements={settlements} plot={plot} open={(p) => (p === 'chart' ? openChart() : setPage(p))} level={difficultyOf(content, state.difficulty)} />
+          ) : page === 'deeds' ? (
+            <DeedsPage state={state} date={date} />
           ) : page === 'fleet' ? (
             <Fleet content={content} state={state} settlements={settlements} shipId={shipId} />
           ) : page === 'career' ? (

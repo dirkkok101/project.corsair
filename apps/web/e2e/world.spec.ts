@@ -1875,6 +1875,9 @@ test('ships change hands: a pirate takes your fleet ship, and hailing him says s
 
   const merchant = await alongside('merchant', 'town.port_royal', 'town.cartagena');
   await settle(merchant, 'boarded');
+  // Her first prize is a deed card that stays until dismissed.
+  await expect(page.locator('.deed-standard .deed-title')).toHaveText('First prize taken');
+  await page.keyboard.press('Enter');
   await page.evaluate(() => {
     window.__corsair.cmd.send({ type: 'TakePlunder', shipId: 'player', take: {}, volunteers: false, release: false, keep: true } as never);
     window.__corsair.sim.step(1);

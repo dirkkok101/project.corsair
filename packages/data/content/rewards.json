@@ -1,0 +1,5 @@
+{
+  "$comment": "The rewards layer (docs/design/first-voyage.md section 4): every deed the captain does is said by a deed card and kept on the log's Deeds page. Each of the career's first 'goals.paid' goals done pays 'goals.gold' into the purse (a governor's or merchant's thanks; later goals pay only in what they bring). A sale whose profit is 'bigTrade' or more is a deed of its own.",
+  "goals": { "paid": 5, "gold": 100 },
+  "bigTrade": 500
+}

@@ -4660,3 +4660,199 @@ body {
     transform: translateY(-34px);
   }
 }
+
+/* Deed cards (docs/design/first-voyage.md, Design canvas board 13): a seal, the kind, the deed in the display face,
+   its figure counted up, and what next. Small at sea in the notes' corner (the notes step down below it); standard
+   top centre, over the port's buildings, until dismissed. */
+.deed {
+  position: absolute;
+  z-index: 45;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.deed-small {
+  top: 48px;
+  right: 16px;
+  width: min(360px, 40vw);
+  padding: 12px 14px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  animation: deed-in 0.35s ease-out;
+}
+
+.deed-small-on .hud-toasts {
+  top: 140px;
+}
+
+.deed-standard {
+  top: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, 90vw);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: deed-drop 0.4s ease-out;
+}
+
+@keyframes deed-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes deed-drop {
+  from { opacity: 0; transform: translate(-50%, -16px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.deed-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.deed-seal {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d24b3c, #8e1d17);
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.45), inset 0 0 0 3px rgb(255 255 255 / 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deed-standard .deed-seal {
+  width: 56px;
+  height: 56px;
+}
+
+.deed-seal img {
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
+}
+
+.deed-standard .deed-seal img {
+  width: 28px;
+  height: 28px;
+}
+
+.deed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.deed-kind {
+  font: 800 11px var(--k-body);
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #8a5a1c;
+}
+
+.deed-small .deed-kind {
+  font-size: 10px;
+}
+
+.deed-title {
+  font-family: var(--k-display);
+  font-size: 36px;
+  line-height: 1;
+  color: var(--k-ink);
+}
+
+.deed-small .deed-title {
+  font-size: 24px;
+}
+
+.deed-note {
+  font: 700 13px var(--k-body);
+  color: #6b5233;
+}
+
+.deed-note.gain,
+.deed-gold {
+  color: #2f6b3a;
+}
+
+.deed-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.deed-gold {
+  font-family: var(--k-display);
+  font-size: 44px;
+  line-height: 1;
+}
+
+.deed-into {
+  font: 700 15px var(--k-body);
+  color: #6b5233;
+}
+
+.deed-line {
+  font: 700 15px var(--k-body);
+  color: var(--k-ink);
+}
+
+.deed-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgb(107 82 51 / 0.25);
+  overflow: hidden;
+  display: flex;
+}
+
+.deed-bar > div {
+  background: var(--k-gold);
+}
+
+.deed-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid rgb(107 82 51 / 0.35);
+  padding-top: 10px;
+}
+
+.deed-next {
+  font-size: 14px;
+  color: #6b5233;
+}
+
+.deed-next b {
+  color: var(--k-ink);
+}
+
+.deeds-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deeds-line .logbook-text {
+  flex: 1;
+}
+
+.deeds-seal {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d24b3c, #8e1d17);
+}
+
+.deeds-figure {
+  flex: none;
+  font: 700 14px var(--k-body);
+  color: #2f6b3a;
+}

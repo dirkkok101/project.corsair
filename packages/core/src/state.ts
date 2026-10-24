@@ -401,6 +401,28 @@ export interface Captain {
   fleet?: FleetShip[];
   /** Ships of the player's freed from pirates, waiting in port to be taken back. */
   laidUp?: LaidUpShip[];
+  /** Her deeds said out loud (docs/design/first-voyage.md): each achievement once, oldest first, the last 200. */
+  honours?: Honour[];
+  /** The career's goals done (careerGoals ids, sorted), so a goal newly done is said once; absent until first seen. */
+  goalsDone?: string[];
+}
+
+/** A deed said out loud: what kind, what she did (past tense), the one figure and where it went, up to two lines. */
+export interface Honour {
+  /** Unique: a first ('first:sale'), a goal ('goal:guns'), a mission leg ('letter:<mission id>'), else kind and tick. */
+  id: string;
+  kind: 'first' | 'goal' | 'mission' | 'bounty' | 'trade' | 'marque' | 'rank' | 'hoard' | 'contract';
+  title: string;
+  tick: number;
+  gold?: number;
+  /** Where the gold went: her purse, the crew's chest, owed her by a governor, or a sale's profit. */
+  into?: 'purse' | 'chest' | 'owed' | 'profit';
+  lines?: string[];
+  place?: string;
+  /** The nation whose merit it raised, for the bar to her next rank there. */
+  nation?: Nation;
+  /** The career goal it marks done (careerGoals id). */
+  goal?: string;
 }
 
 /** One line in the captain's log: a deed of his (a loss among them), or news heard, with where it was. */

@@ -1588,7 +1588,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             type: command.type === 'Buy' ? 'Bought' : 'Sold',
             entityIds: [ship.id, s.id],
             // A sale says what the units sold had cost, for the profit (plunder cost nothing).
-            payload: { good: command.good, quantity: done, gold: total, ...(command.type === 'Sell' ? { paid: Math.round(before - cost) } : {}) },
+            payload: { good: command.good, quantity: done, gold: total, ...(command.type === 'Sell' ? { paid: Math.round(before - cost), ...(chestGain ? { chest: chestGain } : {}) } : {}) },
           },
         ];
         // A contract here for this good: what she sells counts toward it, and the last unit in earns the
