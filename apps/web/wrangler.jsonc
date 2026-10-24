@@ -1,0 +1,8 @@
+// Cloudflare deploy for the web game (`npm run release` from the repo root): the static build in dist/, served
+// as Worker static assets at https://corsair.dirkkok.workers.dev.
+{
+  "$schema": "https://unpkg.com/wrangler@4.152.0/config-schema.json",
+  "name": "corsair",
+  "compatibility_date": "2026-10-19",
+  "assets": { "directory": "./dist" }
+}

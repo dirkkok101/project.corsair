@@ -2,6 +2,7 @@
 *.blend1
 node_modules/
 dist/
+.wrangler/
 tools/map/.cache/
 test-results/
 playwright-report/
