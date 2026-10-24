@@ -1,6 +1,6 @@
 # Project Corsair — docs
 
-Canonical home for the product requirements, design, reference research and art planning. Art notes moved from vault `00-System/Skills/` on 2026-09-28. The PRD moved from the original Claude Docs page on 2026-09-28.
+Product requirements, design documents, reference research and art planning for Project Corsair. For an overview of the game and how to run it, see the [project README](../README.md).
 
 | File | What it is |
 |------|------------|
@@ -28,5 +28,3 @@ Canonical home for the product requirements, design, reference research and art 
 | `reference/pirates-trading-battles-navigation.md` | How Black Flag, Sea of Thieves and Sid Meier's Pirates! handle trading, ship-to-ship battles and ocean navigation, with Corsair takeaways |
 | `reference/corsair-game-loops.md` | Game loop design reference: purpose, verbs, feedback, failure cost and feeds for each Corsair loop, compared to 1987, 2004 and Corsair |
 | `reference/pirates-sailing-combat-rewards.md` | How Sid Meier's Pirates! (2004) handles sailing, wind and weather, sea combat, player motivation and rewards (ranks, items, Fame, retirement), from the manual and Sid's talks, plus Corsair takeaways |
-
-Vault notes under DirkVault `00-System/Skills/` for these titles are stubs pointing here.
