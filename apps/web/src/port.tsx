@@ -56,7 +56,7 @@ import { enemiesOf, legalTarget } from '@corsair/systems-politics';
 import { havenKnown, missionOffer, topTen } from '@corsair/systems-traffic';
 import type { MissionOffer } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
-import { Bust, Key, Speech, Stat } from './ui/kit';
+import { Bust, Key, Rise, risen, Speech, Stat } from './ui/kit';
 import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
@@ -311,7 +311,10 @@ function Merchant({
           </div>
           <div class="merchant-figure">
             <span>Your gold</span>
-            <b>{gold.toLocaleString()} gold</b>
+            <b class="merchant-gold">
+              {gold.toLocaleString()} gold
+              <Rise />
+            </b>
           </div>
         </div>
         <div class="merchant-actions">
@@ -651,7 +654,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
         ) : null}
         <div class="harbour-foot">
           <div class="hud-strip">
-            <Stat icon="ui.icon.gold" value={gold.toLocaleString()} title="Gold in your purse" />
+            <Stat icon="ui.icon.gold" value={gold.toLocaleString()} title="Gold in your purse" rise={risen()} />
             <Stat icon="ui.icon.crew" value={`${crew} men`} title={`Crew ${crew} of ${berths} berths`} low={crew < berths / 3} />
             <Stat icon="ui.icon.food" value={`${food} ${food === 1 ? 'day' : 'days'}`} title="Food aboard, in days for this crew" low={food <= 3} />
             <Stat icon="ui.icon.morale" value={moraleWord(content, morale)} title="The crew's morale" low={morale < 40} />
@@ -728,7 +731,7 @@ function Holdings({ content, state, shipId, service }: { content: ContentPack; s
   const { guns, maxGuns } = shipStats(content, ship);
   const food = Math.floor(foodDays(content, ship));
   const morale = moraleOf(content, state);
-  const purse = <Stat icon="ui.icon.gold" value={`${gold.toLocaleString()} gold`} title="Gold in your purse" />;
+  const purse = <Stat icon="ui.icon.gold" value={`${gold.toLocaleString()} gold`} title="Gold in your purse" rise={risen()} />;
   const hurt = ship.wounded ?? 0;
   const men = (
     <Stat icon="ui.icon.crew" value={`${crew} of ${berths} men${hurt ? ` · ${hurt} hurt` : ''}`} title={`Crew ${crew}, berths ${berths}${hurt ? `; ${hurt} wounded, mending at sea` : ''}`} low={crew < berths / 3} />
@@ -1107,7 +1110,7 @@ function Governor({
   const letter = (state.captain?.missions ?? []).find((m) => m.kind === 'courier' && m.to === town.id && m.done === undefined && m.delivered === state.tick);
   const sender = letter && settlements.find((x) => x.id === letter.from)?.name;
   const line = letter
-    ? `"A letter from the governor of ${sender}? Wait while I write my reply, captain: see that he has it."`
+    ? `"A letter from the governor of ${sender}? Wait while I write my reply, captain: see that he has it.${letter.paid ? ` And ${letter.paid.toLocaleString()} gold for your trouble.` : ''}"`
     : owed.pay.length || done.pay.length
     ? `"${thanks}${captives.length ? `${captives.join(' and ')} in irons! ` : ''}${ships ? `You've seen to ${ships} for us. ` : ''}${CROWN[nation]} is pleased."`
     : since.length
@@ -1150,7 +1153,8 @@ function Governor({
                 {done.pay.length ? `Your reward for ${[...beaten, ...replies.map((r) => `the letter to ${r}`)].join(' and ')}` : ''}
               </b>
               <span class="k-sub">
-                {(owed.total + done.total).toLocaleString()} gold, paid into the plunder chest.
+                {owed.total ? `${owed.total.toLocaleString()} gold in bounties, into the plunder chest. ` : ''}
+                {done.total ? `${done.total.toLocaleString()} gold for the work done, into your purse.` : ''}
                 {done.merit ? ` ${done.merit} merit with ${COUNTRY[nation]} toward your next rank.` : ''}
               </span>
             </div>
@@ -1255,7 +1259,7 @@ function MissionCard({
 }) {
   const to = settlements.find((s) => s.id === job.to)?.name ?? job.to;
   const m = content.politics.missions;
-  const pays = `${job.reward.toLocaleString()} gold into the chest and ${job.merit} merit with ${COUNTRY[nation]}`;
+  const pays = `${job.reward.toLocaleString()} gold into your purse and ${job.merit} merit with ${COUNTRY[nation]}`;
   return (
     <div class="k-paper governor-offer">
       <div class="k-say">
@@ -1266,7 +1270,7 @@ function MissionCard({
       <div class="governor-offer-means">
         {job.kind === 'hunt'
           ? `She is a match for your ship, well manned. Beat her and come back to me: ${pays}, with the bounty for a pirate besides.`
-          : `A voyage there and back: ${pays} when his reply is in my hand.`}{' '}
+          : `A voyage there and back: ${pays}, a quarter of it from the governor of ${to} when you hand him the letter, the rest when his reply is in my hand.`}{' '}
         The work stands {m.lapseWeeks} weeks, and there is no shame in leaving it.
       </div>
       <div class="tavern-replies">

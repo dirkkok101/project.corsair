@@ -326,6 +326,8 @@ export interface Mission {
   delivered?: number;
   /** Done (the quarry beaten, or the reply brought home): waiting for the governor at `from` to pay. */
   done?: number;
+  /** Courier: gold already paid on delivery (politics.json missions.courier.advance); the rest is owed on return. */
+  paid?: number;
 }
 
 /** What the captain has done, kept as she goes (the Goals page in the log reads it). */

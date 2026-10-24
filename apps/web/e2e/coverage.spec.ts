@@ -1065,3 +1065,86 @@ test('notes show in port: a goal done at the shipwright is said there, over the 
   await page.screenshot({ path: 'test-results/port-note.png' });
   expect(errors).toEqual([]);
 });
+
+/** Put her in `name`'s harbour: on open water off its quay, then E (a port in reach). */
+async function dockAt(page: Page, name: string) {
+  const id = await page.evaluate((n) => {
+    const p = window.__corsair.ports().find((x) => x.name === n)!;
+    for (let r = 1; r < 6; r++)
+      for (let a = 0; a < 360; a += 30) {
+        const [x, y] = [p.x + r * Math.cos((a * Math.PI) / 180), p.y + r * Math.sin((a * Math.PI) / 180)];
+        if (window.__corsair.land(x, y)) continue;
+        window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x, y });
+        window.__corsair.sim.step(1);
+        return p.id;
+      }
+    return p.id;
+  }, name);
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await expect.poll(() => page.evaluate(() => window.__corsair.state.get('ships.player.docked'))).toBe(id);
+}
+
+test("a courier's letter: marked on the chart, a quarter paid on delivery, the reply marked home, the rest into her purse", async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  const ids = await page.evaluate(() => Object.fromEntries(window.__corsair.ports().map((p) => [p.name, p.id])));
+  const letter = { id: 'm.test', kind: 'courier', from: ids['Port Royal'], nation: 'england', to: ids['Bridgetown'], reward: 800, merit: 1, tick: 0, endTick: 10_000_000 };
+  await continueWith(page, { captain: { missions: [letter] } });
+  const gold = async () => (await page.evaluate(() => window.__corsair.state.get('captain'))) as { gold: number; chest?: number };
+  // The chart rings Bridgetown: the letter's to go there.
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-ring-label')).toContainText("Port Royal's letter: deliver it to Bridgetown");
+  await page.keyboard.press('m');
+  // Handed over: the governor of Bridgetown says so, and pays a quarter for the trouble.
+  await dockAt(page, 'Bridgetown');
+  const before = (await gold()).gold;
+  await openService(page, 'Governor');
+  await expect(page.locator('.governor')).toContainText('A letter from the governor of Port Royal');
+  await expect(page.locator('.governor')).toContainText('200 gold for your trouble');
+  expect((await gold()).gold - before).toBe(200);
+  // Now the chart marks the way home.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('e');
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-ring-label')).toContainText("Bridgetown's reply: bring it to Port Royal");
+  await page.keyboard.press('m');
+  // Home: the rest, into the purse, not the crew's chest.
+  await dockAt(page, 'Port Royal');
+  await openService(page, 'Governor');
+  await expect(page.locator('.governor-bounty')).toContainText('600 gold for the work done, into your purse');
+  const home = await gold();
+  await page.locator('.governor-bounty').getByRole('button', { name: /Collect your reward/ }).click();
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  const paid = await gold();
+  expect(paid.gold - home.gold).toBe(600);
+  expect(paid.chest ?? 0).toBe(home.chest ?? 0);
+  expect(errors).toEqual([]);
+});
+
+test('gold paid in rises off the purse: a sale shows +N over the gold', async ({ page }) => {
+  const errors = await boot(page, '/?seed=3', { inPort: true });
+  await openService(page, 'Merchant');
+  const row = page.locator('.port .market tr', { hasText: 'Sugar' });
+  await row.getByRole('button', { name: 'Buy 10' }).click();
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  // Buying takes gold out: nothing rises.
+  await frames(page, 2);
+  await expect(page.locator('.k-stat-rise')).toHaveCount(0);
+  const before = (await page.evaluate(() => window.__corsair.state.get('captain.gold'))) as number;
+  await row.getByRole('button', { name: 'Sell all' }).click();
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  const after = (await page.evaluate(() => window.__corsair.state.get('captain.gold'))) as number;
+  expect(after).toBeGreaterThan(before);
+  // On the merchant's ledger, where the player is looking (the sea's strip has its own, hidden in port).
+  const rise = page.locator('.merchant-gold .k-stat-rise');
+  await expect(rise).toBeVisible();
+  await expect(rise).toHaveText(`+${(after - before).toLocaleString('en-US')}`);
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: 'test-results/purse-rise.png', clip: { x: 30, y: 600, width: 420, height: 140 } });
+  // And it is gone again a moment later.
+  await expect(rise).toHaveCount(0, { timeout: 4000 });
+  expect(errors).toEqual([]);
+});

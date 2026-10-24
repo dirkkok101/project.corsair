@@ -36,7 +36,7 @@ import { Log } from './log';
 import { letterMeans, MomentView } from './ui/moment';
 import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
-import { bandOf } from './ui/kit';
+import { bandOf, purseRise } from './ui/kit';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
 import { createGamepad } from './gamepad';
 import { bindMouse } from './mouse';
@@ -142,6 +142,8 @@ const mapFiles = import.meta.glob<string>('../../../packages/data/content/maps/c
 const MOUSE_CONTROLS = false;
 /** The frame-rate readout (F2) is redrawn this often, from the frames since. */
 const FPS_EVERY_MS = 500;
+/** A coin's ring for every this much gold paid in (up to the sound's own cap). */
+const COINS_PER_RING = 150;
 
 /** The wind keys ([ ] and 1 to 5) are for tuning, not play: live only in a dev build or with `?debug=1`. */
 const DEBUG_KEYS = import.meta.env.DEV || new URLSearchParams(location.search).get('debug') === '1';
@@ -1025,6 +1027,8 @@ async function main() {
   let helpOpen = false;
   /** The HUD's strip fades while nothing on it changes: what it last showed, and when that changed. */
   let stripSeen = '';
+  /** The purse as last seen, to tell gold paid in (undefined until the first frame). */
+  let lastPurse: number | undefined;
   let stripChanged = 0;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: PortNotice | undefined;
@@ -1739,6 +1743,19 @@ async function main() {
       acc -= dt;
       if (player().docked) break;
     }
+    // Gold paid in (a sale, a reward, rent, a share): it rises off the purse wherever the purse is shown, and the
+    // coins ring, more of them for more gold.
+    const purse = sim.state.captain?.gold ?? 0;
+    if (lastPurse !== undefined && purse > lastPurse) {
+      purseRise.amount = purse - lastPurse;
+      purseRise.at = performance.now();
+      try {
+        audio.coins(Math.ceil((purse - lastPurse) / COINS_PER_RING));
+      } catch {
+        // Sound is a nicety: a failure here must never stop the frame.
+      }
+    }
+    lastPurse = purse;
     // The course's look-out: about once a second, if the way to her next waypoint isn't clear water any more
     // (beating has carried her off the line, round the wrong side of a spit), plot a new route from where she is.
     if (sim.state.tick - lastReplanTick >= REPLAN_TICKS) {
@@ -1951,10 +1968,19 @@ async function main() {
         const held = sim.state.captain?.mapPieces?.[c.id] ?? 0;
         return hoard && held && !hoard.found ? [{ ...hoardRing(content, hoard, held), label: `${c.name}'s hoard: ${held} of ${content.pirates.rules.mapPieces} pieces` }] : [];
       }),
-      // The waters a mission's quarry haunts, about the port the governor named.
+      // The waters a mission's quarry haunts, about the port the governor named; a courier's letter, then his reply,
+      // marked at the port it is bound for.
       ...(sim.state.captain?.missions ?? []).flatMap((m) => {
-        const at = m.kind === 'hunt' && m.done === undefined ? settlements.find((s) => s.id === m.to) : undefined;
-        return at ? [{ x: at.x, y: at.y, r: content.politics.missions.hunt.ringTiles, label: `The ${m.name}: wanted by ${settlements.find((s) => s.id === m.from)?.name ?? m.from}`, say: 'hunt here' }] : [];
+        if (m.done !== undefined) return [];
+        const name = (id: string) => settlements.find((s) => s.id === id)?.name ?? id;
+        if (m.kind === 'courier') {
+          const bound = settlements.find((s) => s.id === (m.delivered === undefined ? m.to : m.from));
+          if (!bound) return [];
+          const r = content.politics.missions.courier.ringTiles;
+          return [m.delivered === undefined ? { x: bound.x, y: bound.y, r, label: `${name(m.from)}'s letter`, say: `deliver it to ${bound.name}` } : { x: bound.x, y: bound.y, r, label: `${name(m.to)}'s reply`, say: `bring it to ${bound.name}` }];
+        }
+        const at = settlements.find((s) => s.id === m.to);
+        return at ? [{ x: at.x, y: at.y, r: content.politics.missions.hunt.ringTiles, label: `The ${m.name}: wanted by ${name(m.from)}`, say: 'hunt here' }] : [];
       }),
     ]);
     const ship = player();

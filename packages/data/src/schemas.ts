@@ -781,6 +781,10 @@ export const politicsSchema = z.object({
       goldPerTile: z.number().min(0),
       minReward: z.number().min(0),
       merit: z.number().min(0),
+      /** The share of the reward the governor the letter goes to pays on delivery (the rest on the reply's return). */
+      advance: share,
+      /** The chart's ring about the port the letter, then the reply, is bound for. */
+      ringTiles: z.number().positive(),
     }),
   }),
   news: z.record(z.string(), z.string()),

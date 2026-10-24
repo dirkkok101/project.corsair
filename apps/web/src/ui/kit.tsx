@@ -63,13 +63,31 @@ export function Bust({ id, label }: { id: string; label: string }) {
 }
 
 /** One figure in a strip: an icon and its value, with what it means on hover. */
-export function Stat({ icon, value, title, low }: { icon: string; value: string; title: string; low?: boolean }) {
+export function Stat({ icon, value, title, low, rise }: { icon: string; value: string; title: string; low?: boolean; rise?: { amount: number; key: number } }) {
   return (
     <span class={`k-stat${low ? ' low' : ''}`} title={title}>
       {ART[icon] ? <img class="k-stat-icon" src={ART[icon]} alt="" draggable={false} /> : null}
       {value}
+      {rise ? <Rise rise={rise} /> : null}
     </span>
   );
+}
+
+/** Gold just paid in, rising off the purse and fading (keyed, so each payment rises afresh); its parent is positioned. */
+export function Rise({ rise = risen() }: { rise?: { amount: number; key: number } }) {
+  return rise ? (
+    <span key={rise.key} class="k-stat-rise">
+      +{rise.amount.toLocaleString()}
+    </span>
+  ) : null;
+}
+
+/** The purse's last rise (main.tsx sets it as gold comes in), shown for PURSE_RISE_MS by every purse on screen. */
+export const purseRise: { amount: number; at: number } = { amount: 0, at: -Infinity };
+const PURSE_RISE_MS = 1800;
+/** The rise to show now, if one is still in the air. */
+export function risen(now = performance.now()): { amount: number; key: number } | undefined {
+  return now - purseRise.at < PURSE_RISE_MS ? { amount: purseRise.amount, key: purseRise.at } : undefined;
 }
 
 /**

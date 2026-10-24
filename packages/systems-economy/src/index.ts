@@ -242,7 +242,7 @@ export function bountiesOwed(content: ContentPack, state: WorldState, nation: Pl
 /** The governor's missions done for him (the governor at `settlementId`) and not yet paid: what he owes for them. */
 export function missionsOwed(state: WorldState, settlementId: string): { pay: Mission[]; total: number; merit: number } {
   const pay = (state.captain?.missions ?? []).filter((m) => m.done !== undefined && m.from === settlementId);
-  return { pay, total: pay.reduce((n, m) => n + m.reward, 0), merit: pay.reduce((n, m) => n + m.merit, 0) };
+  return { pay, total: pay.reduce((n, m) => n + m.reward - (m.paid ?? 0), 0), merit: pay.reduce((n, m) => n + m.merit, 0) };
 }
 
 /**
@@ -1079,14 +1079,27 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           famous = { ...famous, [d.captive!]: { ...f, returnAt: Math.max(f.returnAt ?? 0, free) } };
         }
         return {
-          // Bounties are plunder: they go into the chest the crew sails for.
+          // Bounties are plunder: they go into the chest the crew sails for. A mission's reward is the governor's
+          // pay to the captain: it goes into the purse.
           state: {
             ...state,
-            captain: { ...state.captain, chest: (state.captain.chest ?? 0) + total, deeds: kept, standing, merit, missions: (state.captain.missions ?? []).filter((m) => !done.pay.includes(m)) },
+            captain: {
+              ...state.captain,
+              gold: state.captain.gold + done.total,
+              chest: (state.captain.chest ?? 0) + bounties,
+              deeds: kept,
+              standing,
+              merit,
+              missions: (state.captain.missions ?? []).filter((m) => !done.pay.includes(m)),
+            },
             ...(famous ? { famous } : {}),
           },
           events: [
-            { type: 'BountiesPaid', entityIds: [ship.id, s.id], payload: { count: pay.length, gold: total, captives: captives.map((d) => d.captive), missions: done.pay.map((m) => m.id) } },
+            {
+              type: 'BountiesPaid',
+              entityIds: [ship.id, s.id],
+              payload: { count: pay.length, gold: total, bounty: bounties, missionGold: done.total, merit: gain, captives: captives.map((d) => d.captive), missions: done.pay.map((m) => m.id) },
+            },
             ...promoted,
           ],
         };
@@ -1465,15 +1478,18 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       if (command.type === 'CallOnGovernor') {
         const ship = state.ships[command.shipId];
         if (!ship?.docked) return ship ? refuse(state, ship, 'not-docked') : undefined;
-        // A governor's letter carried here is handed over, and his reply taken; the reply brought home is the
-        // mission done.
+        // A governor's letter carried here is handed over, and his reply taken (with his thanks: a share of the
+        // reward, politics.json missions.courier.advance); the reply brought home is the mission done.
         const here = ship.docked;
         const events: EmittedEvent[] = [];
+        let advanced = 0;
         const missions = state.captain.missions?.map((m) => {
           if (m.kind !== 'courier' || m.done !== undefined) return m;
           if (m.delivered === undefined && m.to === here) {
-            events.push({ type: 'LetterDelivered', entityIds: [ship.id, here], payload: { id: m.id, from: m.from } });
-            return { ...m, delivered: state.tick };
+            const paid = Math.round((m.reward * content.politics.missions.courier.advance) / 10) * 10;
+            advanced += paid;
+            events.push({ type: 'LetterDelivered', entityIds: [ship.id, here], payload: { id: m.id, from: m.from, advance: paid, owed: m.reward - paid } });
+            return { ...m, delivered: state.tick, paid };
           }
           if (m.delivered !== undefined && m.from === here) {
             events.push({ type: 'MissionDone', entityIds: [ship.id, here], payload: { id: m.id, kind: m.kind, reward: m.reward } });
@@ -1481,7 +1497,10 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           }
           return m;
         });
-        return { state: { ...state, captain: { ...state.captain, calledOn: { ...state.captain.calledOn, [here]: state.tick }, ...(missions ? { missions } : {}) } }, events };
+        return {
+          state: { ...state, captain: { ...state.captain, gold: state.captain.gold + advanced, calledOn: { ...state.captain.calledOn, [here]: state.tick }, ...(missions ? { missions } : {}) } },
+          events,
+        };
       }
       if (command.type === 'SpawnShock') {
         const s = byId.get(command.settlementId);

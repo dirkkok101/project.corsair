@@ -1277,6 +1277,7 @@ body {
 }
 
 .k-stat {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -4618,4 +4619,44 @@ body {
   font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* Gold just paid in rises off the purse and fades (main.tsx sets it; ui/kit.tsx Rise draws it). */
+.merchant-gold {
+  position: relative;
+}
+
+/* On the merchant's ledger the rows sit close: the gold rises beside its figure, not over the row above. */
+.merchant-gold .k-stat-rise {
+  left: auto;
+  right: calc(100% + 10px);
+  bottom: -4px;
+  font-size: 20px;
+}
+
+.k-stat-rise {
+  position: absolute;
+  left: 18px;
+  bottom: 100%;
+  font-family: var(--k-display);
+  font-size: 22px;
+  color: #ffd27a;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.6), 0 0 10px rgb(255 210 122 / 0.55);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: purse-rise 1.8s ease-out forwards;
+}
+
+@keyframes purse-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-34px);
+  }
 }

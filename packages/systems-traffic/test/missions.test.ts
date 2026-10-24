@@ -31,7 +31,7 @@ describe("governors' missions", () => {
     expect(missionOffer(content, hostile, royal, settlements)).toBeUndefined();
   });
 
-  it('a hunt puts a named quarry matched to her ship on the sea, kept there; beaten, the governor pays into the chest, and merit', () => {
+  it('a hunt puts a named quarry matched to her ship on the sea, kept there; beaten, the governor pays her purse, the bounty the chest, and merit', () => {
     const pack = only('hunt');
     const sim = createSim(docked(world(3, undefined, pack).state, royal.id), systems(pack));
     const offer = missionOffer(pack, sim.state, royal, settlements)!;
@@ -53,7 +53,6 @@ describe("governors' missions", () => {
     sim.step(3 * day);
     expect(sim.state.ships[mission.target!]?.ai?.mission).toBe(mission.id);
 
-    const chest = sim.state.captain!.chest ?? 0;
     const merit = sim.state.captain!.merit?.england ?? 0;
     sim.send({ type: 'BattleEnded', shipId: 'player', targetId: mission.target!, result: result('sunk') });
     sim.applyCommands();
@@ -62,11 +61,18 @@ describe("governors' missions", () => {
     expect(missionGoals(sim.state, settlements)[0]).toMatchObject({ title: `Collect your reward at ${royal.name}`, port: royal.id });
 
     // Paid by the governor who gave it, with the bounty for the pirate.
+    // The reward is his pay to the captain (the purse); the bounty for the pirate is plunder (the crew's chest).
     const pay = createSim(docked(sim.state, royal.id), systems(pack));
+    const gold = pay.state.captain!.gold;
+    const chest = pay.state.captain!.chest ?? 0;
     pay.send({ type: 'CollectBounties', shipId: 'player' });
     pay.applyCommands();
     expect(pay.state.captain!.missions).toEqual([]);
-    expect(pay.state.captain!.chest! - chest).toBeGreaterThanOrEqual(offer.reward);
+    const paid = pay.events().find((e) => e.type === 'BountiesPaid')!.payload as { bounty: number; missionGold: number };
+    expect(paid.missionGold).toBe(offer.reward);
+    expect(paid.bounty).toBeGreaterThan(0);
+    expect(pay.state.captain!.gold - gold).toBe(offer.reward);
+    expect((pay.state.captain!.chest ?? 0) - chest).toBe(paid.bounty);
     expect((pay.state.captain!.merit?.england ?? 0) - merit).toBeGreaterThanOrEqual(offer.merit);
   }, 120_000);
 
@@ -98,7 +104,7 @@ describe("governors' missions", () => {
     expect(price(strong)).toBeGreaterThan(price(weak));
   });
 
-  it('a courier hands the letter over, carries the reply home, and is paid there', () => {
+  it('a courier hands the letter over (paid a quarter there), carries the reply home, and is paid the rest there, into her purse', () => {
     const pack = only('courier');
     const sim = createSim(docked(world(3, undefined, pack).state, royal.id), systems(pack));
     sim.send({ type: 'AcceptMission', shipId: 'player' });
@@ -106,17 +112,32 @@ describe("governors' missions", () => {
     const mission = sim.state.captain!.missions![0]!;
     expect(mission.kind).toBe('courier');
     const there = createSim(docked(sim.state, mission.to), systems(pack));
+    const before = there.state.captain!.gold;
     there.send({ type: 'CallOnGovernor', shipId: 'player' });
     there.applyCommands();
     expect(types(there)).toContain('LetterDelivered');
+    // His thanks on delivery: the advance, into the purse, kept on the mission.
+    const advance = Math.round((mission.reward * pack.politics.missions.courier.advance) / 10) * 10;
+    expect(advance).toBeGreaterThan(0);
+    expect(there.state.captain!.gold - before).toBe(advance);
+    expect(there.state.captain!.missions![0]!.paid).toBe(advance);
+    expect(there.events().find((e) => e.type === 'LetterDelivered')!.payload).toMatchObject({ advance, owed: mission.reward - advance });
+    // Calling again pays nothing more.
+    there.send({ type: 'CallOnGovernor', shipId: 'player' });
+    there.applyCommands();
+    expect(there.state.captain!.gold - before).toBe(advance);
     expect(missionGoals(there.state, settlements)[0]).toMatchObject({ title: `Bring the reply to ${royal.name}`, port: royal.id });
     const home = createSim(docked(there.state, royal.id), systems(pack));
+    const purse = home.state.captain!.gold;
+    const chest = home.state.captain!.chest ?? 0;
     home.send({ type: 'CallOnGovernor', shipId: 'player' });
     home.send({ type: 'CollectBounties', shipId: 'player' });
     home.applyCommands();
     expect(types(home)).toContain('MissionDone');
     expect(home.state.captain!.missions).toEqual([]);
-    expect(home.state.captain!.chest ?? 0).toBeGreaterThanOrEqual(mission.reward);
+    // The rest of the reward, into the purse: the whole of it paid, once; the chest untouched.
+    expect(home.state.captain!.gold - purse).toBe(mission.reward - advance);
+    expect(home.state.captain!.chest ?? 0).toBe(chest);
   });
 
   it('no more than the open limit at once', () => {

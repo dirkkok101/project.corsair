@@ -417,6 +417,31 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
       }
       duck(4, 1, 1.5);
     },
+    /**
+     * Gold paid in: coins counted into the purse, `n` of them (more for a bigger sum), each a short bright chink (a
+     * few inharmonic partials dying fast, as struck metal does). Synthesised.
+     */
+    coins(n = 3) {
+      if (ctx?.state !== 'running') return;
+      const out = placed(ctx.currentTime, 0, 0.32);
+      let at = ctx.currentTime + 0.01;
+      for (let i = 0; i < Math.max(1, Math.min(8, n)); i++) {
+        const pitch = 0.94 + Math.random() * 0.12;
+        for (const [hz, level, ring] of [[2100, 0.5, 0.18], [3400, 0.3, 0.12], [5200, 0.18, 0.08]] as const) {
+          const o = ctx.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = hz * pitch;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(level, at + 0.003);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + ring);
+          o.connect(g).connect(out);
+          o.start(at);
+          o.stop(at + ring + 0.02);
+        }
+        at += 0.045 + Math.random() * 0.04;
+      }
+    },
     get music() {
       return music;
     },
