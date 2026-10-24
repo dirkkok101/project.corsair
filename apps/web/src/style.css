@@ -5239,3 +5239,49 @@ body {
   font: 700 20px var(--k-body);
   border-color: var(--k-gold);
 }
+
+/* Home with her prize: what each building is for, and the merchant's first sale (Design canvas boards 7 and 8). */
+.port-spot .spot-need {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--k-gold);
+  color: var(--k-ink);
+  font: 700 13px var(--k-body);
+  white-space: nowrap;
+}
+
+.port-spot .spot-need.done {
+  background: #6fbf73;
+}
+
+.first-sale {
+  width: min(620px, calc(100vw - 60px));
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.first-sale-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.25);
+  font-size: 18px;
+}
+
+.first-sale-sum {
+  margin-left: auto;
+  color: #9fd8a2;
+}
+
+.first-sale-go {
+  align-self: flex-start;
+  font-size: 18px;
+}

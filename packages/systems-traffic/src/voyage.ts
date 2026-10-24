@@ -1,6 +1,6 @@
 import { rngStream, seedRng } from '@corsair/core';
-import type { EmittedEvent, Nation, System, Voyage, WorldState } from '@corsair/core';
-import { isLand, tileAt } from '@corsair/data';
+import type { EmittedEvent, GameEvent, Nation, Ship, System, Voyage, WorldState } from '@corsair/core';
+import { isLand, shipStats, tileAt } from '@corsair/data';
 import { cargoUsed, crewOf, fleetBerths, fleetHold, salvageUnits } from '@corsair/systems-economy';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import type { SeaLanes } from './lanes';
@@ -91,6 +91,22 @@ export function withVoyage(world: WorldState, content: ContentPack, map: TileMap
   return { ...world, captain: { ...world.captain!, voyage } };
 }
 
+/** Home with her prize: in port, the cargo sold, the battery full and the plunder shared, then the governor. */
+function homeChores(content: ContentPack, state: WorldState, v: Voyage, me: Ship, events: readonly GameEvent[]): WorldState {
+  const mine = events.filter((e) => e.entityIds[0] === me.id);
+  const ashore = v.ashore || (me.docked === v.home && mine.some((e) => e.type === 'Docked'));
+  if (!ashore) return state;
+  const done = new Set(v.lessons ?? []);
+  if (mine.some((e) => e.type === 'Sold')) done.add('sold');
+  const { guns, maxGuns } = shipStats(content, me);
+  if (guns >= maxGuns) done.add('battery');
+  if (mine.some((e) => e.type === 'PlunderDivided') || !(state.captain?.chest ?? 0)) done.add('shared');
+  const all = ['sold', 'battery', 'shared'].every((l) => done.has(l));
+  const voyage: Voyage = { ...v, ashore: true, lessons: [...done], ...(all ? { step: 'governor' as const } : {}) };
+  if (JSON.stringify(voyage) === JSON.stringify(v)) return state;
+  return { ...state, captain: { ...state.captain!, voyage } };
+}
+
 /**
  * The voyage's chapters as they happen. Sailing from home the first time, she goes at half sail, bound for the cay;
  * on the way the lessons she has shown she knows are kept (the helm used, more sail set); within `arriveTiles` of
@@ -141,6 +157,7 @@ export function createVoyageSystem(content: ContentPack, settlements: PlacedSett
         const ships = boat?.ai ? { ...state.ships, [boat.id]: { ...boat, ai: { ...boat.ai, voyage: { freed: true } } } } : state.ships;
         return { ...state, ships, captain: { ...state.captain!, voyage: { ...v, step: 'home' } } };
       }
+      if (v.step === 'home') return homeChores(content, state, v, me, events);
       return state;
     },
   };

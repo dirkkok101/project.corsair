@@ -433,6 +433,8 @@ export interface Voyage {
   pirate?: string;
   /** The fishing boat she harries. */
   boatId?: string;
+  /** Home with her prize, in port: the chores before the governor (sold, battery, shared, in `lessons`). */
+  ashore?: boolean;
 }
 
 /** A deed said out loud: what kind, what she did (past tense), the one figure and where it went, up to two lines. */

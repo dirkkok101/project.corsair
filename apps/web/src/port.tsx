@@ -62,7 +62,7 @@ import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
 import { voyageOpen } from '@corsair/systems-economy';
-import { harbourLine, NedSays, OrdersCard, shutWhy, voyageOrders } from './voyage';
+import { harbourLine, homeNeed, NedSays, OrdersCard, shutWhy, voyageOrders } from './voyage';
 
 export interface PortProps {
   state: WorldState;
@@ -138,6 +138,40 @@ function contractLine(content: ContentPack, state: WorldState, c: Contract, town
  * buttons. Clicking a good opens why it costs what it does; pointing at a button says what the trade comes to.
  * Two one-click actions do the usual thing: sell what sells at a profit, fill the hold with the best buy.
  */
+/**
+ * The First Voyage's first sale (Design canvas board 8): the merchant, the one good she brought, what he pays, and one
+ * button. His whole market opens after it.
+ */
+function FirstSale({ content, state, town, ship, sell }: { content: ContentPack; state: WorldState; town: PlacedSettlement; ship: import('@corsair/core').Ship; sell: (units: number) => void }) {
+  const good = content.voyage.salvage.good;
+  const casks = ship.cargo[good] ?? 0;
+  const each = quote(content, town, good, state.markets?.[town.id]?.[good] ?? 0, tradeEdge(content, state.captain, town.nation)).sell;
+  const name = content.goods.find((g) => g.id === good)?.name ?? good;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.repeat) sell(casks);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [casks]);
+  return (
+    <div class="k-wood first-sale">
+      <Speech bust="bust.merchant" who={`The merchant of ${town.name}`} line={`"${name} off a pirate's wreck? I don't ask. ${each} a cask, and glad of it."`} />
+      <div class="first-sale-row">
+        <GoodIcon id={good} />
+        <b>{name}</b>
+        <span>{casks} casks</span>
+        <span>{each} each</span>
+        <b class="first-sale-sum">about +{(casks * each).toLocaleString('en-GB')}</b>
+      </div>
+      <div class="k-sub">His buying and selling of every good opens after this sale.</div>
+      <button class="k-btn primary first-sale-go" onClick={() => sell(casks)}>
+        Sell the {name.toLowerCase()} <Key k="Enter" />
+      </button>
+    </div>
+  );
+}
+
 function Merchant({
   content,
   state,
@@ -555,6 +589,11 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const badge: Partial<Record<Service, number>> = { tavern: unheard, governor: owed, shipwright: yardShips || mending };
   const label = (s: { id: Service; name: string }) => (badge[s.id] ? `${s.name} (${badge[s.id]})` : s.name);
 
+  // Home with her prize on the voyage: what each building is for.
+  const { guns: mounted, maxGuns } = shipStats(content, ship);
+  const need = Object.fromEntries(
+    SERVICES.map((s) => [s.id, voyage && homeNeed(voyage, s.id, { sugar: ship.cargo[content.voyage.salvage.good] ?? 0, guns: Math.max(0, maxGuns - mounted), gunGold: content.combat.port.gunGold, chest: state.captain?.chest ?? 0 })]),
+  ) as Partial<Record<Service, { text: string; done: boolean }>>;
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
     const r = hotspots[s.id]!;
     const ready = READY.includes(s.id);
@@ -583,6 +622,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           {s.name}
           {badge[s.id] ? <b class="spot-badge">{badge[s.id]}</b> : null}
         </span>
+        {need[s.id] ? <small class={`spot-need${need[s.id]!.done ? ' done' : ''}`}>{need[s.id]!.text}</small> : null}
       </button>
     );
   });
@@ -725,7 +765,11 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             plot={plot}
           />
         ) : (
-          <Merchant content={content} state={state} town={town} ship={ship} bestSale={bestSale} trade={trade} />
+          voyage?.ashore && !(voyage.lessons ?? []).includes('sold') && (ship.cargo[content.voyage.salvage.good] ?? 0) > 0 ? (
+            <FirstSale content={content} state={state} town={town} ship={ship} sell={(n) => trade('Sell', content.voyage.salvage.good, n)} />
+          ) : (
+            <Merchant content={content} state={state} town={town} ship={ship} bestSale={bestSale} trade={trade} />
+          )
         )}
 
       </div>
@@ -1997,8 +2041,9 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
     ...(stranger ? [{ id: 'stranger' as const, name: 'Stranger', bust: 'bust.stranger', badge: 0 }] : []),
     { id: 'sailors', name: 'Sailors', bust: 'bust.sailors', badge: 0 },
   ];
-  // Whoever has something new speaks first.
-  const [chosen, choose] = useState<Person>(() => people.find((p) => p.badge)?.id ?? 'barmaid');
+  // Whoever has something new speaks first; home from the First Voyage's prize, the sailors and their share.
+  const sharing = Boolean(state.captain?.voyage?.ashore && !(state.captain.voyage.lessons ?? []).includes('shared'));
+  const [chosen, choose] = useState<Person>(() => (sharing ? 'sailors' : (people.find((p) => p.badge)?.id ?? 'barmaid')));
   const who = people.some((p) => p.id === chosen) ? chosen : 'barmaid';
   return (
     <div class="tavern-room">

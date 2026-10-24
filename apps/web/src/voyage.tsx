@@ -19,8 +19,16 @@ export interface Order {
 const AFTER: Voyage['step'][] = ['harbour', 'helm', 'salvage', 'prize', 'home', 'governor', 'done'];
 const past = (v: Voyage, step: Voyage['step']) => AFTER.indexOf(v.step) > AFTER.indexOf(step);
 
-/** Her orders: the governor's three, with the pirate to take put in once she is sighted off the cay. */
+/** Her orders: the governor's three, with the pirate to take put in once she is sighted off the cay; then, home with her prize, the port's three. */
 export function voyageOrders(v: Voyage, home: string): Order[] {
+  const did = (l: string) => (v.lessons ?? []).includes(l) || past(v, 'home');
+  if (v.step === 'governor') return [{ text: 'See the governor', sub: "he's heard of your prize", done: false }];
+  if (v.ashore)
+    return [
+      { text: 'Sell the sugar', sub: 'the merchant', done: did('sold') },
+      { text: 'Mount a full battery', sub: 'the shipwright', done: did('battery') },
+      { text: 'Share out the plunder', sub: 'the tavern', done: did('shared') },
+    ];
   return [
     { text: `Sail out to ${v.cay.name}`, sub: `a short sail ${v.cay.bearing} · the smoke on the horizon`, done: past(v, 'helm') },
     { text: 'See what the storm left', done: past(v, 'salvage') },
@@ -68,7 +76,7 @@ export function OrdersCard({ orders, far }: { orders: Order[]; far?: string }) {
 /** Why a building stands shuttered at this step, in a line. */
 export function shutWhy(v: Voyage, service: PortService): string {
   const early = AFTER.indexOf(v.step) < AFTER.indexOf('home');
-  if (service === 'governor') return early ? 'Sees captains who bring him news. Come back with a prize.' : 'Sees you once your business in port is done.';
+  if (service === 'governor') return early ? 'Sees captains who bring him news. Come back with a prize.' : "He's heard of your prize. He'll see you when your ship is fit.";
   if (service === 'merchant') return 'Nothing in your hold to sell yet.';
   if (service === 'tavern') return "The crew drink when there's plunder to share.";
   return 'Guns cost more than your purse holds today.';
@@ -77,6 +85,22 @@ export function shutWhy(v: Voyage, service: PortService): string {
 /** What the quartermaster says in the harbour, by the step. */
 export function harbourLine(v: Voyage): string | undefined {
   if (v.step === 'harbour') return `"Wind's fair for the cay, Captain. Say the word and we cast off."`;
+  if (v.step === 'governor') return `"The governor's heard of your prize, Captain. He'll see you now."`;
+  if (!v.ashore) return undefined;
+  const did = new Set(v.lessons ?? []);
+  if (!did.has('sold')) return `"Sell the sugar first, Captain, and the guns are yours. The lads will want their share before we sail."`;
+  if (!did.has('battery')) return `"Now the guns, Captain: a full battery, and pirates think twice."`;
+  return `"The lads want their share, Captain: the tavern, and a round on you."`;
+}
+
+/** What a building is for, home with her prize: its chore in a few words, and whether it is done. */
+export function homeNeed(v: Voyage, service: PortService, need: { sugar: number; guns: number; gunGold: number; chest: number }): { text: string; done: boolean } | undefined {
+  if (!v.ashore || v.step !== 'home') return undefined;
+  const did = new Set(v.lessons ?? []);
+  if (service === 'merchant') return did.has('sold') ? { text: 'Sold', done: true } : { text: `${need.sugar} sugar to sell`, done: false };
+  if (service === 'shipwright')
+    return did.has('battery') ? { text: 'Battery full', done: true } : { text: `${need.guns} guns to mount: ${(need.guns * need.gunGold).toLocaleString('en-GB')}`, done: false };
+  if (service === 'tavern') return did.has('shared') ? { text: 'Shared out', done: true } : { text: `${need.chest.toLocaleString('en-GB')} to share`, done: false };
   return undefined;
 }
 

@@ -210,3 +210,105 @@ test('chapter 2, the first prize: a pirate harrying a boat, chased and fought wi
   await expect(page.locator('.hud-prompt')).toContainText('Sail home to Port Royal');
   expect(errors).toEqual([]);
 });
+
+/** Chapters 1 and 2 played quickly (each has its own test): salvaged, the pirate taken, and home in port. */
+async function toHome(page: Page) {
+  const errors = await voyageBegun(page);
+  await page.keyboard.press('e');
+  await expect(page.locator('.port')).toHaveCount(0);
+  const { cay } = await voyageOf(page);
+  await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
+  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
+  await page.keyboard.press(' ');
+  await expect(page.locator('.deed-standard')).toBeVisible();
+  await page.keyboard.press('Enter');
+  const v = (await voyageOf(page)) as Voyage & { pirateId: string };
+  await page.evaluate((id) => {
+    const s = window.__corsair.state.get('ships') as Record<string, { x: number; y: number }>;
+    window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: s[id]!.x + 1.2, y: s[id]!.y + 1.2 } as never);
+  }, v.pirateId);
+  await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate');
+  await page.keyboard.press(' ');
+  await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
+  await page.evaluate(() => {
+    for (let i = 0; i < 30 * 60 * 5 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'cautious');
+  });
+  await expect(page.locator('.plunder')).toBeVisible();
+  // (Its keys are heard once it has drawn.)
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.deed-standard')).toBeVisible();
+  await page.keyboard.press('Enter');
+  // Home: off the harbour, Space enters it.
+  await page.evaluate((home) => {
+    const p = window.__corsair.ports().find((x) => x.id === home)!;
+    for (let r = 1; r < 6; r++)
+      for (let a = 0; a < 360; a += 30) {
+        const [x, y] = [p.x + r * Math.cos((a * Math.PI) / 180), p.y + r * Math.sin((a * Math.PI) / 180)];
+        if (!window.__corsair.land(x, y)) {
+          window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x, y } as never);
+          return;
+        }
+      }
+  }, v.home);
+  await expect(page.locator('.hud-prompt')).toContainText('Enter Port Royal');
+  await page.keyboard.press(' ');
+  await expect(page.locator('.port')).toBeVisible();
+  return errors;
+}
+
+test('chapter 3, home with a prize: three buildings, each for one thing; the first sale, a full battery, the plunder shared; then the governor', async ({ page }) => {
+  const errors = await toHome(page);
+  expect((await voyageOf(page)) as Voyage & { ashore?: boolean }).toMatchObject({ step: 'home', ashore: true });
+  // What each building is for; the governor not yet.
+  await expect(page.locator('.port-spot', { hasText: 'Merchant' }).locator('.spot-need')).toContainText('sugar to sell');
+  await expect(page.locator('.port-spot', { hasText: 'Shipwright' }).locator('.spot-need')).toContainText('guns to mount');
+  await expect(page.locator('.port-spot', { hasText: 'Tavern' }).locator('.spot-need')).toContainText('to share');
+  await expect(page.locator('.port-spot.shut', { hasText: 'Governor' })).toContainText("He's heard of your prize");
+  await expect(page.locator('.voyage-orders')).toContainText('Sell the sugar');
+  await expect(page.locator('.voyage-ned')).toContainText('Sell the sugar first, Captain');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/voyage-home.png' });
+  // The merchant: one good, one button.
+  await page.locator('.port-spot', { hasText: 'Merchant' }).click();
+  await expect(page.locator('.first-sale')).toContainText("I don't ask");
+  await page.waitForFunction(() => [...document.querySelectorAll<HTMLImageElement>('.first-sale img')].every((i) => i.complete));
+  await page.screenshot({ path: 'test-results/voyage-first-sale.png' });
+  await page.locator('.first-sale-go').click();
+  await expect(page.locator('.deed-standard .deed-title')).toHaveText('First cargo sold');
+  await page.screenshot({ path: 'test-results/voyage-sold.png' });
+  await dismissDeeds(page);
+  // His whole market now.
+  await expect(page.locator('.merchant')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.port-spot', { hasText: 'Merchant' }).locator('.spot-need.done')).toHaveText('Sold');
+  // The shipwright: fill the gun deck.
+  await page.locator('.port-spot', { hasText: 'Shipwright' }).click();
+  await page.locator('.shipwright').getByRole('button', { name: 'See the guns' }).click();
+  await page.locator('.shipwright').getByRole('button', { name: /^Fill the gun deck/ }).click();
+  await expect(page.locator('.deed-standard .deed-title')).toHaveText('A full battery');
+  await dismissDeeds(page);
+  await page.keyboard.press('Escape');
+  // The tavern: share out the plunder.
+  await page.locator('.port-spot', { hasText: 'Tavern' }).click();
+  await page.getByRole('button', { name: 'Divide the plunder' }).click();
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('governor');
+  await dismissDeeds(page);
+  await page.keyboard.press('Escape');
+  // The governor's door open, and Ned says so.
+  await expect(page.locator('.port-spot.shut')).toHaveCount(0);
+  await expect(page.locator('.voyage-ned')).toContainText("He'll see you now");
+  await expect(page.locator('.voyage-order.now')).toContainText('See the governor');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/voyage-governor-open.png' });
+  expect(errors).toEqual([]);
+});
+
+/** Close the deed cards up now (one deed often completes a goal too, each its own card). */
+async function dismissDeeds(page: Page) {
+  for (let i = 0; i < 5; i++) {
+    await page.waitForTimeout(150);
+    if (!(await page.locator('.deed-standard').count())) return;
+    await page.keyboard.press('Enter');
+  }
+}

@@ -121,8 +121,8 @@ describe('the First Voyage, the first prize', () => {
   it('salvaged, a pirate comes out harrying a fishing boat off the cay; she hunts no one; taken, home, and the boat sails for home too', () => {
     const w = withVoyage(world(3).state, content, map, settlements, lanes, royal.id, 'england', 3);
     const v = w.captain!.voyage!;
-    // At the cay, salvaged.
-    const at = { ...w, ships: { ...w.ships, player: { ...w.ships.player!, x: v.cay.x + 1, y: v.cay.y } }, captain: { ...w.captain!, voyage: { ...v, step: 'prize' as const } } };
+    // At the cay, salvaged (its sugar aboard), with the gold for her guns.
+    const at = { ...w, ships: { ...w.ships, player: { ...w.ships.player!, x: v.cay.x + 1, y: v.cay.y, cargo: { ...w.ships.player!.cargo, sugar: 20 } } }, captain: { ...w.captain!, gold: 5000, voyage: { ...v, step: 'prize' as const } } };
     const sim = createSim(at, [
       createEconomySystem(content, settlements, map, windAt),
       createTrafficSystem(content, settlements, lanes, map, windAt),
@@ -150,5 +150,22 @@ describe('the First Voyage, the first prize', () => {
     sim.step(2);
     expect(boat().ai!.voyage).toBeUndefined();
     expect(boat().ai!.route.length).toBeGreaterThan(0);
+    // Home: ashore, the merchant, shipwright and tavern open; the three chores done, the governor.
+    sim.send({ type: 'Teleport', shipId: 'player', x: royal.x + 2, y: royal.y + 2 });
+    sim.step(1);
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
+    sim.applyCommands();
+    expect(sim.state.captain!.voyage).toMatchObject({ step: 'home', ashore: true });
+    sim.send({ type: 'CollectBounties', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.events().at(-1)!.payload.reason).toBe('shuttered');
+    sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 1000 });
+    sim.send({ type: 'BuyGuns', shipId: 'player', count: 20 });
+    sim.applyCommands();
+    expect(sim.state.captain!.voyage!.lessons).toEqual(expect.arrayContaining(['sold', 'battery']));
+    expect(sim.state.captain!.voyage!.step).toBe('home');
+    sim.send({ type: 'DividePlunder', shipId: 'player' });
+    sim.applyCommands();
+    expect(sim.state.captain!.voyage!.step).toBe('governor');
   });
 });
