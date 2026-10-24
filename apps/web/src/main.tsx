@@ -44,7 +44,7 @@ import { BattleHud } from './battle';
 import type { BattleReport, PlunderChoice } from './battle';
 import { createBattle } from '@corsair/minigame-sea-battle';
 import type { Ammo, Battle } from '@corsair/minigame-sea-battle';
-import { careerGoals, createHavensSystem, createSeaLanes, createTrafficSystem, havenKnown, missionGoals, prizePapers, withTraffic } from '@corsair/systems-traffic';
+import { careerGoals, createHavensSystem, createSeaLanes, createTrafficSystem, havenKnown, missionGoals, nextGoal, prizePapers, withTraffic } from '@corsair/systems-traffic';
 import { atWar, createPoliticsSystem, enemiesOf, legalTarget, NATIONS, withPolitics } from '@corsair/systems-politics';
 
 // Ship atlases (tools/art/pack_ships.ts), one per class, named by sprite id: the harbour scenes show her at anchor.
@@ -421,7 +421,7 @@ async function main() {
     const me = sim.state.ships[def.start.shipId]!;
     const town = home;
     const at = enemiesOf(content, sim.state, town.nation).filter((n) => n !== 'pirate');
-    const goal = careerGoals(content, sim.state, settlements).find((g) => !g.done);
+    const goal = nextGoal(careerGoals(content, sim.state, settlements), sim.state.captain?.gold ?? 0);
     // Where the first goal gets done ("the shipwright at Port Royal"), else what it brings.
     const building = goal && ({ guns: 'shipwright', fit: 'shipwright', fitted: 'shipwright', crew: 'tavern', marque: 'governor', rank: 'governor' } as Record<string, string>)[goal.id];
     const goalPort = goal?.port && settlements.find((s) => s.id === goal.port)?.name;
@@ -2091,7 +2091,7 @@ async function main() {
     const doneNow = new Set(goals.filter((g) => g.done).map((g) => g.id));
     const fresh = goalsDone ? goals.find((g) => g.done && !goalsDone!.has(g.id)) : undefined;
     if (fresh) {
-      const next = goals.find((g) => !g.done);
+      const next = nextGoal(goals, sim.state.captain?.gold ?? 0);
       goalNote = { text: `Goal done: ${fresh.title}!${next ? ` Next: ${next.title} (L)` : ''}`, kind: 'Goal done', icon: 'ui.icon.cannon_loaded', tone: 'gold', until: now + 7000 };
     }
     goalsDone = doneNow;
@@ -2329,7 +2329,7 @@ async function main() {
         })()}
         toasts={[...[goalNote, digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
-          const g = missions[0] ?? goals.find((x) => !x.done);
+          const g = missions[0] ?? nextGoal(goals, sim.state.captain?.gold ?? 0);
           return g && { title: g.title, have: g.have, of: g.of, unit: g.unit, mission: g.mission };
         })()}
         strip={strip}

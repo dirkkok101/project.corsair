@@ -24,6 +24,17 @@ export interface Goal {
   page?: 'top' | 'maps' | 'chart';
   /** A governor's mission, not a step of the career. */
   mission?: boolean;
+  /** What finishing it costs at a port now (the guns or men she lacks), when gold is what it takes. */
+  cost?: number;
+}
+
+/**
+ * The goal to put to her now: the first not done that her purse can pay for (a battery she can't afford waits behind
+ * the next step), else simply the first not done.
+ */
+export function nextGoal(goals: Goal[], gold: number): Goal | undefined {
+  const open = goals.filter((g) => !g.done);
+  return open.find((g) => (g.cost ?? 0) <= gold) ?? open[0];
 }
 
 /** The career's goals, in order, from the state of the world. */
@@ -57,8 +68,17 @@ export function careerGoals(content: ContentPack, state: WorldState, settlements
   const all = Object.keys(content.upgrades).length;
   const goal = (g: Omit<Goal, 'done'> & { done?: boolean }): Goal => ({ ...g, done: g.done ?? g.have >= g.of });
   return [
-    goal({ id: 'guns', title: 'Mount a full battery', why: 'Pirates think twice', have: stats.guns, of: stats.maxGuns, unit: 'guns', port: yard }),
-    goal({ id: 'crew', title: 'Sign on a full crew', why: 'Boarding becomes a plan, not a gamble', have: crewOf(content, ship), of: fleetBerths(content, state, ship), unit: 'men', port: tavern }),
+    goal({ id: 'guns', title: 'Mount a full battery', why: 'Pirates think twice', have: stats.guns, of: stats.maxGuns, unit: 'guns', port: yard, cost: Math.max(0, stats.maxGuns - stats.guns) * content.combat.port.gunGold }),
+    goal({
+      id: 'crew',
+      title: 'Sign on a full crew',
+      why: 'Boarding becomes a plan, not a gamble',
+      have: crewOf(content, ship),
+      of: fleetBerths(content, state, ship),
+      unit: 'men',
+      port: tavern,
+      cost: Math.max(0, fleetBerths(content, state, ship) - crewOf(content, ship)) * content.combat.port.recruitGold,
+    }),
     goal({ id: 'trade', title: 'Make 2,000 gold trading', why: "The shipwright's upgrades in reach", have: Math.max(0, record.tradeProfit ?? 0), of: 2000, unit: 'gold', page: 'chart' }),
     goal({ id: 'prize', title: 'Take your first prize', why: 'Plunder and volunteers', have: record.prizes ?? 0, of: 1, unit: 'prizes' }),
     goal({ id: 'marque', title: 'Win a letter of marque', why: 'Lawful prizes and bounties', have: (captain.marques ?? []).length, of: 1, unit: 'letters', port: governor }),

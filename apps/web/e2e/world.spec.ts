@@ -354,9 +354,10 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   const letter = page.locator('.moment-opening');
   await expect(letter).toContainText("Your uncle's brig is yours, with 10 guns and 75 men");
   await expect(letter).toContainText('the Spanish are at war with us');
-  await expect(letter.locator('.moment-goal')).toContainText('Mount a full battery');
+  // The first goal her purse can pay for (a full battery costs more than she has): her crew.
+  await expect(letter.locator('.moment-goal')).toContainText('Sign on a full crew');
   // It says where the goal gets done, and the harbour's own labels make way for it.
-  await expect(letter.locator('.moment-goal')).toContainText('the shipwright at Port Royal');
+  await expect(letter.locator('.moment-goal')).toContainText('the tavern at Port Royal');
   await expect(page.locator('.harbour-head')).toBeHidden();
   // The loading screen has faded from over it.
   await expect(page.locator('.loading')).toHaveCount(0);

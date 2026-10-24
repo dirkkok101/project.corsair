@@ -4,7 +4,7 @@ import { isLand, shipStats, tileAt } from '@corsair/data';
 import { hoardRing, newsText, placeHoard, seawardHeading } from '@corsair/systems-economy';
 import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@corsair/systems-navigation';
 import { describe, expect, it } from 'vitest';
-import { careerGoals, createTrafficSystem, topTen } from '../src';
+import { careerGoals, createTrafficSystem, nextGoal, topTen } from '../src';
 import { content, def, map, settlements, lanes, windAt, day, world, ai, traffic0 } from './fixtures';
 
 describe('the famous pirates', () => {
@@ -440,6 +440,20 @@ describe("the captain's goals", () => {
     // Armed and manned, the next three move on.
     const ready = { ...sim.state, ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, guns: 18, crew: 150 } } };
     expect(careerGoals(content, ready, settlements).filter((g) => !g.done).slice(0, 3).map((g) => g.id)).toEqual(['trade', 'prize', 'marque']);
+  });
+
+  it("the goal put to her is one her purse can pay for: a battery she can't afford waits behind the next step", () => {
+    const sim = world(3);
+    const goals = careerGoals(content, sim.state, settlements);
+    const guns = goals.find((g) => g.id === 'guns')!;
+    // Eight guns short at the yard's price.
+    expect(guns.cost).toBe(8 * content.combat.port.gunGold);
+    expect(sim.state.captain!.gold).toBeLessThan(guns.cost!);
+    expect(nextGoal(goals, sim.state.captain!.gold)!.id).toBe('crew');
+    expect(nextGoal(goals, guns.cost!)!.id).toBe('guns');
+    // A goal that wants no gold (trading) is always in reach; with only costly goals left, the first of them.
+    expect(nextGoal(goals, 0)!.id).toBe('trade');
+    expect(nextGoal(goals.filter((g) => g.id === 'guns' || g.id === 'crew'), 0)!.id).toBe('guns');
   });
 
   it('the record: a pirate taken counts a prize and a pirate of her class beaten', () => {
