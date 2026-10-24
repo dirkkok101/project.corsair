@@ -461,6 +461,12 @@ function styleLine(content: ContentPack, classId: string) {
 
 const capital = (word: string) => word[0]!.toUpperCase() + word.slice(1);
 
+/** Her carpenters are patching her now (combat.json repair): the shot stopped a while and there is hull left to plug. */
+function carpenters(content: ContentPack, ship: BattleShip, now: number) {
+  const r = content.combat.repair;
+  return ship.hull > 0 && ship.crew >= 1 && now - ship.hurtAt >= r.quietSeconds && ship.patched < r.share * ship.holed - 1e-6 && ship.hull < ship.hullMax;
+}
+
 /** Below this, her round shot barely marks their sides (combat.json shotHarm). */
 const BARELY_MARKS = 0.5;
 
@@ -515,7 +521,7 @@ const GAUGE_CALL_SECONDS = 8;
  * A ship's card (storyboard 5.1): her flag, name, what she is and her men, and hull, sails and men as named bands.
  * Light, as Pirates! keeps it: lettering over the sea on a faint shade, not a panel, so the fight stays the picture.
  */
-function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars, now }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; style: string; hint?: string; wavering?: boolean; oars?: boolean; now: number }) {
+function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars, now, patching }: { ship: BattleShip; tag: string; gold?: boolean; name: string; what: string; style: string; hint?: string; wavering?: boolean; oars?: boolean; now: number; patching: boolean }) {
   const up = ship.masts.filter((m) => m > 0).length;
   const hull = ship.hull / ship.hullMax;
   const sails = ship.sailCondition / 100;
@@ -528,6 +534,8 @@ function ShipCard({ ship, tag, gold, name, what, style, hint, wavering, oars, no
         {wavering ? <span class="k-tag gold">wavering</span> : null}
         {/* At the oars she goes where her sails can't take her, even into the wind: cut her off, don't chase. */}
         {oars ? <span class="k-tag" title="Rowing: she can row into the wind, where you must tack. Cut her off rather than chase, and grape thins her rowers.">rowing</span> : null}
+        {/* Her carpenters at work: the shot has stopped a while, and they are plugging what she took. */}
+        {patching ? <span class="k-tag" title="Her carpenters are plugging shot holes while no ball strikes her: up to half the hull she has lost, fastest in a stout hull with a full crew.">patching</span> : null}
         {/* A stern rake jammed her rudder: she comes round slowly until it is cleared. */}
         {ship.rudderUntil !== undefined && now < ship.rudderUntil ? <span class="k-tag war" title="Her rudder is jammed by a stern rake: she turns at half her rate for a few seconds.">rudder jammed</span> : null}
       </div>
@@ -619,6 +627,13 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     const text = e.ship === 'enemy' ? `Her ${mast} goes by the board!` : `Your ${mast} is shot away!`;
     mastCall.current = { text, until: e.at + 3.5, seen: e.at };
   }
+  // A mast fished (a stump set up where it fell), called out once.
+  const fishedSeen = useRef({ player: 0, enemy: 0 });
+  for (const side of ['player', 'enemy'] as const) {
+    const n = state.ships[side].fished.filter(Boolean).length;
+    if (n > fishedSeen.current[side]) mastCall.current = { text: side === 'enemy' ? 'She has fished a stump where her mast stood: some sail again.' : 'Your carpenters have fished the mast: a stump carries some sail.', until: now + 3, seen: now };
+    fishedSeen.current[side] = n;
+  }
   // A raking shot, called out for a moment (a mast going by the board says more, and wins); a jammed rudder longer.
   for (const e of state.effects) {
     if (!e.place?.rake || e.at < mastCall.current.seen || (e.at === mastCall.current.seen && !e.place.rudder) || !e.ship) continue;
@@ -680,7 +695,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
     <div class="battle">
       {state.result ? null : (
         <div class="battle-cards">
-          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} style={styleLine(content, me.classId)} oars={rowing(content, state, 'player')} now={now} />
+          <ShipCard ship={me} tag="You" gold name={you.name} what={you.what} style={styleLine(content, me.classId)} oars={rowing(content, state, 'player')} now={now} patching={carpenters(content, me, now)} />
           <ShipCard
             ship={enemy}
             tag={NATION_TAG[enemyNation ?? ''] ?? 'Enemy'}
@@ -691,6 +706,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
             wavering={wavering}
             oars={rowing(content, state, 'enemy')}
             now={now}
+            patching={carpenters(content, enemy, now)}
           />
         </div>
       )}

@@ -69,6 +69,15 @@ export interface BattleShip extends Ship {
   terror: number;
   /** Each mast's strength, fore to aft (her class's masts), 100 sound .. 0 gone by the board. */
   masts: number[];
+  /**
+   * Damage control (combat.json repair): when a ball last holed her (battle seconds), the hull she has lost this
+   * fight and how much of it her carpenters have patched; when each mast fell, and whether it has been fished.
+   */
+  hurtAt: number;
+  holed: number;
+  patched: number;
+  fellAt: (number | undefined)[];
+  fished: boolean[];
 }
 
 /**
@@ -330,6 +339,11 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
             ? content.pirates.rules.morale
             : (content.crew.enemyMorale[ship.ai?.role ?? 'merchant'] ?? 50),
       masts: cls.masts.map(() => 100),
+      hurtAt: -Infinity,
+      holed: 0,
+      patched: 0,
+      fellAt: cls.masts.map(() => undefined),
+      fished: cls.masts.map(() => false),
     };
   };
 
@@ -1025,6 +1039,9 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
             sailCondition: Math.max(0, v.sailCondition - a.sails * rigHarm * v.sailWear),
             crew: Math.max(0, v.crew - a.crew * harm * weight),
             guns,
+            // Holed: her carpenters start over once the shot stops coming.
+            hurtAt: seconds(),
+            holed: v.holed + a.hull * harm * weight,
             ...(place.rudder ? { rudderUntil: seconds() + c.raking.rudderSeconds } : {}),
           };
           effects.push({ kind: shot.ammo === 'grape' ? 'grape' : place.part === 'rigging' ? 'sail' : 'hit', x: at[0], y: at[1], at: seconds(), ship: victimSide, place });
@@ -1038,14 +1055,16 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
               masts[i] = Math.max(0, masts[i]! - c.masts.damage[shot.ammo]! * c.battle.sailHarm[v.sails] * spared);
               hurt = { ...hurt, masts };
               if (masts[i] === 0) {
-                // Gone: her canvas on that mast with it (never more than her standing masts can carry), and the
-                // men under it.
+                // Gone: her canvas on that mast with it (a fished stump's only what it carried; never more than her
+                // standing masts can carry), and the men under it.
                 const share = 100 / masts.length;
-                const up = masts.filter((m) => m > 0).length;
+                const carries = (k: number) => share * (hurt.fished[k] ? c.repair.stumpSail : 1);
+                const up = masts.reduce((sum, m, k) => sum + (m > 0 ? carries(k) : 0), 0);
                 hurt = {
                   ...hurt,
-                  sailCondition: Math.max(0, Math.min(hurt.sailCondition - share, up * share)),
+                  sailCondition: Math.max(0, Math.min(hurt.sailCondition - carries(i), up)),
                   crew: Math.max(0, hurt.crew - c.masts.crewLoss),
+                  fellAt: hurt.fellAt.map((at, k) => (k === i ? seconds() : at)),
                 };
                 const towardDeg = normalizeDeg((Math.atan2(shot.tx - shot.x, -(shot.ty - shot.y)) * 180) / Math.PI);
                 effects.push({ kind: 'mast', x: v.x, y: v.y, at: seconds(), ship: victimSide, mast: i, towardDeg });
@@ -1055,6 +1074,32 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
           state = { ...state, ships: { ...state.ships, [victimSide]: hurt } };
         }
         state = { ...state, shots: flying, effects };
+        // Damage control: with the shot stopped a while, her carpenters plug holes (faster in a stouter hull and with
+        // more men), never more than repair.share of what she has lost; a fallen mast is fished once, after
+        // repair.fishSeconds, as a stump carrying some sail.
+        // Not over a wreck: the fight is done, and the carpenters' work belongs to the shipyard.
+        for (const side of state.wreck ? [] : (['player', 'enemy'] as const)) {
+          const s = state.ships[side];
+          const r = c.repair;
+          let next = s;
+          const room = Math.min(r.share * s.holed - s.patched, s.hullMax - s.hull);
+          if (s.hull > 0 && room > 0 && seconds() - s.hurtAt >= r.quietSeconds) {
+            const men = Math.min(1, s.crew / Math.max(1, s.crewStart));
+            const plug = Math.min(room, r.perSecond[content.ships[s.classId]!.style] * s.hullMax * men * DT);
+            next = { ...next, hull: next.hull + plug, patched: next.patched + plug };
+          }
+          const fish = s.masts.findIndex((m, k) => m === 0 && !s.fished[k] && s.fellAt[k] !== undefined && seconds() - s.fellAt[k]! >= r.fishSeconds);
+          if (fish >= 0 && s.crew >= 1) {
+            const share = 100 / s.masts.length;
+            next = {
+              ...next,
+              masts: next.masts.map((m, k) => (k === fish ? r.stump : m)),
+              fished: next.fished.map((f, k) => f || k === fish),
+              sailCondition: Math.min(100, next.sailCondition + share * r.stumpSail),
+            };
+          }
+          if (next !== s) state = { ...state, ships: { ...state.ships, [side]: next } };
+        }
         // Swivels and chasers fire on their own clocks.
         if (!state.wreck && !state.result) {
           const every = (sec: number) => state.tick % Math.round(sec * TPS) === 0;

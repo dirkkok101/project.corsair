@@ -454,6 +454,19 @@ export const combatSchema = z.object({
    */
   raking: z.object({ cos: z.number().min(0).max(1), damage: z.number().positive(), sternDamage: z.number().positive(), rudderChance: share, rudderSeconds: z.number().positive(), rudderTurn: share }),
   /**
+   * Damage control: after `quietSeconds` unholed, her carpenters patch `perSecond` (by style) of her hull a second at
+   * full crew, up to `share` of what she lost; a fallen mast is fished once after `fishSeconds`, a stump of `stump`
+   * strength carrying `stumpSail` of its canvas.
+   */
+  repair: z.object({
+    quietSeconds: z.number().min(0),
+    perSecond: z.record(z.enum(['raider', 'cruiser', 'fortress']), z.number().min(0)),
+    share: share,
+    fishSeconds: z.number().positive(),
+    stump: z.number().positive().max(100),
+    stumpSail: share,
+  }),
+  /**
    * Under her guns: within `tiles` of the side of a ship `tallerBy` times her rail height, its round and grape fly
    * into her rigging, doing `harm` of their harm to her hull, men and masts.
    */

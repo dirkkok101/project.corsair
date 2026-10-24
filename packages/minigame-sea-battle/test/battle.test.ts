@@ -721,6 +721,83 @@ describe('sea battle', () => {
     expect(dodged.hits).toBeLessThan(held.hits);
   });
 
+  describe('damage control', () => {
+    const r = content.combat.repair;
+    /** A brig (fought as `style`) holed for `lost` hull just now, the other ship far off and running (never quite clear): nothing hits her. */
+    const holed = (style: 'raider' | 'cruiser' | 'fortress', lost: number) => {
+      const pack = { ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 30, escapeTiles: 1e6 } }, ships: { ...content.ships, 'ship.brig': { ...content.ships['ship.brig']!, style } } };
+      const b = createBattle(pack, { map, wind: { fromDeg: 70, strength: 'fresh' }, player: ship('ship.brig'), enemy: ship('ship.fluyt', 'merchant'), seed: 1, bearingDeg: 90 });
+      const p = b.state.ships.player as { hull: number; holed: number; hurtAt: number };
+      p.hull -= lost;
+      p.holed = lost;
+      p.hurtAt = 0;
+      return b;
+    };
+
+    it('her carpenters patch the hull once the shot stops: faster in a stouter hull, never more than a share of what she lost', () => {
+      const brig = content.ships['ship.brig']!.hull;
+      // Still within the quiet spell: nothing yet.
+      const early = holed('fortress', 40);
+      early.step(Math.floor(r.quietSeconds * 30) - 2);
+      expect(early.state.ships.player.hull).toBeCloseTo(brig - 40, 5);
+      // Ten seconds of patching: by her style's rate.
+      const patched = (style: 'raider' | 'fortress') => {
+        const b = holed(style, 40);
+        b.step(Math.round((r.quietSeconds + 10) * 30));
+        return b.state.ships.player.hull - (brig - 40);
+      };
+      expect(patched('fortress')).toBeCloseTo(r.perSecond.fortress * brig * 10, 0);
+      expect(patched('fortress')).toBeGreaterThan(patched('raider') * 2);
+      // However long, holes plugged, not a ship rebuilt.
+      const long = holed('fortress', 40);
+      long.step(30 * 120);
+      expect(long.state.ships.player.hull).toBeCloseTo(brig - 40 + 40 * r.share, 5);
+    });
+
+    it('a ball that holes her stops the carpenters, and counts toward what they may patch', () => {
+      // A frigate's broadside into the brig, beam on at close range.
+      const b = createBattle({ ...content, combat: { ...content.combat, battle: { ...content.combat.battle, startApart: 3, tellSeconds: 0 } } }, {
+        map,
+        wind: { fromDeg: 0, strength: 'fresh' },
+        player: { ...ship('ship.frigate'), headingDeg: 0 },
+        enemy: { ...ship('ship.brig', 'merchant'), headingDeg: 0 },
+        seed: 3,
+        bearingDeg: 90,
+      });
+      const before = b.state.ships.enemy;
+      b.send({ type: 'Fire', side: 'starboard' });
+      let at = -1;
+      for (let i = 0; i < 60 && at < 0; i++) {
+        b.step(1);
+        if (b.state.ships.enemy.hull < before.hull) at = b.state.tick / 30;
+      }
+      const hit = b.state.ships.enemy;
+      expect(hit.hurtAt).toBeCloseTo(at, 5);
+      expect(hit.holed).toBeCloseTo(before.hull - hit.hull, 5);
+    });
+
+    it('a fallen mast is fished once, after a while, as a stump that carries some sail', () => {
+      const b = holed('cruiser', 0);
+      const p = b.state.ships.player as { masts: number[]; fellAt: (number | undefined)[]; sailCondition: number };
+      p.masts[0] = 0;
+      p.fellAt[0] = 0;
+      p.sailCondition = 50;
+      b.step(Math.round(r.fishSeconds * 30) - 3);
+      expect(b.state.ships.player.masts[0]).toBe(0);
+      b.step(6);
+      const after = b.state.ships.player;
+      expect(after.masts[0]).toBe(r.stump);
+      expect(after.fished[0]).toBe(true);
+      expect(after.sailCondition).toBeCloseTo(50 + (100 / after.masts.length) * r.stumpSail, 5);
+      // Shot away again, it stays down.
+      const q = b.state.ships.player as { masts: number[]; fellAt: (number | undefined)[] };
+      q.masts[0] = 0;
+      q.fellAt[0] = b.state.tick / 30;
+      b.step(Math.round(r.fishSeconds * 30) + 30);
+      expect(b.state.ships.player.masts[0]).toBe(0);
+    });
+  });
+
   describe('captains who fight their ship', () => {
     const apart = (b: ReturnType<typeof createBattle>) => Math.hypot(b.state.ships.enemy.x - b.state.ships.player.x, b.state.ships.enemy.y - b.state.ships.player.y);
 

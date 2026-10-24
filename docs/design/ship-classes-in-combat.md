@@ -151,6 +151,13 @@ masts there (her canvas as ever), and the HUD says so. Both ships' arcs came wit
 - This is what lets a fortress "take it": she shrugs off light shot, patches what does get through, and keeps
   firing.
 
+Built (slice 5): once no ball has holed her for `repair.quietSeconds`, her carpenters patch `repair.perSecond` of
+her hull a second (raider 0.2%, cruiser 0.4%, fortress 0.7%, as a share of her men left), up to `repair.share`
+(half) of what she has lost this fight. A fallen mast is fished once, `repair.fishSeconds` after it fell, as a stump
+of `repair.stump` strength carrying half its canvas; the 3D view stands a jury mast. The card says "patching" while
+they work. They stop over a wreck (the fight is done). Automatic, as decided. Against the fixed autopilot a fortress's fights run longer (a galleon pirate's
+duel with a brig lasts minutes); the style-aware autopilot of section 6 will say whether that's dull in play.
+
 ### 4.6 Captains who fight their ship
 
 The AI chooses by style as well as role and temperament:

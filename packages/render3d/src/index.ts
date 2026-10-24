@@ -1133,7 +1133,9 @@ export async function createSeaRenderer(
       if (battery && s.guns !== undefined) f.built.setGuns(s.guns / battery);
       (s.masts ?? []).forEach((m, i) => {
         const fall = falls.get(`${side}:${i}`);
-        if (fall) f!.built.setMast(i, (t - fall.from) / MAST_FALL_SECONDS, fall.towardDeg);
+        // Fished after it fell: a jury mast stands again (her sails show what canvas it carries).
+        if (fall && m > 0) f!.built.setMast(i, 0, 90);
+        else if (fall) f!.built.setMast(i, (t - fall.from) / MAST_FALL_SECONDS, fall.towardDeg);
         else f!.built.setMast(i, m > 0 ? 0 : 1, 90);
       });
       f.built.setSails(...sailsOf(sailAnim(content, s, wind, nowMs)), nowMs);
