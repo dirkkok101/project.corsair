@@ -5373,3 +5373,57 @@ body {
   font: 15px var(--k-voice);
   color: var(--k-ink);
 }
+
+/* Her order, across the top (the controls: Space sails it): what she is doing, how far, and whether the autopilot is
+   sailing it or waits for Space; a cross cancels it. A sighting's banner stands below it. */
+.hud-order {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 14px;
+  font-size: 16px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.hud-order-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.hud-order-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #9fd8a2;
+}
+
+.hud-order.waiting .hud-order-state {
+  color: var(--k-gold);
+}
+
+.hud-banner.below-order {
+  top: 66px;
+}
+
+/* The hints, each with its own key, stacked at the bottom centre. */
+.hud-prompts {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-prompts .hud-prompt {
+  position: static;
+  transform: none;
+}

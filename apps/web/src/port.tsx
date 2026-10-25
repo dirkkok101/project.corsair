@@ -27,7 +27,7 @@ import {
   moraleWord,
   plunderShares,
   repairCost,
-  sellDepth,
+  appetite,
   shipsForSale,
   shipStandingNeeded,
   shipRankNeeded,
@@ -320,7 +320,9 @@ function Merchant({
     const cost = held > 0 && ship.paid?.[g.id] !== undefined ? ship.paid[g.id]! / held : undefined;
     const plunder = ship.plunder?.[g.id] ?? 0;
     const best = bestSale(g.id);
-    const depth = sellDepth(content, town, g.id, stock);
+    // How much he takes from her, and lets her have, at close to his price (economy.json appetite).
+    const wants = appetite(content, state, town, g.id, stock, 'Sell');
+    const spares = appetite(content, state, town, g.id, stock, 'Buy');
     // The verdict: one word for what this price means to you.
     const verdict =
       g.id === 'food'
@@ -341,8 +343,8 @@ function Merchant({
         : plunder
           ? `${held} in your hold, ${plunder} of it plunder: its gold goes to the crew's chest`
           : cost !== undefined
-            ? `${held} in your hold, you paid ${Math.round(cost)} each: ${q.sell >= cost ? `+${Math.round(q.sell - cost)}` : `−${Math.round(cost - q.sell)}`} a unit now`
-            : `${held} in your hold`
+            ? `${held} in your hold, you paid ${Math.round(cost)} each: ${q.sell >= cost ? `+${Math.round(q.sell - cost)}` : `−${Math.round(cost - q.sell)}`} a unit now${held > wants ? ` · he wants only ${wants}` : ''}`
+            : `${held} in your hold${held > wants ? ` · he wants only ${wants}` : ''}`
       : best && best.sell > q.buy
         ? `Sells best at ${best.name}, ${best.sell} (seen ${best.age === 0 ? 'today' : `${best.age} ${best.age === 1 ? 'day' : 'days'} ago`})`
         : '';
@@ -359,11 +361,11 @@ function Merchant({
       side === 'exports' ? `${town.name} makes ${name}: it is cheap to buy here.` : side === 'wants' ? `${town.name} needs ${name}: it sells well here.` : '',
       story.makes > 0 ? `It makes about ${Math.round(story.makes)} a day.` : '',
       story.eats > 0 ? `It eats about ${Math.round(story.eats)} a day: ${story.days! >= 1 ? `${Math.floor(story.days!)} days in store` : 'none in store'}.` : '',
-      `He takes about ${depth >= 999 ? 'any amount' : depth} before its price falls by a quarter; each unit you buy raises it, each you sell lowers it.`,
+      `He takes about ${wants} ${name} near this price, and sells about ${spares}; past that his price falls (or rises) fast. What you trade moves his market for your next visit.`,
       edge ? `Your rank here: you buy ${Math.round(edge * 100)}% cheaper and sell ${Math.round(edge * 100)}% dearer.` : '',
     ].filter(Boolean);
     const say = (s: 'Buy' | 'Sell', qty: number, cash = purse) => {
-      const t = tradePreview(content, town, g.id, stock, s, qty, { gold, room, held, cash }, edge);
+      const t = tradePreview(content, town, g.id, stock, s, qty, { gold, room, held, cash, want: s === 'Buy' ? spares : wants }, edge);
       if (!t.units) {
         if (s === 'Buy') return room < 1 ? 'Your hold is full.' : stock < 1 ? `The merchant has no ${name} left.` : `Not enough gold for one ${name}.`;
         return held < 1 ? `You have no ${name} to sell.` : `The merchant is out of gold (${cash} left): his purse fills again day by day, or sell elsewhere.`;
@@ -385,9 +387,11 @@ function Merchant({
       }${fromPlunder ? ` ${fromPlunder} are plunder: their gold goes to the crew's chest.` : ''}`;
     };
     // The full hold's margin: each unit bought raises his price, so it is the average paid that must sell for more.
-    const fill = tradePreview(content, town, g.id, stock, 'Buy', ALL, { gold, room, held, cash: purse }, edge);
+    const fill = tradePreview(content, town, g.id, stock, 'Buy', ALL, { gold, room, held, cash: purse, want: spares }, edge);
     const margin = best ? best.sell - (fill.units ? fill.total / fill.units : q.buy) : 0;
-    return { g, stock, q, held, tag, story, cost, plunder, best, depth, verdict, hint, why, say, margin, canBuy: stock >= 1 && gold >= q.buy && room > 0, canSell: held >= 1 && purse >= q.sell };
+    // Sell all sells what he wants (the rest would fetch little: Sell 10 still sells past it).
+    const sellAll = wants > 0 ? Math.min(held, wants) : held;
+    return { g, stock, q, held, tag, story, cost, plunder, best, wants, sellAll, verdict, hint, why, say, margin, canBuy: stock >= 1 && gold >= q.buy && room > 0, canSell: held >= 1 && purse >= q.sell };
   });
   const hover = (say: (s: 'Buy' | 'Sell', qty: number) => string, s: 'Buy' | 'Sell', qty: number) => ({ onMouseEnter: () => setPreview(say(s, qty)), onMouseLeave: () => setPreview(undefined) });
   // What sells here at a profit (or is plunder), and the best buy for a port you know.
@@ -399,12 +403,12 @@ function Merchant({
   // The one-click sale good by good, his purse emptying as it goes: what it says, and what he can't pay for.
   let cash = purse;
   const sale = profitable.map((r) => {
-    const t = tradePreview(content, town, r.g.id, r.stock, 'Sell', ALL, { gold, room, held: r.held, cash }, edge);
-    const said = r.say('Sell', ALL, cash);
+    const t = tradePreview(content, town, r.g.id, r.stock, 'Sell', r.sellAll, { gold, room, held: r.held, cash, want: r.wants }, edge);
+    const said = r.say('Sell', r.sellAll, cash);
     cash -= t.total;
     return { r, units: t.units, said };
   });
-  const unpaid = sale.filter((s) => s.units < s.r.held);
+  const unpaid = sale.filter((s) => s.units < s.r.sellAll);
   const bestBuy = rows.filter((r) => r.g.id !== 'food' && r.canBuy && r.margin > 0).sort((a, b) => b.margin - a.margin)[0];
   // His one line: the dearest thing he'd buy from you, and what he has too much of.
   const dear = rows.filter((r) => r.g.id !== 'food' && r.story.level === 'dear').sort((a, b) => b.q.sell - a.q.sell)[0];
@@ -463,7 +467,7 @@ function Merchant({
               class="k-btn primary"
               onMouseEnter={() => setPreview(sale.map((s) => s.said).join(' '))}
               onMouseLeave={() => setPreview(undefined)}
-              onClick={() => profitable.forEach((r) => trade('Sell', r.g.id, ALL))}
+              onClick={() => profitable.forEach((r) => trade('Sell', r.g.id, r.sellAll))}
             >
               Sell what sells well: {profitable.map((r) => r.g.name.toLowerCase()).join(', ')}
             </button>
@@ -534,8 +538,8 @@ function Merchant({
                       Sell 10
                     </button>
                     {r.g.id !== 'food' ? (
-                      <button class="k-btn small paper" {...hover(r.say, 'Sell', ALL)} onClick={() => trade('Sell', r.g.id, ALL)} disabled={!r.held || !r.canSell}>
-                        Sell all
+                      <button class="k-btn small paper" {...hover(r.say, 'Sell', r.sellAll)} onClick={() => trade('Sell', r.g.id, r.sellAll)} disabled={!r.held || !r.canSell}>
+                        {r.sellAll < r.held ? `Sell ${r.sellAll}` : 'Sell all'}
                       </button>
                     ) : (
                       <span />

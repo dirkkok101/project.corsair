@@ -57,6 +57,8 @@ const frames = (page: Page, n = 2) =>
 type Ship = { id: string; x: number; y: number; headingDeg: number; speed: number; sails: string; helm: number; hull?: number; crew: number; guns?: number; classId: string; fouling?: number; cargo: Record<string, number>; docked?: string; assist?: { mode: string; portId?: string; targetId?: string } };
 type Captain = { gold: number; nation: string; standing: Record<string, number>; fleet?: { id: string; name: string; classId: string }[]; laidUp?: unknown[]; heard: string[] };
 const player = (page: Page) => page.evaluate(() => window.__corsair.state.get('ships.player') as Ship);
+/** One of the HUD's hints at sea ("Sail the course to Havana · Space"): its key cap is `.k-key`. */
+const hint = (page: Page, text: string | RegExp) => page.locator('.hud-prompts .hud-prompt', { hasText: text });
 const captain = (page: Page) => page.evaluate(() => window.__corsair.state.get('captain') as Captain);
 const tick = (page: Page) => page.evaluate(() => window.__corsair.state.get('tick') as number);
 
@@ -111,12 +113,12 @@ const alongside = (page: Page, role: 'merchant' | 'pirate', steps = 90) =>
     { role, steps },
   );
 
-/** Alongside a merchant out of Port Royal, hail her (Space) and open fire (F): the battle view. */
+/** Alongside a merchant out of Port Royal, hail her (F) and open fire (Enter): the battle view. */
 async function attackMerchant(page: Page) {
   const id = await alongside(page, 'merchant');
-  await page.keyboard.press(' ');
-  await expect(page.locator('.hail')).toBeVisible();
   await page.keyboard.press('f');
+  await expect(page.locator('.hail')).toBeVisible();
+  await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   return id;
 }
@@ -146,6 +148,14 @@ test('F1 at sea: the help lists every key group as it really works, holds the wo
   await expect(row('A D ← →')).toContainText('steer');
   await expect(row('W S ↑ ↓')).toContainText('more or less sail');
   await expect(row('E')).toContainText('enter the port in reach');
+  // At sea, one key one meaning: Space sails her order, E the place, F the ship picked, Enter attacks in a hail.
+  const atSea = help.locator('.hud-help-group', { has: page.locator('.k-who', { hasText: /^At sea$/ }) });
+  const seaRow = (k: string) => atSea.locator('.hud-help-row', { has: page.locator('.k-key', { hasText: new RegExp(`^${k}$`) }) });
+  await expect(seaRow('Space')).toContainText('sail her order');
+  await expect(seaRow('E')).toContainText('salvage, dig');
+  await expect(seaRow('F')).toContainText('chase her, hail her alongside');
+  await expect(seaRow('Enter')).toContainText('in a hail: attack her');
+  await expect(seaRow('Esc')).toContainText('in a hail, sail on');
   await expect(row('C')).toContainText('in battle too');
   await expect(row('M')).toContainText('Enter sets the course');
   await expect(help).toContainText('leave the wreck');
@@ -357,9 +367,9 @@ test('plunder by hand: choose the goods, throw some of your own over the side, p
     }
     return id;
   });
-  await page.keyboard.press(' ');
-  await expect(page.locator('.hail')).toBeVisible();
   await page.keyboard.press('f');
+  await expect(page.locator('.hail')).toBeVisible();
+  await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   const outcome = await page.evaluate(() => {
     for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
@@ -420,9 +430,11 @@ test('a hail: buy food from her stores, and Sail on parts company', async ({ pag
   await alongside(page, 'merchant');
   // Sail ho! calls her out as "An English", not "A English".
   await expect(page.locator('.hud-banner')).toContainText('An English fluyt');
-  await page.keyboard.press(' ');
+  await page.keyboard.press('f');
   const hail = page.locator('.hail');
   await expect(hail).toBeVisible();
+  // Its Attack button names its key: Enter.
+  await expect(hail.locator('.attack .k-key')).toHaveText('Enter');
   const before = await player(page);
   const gold = (await captain(page)).gold;
   const buy = hail.locator('.hail-food').getByRole('button', { name: /^Buy \d+ food/ });
@@ -467,9 +479,9 @@ test("a famous pirate's demand: he calls on her to strike, Fight on puts it asid
   await expect(page.locator('.moment')).toContainText('A famous pirate');
   await page.keyboard.press('Enter');
   await expect(page.locator('.moment')).toHaveCount(0);
-  await page.keyboard.press(' ');
-  await expect(page.locator('.hail')).toBeVisible();
   await page.keyboard.press('f');
+  await expect(page.locator('.hail')).toBeVisible();
+  await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   // She closes; within reach, her veterans outmatch the player's boarders and he calls on her to strike.
   const called = await page.evaluate(async () => {
@@ -793,7 +805,7 @@ test("the log's pages: the career's score, paging back through the log, and a pl
 
 test('the chart: a double click on a port sets course there, Enter on a port picked does too, and + and − zoom', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
-  // Open water, out of Port Royal's reach (in reach, Space would take her in).
+  // Open water, out of Port Royal's reach (in reach, E's hint to take her in would show too).
   await page.evaluate(() => {
     window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: 1320, y: 1050 });
     window.__corsair.sim.step(1);
@@ -817,7 +829,10 @@ test('the chart: a double click on a port sets course there, Enter on a port pic
   await expect(page.locator('.chart-port.selected')).toHaveText('Cartagena');
   await page.keyboard.press('m');
   await expect(page.locator('.chart')).toBeHidden();
-  await expect(page.locator('.hud-prompt')).toContainText('Follow the course to Cartagena');
+  // Her order across the top, waiting on Space.
+  await expect(page.locator('.hud-order')).toContainText('Course to Cartagena');
+  await expect(page.locator('.hud-order')).toContainText('paused');
+  await expect(hint(page, 'Sail the course to Cartagena').locator('.k-key')).toHaveText('Space');
   // A click picks another port (its card); Enter sets course to it.
   await page.keyboard.press('m');
   await zoom.getByRole('button', { name: 'Whole Caribbean' }).click();
@@ -827,10 +842,13 @@ test('the chart: a double click on a port sets course there, Enter on a port pic
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.locator('.chart')).toBeHidden();
-  await expect(page.locator('.hud-prompt')).toContainText('Follow the course to Havana');
+  await expect(page.locator('.hud-order')).toContainText('Course to Havana');
+  await expect(hint(page, 'Sail the course to Havana').locator('.k-key')).toHaveText('Space');
   await page.keyboard.press(' ');
   await page.evaluate(() => window.__corsair.sim.step(1));
   expect((await player(page)).assist).toMatchObject({ mode: 'course', portId: 'town.havana' });
+  await expect(page.locator('.hud-order')).toContainText('sailing it');
+  await expect(hint(page, 'Sail the course')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -872,7 +890,7 @@ test('the map moment: a piece of a treasure map plots a course to the ring', asy
   await stranger.click();
   await page.locator('.stranger').getByRole('button', { name: /^Buy the piece/ }).click();
   const moment = page.locator('.moment-map');
-  await expect(moment).toContainText('press Space to dig');
+  await expect(moment).toContainText('press E to dig');
   await moment.getByRole('button', { name: 'Plot a course to the ring' }).click();
   await expect(page.locator('.moment')).toHaveCount(0);
   await page.evaluate(() => window.__corsair.sim.step(1));
@@ -964,7 +982,7 @@ test('toasts: the food gone, and men starving, say how to get more', async ({ pa
   const hunger = page.locator('.hud-toast', { hasText: 'Warning: hunger' });
   await expect(hunger).toContainText('The food is gone');
   // The keys it names are ones that work: pick her, then Space.
-  await expect(hunger).toContainText('hail a passing ship (pick her, Space)');
+  await expect(hunger).toContainText('hail a passing ship (pick her, F)');
   // Past a few days' grace without food, men die of it. A little at a time, each drawn: the sea's one note goes to
   // the last thing that happened, and a fight come into sight in the same frame would take it.
   await page.evaluate(async () => {
@@ -973,7 +991,7 @@ test('toasts: the food gone, and men starving, say how to get more', async ({ pa
       await new Promise((r) => requestAnimationFrame(r));
     }
   });
-  await expect(page.locator('.hud-toast', { has: page.locator('.hud-toast-kind', { hasText: /^Starving$/ }) })).toContainText('died of hunger: make port, or hail a ship (pick her, Space) and buy food');
+  await expect(page.locator('.hud-toast', { has: page.locator('.hud-toast-kind', { hasText: /^Starving$/ }) })).toContainText('died of hunger: make port, or hail a ship (pick her, F) and buy food');
   expect(errors).toEqual([]);
 });
 
@@ -1026,9 +1044,20 @@ test('toasts: rent from her land, a pirate haven found, and running aground', as
     window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: sea![0], y: sea![1] });
     window.__corsair.cmd.send({ type: 'SetSails', shipId: 'player', sails: 'full' });
     window.__corsair.cmd.send({ type: 'SetAssist', shipId: 'player', assist: 'course', x: land![0], y: land![1], route: [] } as never);
-    for (let i = 0; i < 3000 && !window.__corsair.log.query({ type: 'AssistEnded' }).some((e) => e.payload.reason === 'aground'); i++) window.__corsair.sim.step(1);
   });
-  await expect(page.locator('.hud-toast', { hasText: 'Aground' })).toContainText('Take the helm');
+  // Stepped a little at a time with frames between, so the note is read before another (a fight nearby) takes its place.
+  const said = await page.evaluate(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    for (let i = 0; i < 300; i++) {
+      window.__corsair.sim.step(10);
+      await frame();
+      await frame();
+      const note = [...document.querySelectorAll('.hud-toast')].find((t) => t.textContent?.includes('Aground'));
+      if (note) return note.textContent;
+    }
+    return '';
+  });
+  expect(said).toContain('Take the helm');
   expect(errors).toEqual([]);
 });
 

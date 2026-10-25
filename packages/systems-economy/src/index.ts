@@ -132,9 +132,35 @@ export function quote(content: ContentPack, s: Settlement, good: string, stock: 
 }
 
 /**
- * What a trade of up to `qty` units would come to here, unit by unit as Buy and Sell price it (each unit
- * moves the stock): how many units go, the gold in total, and the price after it. `gold`, `room` and `held`
- * stop it where the trade itself would stop.
+ * How many units a merchant takes from her (`Sell`) or lets her have (`Buy`) in one trade at close to his price
+ * (economy.json appetite): what his market lacks of its usual stock (or holds over it), and a share of the port's
+ * reference stock besides.
+ */
+export function appetite(content: ContentPack, state: WorldState, s: Settlement, good: string, stock: number, side: 'Buy' | 'Sell'): number {
+  const usual = usualStock(content, state, s, good);
+  const gap = side === 'Sell' ? usual - stock : stock - usual;
+  return Math.max(0, Math.round(gap + content.economy.appetite.share * referenceStock(content, s, good)));
+}
+
+/**
+ * The price of unit `i` of one trade that opened at stock `stock0`: within the merchant's appetite (`want` units)
+ * close to his opening price, sliding only appetite.slope of it by the appetite's end; past it, the market's curve
+ * at the stock the trade has come to, never better than the appetite's last price.
+ */
+export function unitPrice(content: ContentPack, s: Settlement, good: string, stock0: number, i: number, side: 'Buy' | 'Sell', want: number, edge = 0): number {
+  const slope = content.economy.appetite.slope;
+  const open = quote(content, s, good, stock0, edge);
+  const k = Math.min(1, want > 0 ? i / want : 1);
+  const flat = side === 'Buy' ? Math.round(open.buy * (1 + slope * k)) : Math.max(1, Math.round(open.sell * (1 - slope * k)));
+  if (i < want) return flat;
+  const now = quote(content, s, good, side === 'Buy' ? stock0 - i : stock0 + i, edge);
+  return side === 'Buy' ? Math.max(now.buy, flat) : Math.min(now.sell, flat);
+}
+
+/**
+ * What a trade of up to `qty` units would come to here, priced as Buy and Sell price it (unitPrice: near flat within
+ * the merchant's appetite `limits.want`): how many units go, the gold in total, and the price of the next unit after
+ * it. `gold`, `room` and `held` stop it where the trade itself would stop.
  */
 export function tradePreview(
   content: ContentPack,
@@ -143,26 +169,19 @@ export function tradePreview(
   stock: number,
   side: 'Buy' | 'Sell',
   qty: number,
-  limits: { gold: number; room: number; held: number; cash?: number },
+  limits: { gold: number; room: number; held: number; cash?: number; want: number },
   edge = 0,
 ): { units: number; total: number; after: number } {
   let units = 0;
   let total = 0;
   for (; units < qty; units++) {
-    const q = quote(content, s, good, stock, edge);
+    const price = unitPrice(content, s, good, stock, units, side, limits.want, edge);
     if (side === 'Buy') {
-      if (stock < 1 || limits.gold - total < q.buy || units >= limits.room) break;
-      total += q.buy;
-      stock--;
-    } else {
-      // The merchant buys only what his purse covers.
-      if (units >= limits.held || (limits.cash !== undefined && limits.cash - total < q.sell)) break;
-      total += q.sell;
-      stock++;
-    }
+      if (stock - units < 1 || limits.gold - total < price || units >= limits.room) break;
+    } else if (units >= limits.held || (limits.cash !== undefined && limits.cash - total < price)) break;
+    total += price;
   }
-  const after = quote(content, s, good, stock, edge);
-  return { units, total, after: side === 'Buy' ? after.buy : after.sell };
+  return { units, total, after: unitPrice(content, s, good, stock, units, side, limits.want, edge) };
 }
 
 /**
@@ -183,19 +202,6 @@ export function priceStory(content: ContentPack, state: WorldState, s: Settlemen
   const flow = dailyFlow(content, state, s, good);
   const days = flow.eats > 0 ? stock / flow.eats : undefined;
   return { stock: Math.round(stock), usualStock: Math.round(usualStock), level, usual, news, makes: flow.makes, eats: flow.eats, days };
-}
-
-const DEPTH_CAP = 999;
-
-/**
- * Market depth: how many units a market takes before its sell price falls by a quarter. A small
- * market crashes after a handful, so "sells well" there pays only for a small cargo.
- */
-export function sellDepth(content: ContentPack, s: Settlement, good: string, stock: number): number {
-  const floor = quote(content, s, good, stock).sell * 0.75;
-  let n = 0;
-  while (n < DEPTH_CAP && quote(content, s, good, stock + n + 1).sell >= floor) n++;
-  return n;
 }
 
 /** Governors sit in towns and cities; hamlets and pirate havens have none (nor a governor's house in the harbour). */
@@ -774,7 +780,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
       prices: Object.fromEntries(
         content.goods.map((g) => {
           const stock = market[g.id] ?? 0;
-          return [g.id, { ...quote(content, s, g.id, stock), depth: sellDepth(content, s, g.id, stock) }];
+          return [g.id, { ...quote(content, s, g.id, stock), depth: appetite(content, state, s, g.id, stock, 'Sell') }];
         }),
       ),
     },
@@ -1539,27 +1545,30 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         // Selling prize cargo fills the plunder chest, not the captain's purse: it is the crew's as much as his.
         const plunderHeld = command.type === 'Sell' ? (ship.plunder?.[command.good] ?? 0) : 0;
         let chestGain = 0;
-        // Unit by unit: every unit moves the stock, so a big trade gets dearer (or cheaper) as it goes.
+        // Unit by unit: every unit moves the stock (the next visit sees it), but within the merchant's appetite he
+        // keeps close to the price he opened at, so a hold trades as quoted (unitPrice).
         const edge = tradeEdge(content, state.captain, s.nation);
+        const stock0 = stock;
+        const want = appetite(content, state, s, command.good, stock0, command.type);
         for (; done < qty; done++) {
-          const q = quote(content, s, command.good, stock, edge);
+          const price = unitPrice(content, s, command.good, stock0, done, command.type, want, edge);
           if (command.type === 'Buy') {
-            if (stock < 1 || gold < q.buy || used >= capacity(state, ship)) break;
+            if (stock < 1 || gold < price || used >= capacity(state, ship)) break;
             stock--;
-            gold -= q.buy;
-            cash += q.buy;
+            gold -= price;
+            cash += price;
             held++;
             used++;
-            total += q.buy;
+            total += price;
           } else {
-            if (held < 1 || cash < q.sell) break;
-            cash -= q.sell;
+            if (held < 1 || cash < price) break;
+            cash -= price;
             stock++;
-            if (done < plunderHeld) chestGain += q.sell;
-            else gold += q.sell;
+            if (done < plunderHeld) chestGain += price;
+            else gold += price;
             held--;
             used--;
-            total += q.sell;
+            total += price;
           }
         }
         if (done === 0) {

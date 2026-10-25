@@ -202,11 +202,13 @@ export interface HudProps {
   destination?: { name: string; distanceKm: number; bearingDeg: number; following: boolean; days: number; food: number };
   /** Sound status hint, shown until sound is running (or while muted). */
   sound?: string;
-  /** The one thing to do now ("Enter Port Royal · E"): a trailing " · K" shows as a key cap. */
-  prompt?: string;
-  /** "Sail ho!": a ship just come into sight, called out across the top: who and where, and whether she can be hailed. */
-  banner?: { text: string; act?: 'hail' | 'chase' | 'stop' };
-  /** The ship picked (a click, Tab, or the last Sail ho!): who she is, where, and what Space does about her. */
+  /** At most two hints ("Enter Port Royal · E", "Sail the course to Tortuga · Space"): a trailing " · K" shows as a key cap. */
+  prompts?: string[];
+  /** Her order, across the top: what she is doing, how far, whether the autopilot sails it or waits for Space, and its cross. */
+  order?: { text: string; detail?: string; underWay: boolean; cancel?: () => void };
+  /** "Sail ho!": a ship just come into sight, called out across the top: who and where, and what F does about her once picked. */
+  banner?: { text: string; act?: 'hail' | 'chase' | 'attack' };
+  /** The ship picked (a click, Tab, or the last Sail ho!): who she is, where, and what F does about her. */
   picked?: { nation: string; tag: string; name: string; what: string; where: string; act?: string; run?: () => void; drop: () => void };
   /** Notes that come and go (a goal done, a dig's result, rent paid) and warnings that stay while they hold. */
   toasts?: Toast[];
@@ -274,9 +276,19 @@ const KEYS: { group: string; keys: [string, string][] }[] = [
   { group: 'Sailing', keys: [['A D ← →', 'steer'], ['W S ↑ ↓', 'more or less sail'], ['T', 'tack'], ['B', 'beat to windward'], ['= −', 'cruise speed'], ['C', 'look from astern, in battle too']] },
   {
     group: 'At sea',
-    keys: [['Space', 'the one thing to do now: the prompt says (enter port, hail, chase, dig, follow the course)'], ['Tab', 'pick the next ship in sight'], ['Click', 'pick a ship, or a port to plot a course there'], ['Esc', 'let her go'], ['F', 'in a hail: attack her'], ['M', 'the chart: pick a port, Enter sets the course'], ['K', 'careen on a beach'], ['E', 'enter the port in reach; set sail, in port']],
+    keys: [
+      ['Space', 'sail her order: the course, the chase (the banner at the top says which); steering only pauses it'],
+      ['E', 'the place: enter the port in reach, salvage, dig; set sail, in port'],
+      ['F', 'the ship picked: chase her, hail her alongside'],
+      ['Tab', 'pick the next ship in sight'],
+      ['Click', 'pick a ship, or a port to plot a course there'],
+      ['Esc', 'let her go; in a hail, sail on'],
+      ['Enter', 'in a hail: attack her'],
+      ['M', 'the chart: pick a port, Enter sets the course, Space follows it'],
+      ['K', 'careen on a beach'],
+    ],
   },
-  { group: 'Controller', keys: [['Stick', 'steer'], ['RT LT', 'more or less sail'], ['A', 'what Space does'], ['B', 'back, let her go'], ['LB', 'next ship (in battle: next shot)'], ['X', 'attack in a hail, board in battle'], ['Y', 'repel boarders; set sail in port'], ['Back', 'the chart; strike your colours in battle'], ['Start', 'the log; take the plunder in battle']] },
+  { group: 'Controller', keys: [['Stick', 'steer'], ['RT LT', 'more or less sail'], ['A', 'Space: sail the order; fire in battle'], ['B', 'back, let her go'], ['LB', 'next ship (in battle: next shot)'], ['X', 'F: the ship picked; attack in a hail; board in battle'], ['Y', 'E: the place; set sail in port; repel boarders in battle'], ['Back', 'the chart; strike your colours in battle'], ['Start', 'the log; take the plunder in battle']] },
   { group: 'Battle', keys: [['Space', 'fire whichever side bears (her guns run out first: so do hers, the red arc, your cue to turn away)'], ['Q E', 'fire port or starboard'], ['Tab 1-3', 'round, chain, grape'], ['G', 'close to board'], ['R', 'repel boarders'], ['Y', 'strike your colours'], ['Enter', 'leave the wreck; take the plunder']] },
   { group: 'The captain', keys: [['L', "the captain's log"], ['Ctrl S', 'save'], ['V', 'sound on or off'], ['N', 'music on or off'], ['F1', 'this help'], ['F2', 'frame rate'], ['Enter', 'close a letter or a moment'], ['Esc', 'close the help, chart, log or a hail']] },
 ];
@@ -328,30 +340,43 @@ export function Hud(p: HudProps) {
           {p.inStorm ? <span class="hud-storm">Storm!</span> : p.seaArea}
           {p.breeze ? <span class="hud-note"> · {p.breeze}</span> : null}
         </div>
-        {p.destination ? (
-          <div class="hud-pill hud-course">
-            To {p.destination.name} · {Math.round(p.destination.distanceKm)} km · bear {Math.round(p.destination.bearingDeg)}° · {daysSaid(p.destination.days)}
-            {p.destination.food < p.destination.days ? <span class="hud-food-short"> · food for {Math.floor(p.destination.food)}!</span> : null}
-            {p.destination.following ? ' · following' : ' · Space to follow'}
-          </div>
-        ) : ship.assist ? (
-          <div class="hud-pill hud-course">
-            {ship.assist.mode === 'course' ? 'Plotted course' : ship.assist.mode === 'intercept' ? 'Intercept' : 'Beating'} · {ship.assist.tack} tack
-          </div>
-        ) : null}
+        {!p.order && ship.assist?.mode === 'beat' ? <div class="hud-pill hud-course">Beating · {ship.assist.tack} tack</div> : null}
         {p.fleetPace ? <div class="hud-pill hud-fleet">{p.fleetPace}</div> : null}
       </div>
       <div class="hud-date">
         {p.date} · {partOfDay(p.hour)}
         {p.held ? ` · 1×, ${p.held}` : ''}
       </div>
+      {p.order ? (
+        <div class={`k-wood hud-order${p.order.underWay ? ' under-way' : ' waiting'}`}>
+          <Art id="ui.icon.course" class="hud-order-icon" />
+          <span class="hud-order-text">
+            <b>{p.order.text}</b>
+            {p.order.detail ? <span class="k-sub"> · {p.order.detail}</span> : null}
+          </span>
+          <span class="hud-order-state">
+            {p.order.underWay ? (
+              'sailing it'
+            ) : (
+              <>
+                paused · <Key k="Space" /> sails it
+              </>
+            )}
+          </span>
+          {p.order.cancel ? (
+            <button class="k-btn small paper hud-order-cancel" title="Cancel the order" onClick={p.order.cancel}>
+              ✕
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {p.banner ? (
-        <div class="hud-banner">
+        <div class={`hud-banner${p.order ? ' below-order' : ''}`}>
           <b>Sail ho!</b>
           <span>{p.banner.text}</span>
           {p.banner.act ? (
             <span class="hud-banner-key">
-              <Key k="Space" /> {p.banner.act}
+              <Key k="F" /> {p.banner.act}
             </span>
           ) : null}
         </div>
@@ -367,7 +392,7 @@ export function Hud(p: HudProps) {
           </span>
           {p.picked.act ? (
             <button class="k-btn small primary" onClick={p.picked.run}>
-              {p.picked.act.replace(/ the .*$/, ' her')} <Key k="Space" />
+              {p.picked.act.replace(/ the .*$/, ' her')} <Key k="F" />
             </button>
           ) : null}
           <button class="k-btn small paper" title="Let her go (Esc)" onClick={p.picked.drop}>
@@ -388,7 +413,13 @@ export function Hud(p: HudProps) {
           ))}
         </div>
       ) : null}
-      {p.prompt ? <Prompt text={p.prompt} /> : null}
+      {p.prompts?.length ? (
+        <div class="hud-prompts">
+          {p.prompts.map((t) => (
+            <Prompt key={t} text={t} />
+          ))}
+        </div>
+      ) : null}
       <div class={`hud-strip${p.faded ? ' faded' : ''}`}>
         <Stat icon="ui.icon.gold" value={s.gold.toLocaleString()} title="Gold in your purse" rise={risen()} />
         {s.chest ? <Stat icon="ui.icon.chest" value={s.chest.toLocaleString()} title="The plunder chest the crew sails for: divide it in a tavern" /> : null}

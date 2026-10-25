@@ -15,7 +15,7 @@ import {
   zoneAt,
 } from '@corsair/systems-weather';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { angleOffWind, pointOfSail, speedPoints } from '@corsair/systems-navigation';
+import { angleOffWind, bestUpwindDeg, pointOfSail, speedPoints, tackedLine } from '@corsair/systems-navigation';
 import { render } from 'preact';
 import { createDebugApi } from './debug';
 import type { LoopControl } from './debug';
@@ -534,7 +534,9 @@ async function main() {
     const me = player();
     const them = sim.state.ships[targetId];
     if (!them || fight) return;
-    followingBeforeFight = me.assist?.mode === 'course';
+    // A course to take up again after: the one she was sailing, or the one a chase set aside.
+    followingBeforeFight = me.assist?.mode === 'course' || Boolean(chaseId && destination);
+    chaseId = undefined;
     const bearingDeg = ((Math.atan2(them.x - me.x, -(them.y - me.y)) * 180) / Math.PI + 360) % 360;
     const battle = createBattle(content, {
       map,
@@ -584,7 +586,7 @@ async function main() {
   /**
    * The voyage planner's trades, from what the captain has seen (PRD section 6): for each good, buying where
    * she last saw it cheapest and selling where it fetched most, about what a full hold makes (the sale price
-   * sagging as she sells, by that market's depth), the days at sea along the lanes at her speed, and how close
+   * as much as that merchant wants near his price), the days at sea along the lanes at her speed, and how close
    * the way runs to a pirate haven. Leads are goods one port makes and another needs, prices not yet seen.
    */
   /** Tiles a day at a fair average of her best speed (beating and reaching together), as the voyages reckon them. */
@@ -652,8 +654,10 @@ async function main() {
             const paid = Math.floor(purseAt(to) / seen.sell);
             const units = Math.min(carried, paid);
             if (units < 1 || seen.sell <= buy) continue;
-            const sag = 0.125 * Math.min(1, units / Math.max(1, seen.depth ?? 99));
-            const profit = Math.round((units * (seen.sell * (1 - sag) - buy)) / 10) * 10;
+            // He takes about his appetite near his price (economy.json appetite): what she brings past it is not reckoned.
+            const sold = Math.min(units, seen.depth ?? units);
+            const sag = (content.economy.appetite.slope / 2) * Math.min(1, sold / Math.max(1, seen.depth ?? sold));
+            const profit = Math.round((sold * (seen.sell * (1 - sag) - buy)) / 10) * 10;
             if (profit > 0) priced.push({ good: g.id, from, to, buy, sell: seen.sell, profit, ...(paid < carried ? { pays: paid } : {}), score: profit / days });
           } else if (
             // Leads (prices unseen) only within a few days' sail, so the list stays near enough to act on.
@@ -698,8 +702,10 @@ async function main() {
           if (to.id === me.docked || sell === undefined || sell <= cost) return [];
           const paid = Math.floor(purseAt(to) / sell);
           const units = Math.min(held, paid);
-          const sag = 0.125 * Math.min(1, units / Math.max(1, known[to.id]!.prices[g.id]!.depth ?? 99));
-          const profit = Math.round((units * (sell * (1 - sag) - cost)) / 10) * 10;
+          const want = known[to.id]!.prices[g.id]!.depth ?? units;
+          const sold = Math.min(units, want);
+          const sag = (content.economy.appetite.slope / 2) * Math.min(1, sold / Math.max(1, want));
+          const profit = Math.round((sold * (sell * (1 - sag) - cost)) / 10) * 10;
           return units > 0 && profit > 0 ? [{ good: g.id, to, cost, sell, profit, held, ...(paid < held ? { pays: paid } : {}), straight: Math.hypot(to.x - me.x, to.y - me.y) / perDay }] : [];
         });
       })
@@ -775,6 +781,8 @@ async function main() {
   let lastFamousMoment = -Infinity;
   // Following a course when a fight began: she takes it up again after.
   let followingBeforeFight = false;
+  /** The ship she was told to chase (F, or a click on her): her order until the chase ends, when her course comes back. */
+  let chaseId: string | undefined;
   const takePlunder = (choice: PlunderChoice) => {
     sim.send({ type: 'TakePlunder', shipId: player().id, ...choice });
     sim.applyCommands();
@@ -1008,19 +1016,16 @@ async function main() {
     }
     // C: the 3D camera overhead or from astern.
     if (e.key.toLowerCase() === 'c' && !e.repeat && !e.ctrlKey && !e.metaKey) sea3d.toggleChase();
-    // E: enter the port in reach, or set sail again.
-    if (e.key.toLowerCase() === 'e' && !e.repeat) {
+    // E: the place: set sail from port; at sea, enter the port in reach, salvage the wreck, dig the beach.
+    if (e.key.toLowerCase() === 'e' && !e.repeat && !e.ctrlKey && !e.metaKey && !logOpen && !chartWasOpen) {
       const ship = player();
       if (ship.docked) sim.send({ type: 'Undock', shipId: ship.id });
-      else {
-        const port = portInReach();
-        if (port) sim.send({ type: 'Dock', shipId: ship.id, settlementId: port.id });
-      }
+      else placeAction()?.run();
     }
-    // Space: the one thing to do now, as the prompt line says (at sea only: in port Space is the buttons').
+    // Space: sail her order (at sea only: in port Space is the buttons').
     if (e.key === ' ' && !player().docked) {
       e.preventDefault();
-      if (!e.repeat && !logOpen && !chartWasOpen) seaAction()?.run();
+      if (!e.repeat && !logOpen && !chartWasOpen) sailOrder();
     }
     // Tab: pick the next ship in sight, nearest first.
     if (e.key === 'Tab' && !player().docked && !hailing && !logOpen) {
@@ -1029,13 +1034,19 @@ async function main() {
       const at = ships.findIndex((s) => s.id === targeted()?.id);
       pick(ships[(at + 1) % Math.max(1, ships.length)]?.id);
     }
-    // F, in a hail: open fire on her.
-    if (e.key.toLowerCase() === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey && hailing) attackSpoken();
-    // Escape: part ways in a hail; else let the ship picked go.
+    // In a hail (a menu): Enter is yes, open fire on her (F too); Esc is back, part ways.
+    if ((e.key === 'Enter' || e.key.toLowerCase() === 'f') && !e.repeat && !e.ctrlKey && !e.metaKey && hailing) attackSpoken();
+    // F at sea: the ship picked (or alongside): chase her, hail her. (After the hail's own keys: the press that opens a hail
+    // does not also open fire.)
+    else if (e.key.toLowerCase() === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey && !logOpen && !chartWasOpen && !fight && !player().docked) {
+      shipOrder(shipForF())?.run();
+    }
+    // Escape: part ways in a hail; else let the ship picked go (a chase of her ends, and her course comes back).
     if (e.key === 'Escape') {
       if (hailing) partWays();
       else if (!logOpen && !chartWasOpen) {
-        stopChasing(target);
+        if (chaseId && chaseId === target) endChase('Let her go');
+        else stopChasing(target);
         pick(undefined);
       }
     }
@@ -1125,8 +1136,10 @@ async function main() {
       }
       if (player().docked || hailing) return;
       const ship = held ? undefined : shipAt(tile.x, tile.y);
-      if (ship) sim.send({ type: 'SetAssist', shipId: player().id, assist: 'intercept', targetId: ship.id });
-      else setCourse(tile.x, tile.y, held);
+      if (ship) {
+        chaseId = ship.id;
+        sim.send({ type: 'SetAssist', shipId: player().id, assist: 'intercept', targetId: ship.id });
+      } else setCourse(tile.x, tile.y, held);
     },
     right(tile) {
       if (fight) {
@@ -1329,16 +1342,35 @@ async function main() {
       .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
   };
   type SeaAction = { text: string; run: () => void };
-  /** What Space does about a ship: hail her alongside (a hunter closing won't stop to talk), else chase her, or stop. */
-  const shipAction = (her: Ship): SeaAction | undefined => {
+  // The controls at sea (one key, one meaning): Space sails her order (the course, the chase, the voyage's next
+  // place), E deals with the place she is at (a port, the wreck, a beach to dig), F with the ship picked (chase her,
+  // hail her alongside). Steering takes the helm and only pauses the order; Esc lets a ship go; a sighting changes
+  // what no key does until she is picked.
+  /** The ship F deals with: the one picked if she is alongside, else one alongside (unless she was picked by hand), else the one picked. */
+  const shipForF = (): Ship | undefined => {
     const me = player();
-    if (her.ai?.chasing) return undefined;
-    // The First Voyage's pirate: alongside, straight into the fight (no hail to learn first).
-    if (her.ai?.voyage?.meek && Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles)
-      return { text: `Attack the pirate ${her.ai.name}`, run: () => sim.send({ type: 'Attack', shipId: me.id, targetId: her.id }) };
-    if (Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles) return { text: `Hail the ${shipTitle(her)} ${her.ai!.name}`, run: () => hail(her) };
-    if (me.assist?.mode === 'intercept' && me.assist.targetId === her.id) return { text: `Stop chasing the ${her.ai!.name}`, run: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' }) };
-    return { text: `Chase the ${shipTitle(her)} ${her.ai!.name}`, run: () => sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: her.id }) };
+    const her = targeted();
+    const along = shipInHail();
+    if (her && Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles) return her;
+    return along && !chosen ? along : (her ?? along);
+  };
+  /** F: the ship picked, or alongside: hail her (attack, the voyage's pirate), else chase her; nothing while a hunter closes on her. */
+  const shipOrder = (her: Ship | undefined): SeaAction | undefined => {
+    const me = player();
+    if (!her?.ai || her.ai.chasing) return undefined;
+    const close = Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles;
+    if (close && her.ai.voyage?.meek) return { text: `Attack the pirate ${her.ai.name}`, run: () => sim.send({ type: 'Attack', shipId: me.id, targetId: her.id }) };
+    if (close) return { text: `Hail the ${shipTitle(her)} ${her.ai.name}`, run: () => hail(her) };
+    // Already her order: the chase she was told, or the voyage's pirate (Space sails after her).
+    if (chaseId === her.id || her.ai.voyage) return undefined;
+    return {
+      text: `Chase the ${shipTitle(her)} ${her.ai.name}`,
+      run: () => {
+        chaseId = her.id;
+        if (me.sails === 'furled') sim.send({ type: 'SetSails', shipId: me.id, sails: 'full' });
+        sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: her.id });
+      },
+    };
   };
   /** Follow the route plotted to the destination: the autopilot sails it and docks her on arrival. */
   const follow = (to: PlacedSettlement) => {
@@ -1347,15 +1379,12 @@ async function main() {
     const route = berth ? lanes.path([me.x, me.y], berth) : undefined;
     if (route) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'course', x: to.x, y: to.y, portId: to.id, route: route.slice(1) });
   };
-  /** The one thing Space does now, if anything (nothing in port, in a hail, or with a hunter closing). */
-  const seaAction = (): SeaAction | undefined => {
+  /** E: the place she is at: a port in reach, the voyage's wreck alongside, a beach where a hoard may lie. */
+  const placeAction = (): SeaAction | undefined => {
     const me = player();
     if (me.docked || hailing || fight) return undefined;
-    // Into port, even with a hunter closing: under its guns she is safe.
     const port = portInReach();
     if (port) return { text: `Enter ${port.name}`, run: () => sim.send({ type: 'Dock', shipId: me.id, settlementId: port.id }) };
-    if (Object.values(sim.state.ships).some((s) => s.ai?.chasing)) return undefined;
-    // The First Voyage's wreck, alongside: heave to and take off what the storm left.
     const v = sim.state.captain?.voyage;
     if (v?.step === 'salvage' && Math.hypot(me.x - v.cay.x, me.y - v.cay.y) <= content.voyage.arriveTiles + 1)
       return {
@@ -1365,31 +1394,73 @@ async function main() {
           sim.send({ type: 'Salvage', shipId: me.id });
         },
       };
-    // A course she has set herself on the chart comes before the voyage's own suggestions.
-    const chosenCourse = destination && me.assist?.mode !== 'course' ? destination : undefined;
-    if (v && v.step !== 'done' && chosenCourse) return { text: `Follow the course to ${chosenCourse.name}`, run: () => follow(chosenCourse) };
-    // Her first prize: Space goes after the pirate wherever she is.
-    const quarry = v?.step === 'prize' && v.pirateId ? sim.state.ships[v.pirateId] : undefined;
-    if (quarry) {
-      const act = shipAction(quarry);
-      // Hove to at the wreck, she makes sail to go after her.
-      return act && me.sails === 'furled' && act.text.startsWith('Chase') ? { ...act, run: () => (sim.send({ type: 'SetSails', shipId: me.id, sails: 'full' }), act.run()) } : act;
-    }
-    // Home with her prize: Space sails her there.
-    const homeport = v?.step === 'home' ? settlements.find((s) => s.id === v.home) : undefined;
-    if (homeport && me.assist?.mode !== 'course') return { text: `Sail home to ${homeport.name}`, run: () => follow(homeport) };
-    // The ship picked, alongside or not; else any ship alongside (the chance to speak her is brief).
-    const her = targeted();
-    const alongside = shipInHail();
-    const near = her && Math.hypot(her.x - me.x, her.y - me.y) <= content.traffic.hailTiles ? her : (alongside ?? her);
-    // A ship only called out (not picked, not alongside) waits behind a dig or a course plotted and not yet followed.
     const pirate = digHere();
-    const pending = destination && me.assist?.mode !== 'course' ? destination : undefined;
-    const act = near ? shipAction(near) : undefined;
-    if (act && !(near === her && !chosen && !alongside && (pirate || pending))) return act;
-    if (pirate) return { text: `${pirate}'s hoard could lie on this coast: go ashore and dig`, run: dig };
-    if (pending) return { text: `Follow the course to ${pending.name}`, run: () => follow(pending) };
+    if (pirate) return { text: `Dig for ${pirate}'s hoard on this coast`, run: dig };
     return undefined;
+  };
+  /** Her order: what she was told to chase, else the course set on the chart, else the voyage's next place, else a course to a mark. */
+  type Order = ({ kind: 'chase'; her: Ship } | { kind: 'course'; port: PlacedSettlement } | { kind: 'mark'; x: number; y: number }) & {
+    /** As the banner says it ("Chasing the Salt Rat"), and as the hint asks it ("Chase the Salt Rat"). */
+    text: string;
+    say: string;
+    /** The voyage's: the quartermaster's order, not hers to cancel. */
+    quest?: boolean;
+  };
+  const orderNow = (): Order | undefined => {
+    const me = player();
+    if (me.docked) return undefined;
+    const chased = chaseId ? sim.state.ships[chaseId] : undefined;
+    if (chased?.ai) return { kind: 'chase', her: chased, text: `Chasing the ${chased.ai.name}`, say: `Chase the ${shipTitle(chased)} ${chased.ai.name}` };
+    if (destination) return { kind: 'course', port: destination, text: `Course to ${destination.name}`, say: `Sail the course to ${destination.name}` };
+    const v = sim.state.captain?.voyage;
+    if (v && v.step !== 'done') {
+      const atWreck = v.step === 'salvage' && Math.hypot(me.x - v.cay.x, me.y - v.cay.y) <= content.voyage.arriveTiles + 1;
+      if ((v.step === 'helm' || v.step === 'salvage') && !atWreck) return { kind: 'mark', x: v.cay.x, y: v.cay.y, text: `Bound for ${v.cay.name}`, say: `Sail to ${v.cay.name}`, quest: true };
+      const quarry = v.step === 'prize' && v.pirateId ? sim.state.ships[v.pirateId] : undefined;
+      if (quarry?.ai) return { kind: 'chase', her: quarry, text: `After the pirate ${quarry.ai.name}`, say: `Chase the pirate ${quarry.ai.name}`, quest: true };
+      const homeport = v.step === 'home' ? settlements.find((s) => s.id === v.home) : undefined;
+      if (homeport) return { kind: 'course', port: homeport, text: `Home to ${homeport.name}`, say: `Sail home to ${homeport.name}`, quest: true };
+    }
+    const a = me.assist;
+    if (a?.mode === 'course' && !a.portId && a.x !== undefined && a.y !== undefined) return { kind: 'mark', x: a.x, y: a.y, text: 'Course to the mark', say: 'Sail to the mark' };
+    return undefined;
+  };
+  /** Whether the autopilot sails the order now (else it waits: the captain has the helm). */
+  const underWay = (o: Order) => {
+    const a = player().assist;
+    if (o.kind === 'chase') return a?.mode === 'intercept' && a.targetId === o.her.id;
+    if (o.kind === 'course') return a?.mode === 'course' && a.portId === o.port.id;
+    return a?.mode === 'course' && Math.hypot((a.x ?? 0) - o.x, (a.y ?? 0) - o.y) < 1;
+  };
+  /** Space: sail the order, making sail if she lies hove to. It never turns anything off. */
+  const sailOrder = () => {
+    const me = player();
+    const o = orderNow();
+    if (!o || underWay(o) || hailing || fight) return;
+    if (me.sails === 'furled') sim.send({ type: 'SetSails', shipId: me.id, sails: 'full' });
+    if (o.kind === 'chase') sim.send({ type: 'SetAssist', shipId: me.id, assist: 'intercept', targetId: o.her.id });
+    else if (o.kind === 'course') follow(o.port);
+    else setCourse(o.x, o.y, false);
+  };
+  /** The chase is over (let go, out of sight, or gone): her course comes back, if she had one. */
+  const endChase = (say?: string) => {
+    if (!chaseId) return;
+    stopChasing(chaseId);
+    chaseId = undefined;
+    if (destination && !player().docked) {
+      follow(destination);
+      courseNote = { text: `${say ?? 'The chase is over'}: back on course for ${destination.name}`, kind: 'Course', icon: 'ui.icon.course', until: performance.now() + 4000 };
+    }
+  };
+  /** Cancel the order (the banner's cross): the chase let go, the course forgotten, the autopilot off. */
+  const cancelOrder = () => {
+    const o = orderNow();
+    if (!o || o.quest) return;
+    if (o.kind === 'chase') return endChase('Let her go');
+    destination = undefined;
+    charts.clearDestination();
+    const me = player();
+    if (me.assist) sim.send({ type: 'SetAssist', shipId: me.id, assist: 'off' });
   };
   /** The chase on the ship picked ends: she sails on as the captain steers. */
   const stopChasing = (id?: string) => {
@@ -1398,6 +1469,13 @@ async function main() {
   };
   /** Part ways after a hail (Esc, or Sail on): a chase that brought her alongside ends, or it would shadow her. */
   const partWays = () => {
+    if (hailing && chaseId === hailing.targetId) {
+      const id = hailing.targetId;
+      hailing = undefined;
+      chaseId = id;
+      endChase('Sailed on');
+      return;
+    }
     if (hailing) stopChasing(hailing.targetId);
     hailing = undefined;
   };
@@ -1885,7 +1963,9 @@ async function main() {
       // The chase has come up alongside her: hail her (the world waits on the captain's word).
       if (ev.type === 'InterceptAlongside' && ev.entityIds[0] === player().id && !hailing && !fight) {
         const her = sim.state.ships[ev.entityIds[1]!];
-        if (her?.ai && !her.ai.chasing) hail(her);
+        // The First Voyage's pirate: straight into the fight (no hail to learn first).
+        if (her?.ai?.voyage?.meek) sim.send({ type: 'Attack', shipId: player().id, targetId: her.id });
+        else if (her?.ai && !her.ai.chasing) hail(her);
       }
       if (ev.type === 'Deserted') portNotice = { text: `${ev.payload.count as number} men deserted when you made port: the crew is unhappy. Pay them or divide the plunder.`, icon: 'ui.icon.crew', tone: 'warn' };
       if (ev.type === 'Undocked') {
@@ -1984,7 +2064,7 @@ async function main() {
       }
       if (ev.type === 'MenStarved') {
         const n = ev.payload.count as number;
-        courseNote = { text: `${n} ${n === 1 ? 'man' : 'men'} died of hunger: make port, or hail a ship (pick her, Space) and buy food`, kind: 'Starving', icon: 'ui.icon.food', tone: 'warn', until: now + 5000 };
+        courseNote = { text: `${n} ${n === 1 ? 'man' : 'men'} died of hunger: make port, or hail a ship (pick her, F) and buy food`, kind: 'Starving', icon: 'ui.icon.food', tone: 'warn', until: now + 5000 };
       }
       if (ev.type === 'TradeRefused' && ev.payload.reason === 'plague') {
         const name = settlements.find((s) => s.id === ev.payload.settlementId)?.name ?? 'the port';
@@ -2038,7 +2118,7 @@ async function main() {
       // "an English" as the port-closed note says it, not "a English".
       const who = (ship: Ship) => `${ship.ai!.role === 'pirate' ? 'a pirate' : ({ spain: 'a Spanish', england: 'an English', france: 'a French', netherlands: 'a Dutch' } as Record<string, string>)[ship.ai!.nation] ?? 'a'} ${shipKind(ship.classId)}`;
       courseNote = {
-        text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: pick her (Tab), Space to close`.replace(/^./, (c) => c.toUpperCase()),
+        text: `${who(hunter)} has fallen on ${who(prey)} ${fromTheBow(me, prey)}: pick her (Tab), F to chase`.replace(/^./, (c) => c.toUpperCase()),
         kind: 'Sea fight',
         icon: 'ui.icon.cannon_loaded',
         until: now + 6000,
@@ -2133,9 +2213,9 @@ async function main() {
     const crewWarning: Toast | undefined = ship.docked
       ? undefined
       : days < 1
-        ? { text: 'The food is gone: the crew is starving. Make port, or hail a passing ship (pick her, Space) and buy food from her', kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
+        ? { text: 'The food is gone: the crew is starving. Make port, or hail a passing ship (pick her, F) and buy food from her', kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
         : days <= 3
-          ? { text: `Food for ${left === 1 ? 'one more day' : `${left} days`}: buy food in port, or from a passing ship (pick her, Space)`, kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
+          ? { text: `Food for ${left === 1 ? 'one more day' : `${left} days`}: buy food in port, or from a passing ship (pick her, F)`, kind: 'Warning: hunger', icon: 'ui.icon.food', tone: 'warn' }
           : crippled
             ? {
                 text: `Badly damaged (sails ${Math.round(ship.sailCondition ?? 100)}%, hull ${Math.round(((ship.hull ?? hullMax) / hullMax) * 100)}%): she sails slowly. Her crew rig jury sails as she goes, but only a shipwright mends her properly`,
@@ -2163,9 +2243,13 @@ async function main() {
       }
     }
     wasDocked = Boolean(ship.docked);
-    // What Space does now, and the ship picked with what Space would do about her.
-    const action = seaAction();
+    // The chase ends when she is gone or out of sight (a fight ends it at its start); her course comes back.
+    if (chaseId && !fight && (!sim.state.ships[chaseId] || !shipsInSight().some((s) => s.id === chaseId))) endChase('Lost sight of her');
+    // The order, the place's action (E) and the picked ship's (F), and the ship picked.
+    const order = orderNow();
+    const place = placeAction();
     const picked = ship.docked || hailing ? undefined : targeted();
+    const shipAct = place || hailing ? undefined : shipOrder(shipForF());
     // Her ship sails with the gentle wind when the player has chosen it (a new or prize flagship takes it up too).
     if (Boolean(ship.gentleWind) !== gentleWind) sim.send({ type: 'SetGentleWind', shipId: ship.id, on: gentleWind });
     // A hunter closing on the player: a warning beats any other prompt.
@@ -2405,7 +2489,9 @@ async function main() {
       lastQuestGuide = now;
       questGuide = lanes.path([ship.x, ship.y], questAt)?.slice(1);
     }
-    sea3d.guide(destination && !ship.docked ? guide : questAt ? questGuide : undefined);
+    // Drawn as she will sail it in this wind: a leg into it as her boards.
+    const drawn = destination && !ship.docked ? guide : questAt ? questGuide : undefined;
+    sea3d.guide(drawn && tackedLine([ship.x, ship.y], drawn, wind.fromDeg, bestUpwindDeg(content.polars[cls.polar]!), content.navigation.course?.corridorTiles ?? 60));
     let course: { name: string; distanceKm: number; bearingDeg: number; following: boolean; days: number; food: number } | undefined;
     if (destination && guide?.length) {
       let tiles = 0;
@@ -2468,25 +2554,36 @@ async function main() {
         }
         breeze={breeze && `${breeze.kind} breeze`}
         destination={course}
+        order={
+          order
+            ? {
+                text: order.text,
+                detail: order.kind === 'course' && course ? `${Math.round(course.distanceKm)} km · ${course.days < 0.5 ? 'within the day' : `about ${Math.max(1, Math.round(course.days))} ${Math.round(course.days) <= 1 ? 'day' : 'days'}`}${course.food < course.days ? ` · food for ${Math.floor(course.food)}!` : ''}` : undefined,
+                underWay: underWay(order),
+                ...(order.quest ? {} : { cancel: cancelOrder }),
+              }
+            : undefined
+        }
         knotsPerTilePerSecond={knotsPerTilePerSecond}
         viewDeg={sea3d.viewDeg()}
-        prompt={
-          hunter
-            ? `A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`
-            : guided === 'helm'
-              ? undefined
-            : action
-              ? `${action.text} · Space`
-              : raider && raided?.ai
-                  ? raided.ai.role === 'patrol'
-                    ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`
-                    : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name}: pick her (Tab) and sail in to take a hand`
-                  : ship.assist?.mode === 'course'
-                        ? ship.assist.towing
-                          ? 'The wind is foul for the harbour: her boats tow her in · steer to take the helm'
-                          : `Sailing to ${ship.assist.portId ? (settlements.find((s) => s.id === ship.assist!.portId)?.name ?? 'port') : 'the mark'} · steer to take the helm`
-                        : undefined
-        }
+        prompts={(() => {
+          // At most two hints, each with its own key: the order (when it waits), and the place's or the ship's.
+          if (hunter) return [`A ${shipTitle(hunter)} is closing on you! Run, or stand and fight.`, ...(place ? [`${place.text} · E`] : [])];
+          // On the voyage's helm lesson, the lesson is the prompt.
+          if (guided === 'helm') return [];
+          const out: string[] = [];
+          if (order && !underWay(order)) out.push(`${order.say} · Space`);
+          if (place) out.push(`${place.text} · E`);
+          else if (shipAct) out.push(`${shipAct.text} · F`);
+          else if (raider && raided?.ai)
+            out.push(
+              raided.ai.role === 'patrol'
+                ? `Gunfire to the ${pointOfCompass(ship, raider)}! The ${shipTitle(raided)} ${raided.ai.name} has caught the pirate ${raider.ai!.name}`
+                : `Gunfire to the ${pointOfCompass(ship, raider)}! The pirate ${raider.ai!.name} has fallen on the ${shipTitle(raided)} ${raided.ai.name}: pick her (Tab) and sail in to take a hand`,
+            );
+          else if (ship.assist?.towing) out.push('The wind is foul for the harbour: her boats tow her in');
+          return out;
+        })()}
         hour={hour}
         held={cruise.held}
         saved={now - savedAt < 2000}
@@ -2501,12 +2598,12 @@ async function main() {
               ? `The pirate ${shipKind(her.classId)} ${her.ai.name}, the one ${by} wants,`
               : // "An English fluyt", not "A English".
                 `${/^[aeiou]/i.test(shipTitle(her)) ? 'An' : 'A'} ${shipTitle(her)}`;
-          const act = picked?.id === her.id ? shipAction(her) : undefined;
-          return { text: `${who} ${fromTheBow(ship, her)}`, act: act && (act.text.startsWith('Hail') ? 'hail' : act.text.startsWith('Stop') ? 'stop' : 'chase') };
+          const act = picked?.id === her.id ? shipOrder(her) : undefined;
+          return { text: `${who} ${fromTheBow(ship, her)}`, act: act && (act.text.startsWith('Chase') ? 'chase' : act.text.startsWith('Attack') ? 'attack' : 'hail') };
         })()}
         picked={(() => {
           if (!picked?.ai) return undefined;
-          const act = shipAction(picked);
+          const act = shipOrder(picked);
           const tiles = Math.hypot(picked.x - ship.x, picked.y - ship.y);
           return {
             nation: picked.ai.nation,
@@ -2516,7 +2613,8 @@ async function main() {
             where: `${Math.max(1, Math.round(tiles * kmPerTile))} km ${fromTheBow(ship, picked)}`,
             ...(act ? { act: act.text, run: act.run } : {}),
             drop: () => {
-              stopChasing(picked.id);
+              if (chaseId === picked.id) endChase('Let her go');
+              else stopChasing(picked.id);
               pick(undefined);
             },
           };

@@ -176,7 +176,9 @@ export function createVoyageSystem(content: ContentPack, settlements: PlacedSett
       if (!there && learned.size === (v.lessons ?? []).length) return { state, events: [] };
       const voyage: Voyage = { ...v, lessons: [...learned], ...(there ? { step: 'salvage' as const } : {}) };
       const events: EmittedEvent[] = there ? [{ type: 'CayReached', entityIds: [me.id], payload: { name: v.cay.name } }] : [];
-      return { state: { ...state, captain: { ...state.captain!, voyage } }, events };
+      // Come up to the wreck, she heaves to beside it (a new captain shouldn't sail on past her salvage).
+      const ships = there ? { ...state.ships, [me.id]: { ...me, sails: 'furled' as const, assist: undefined } } : state.ships;
+      return { state: { ...state, ships, captain: { ...state.captain!, voyage } }, events };
     },
     observe(state, events) {
       const v = state.captain?.voyage;

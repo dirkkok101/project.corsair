@@ -56,6 +56,8 @@ const frames = (page: Page, n = 2) =>
   }, n);
 
 /** The chart opens close about her ship: the whole Caribbean, to reach a port across it. */
+/** One of the HUD's hints at sea ("Enter Port Royal · E"): its key cap is `.k-key`. */
+const hint = (page: Page, text: string | RegExp) => page.locator('.hud-prompts .hud-prompt', { hasText: text });
 const wholeChart = (page: Page) => page.locator('.chart-zoom').getByRole('button', { name: 'Whole Caribbean' }).click();
 
 const player = (page: Page) =>
@@ -168,8 +170,7 @@ test('tacking aid and destination: B beats, T tacks, a chart click sets a course
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await expect(page.locator('.hud')).toContainText('To');
-  await expect(page.locator('.hud')).toContainText('Cartagena');
+  await expect(page.locator('.hud-order')).toContainText('Course to Cartagena');
   await page.screenshot({ path: 'test-results/assist.png' });
 });
 
@@ -246,7 +247,7 @@ test('trade loop: dock with E, buy sugar in Bridgetown, sell it dearer in Port R
   expect(await page.evaluate(() => window.__corsair.seed)).toBe(3);
   // A new career opens within reach of Port Royal.
   await page.evaluate(() => window.__corsair.sim.step(1));
-  await expect(page.locator('.hud-prompt')).toContainText('Enter Port Royal');
+  await expect(hint(page, 'Enter Port Royal').locator('.k-key')).toHaveText('E');
 
   const goTo = async (name: string) => {
     await page.evaluate((n) => {
@@ -554,7 +555,7 @@ test('the Top Ten: the log ranks the famous pirates by wealth, and the captain b
   expect(errors).toEqual([]);
 });
 
-test("treasure maps: the tavern stranger sells a piece, the log draws the map, the chart rings the search, and G digs it up", async ({ page }) => {
+test("treasure maps: the tavern stranger sells a piece, the log draws the map, the chart rings the search, and E digs it up", async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await openService(page, 'Tavern');
   // He sits in the corner some weeks (the town and the week decide which): wait them out in port.
@@ -606,10 +607,10 @@ test("treasure maps: the tavern stranger sells a piece, the log draws the map, t
     window.__corsair.sim.step(1);
     return h;
   });
-  // A goal just done shows first, for 7 seconds; the dig prompt follows.
-  await expect(page.locator('.hud-prompt')).toContainText('go ashore and dig', { timeout: 10_000 });
+  // A goal just done shows first, for 7 seconds; the dig prompt follows, on E (the place's key).
+  await expect(hint(page, /^E\s*Dig for .+'s hoard on this coast$/)).toBeVisible({ timeout: 10_000 });
   const tick = await page.evaluate(() => window.__corsair.state.get('tick') as number);
-  await page.keyboard.press(' ');
+  await page.keyboard.press('e');
   // The hoard moment, over everything; Enter puts the gold in the chest.
   await expect(page.locator('.moment')).toContainText('gold to the plunder chest');
   await page.screenshot({ path: 'test-results/hoard-moment.png' });
@@ -856,12 +857,12 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
     }
     return newest;
   });
-  await expect(page.locator('.hud-prompt')).toContainText('Hail the English fluyt');
+  await expect(hint(page, 'Hail the English fluyt').locator('.k-key')).toHaveText('F');
   // Her nation, name and what she is ride under her on the 3D sea.
   const label = page.locator('.ship-label', { hasText: 'fluyt, merchant' });
   await expect(label).toBeVisible();
   await expect(label.locator('.ship-label-tag')).toHaveText(/english/i);
-  await page.keyboard.press(' ');
+  await page.keyboard.press('f');
   await expect(page.locator('.hail')).toContainText('bound for Cartagena');
   // The sea's prompt and HUD make way for the hail.
   await expect(page.locator('.hud-prompt')).toBeHidden();
@@ -896,8 +897,9 @@ test('sea battle: attack a ship from the hail panel, fight it out, and the outco
       if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
     }
   });
-  await page.keyboard.press(' ');
   await page.keyboard.press('f');
+  await expect(page.locator('.hail')).toBeVisible();
+  await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   await expect(page.locator('.battle-card').first()).toContainText('Hull');
   // A new career's ship sails under her own name; the gun bar is one row, with F1 for every key.
@@ -1134,7 +1136,7 @@ test('privateering: a letter of marque at war, a lawful attack, and a bounty at 
       if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
     }
   });
-  await page.keyboard.press(' ');
+  await page.keyboard.press('f');
   await expect(page.locator('.hail-attack')).toContainText('lawful under your English letter');
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
@@ -1238,7 +1240,7 @@ test('the gentle wind: a HUD toggle puts it on her ship, and the choice is kept 
   expect(errors).toEqual([]);
 });
 
-test('sailing: cruises at 2x, calls a sail in sight (dropping to 1x only when set to slow), I intercepts', async ({ page }) => {
+test('sailing: cruises at 2x, calls a sail in sight (dropping to 1x only when set to slow), F intercepts', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
   // Open water south of Jamaica, away from every coast.
   await page.evaluate(() => {
@@ -1272,9 +1274,10 @@ test('sailing: cruises at 2x, calls a sail in sight (dropping to 1x only when se
     return at.id;
   });
   await expect(page.locator('.hud-banner')).toContainText('Sail ho!');
-  // Where she lies from the bow, and the key to go after her.
+  // Where she lies from the bow, and the key to go after her: F.
   await expect(page.locator('.hud-banner')).toContainText(/dead ahead|astern|(bow|beam|quarter)/);
   await expect(page.locator('.hud-banner')).toContainText('chase');
+  await expect(page.locator('.hud-banner .hud-banner-key .k-key')).toHaveText('F');
   // Cruising keeps its speed unless the player asks it to slow near land and sails; then it holds at 1x (here the
   // coast may hold it too: either reason drops it).
   const holds = page.getByRole('button', { name: 'Slow near land and sails' });
@@ -1284,19 +1287,27 @@ test('sailing: cruises at 2x, calls a sail in sight (dropping to 1x only when se
   await frames(page);
   await expect(holds).toHaveText('Slows');
   await expect(page.locator('.hud-date').first()).toContainText('1×,');
+  // Space has no order to sail (no course, no chase): it does nothing; F goes after her.
   await page.keyboard.press(' ');
   await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toBeUndefined();
+  await page.keyboard.press('f');
+  await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'intercept', targetId: target });
+  // The chase is her order now, across the top.
+  const name = await page.evaluate((id) => (window.__corsair.state.get('ships') as Record<string, { ai: { name: string } }>)[id]!.ai.name, target);
+  await expect(page.locator('.hud-order')).toContainText(`Chasing the ${name}`);
+  await expect(page.locator('.hud-order')).toContainText('sailing it');
 
   expect(errors).toEqual([]);
 });
 
 
-test('one action key: Sail ho! picks her, Space chases her down and hails her alongside; Tab, a click on her label and a pad do the same', async ({ page }) => {
-  // A pad whose A button the test holds: the game reads it each frame as the browser's standard mapping.
+test('the ship key: Sail ho! picks her, F chases her down and she is hailed alongside; Tab, a click on her label and a pad do the same', async ({ page }) => {
+  // A pad whose X button (F at sea) the test holds: the game reads it each frame as the browser's standard mapping.
   await page.addInitScript(() => {
     const buttons = Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 }));
-    (window as unknown as { padA: (on: boolean) => void }).padA = (on) => Object.assign(buttons[0]!, { pressed: on, value: on ? 1 : 0 });
+    (window as unknown as { padX: (on: boolean) => void }).padX = (on) => Object.assign(buttons[2]!, { pressed: on, value: on ? 1 : 0 });
     navigator.getGamepads = () => [{ id: 'test pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons, timestamp: 0 } as unknown as Gamepad];
   });
   const errors = await boot(page, '/?seed=3');
@@ -1317,9 +1328,11 @@ test('one action key: Sail ho! picks her, Space chases her down and hails her al
     return id;
   });
   await frames(page);
-  // Called out, she is the ship picked: her card says who and where, and Space chases her.
+  // Called out, she is the ship picked: her card says who and where, and F chases her (its button names the key).
   await expect(page.locator('.hud-picked')).toBeVisible();
-  await expect(page.locator('.hud-prompt')).toContainText('Chase the');
+  await expect(hint(page, 'Chase the').locator('.k-key')).toHaveText('F');
+  await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Chase her');
+  await expect(page.locator('.hud-picked .k-btn.primary .k-key')).toHaveText('F');
   await page.screenshot({ path: 'test-results/sea-picked.png' });
   // Esc lets her go; Tab picks a ship in sight again, and a click on her label picks her.
   await page.keyboard.press('Escape');
@@ -1348,10 +1361,10 @@ test('one action key: Sail ho! picks her, Space chases her down and hails her al
   await page.mouse.click(at.px + 5, at.py - 60);
   await frames(page);
   await expect(page.locator('.hud-picked')).toContainText(name);
-  // The pad's A does what Space does: she chases her.
-  await page.evaluate(() => (window as unknown as { padA: (on: boolean) => void }).padA(true));
+  // The pad's X does what F does: she chases her.
+  await page.evaluate(() => (window as unknown as { padX: (on: boolean) => void }).padX(true));
   await frames(page, 3);
-  await page.evaluate(() => (window as unknown as { padA: (on: boolean) => void }).padA(false));
+  await page.evaluate(() => (window as unknown as { padX: (on: boolean) => void }).padX(false));
   await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'intercept', targetId: target });
   // The chase comes up alongside her and hails her: the hail opens of itself.
@@ -1363,11 +1376,13 @@ test('one action key: Sail ho! picks her, Space chases her down and hails her al
   });
   await expect(page.locator('.hail')).toContainText(name);
   await page.screenshot({ path: 'test-results/sea-alongside.png' });
-  // Parting ways ends the chase: she doesn't shadow her.
+  // Parting ways ends the chase: she doesn't shadow her, and it is no longer her order.
   await page.keyboard.press('Escape');
   await expect(page.locator('.hail')).toHaveCount(0);
   await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toBeUndefined();
+  await frames(page);
+  await expect(page.locator('.hud-order')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -1430,16 +1445,16 @@ test('the chart zooms and pans: opens close about her ship, the wheel and + and 
   await expect(page.locator('.chart-card')).toContainText(/Food for \d+ days/);
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
-  await expect(page.locator('.hud-course')).toContainText(/Cartagena · \d+ km · bear \d+° · about \d+ days?/);
+  await expect(page.locator('.hud-order')).toContainText(/Course to Cartagena · \d+ km · (about \d+ days?|within the day)/);
   expect(await seaZoom()).toBeCloseTo(sea, 0);
   await expect(speed).toHaveText(cruise!);
   await page.screenshot({ path: 'test-results/chart-course-days.png' });
   expect(errors).toEqual([]);
 });
 
-test('courses and clicks together: a chart course, a ship clicked, open water, Space and Esc, and a port clicked at sea', async ({ page }) => {
+test('courses and clicks together: a chart course, a ship clicked, open water, Space, F and Esc, and a port clicked at sea', async ({ page }) => {
   const errors = await boot(page, '/?seed=3');
-  const prompt = page.locator('.hud-prompt');
+  const order = page.locator('.hud-order');
   const assist = () => page.evaluate(() => window.__corsair.state.get('ships.player.assist') as { mode: string; portId?: string; targetId?: string } | undefined);
   // Open water south of Jamaica, a course to Cartagena plotted on the chart.
   await page.evaluate(() => {
@@ -1452,12 +1467,14 @@ test('courses and clicks together: a chart course, a ship clicked, open water, S
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
   await frames(page);
-  // Nothing picked yet (or only called out): Space follows the course.
+  // Nothing picked yet (or only called out): the course is her order, waiting on Space.
   await page.keyboard.press('Escape');
   await frames(page);
-  await expect(prompt).toContainText('Follow the course to Cartagena');
+  await expect(order).toContainText('Course to Cartagena');
+  await expect(order).toContainText('paused');
+  await expect(hint(page, 'Sail the course to Cartagena').locator('.k-key')).toHaveText('Space');
 
-  // A merchant a few tiles off, clicked: the ship picked by hand comes before the course; the course stays plotted.
+  // A merchant a few tiles off, clicked: F's hint is hers, beside Space's for the course; the course stays plotted.
   const ship = await page.evaluate(() => {
     const me = window.__corsair.state.get('ships.player') as { x: number; y: number };
     window.__corsair.cmd.send({ type: 'SpawnShip', role: 'merchant', from: 'town.port_royal', to: 'town.cartagena' });
@@ -1478,19 +1495,24 @@ test('courses and clicks together: a chart course, a ship clicked, open water, S
   await page.mouse.click(at.px, at.py);
   await frames(page);
   await expect(page.locator('.hud-picked')).toBeVisible();
-  await expect(prompt).toContainText('Chase the');
-  await expect(page.locator('.hud')).toContainText(/Cartagena · \d+ km/);
-  // Open water lets her go: Space is the course's again.
+  await expect(hint(page, 'Chase the').locator('.k-key')).toHaveText('F');
+  await expect(hint(page, 'Sail the course to Cartagena')).toBeVisible();
+  await expect(order).toContainText(/Course to Cartagena · \d+ km/);
+  // Open water lets her go: only the course's hint is left.
   await page.mouse.click(at.px - 400, at.py + 250);
   await frames(page);
   await expect(page.locator('.hud-picked')).toHaveCount(0);
-  await expect(prompt).toContainText('Follow the course to Cartagena');
+  await expect(hint(page, 'Chase the')).toHaveCount(0);
+  await expect(hint(page, 'Sail the course to Cartagena')).toBeVisible();
 
-  // Following the course, a click on her changes nothing until Space: then the chase; Esc ends it, and the course
-  // is Space's again.
+  // Space sails the course; a click on her changes nothing, nor does Space again (it never turns anything off).
+  // F chases her; Esc lets her go, and the course is taken up again of itself.
   await page.keyboard.press(' ');
   await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  await frames(page);
+  await expect(order).toContainText('sailing it');
+  await expect(hint(page, 'Sail the course')).toHaveCount(0);
   at = await shipAt();
   await page.mouse.click(at.px, at.py);
   await frames(page);
@@ -1498,12 +1520,20 @@ test('courses and clicks together: a chart course, a ship clicked, open water, S
   expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
   await page.keyboard.press(' ');
   await page.evaluate(() => window.__corsair.sim.step(1));
+  expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  await page.keyboard.press('f');
+  await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await assist()).toMatchObject({ mode: 'intercept', targetId: ship });
+  const name = await page.evaluate((id) => (window.__corsair.state.get('ships') as Record<string, { ai: { name: string } }>)[id]!.ai.name, ship);
+  await frames(page);
+  await expect(order).toContainText(`Chasing the ${name}`);
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.__corsair.sim.step(1));
   await frames(page);
-  expect(await assist()).toBeUndefined();
-  await expect(prompt).toContainText('Follow the course to Cartagena');
+  expect(await assist()).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  await expect(order).toContainText('Course to Cartagena');
+  await expect(order).toContainText('sailing it');
+  await expect(page.locator('.hud')).toContainText('back on course for Cartagena');
 
   // Off Port Royal, out of docking reach: a click on its name plots the course there instead, on the chart too.
   await page.evaluate(() => {
@@ -1518,12 +1548,12 @@ test('courses and clicks together: a chart course, a ship clicked, open water, S
   });
   await page.mouse.click(port.px, port.py - 90);
   await frames(page);
-  await expect(prompt).toContainText('Follow the course to Port Royal');
-  await expect(page.locator('.hud')).toContainText(/Port Royal · \d+ km/);
+  await expect(order).toContainText(/Course to Port Royal · \d+ km/);
+  await expect(hint(page, 'Sail the course to Port Royal').locator('.k-key')).toHaveText('Space');
   await page.keyboard.press('m');
   await expect(page.locator('.chart-port.selected')).toHaveText('Port Royal');
   await page.keyboard.press('m');
-  // Followed, she makes port, and the course and the chart's mark are gone.
+  // Sailed, she makes port, and the course and the chart's mark are gone.
   await page.keyboard.press(' ');
   const docked = await page.evaluate(async () => {
     for (let i = 0; i < 1500; i++) {
@@ -1549,20 +1579,30 @@ test('course line: a port picked on the chart gets a route by sea, the HUD measu
   await page.locator('.chart-port', { hasText: 'Cartagena' }).click();
   await page.locator('.chart-card').getByRole('button', { name: 'Set course' }).click();
   await page.keyboard.press('m');
-  // The route is re-plotted about once a second; the HUD reads its length and the next leg's bearing.
-  await expect(page.locator('.hud')).toContainText(/Cartagena · \d+ km · bear \d+°/);
-  await expect(page.locator('.hud')).toContainText('Space to follow');
+  // The route is re-plotted about once a second; her order across the top reads its length and days.
+  const order = page.locator('.hud-order');
+  await expect(order).toContainText(/Course to Cartagena · \d+ km · (about \d+ days?|within the day)/);
+  await expect(order).toContainText('paused');
+  await expect(hint(page, 'Sail the course to Cartagena').locator('.k-key')).toHaveText('Space');
   await page.screenshot({ path: 'test-results/course-line.png' });
   await page.keyboard.press(' ');
   await page.evaluate(() => window.__corsair.sim.step(1));
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
-  await expect(page.locator('.hud')).toContainText('following');
-  // Steering by hand takes the helm back; the route stays plotted.
+  await expect(order).toContainText('sailing it');
+  // Steering by hand takes the helm back (it only pauses the order); the route stays plotted.
   await page.keyboard.down('a');
   await page.evaluate(() => window.__corsair.sim.step(2));
   await page.keyboard.up('a');
   expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toBeUndefined();
-  await expect(page.locator('.hud')).toContainText('Space to follow');
+  await expect(order).toContainText('paused');
+  await expect(hint(page, 'Sail the course to Cartagena')).toBeVisible();
+  // The order's cross forgets the course: no order, no hint, nothing on the chart.
+  await order.locator('.hud-order-cancel').click();
+  await expect(order).toHaveCount(0);
+  await expect(hint(page, 'Sail the course')).toHaveCount(0);
+  await page.keyboard.press('m');
+  await expect(page.locator('.chart-port.selected')).toHaveCount(0);
+  await page.keyboard.press('m');
   expect(errors).toEqual([]);
 });
 
@@ -1713,8 +1753,9 @@ test('a fleet leaves port in line: each ship comes out behind the flagship over 
       if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
     }
   });
-  await page.keyboard.press(' ');
   await page.keyboard.press('f');
+  await expect(page.locator('.hail')).toBeVisible();
+  await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   await page.evaluate(() => {
     for (let i = 0; i < 600 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(30, 'aggressive');
@@ -1767,7 +1808,7 @@ test('fleets: keep a prize, she shows on the ship card, and the shipwright sells
       if (Math.hypot(p.x - s.x, p.y - s.y) < 3) break;
     }
   });
-  await page.keyboard.press(' ');
+  await page.keyboard.press('f');
   await page.locator('.hail').getByRole('button', { name: /Attack/ }).click();
   await expect.poll(() => page.evaluate(() => window.__corsair.view())).toBe('battle');
   const outcome = await page.evaluate(() => {
@@ -1897,8 +1938,8 @@ test('ships change hands: a pirate takes your fleet ship, and hailing him says s
   const pirate = await alongside('pirate', 'town.tortuga', 'town.port_royal');
   await settle(pirate, 'lost');
   expect(await fleet()).toEqual([]);
-  // At sea, hailing her says the prize she has in tow is yours.
-  await page.keyboard.press(' ');
+  // At sea, hailing her (F) says the prize she has in tow is yours.
+  await page.keyboard.press('f');
   await expect(page.locator('.hail')).toContainText(`your fluyt ${kept}`);
   await page.screenshot({ path: 'test-results/prize-in-tow.png' });
   await page.keyboard.press('Escape');

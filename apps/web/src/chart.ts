@@ -335,7 +335,7 @@ export function createCharts(
       `<div class="chart-card-lines">${lines.map((l) => `<div class="${l.tone ?? ''}">${l.text}${l.age ? ` <span class="k-sub">(${l.age})</span>` : ''}</div>`).join('')}</div>` +
       rumours.map((r) => `<div class="chart-rumour">${r}</div>`).join('') +
       (known
-        ? `<details class="chart-card-prices"><summary>All prices, seen ${when}</summary><table><tr><th></th><th>Buy</th><th>Sell</th><th title="Units it took before its sell price fell a quarter">Takes</th></tr>${market.goods
+        ? `<details class="chart-card-prices"><summary>All prices, seen ${when}</summary><table><tr><th></th><th>Buy</th><th>Sell</th><th title="About how many he takes near his price">Wants</th></tr>${market.goods
             .map((g) => {
               const p = known.prices[g.id];
               const depth = p?.depth === undefined ? '' : `<span class="takes${p.depth < 15 ? ' shallow' : ''}">${p.depth >= 999 ? '999+' : `~${p.depth}`}</span>`;

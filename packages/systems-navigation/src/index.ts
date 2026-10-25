@@ -551,3 +551,44 @@ export function createWorld(def: MapDef): WorldState {
   };
   return { tick: 0, wind: { ...wind }, ships: { [ship.id]: ship } };
 }
+
+/**
+ * The way she will sail a route in this wind, as a line to draw: a leg she can lay is a straight leg; one into the wind
+ * becomes her boards, close-hauled on each tack in turn, each going about no more than `corridorTiles` off the leg (as
+ * the course autopilot keeps near its way). `route` is the waypoints after `from`; so is the result.
+ */
+export function tackedLine(from: [number, number], route: [number, number][], windFromDeg: number, bestDeg: number, corridorTiles: number): [number, number][] {
+  const out: [number, number][] = [];
+  let [ax, ay] = from;
+  for (const [bx, by] of route) {
+    const [dx, dy] = [bx - ax, by - ay];
+    const len = Math.hypot(dx, dy);
+    const legDeg = ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360;
+    if (len < 1e-6 || angleOffWind(legDeg, windFromDeg) >= bestDeg) {
+      out.push([bx, by]);
+      [ax, ay] = [bx, by];
+      continue;
+    }
+    // Her two close-hauled headings, and how far she sails on each to make the leg: (dx, dy) = a·v1 + b·v2.
+    const unit = (deg: number): [number, number] => [Math.sin((deg * Math.PI) / 180), -Math.cos((deg * Math.PI) / 180)];
+    const v1 = unit(windFromDeg + bestDeg);
+    const v2 = unit(windFromDeg - bestDeg);
+    const det = v1[0] * v2[1] - v1[1] * v2[0];
+    const a = (dx * v2[1] - dy * v2[0]) / det;
+    const b = (v1[0] * dy - v1[1] * dx) / det;
+    // How far each board on the first tack carries her off the leg: split into as many as keep it within the corridor.
+    const off = Math.abs(a * (v1[0] * dy - v1[1] * dx)) / len;
+    const n = Math.max(1, Math.ceil(off / corridorTiles));
+    let [x, y] = [ax, ay];
+    for (let k = 0; k < n; k++) {
+      x += (v1[0] * a) / n;
+      y += (v1[1] * a) / n;
+      out.push([x, y]);
+      x += (v2[0] * b) / n;
+      y += (v2[1] * b) / n;
+      out.push(k === n - 1 ? [bx, by] : [x, y]);
+    }
+    [ax, ay] = [bx, by];
+  }
+  return out;
+}

@@ -9,8 +9,8 @@ export type PadContext = 'sea' | 'port' | 'battle';
 const BUTTONS: Record<number, (at: PadContext) => string[]> = {
   0: (at) => [at === 'port' ? 'Enter' : ' '], // A: the one thing to do now; fire in battle; close a letter in port
   1: () => ['Escape'], // B: back, let her go, part ways
-  2: () => ['g', 'f'], // X: board in battle; attack in a hail
-  3: (at) => [at === 'port' ? 'e' : 'r'], // Y: set sail from port; repel boarders
+  2: () => ['g', 'f'], // X: board in battle; the ship picked at sea (F); attack in a hail
+  3: (at) => [at === 'battle' ? 'r' : 'e'], // Y: set sail from port; the place at sea (E); repel boarders
   4: () => ['Tab'], // LB: the next ship in sight; the next shot in battle
   5: () => ['c'], // RB: the camera overhead or astern
   6: () => ['s'], // LT: less sail

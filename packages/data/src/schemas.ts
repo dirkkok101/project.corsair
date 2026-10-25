@@ -269,6 +269,7 @@ export const goodsSchema = z.object({
 const goodRates = z.record(z.string(), z.number().min(0));
 
 export const economySchema = z.object({
+  appetite: z.object({ share: z.number().min(0), slope: z.number().min(0).max(1) }),
   startingGold: z.number().int().min(0),
   /**
    * Provisions bought from a ship spoken at sea: what she can spare (units of food) and the price, as a multiple
@@ -845,6 +846,7 @@ export const trafficSchema = z.object({
   laneSpreadTiles: z.number().min(0),
   portDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** How long a pirate lies in wait on a lane before going home. */
+  lurkSail: z.object({ tilesPerSecond: z.number().min(0), degPerSecond: z.number() }),
   lurkDays: z.tuple([z.number().min(0), z.number().min(0)]),
   /** Pirates' interest in a port halves this far (in tiles) from their haven. */
   pirateRangeTiles: z.number().positive(),

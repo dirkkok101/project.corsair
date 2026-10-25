@@ -74,6 +74,8 @@ async function voyageBegun(page: Page) {
   return errors;
 }
 const voyageOf = (page: Page) => page.evaluate(() => window.__corsair.state.get('captain.voyage')) as Promise<Voyage & { lessons?: string[] }>;
+/** One of the HUD's hints at sea ("Salvage the wreck · E"): its key cap is `.k-key`. */
+const hint = (page: Page, text: string | RegExp) => page.locator('.hud-prompts .hud-prompt', { hasText: text });
 
 test('chapter 1, the harbour: every building shut and why, her orders, the quartermaster, and Set sail lit', async ({ page }) => {
   const errors = await voyageBegun(page);
@@ -138,11 +140,13 @@ test('chapter 1, the helm: out at half sail, steer, more sail, the wind, and the
   const { cay } = await voyageOf(page);
   await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
   await expect.poll(async () => (await voyageOf(page)).step).toBe('salvage');
-  // Alongside the wreck, Space salvages it.
-  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
+  // Come up to the wreck she heaves to: the order is done (no banner), and E salvages it.
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.sails'))).toBe('furled');
+  await expect(page.locator('.hud-order')).toHaveCount(0);
+  await expect(hint(page, 'Salvage the wreck').locator('.k-key')).toHaveText('E');
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'test-results/voyage-cay.png' });
-  await page.keyboard.press(' ');
+  await page.keyboard.press('e');
   await expect.poll(async () => (await voyageOf(page)).step).toBe('prize');
   const card = page.locator('.deed-standard');
   await expect(card.locator('.deed-title')).toHaveText('First salvage');
@@ -162,8 +166,8 @@ test('chapter 2, the first prize: a pirate harrying a boat, chased and fought wi
   await expect(page.locator('.port')).toHaveCount(0);
   const { cay } = await voyageOf(page);
   await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
-  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
-  await page.keyboard.press(' ');
+  await expect(hint(page, 'Salvage the wreck').locator('.k-key')).toHaveText('E');
+  await page.keyboard.press('e');
   await expect(page.locator('.deed-standard')).toBeVisible();
   await page.keyboard.press('Enter');
   // Sail ho: the pirate and the boat she harries, the quartermaster's word, and her order.
@@ -171,14 +175,26 @@ test('chapter 2, the first prize: a pirate harrying a boat, chased and fought wi
   expect(v.pirate).toBe('Salt Rat');
   await expect(page.locator('.voyage-ned')).toContainText("She's no great guns, Captain: take her.");
   await expect(page.locator('.voyage-order.now')).toContainText('Take the pirate Salt Rat');
-  await expect(page.locator('.hud-prompt')).toContainText('Chase the');
+  // Her order is the pirate, waiting on Space.
+  await expect(page.locator('.hud-order')).toContainText('After the pirate Salt Rat');
+  await expect(page.locator('.hud-order')).toContainText('paused');
+  await expect(hint(page, 'Chase the pirate Salt Rat').locator('.k-key')).toHaveText('Space');
   await expect(page.locator('.hud-picked, .ship-card').first()).toContainText('Salt Rat');
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/voyage-sailho.png' });
-  // Alongside, Space attacks her.
-  await alongside(page, v.pirateId);
-  await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate Salt Rat');
+  // Space sails the order: she makes sail and goes after her.
   await page.keyboard.press(' ');
+  await expect(page.locator('.hud-order')).toContainText('sailing it');
+  await expect(hint(page, 'Chase the pirate Salt Rat')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'intercept', targetId: v.pirateId });
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.sails'))).not.toBe('furled');
+  // Alongside, the chase opens the fight of itself (or F attacks her, if she came alongside another way).
+  await alongside(page, v.pirateId);
+  await page.waitForTimeout(300);
+  if (!(await page.evaluate(() => window.__corsair.battle.active()))) {
+    await expect(hint(page, 'Attack the pirate Salt Rat').locator('.k-key')).toHaveText('F');
+    await page.keyboard.press('f');
+  }
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
   // Ned's word as it begins, the arc lesson, and round shot only.
   await expect(page.locator('.battle-ned')).toContainText('put your side to her');
@@ -206,7 +222,12 @@ test('chapter 2, the first prize: a pirate harrying a boat, chased and fought wi
   await page.screenshot({ path: 'test-results/voyage-prize-deed.png' });
   await page.keyboard.press('Enter');
   expect((await voyageOf(page)).step).toBe('home');
-  await expect(page.locator('.hud-prompt')).toContainText('Sail home to Port Royal');
+  // Home is her order now: Space sails it.
+  await expect(page.locator('.hud-order')).toContainText('Home to Port Royal');
+  await expect(hint(page, 'Sail home to Port Royal').locator('.k-key')).toHaveText('Space');
+  await page.keyboard.press(' ');
+  await expect(page.locator('.hud-order')).toContainText('sailing it');
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.assist'))).toMatchObject({ mode: 'course', portId: v.home });
   expect(errors).toEqual([]);
 });
 
@@ -217,14 +238,14 @@ async function toHome(page: Page) {
   await expect(page.locator('.port')).toHaveCount(0);
   const { cay } = await voyageOf(page);
   await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
-  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
-  await page.keyboard.press(' ');
+  await expect(hint(page, 'Salvage the wreck')).toBeVisible();
+  await page.keyboard.press('e');
   await expect(page.locator('.deed-standard')).toBeVisible();
   await page.keyboard.press('Enter');
   const v = (await voyageOf(page)) as Voyage & { pirateId: string };
   await alongside(page, v.pirateId);
-  await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate');
-  await page.keyboard.press(' ');
+  await expect(hint(page, 'Attack the pirate')).toBeVisible();
+  await page.keyboard.press('f');
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
   await page.evaluate(() => {
     for (let i = 0; i < 30 * 60 * 5 && !window.__corsair.battle.result(); i++) window.__corsair.battle.step(1, 'cautious');
@@ -235,7 +256,7 @@ async function toHome(page: Page) {
   await page.keyboard.press('Enter');
   await expect(page.locator('.deed-standard')).toBeVisible();
   await page.keyboard.press('Enter');
-  // Home: off the harbour, Space enters it.
+  // Home: off the harbour, E enters it.
   await page.evaluate((home) => {
     const p = window.__corsair.ports().find((x) => x.id === home)!;
     for (let r = 1; r < 6; r++)
@@ -247,8 +268,8 @@ async function toHome(page: Page) {
         }
       }
   }, v.home);
-  await expect(page.locator('.hud-prompt')).toContainText('Enter Port Royal');
-  await page.keyboard.press(' ');
+  await expect(hint(page, 'Enter Port Royal').locator('.k-key')).toHaveText('E');
+  await page.keyboard.press('e');
   await expect(page.locator('.port')).toBeVisible();
   return errors;
 }
@@ -456,7 +477,7 @@ test('playtest, chapter 1 as a newcomer: out of harbour and to the smoke with A,
   expect(errors).toEqual([]);
 });
 
-test('playtest, chapter 2 as a newcomer: Space to chase, Space to attack, then side to her and Space held, on the real clock', async ({ page }) => {
+test('playtest, chapter 2 as a newcomer: Space to chase, F to attack, then side to her and Space held, on the real clock', async ({ page }) => {
   test.skip(!process.env.PLAYTEST, 'run with PLAYTEST=1 --workers=1');
   test.setTimeout(300_000);
   const errors = await voyageBegun(page);
@@ -464,16 +485,16 @@ test('playtest, chapter 2 as a newcomer: Space to chase, Space to attack, then s
   await expect.poll(async () => (await voyageOf(page)).step).toBe('helm');
   const { cay } = await voyageOf(page);
   await page.evaluate(({ x, y }) => window.__corsair.cmd.send({ type: 'Teleport', shipId: 'player', x: x + 1.5, y } as never), cay);
-  await expect(page.locator('.hud-prompt')).toContainText('Salvage the wreck');
-  await page.keyboard.press(' ');
+  await expect(hint(page, 'Salvage the wreck')).toBeVisible();
+  await page.keyboard.press('e');
   await dismissDeeds(page);
   const started = Date.now();
-  // Space chases her; alongside, Space attacks.
-  await expect(page.locator('.hud-prompt')).toContainText('Chase the');
+  // Space chases her (her order); alongside, F attacks.
+  await expect(hint(page, 'Chase the pirate')).toBeVisible();
   await page.keyboard.press(' ');
-  await expect(page.locator('.hud-prompt')).toContainText('Attack the pirate', { timeout: 90_000 });
+  await expect(hint(page, 'Attack the pirate')).toBeVisible({ timeout: 90_000 });
   const chased = Math.round((Date.now() - started) / 1000);
-  await page.keyboard.press(' ');
+  await page.keyboard.press('f');
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
   const fought = Date.now();
   // In battle: keep her abeam and hold Space (fire as the guns bear).
@@ -529,6 +550,8 @@ test("on the voyage, a course of her own on the chart: Space follows it (not the
   await page.keyboard.press(' ');
   await expect(page.locator('.chart')).toBeHidden();
   await expect.poll(() => page.evaluate(() => (window.__corsair.state.get('ships.player.assist') as { portId?: string } | undefined)?.portId)).toBe('town.tortuga');
+  await expect(page.locator('.hud-order')).toContainText('Course to Tortuga');
+  await expect(page.locator('.hud-order')).toContainText('sailing it');
   expect((await page.locator('.hud-prompt').allInnerTexts()).join(' ')).not.toContain('Sail home');
   expect(errors).toEqual([]);
 });

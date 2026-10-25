@@ -1,7 +1,7 @@
 import type { Command, Voyage, WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { cargoUsed, closedTo, fleetHold, quote, tradeEdge, tradePreview } from './index';
+import { appetite, cargoUsed, closedTo, fleetHold, quote, tradeEdge, tradePreview } from './index';
 
 // The First Voyage's port (docs/design/first-voyage.md): a building opens as she needs it. The rest stand shuttered,
 // and what would be done in them is refused, so the sim and the screen agree.
@@ -91,11 +91,13 @@ export function suggestTrade(content: ContentPack, state: WorldState, town: Plac
   let best: TradeRun | undefined;
   for (const g of content.goods) {
     if (g.id === 'food') continue;
-    const bought = tradePreview(content, town, g.id, state.markets?.[town.id]?.[g.id] ?? 0, 'Buy', c.tradeUnits, { gold: state.captain.gold, room, held: 0 }, tradeEdge(content, state.captain, town.nation));
+    const here = state.markets?.[town.id]?.[g.id] ?? 0;
+    const bought = tradePreview(content, town, g.id, here, 'Buy', c.tradeUnits, { gold: state.captain.gold, room, held: 0, want: appetite(content, state, town, g.id, here, 'Buy') }, tradeEdge(content, state.captain, town.nation));
     if (!bought.units) continue;
     for (const s of settlements) {
       if (s.id === town.id || s.type === 'haven' || Math.hypot(s.x - town.x, s.y - town.y) > c.tradeTiles || closedTo(content, state, s)) continue;
-      const sold = tradePreview(content, s, g.id, state.markets?.[s.id]?.[g.id] ?? 0, 'Sell', bought.units, { gold: 0, room: 0, held: bought.units }, tradeEdge(content, state.captain, s.nation));
+      const there = state.markets?.[s.id]?.[g.id] ?? 0;
+      const sold = tradePreview(content, s, g.id, there, 'Sell', bought.units, { gold: 0, room: 0, held: bought.units, want: appetite(content, state, s, g.id, there, 'Sell') }, tradeEdge(content, state.captain, s.nation));
       const profit = sold.total - bought.total;
       if (sold.units === bought.units && profit > (best?.profit ?? 0))
         best = { good: g.id, units: bought.units, buy: Math.round(bought.total / bought.units), to: s.id, sell: Math.round(sold.total / sold.units), profit };

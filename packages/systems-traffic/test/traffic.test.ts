@@ -1,5 +1,5 @@
 import { createSim } from '@corsair/core';
-import type { BattleResult, WorldState } from '@corsair/core';
+import type { BattleResult, Ship, WorldState } from '@corsair/core';
 import { isLand, tileAt } from '@corsair/data';
 import { fleetShipPace, stockCap } from '@corsair/systems-economy';
 import { targetSpeed } from '@corsair/systems-navigation';
@@ -333,5 +333,27 @@ describe('fights at sea', () => {
     won.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: { ...result('sunk'), player: { ...result('sunk').player, crew: 140 } } });
     won.applyCommands();
     expect(won.state.ships.player!.crew).toBe(190);
+  });
+});
+
+describe('pirates lying in wait', () => {
+  it('cruise slow circles on watch, never dead still, never far from their spot, never ashore', () => {
+    const sim = world(3);
+    let lurkers: Ship[] = [];
+    for (let d = 0; d < 20 && !lurkers.length; d++) {
+      sim.step(day);
+      lurkers = ai(sim.state).filter((s) => s.ai!.role === 'pirate' && s.ai!.route.length && (s.ai!.waitUntil ?? 0) > sim.state.tick + 120);
+    }
+    expect(lurkers.length).toBeGreaterThan(0);
+    const before = new Map(lurkers.map((s) => [s.id, { x: s.x, y: s.y }]));
+    sim.step(60);
+    for (const [id, at] of before) {
+      const s = sim.state.ships[id];
+      if (!s || s.ai!.chasing || s.ai!.target) continue;
+      const moved = Math.hypot(s.x - at.x, s.y - at.y);
+      expect(moved).toBeGreaterThan(0);
+      expect(moved).toBeLessThan(6);
+      expect(isLand(tileAt(map, s.x, s.y))).toBe(false);
+    }
   });
 });

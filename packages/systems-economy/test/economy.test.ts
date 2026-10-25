@@ -7,6 +7,9 @@ import { angleOffWind, createNavigationSystem, createWorld, polarAt } from '@cor
 import { createWeatherSystem, createWindField, withWeather } from '@corsair/systems-weather';
 import { describe, expect, it } from 'vitest';
 import {
+  appetite,
+  referenceStock,
+  unitPrice,
   bountiesOwed,
   cargoUsed,
   closedTo,
@@ -31,7 +34,6 @@ import {
   repairCost,
   shipRepairCost,
   seawardHeading,
-  sellDepth,
   shipValue,
   shipsForSale,
   careerScore,
@@ -173,15 +175,12 @@ describe('docking and trading', () => {
     expect(light - base).toBeLessThan(strong - base);
   });
 
-  it('measures market depth: a small market takes fewer units before its price falls a quarter', () => {
+  it("sizes a merchant's appetite by his port: a small market takes fewer at his price than a capital", () => {
     const haven = town('town.ile_a_vache');
-    const deep = sellDepth(content, portRoyal, 'tobacco', normalStock(content, portRoyal, 'tobacco'));
-    const shallow = sellDepth(content, haven, 'tobacco', normalStock(content, haven, 'tobacco'));
-    expect(shallow).toBeLessThan(deep);
-    expect(shallow).toBeGreaterThan(0);
-    // Selling exactly that many leaves the price at or above three quarters of where it started.
-    const stock = normalStock(content, haven, 'tobacco');
-    expect(quote(content, haven, 'tobacco', stock + shallow).sell).toBeGreaterThanOrEqual(quote(content, haven, 'tobacco', stock).sell * 0.75);
+    const state = moored().state;
+    const at = (s: typeof haven) => appetite(content, state, s, 'tobacco', usualStock(content, state, s, 'tobacco'), 'Sell');
+    expect(at(haven)).toBeLessThan(at(portRoyal));
+    expect(at(haven)).toBeGreaterThan(0);
   });
 
   it('remembers the depth of each market with its prices', () => {
@@ -189,7 +188,7 @@ describe('docking and trading', () => {
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
     sim.applyCommands();
     const seen = sim.state.captain!.knownPrices[portRoyal.id]!.prices.tobacco!;
-    expect(seen.depth).toBe(sellDepth(content, portRoyal, 'tobacco', sim.state.markets![portRoyal.id]!.tobacco!));
+    expect(seen.depth).toBe(appetite(content, sim.state, portRoyal, 'tobacco', sim.state.markets![portRoyal.id]!.tobacco!, 'Sell'));
   });
 
   it('never overfills the hold or overspends', () => {
@@ -1027,15 +1026,37 @@ describe('explaining prices', () => {
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
     sim.applyCommands();
     const stock = sim.state.markets![portRoyal.id]!.sugar!;
-    const preview = tradePreview(content, portRoyal, 'sugar', stock, 'Buy', 10, { gold: 100_000, room: 100, held: 0 });
+    const want = appetite(content, sim.state, portRoyal, 'sugar', stock, 'Buy');
+    const preview = tradePreview(content, portRoyal, 'sugar', stock, 'Buy', 10, { gold: 100_000, room: 100, held: 0, want });
     sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 10 });
     sim.applyCommands();
     const bought = sim.events().find((e) => e.type === 'Bought')!.payload;
     expect(preview).toMatchObject({ units: 10, total: bought.gold });
-    expect(preview.after).toBe(quote(content, portRoyal, 'sugar', stock - 10).buy);
+    expect(preview.after).toBe(unitPrice(content, portRoyal, 'sugar', stock, 10, 'Buy', want));
     // Room and gold stop it where the trade would stop.
-    expect(tradePreview(content, portRoyal, 'sugar', stock, 'Buy', 10, { gold: 100_000, room: 3, held: 0 }).units).toBe(3);
-    expect(tradePreview(content, portRoyal, 'sugar', stock, 'Sell', 50, { gold: 0, room: 0, held: 7 }).units).toBe(7);
+    expect(tradePreview(content, portRoyal, 'sugar', stock, 'Buy', 10, { gold: 100_000, room: 3, held: 0, want }).units).toBe(3);
+    expect(tradePreview(content, portRoyal, 'sugar', stock, 'Sell', 50, { gold: 0, room: 0, held: 7, want }).units).toBe(7);
+  });
+
+  it("sells a hold up to the merchant's appetite at close to his quote; the market it moved is the next visit's", () => {
+    const sim = moored();
+    sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+    sim.applyCommands();
+    const stock = sim.state.markets![portRoyal.id]!.sugar!;
+    const want = appetite(content, sim.state, portRoyal, 'sugar', stock, 'Sell');
+    // About a hold's worth for a capital: share x its reference stock, less what it holds over its usual.
+    expect(want).toBeGreaterThan(content.economy.appetite.share * referenceStock(content, portRoyal, 'sugar') / 2);
+    const open = quote(content, portRoyal, 'sugar', stock).sell;
+    const s = { ...sim.state, ships: { ...sim.state.ships, player: { ...sim.state.ships.player!, cargo: { sugar: want }, paid: { sugar: 0 } } }, towns: { ...sim.state.towns, [portRoyal.id]: { ...sim.state.towns![portRoyal.id]!, cash: 1e6 } } };
+    const sim2 = createSim(s, [createEconomySystem(content, settlements, map)]);
+    sim2.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: want });
+    sim2.applyCommands();
+    const sold = sim2.events().find((e) => e.type === 'Sold')!.payload;
+    expect(sold.quantity).toBe(want);
+    // The whole lot within the appetite's slope of his opening price.
+    expect(Number(sold.gold) / want).toBeGreaterThanOrEqual(open * (1 - content.economy.appetite.slope) - 1);
+    // And his market holds it: the price opens lower now.
+    expect(quote(content, portRoyal, 'sugar', sim2.state.markets![portRoyal.id]!.sugar!).sell).toBeLessThan(open);
   });
 
   it('says why a price is what it is: stock against the usual, and the news behind a shock', () => {

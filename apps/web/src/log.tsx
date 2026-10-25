@@ -160,7 +160,7 @@ export function HoardMap({
                             : ""}
                         </p>
                         <p class="plunder-note">
-                          Close the shore inside the ring and press Space to go
+                          Close the shore inside the ring and press E to go
                           ashore and dig: half a day each time.
                         </p>
                         {plot ? (

@@ -247,7 +247,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
           {held >= 2 ? `The map marks ${hoard.landmark}, on the coast near ${near}.` : `On the coast near ${near}.`} About {hoard.value.toLocaleString()} gold buried.
         </div>
         <div class="k-sub">
-          The chart rings where to search, about {Math.round(ring.r * 2)} tiles across. Close the shore inside it and press <Key k="Space" /> to dig.
+          The chart rings where to search, about {Math.round(ring.r * 2)} tiles across. Close the shore inside it and press <Key k="E" /> to dig.
         </div>
         <div class="moment-actions flush">
           <button

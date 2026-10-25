@@ -697,6 +697,17 @@ export function createTrafficSystem(
     const rung = 1 + content.pirates.rules.rungStrength.filter((x) => at >= x * notice).length;
     return rung >= def.rung;
   };
+  /** A pirate lying in wait: a slow circle under half sail (traffic.json lurkSail), turning off from any land ahead. */
+  const onWatch = (ship: Ship, dt: number): Ship => {
+    const w = t.lurkSail;
+    const headingDeg = (ship.headingDeg + w.degPerSecond * dt + 360) % 360;
+    const rad = (headingDeg * Math.PI) / 180;
+    const step = w.tilesPerSecond * dt;
+    const [x, y] = [ship.x + Math.sin(rad) * step, ship.y - Math.cos(rad) * step];
+    // Land a few tiles ahead: she comes round harder instead of standing on.
+    const ahead = isLand(tileAt(map, ship.x + Math.sin(rad) * 2, ship.y - Math.cos(rad) * 2));
+    return ahead ? { ...ship, headingDeg: (headingDeg + w.degPerSecond * dt * 4) % 360, speed: 0, sails: 'half' } : { ...ship, x, y, headingDeg, speed: w.tilesPerSecond, sails: 'half' };
+  };
   /**
    * The First Voyage's first prize (docs/design/first-voyage.md, chapter 2): once the wreck is salvaged, a pirate
    * (voyage.json pirate: no great guns, a green crew, no resolve) circling a fishing boat she harries, `offTiles`
@@ -1907,7 +1918,11 @@ export function createTrafficSystem(
           continue;
         }
         if (ship.ai.waitUntil !== undefined) {
-          if (ship.ai.waitUntil > tick) continue;
+          // Lying in wait on her lane: she cruises slow circles on watch (in port she simply lies).
+          if (ship.ai.waitUntil > tick) {
+            if (ship.ai.route.length) ships = { ...ships, [id]: onWatch(ship, dt) };
+            continue;
+          }
           if (ship.ai.route.length) {
             // A pirate done lurking: its route home is already set.
             moved = { ...ship, ai: { ...ship.ai, waitUntil: undefined } };

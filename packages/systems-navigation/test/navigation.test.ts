@@ -2,7 +2,7 @@ import { createSim, TICKS_PER_SECOND } from '@corsair/core';
 import type { Command, WorldState } from '@corsair/core';
 import { buildTileMap, isLand, loadContent, tileAt } from '@corsair/data';
 import { describe, expect, it } from 'vitest';
-import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, handsFactor, polarAt, targetSpeed } from '../src';
+import { angleOffWind, bestUpwindDeg, createNavigationSystem, createWorld, handsFactor, polarAt, tackedLine, targetSpeed } from '../src';
 
 const content = loadContent();
 const map = buildTileMap(content.maps.placeholder);
@@ -480,5 +480,24 @@ describe('oars', () => {
     expect(targetSpeed(rowed, { ...sloop, crew: rowers }, wind)).toBeCloseTo(pace);
     expect(targetSpeed(rowed, { ...sloop, crew: rowers / 2 }, wind)).toBeCloseTo(pace / 2);
     expect(targetSpeed(rowed, { ...sloop, crew: 0 }, wind)).toBe(0);
+  });
+});
+
+describe('the line she will sail', () => {
+  it('lays a leg she can sail straight; beats one into the wind in boards close-hauled, within the corridor, to the same mark', () => {
+    const best = 45;
+    // Wind from the north: a leg east is a reach, straight.
+    expect(tackedLine([0, 0], [[10, 0]], 0, best, 5)).toEqual([[10, 0]]);
+    // A leg 20 tiles north into it: boards out to either side and back, ending on the mark.
+    const line = tackedLine([0, 0], [[0, -20]], 0, best, 4);
+    expect(line.at(-1)).toEqual([0, -20]);
+    expect(line.length).toBeGreaterThan(2);
+    let [px, py] = [0, 0];
+    for (const [x, y] of line) {
+      const deg = ((Math.atan2(x - px, -(y - py)) * 180) / Math.PI + 360) % 360;
+      expect(angleOffWind(deg, 0)).toBeCloseTo(best, 5);
+      expect(Math.abs(x)).toBeLessThanOrEqual(4 + 1e-9);
+      [px, py] = [x, y];
+    }
   });
 });
