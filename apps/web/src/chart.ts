@@ -122,6 +122,8 @@ export interface CardLine {
 
 /** What the captain knows of each port's market. */
 export interface ChartMarket {
+  /** Sail the course set to a port: the chart closes and the ship follows it. */
+  follow?: (port: PlacedSettlement) => void;
   goods: { id: string; name: string; staple?: boolean }[];
   known: (settlementId: string) => KnownPrices | undefined;
   /** Whether a port makes or needs a good: common knowledge, known before any visit. */
@@ -342,11 +344,12 @@ export function createCharts(
             .join('')}</table></details>`
         : '<div class="k-sub">Prices unknown: call here to learn them</div>') +
       (selected?.id === s.id
-        ? '<div class="chart-card-actions"><div class="chart-card-set">Your course · <kbd class="k-key">Space</kbd> follows it</div></div>'
+        ? '<div class="chart-card-actions"><button class="k-btn primary chart-card-follow" data-follow>Follow course · Space</button><div class="chart-card-set">Your course is set</div></div>'
         : '<div class="chart-card-actions"><button class="k-btn primary chart-card-go" data-go>Set course · Enter</button></div>') +
       '<div class="chart-card-hint">Double-click a port to set course at once · Esc back</div>';
     card.insertAdjacentHTML('afterbegin', '<button class="chart-card-back" data-back>← Voyages</button>');
     card.querySelector('[data-go]')?.addEventListener('click', () => (choosePort(s.id), showCard(s)));
+    card.querySelector('[data-follow]')?.addEventListener('click', () => followCourse());
     card.querySelector('[data-back]')!.addEventListener('click', hideCard);
     cardPort = s;
     card.hidden = false;
@@ -619,6 +622,14 @@ export function createCharts(
   });
   window.addEventListener('resize', () => !chart.hidden && (place(), relabel()));
 
+  /** Sail the course set: the chart closes, and she follows it. */
+  const followCourse = () => {
+    if (!selected || !market.follow) return;
+    const port = selected;
+    hideCard();
+    chart.hidden = true;
+    market.follow(port);
+  };
   const toggle = (open = chart.hidden) => {
     chart.hidden = !open;
     // A card left from the last look would show stale prices.
@@ -641,6 +652,12 @@ export function createCharts(
     if (e.key === 'Escape') {
       if (!card.hidden) hideCard();
       else chart.hidden = true;
+    }
+    // Space follows the course set (the game's own Space is quiet while the chart is open).
+    if (e.key === ' ' && !e.repeat && !chart.hidden && selected && market.follow) {
+      e.preventDefault();
+      followCourse();
+      return;
     }
     // Enter sets course to the port picked.
     if (e.key === 'Enter' && !chart.hidden && !card.hidden && cardPort && selected?.id !== cardPort.id) {

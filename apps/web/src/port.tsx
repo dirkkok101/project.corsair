@@ -641,8 +641,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   // The docks: the ships in harbour, and retiring.
   const [docks, setDocks] = useState(false);
   useEffect(() => onOpen(open), [open]);
-  // On the First Voyage a building opens as she needs it.
+  // On the First Voyage a building opens as she needs it; its chores are her home port's.
   const voyage = state.captain?.voyage;
+  const atHome = voyage?.home === town.id;
   useEffect(() => {
     if (request && voyageOpen(voyage, request.service)) setOpen(request.service);
   }, [request]);
@@ -700,7 +701,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   // Home with her prize on the voyage: what each building is for.
   const { guns: mounted, maxGuns } = shipStats(content, ship);
   const need = Object.fromEntries(
-    SERVICES.map((s) => [s.id, voyage && homeNeed(voyage, s.id, { sugar: ship.cargo[content.voyage.salvage.good] ?? 0, guns: Math.max(0, maxGuns - mounted), gunGold: content.combat.port.gunGold, chest: state.captain?.chest ?? 0 })]),
+    SERVICES.map((s) => [s.id, voyage && atHome && homeNeed(voyage, s.id, { sugar: ship.cargo[content.voyage.salvage.good] ?? 0, guns: Math.max(0, maxGuns - mounted), gunGold: content.combat.port.gunGold, chest: state.captain?.chest ?? 0 })]),
   ) as Partial<Record<Service, { text: string; done: boolean }>>;
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
     const r = hotspots[s.id]!;
@@ -750,7 +751,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     const morale = moraleOf(content, state);
     // One thing at a time on the voyage: the quartermaster speaks, the port's news waits.
     const news = voyage && voyage.step !== 'done' ? undefined : arrivalNews(content, state, town, settlements, ship);
-    const said = voyage && harbourLine(voyage);
+    const said = voyage && atHome && harbourLine(voyage);
     const home = voyage && settlements.find((x) => x.id === voyage.home)?.name;
     // The ships lying here, by the date: how many, and whose.
     const moored = Object.values(state.ships).filter((s) => inPort(s) && s.ai!.from === town.id);
@@ -875,7 +876,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             plot={plot}
           />
         ) : (
-          voyage?.ashore && !(voyage.lessons ?? []).includes('sold') && (ship.cargo[content.voyage.salvage.good] ?? 0) > 0 ? (
+          voyage?.ashore && atHome && !(voyage.lessons ?? []).includes('sold') && (ship.cargo[content.voyage.salvage.good] ?? 0) > 0 ? (
             <FirstSale content={content} state={state} town={town} ship={ship} sell={(n) => trade('Sell', content.voyage.salvage.good, n)} />
           ) : (
             <Merchant content={content} state={state} town={town} ship={ship} bestSale={bestSale} trade={trade} />
@@ -2152,7 +2153,7 @@ function Tavern({ content, state, settlements, town, rumours, hear, shipId, send
     { id: 'sailors', name: 'Sailors', bust: 'bust.sailors', badge: 0 },
   ];
   // Whoever has something new speaks first; home from the First Voyage's prize, the sailors and their share.
-  const sharing = Boolean(state.captain?.voyage?.ashore && !(state.captain.voyage.lessons ?? []).includes('shared'));
+  const sharing = Boolean(state.captain?.voyage?.ashore && state.captain.voyage.home === here.id && !(state.captain.voyage.lessons ?? []).includes('shared'));
   const [chosen, choose] = useState<Person>(() => (sharing ? 'sailors' : (people.find((p) => p.badge)?.id ?? 'barmaid')));
   const who = people.some((p) => p.id === chosen) ? chosen : 'barmaid';
   return (

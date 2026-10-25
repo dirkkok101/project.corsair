@@ -834,6 +834,32 @@ test('the chart: a double click on a port sets course there, Enter on a port pic
   expect(errors).toEqual([]);
 });
 
+test("the chart's Follow course: the course set, its card's button (or Space) sails it and closes the chart", async ({ page }) => {
+  const errors = await boot(page, '/?seed=3');
+  await page.keyboard.press('m');
+  await page.locator('.chart-zoom').getByRole('button', { name: 'Whole Caribbean' }).click();
+  await page.locator('.chart-port', { hasText: /^Havana$/ }).click();
+  await page.keyboard.press('Enter');
+  const follow = page.locator('.chart-card-follow');
+  await expect(follow).toHaveText(/Follow course/);
+  await page.screenshot({ path: 'test-results/chart-follow.png' });
+  await follow.click();
+  await expect(page.locator('.chart')).toBeHidden();
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect((await player(page)).assist).toMatchObject({ mode: 'course', portId: 'town.havana' });
+  // Space on the chart does the same.
+  await page.evaluate(() => window.__corsair.cmd.send({ type: 'SetAssist', shipId: 'player', assist: 'off' } as never));
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  await page.keyboard.press('m');
+  await page.locator('.chart-zoom').getByRole('button', { name: 'Whole Caribbean' }).click();
+  await page.locator('.chart-port', { hasText: /^Cartagena$/ }).dblclick();
+  await page.keyboard.press(' ');
+  await expect(page.locator('.chart')).toBeHidden();
+  await page.evaluate(() => window.__corsair.sim.step(1));
+  expect((await player(page)).assist).toMatchObject({ mode: 'course', portId: 'town.cartagena' });
+  expect(errors).toEqual([]);
+});
+
 test('the map moment: a piece of a treasure map plots a course to the ring', async ({ page }) => {
   const errors = await boot(page, '/?seed=3', { inPort: true });
   await openService(page, 'Tavern');

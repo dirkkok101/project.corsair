@@ -384,8 +384,9 @@ export function createBattle(content: ContentPack, setup: BattleSetup) {
   const candidates = [...(setup.fair ? across : []), ...Array.from({ length: 24 }, (_, k) => setup.bearingDeg + k * 15)];
   let enemyAt = { x: mid.x, y: mid.y };
   let line = setup.bearingDeg;
-  // A ship that would ground is placed off the shoals if any bearing allows it; else on any open water.
-  const grounds = content.ships[setup.enemy.classId]!.draft >= c.shoals.groundDraft;
+  // A ship that would ground is placed off the shoals if any bearing allows it; else on any open water. So is the
+  // First Voyage's meek pirate: a first fight among reefs teaches nothing.
+  const grounds = content.ships[setup.enemy.classId]!.draft >= c.shoals.groundDraft || Boolean(setup.enemy.ai?.voyage?.meek);
   for (const avoidShoals of grounds ? [true, false] : [false]) {
     const found = candidates.find((deg) => {
       const rad = (deg * Math.PI) / 180;

@@ -784,6 +784,9 @@ async function main() {
   let destination: PlacedSettlement | undefined;
   // The route plotted to it, and when it was last plotted.
   let guide: [number, number][] | undefined;
+  // The First Voyage's line to her order in hand, re-plotted as often as the chart's.
+  let questGuide: [number, number][] | undefined;
+  let lastQuestGuide = -Infinity;
   let lastGuide = -Infinity;
   // Whether the chart was open when a key went down, read before the chart's own keys close it (Esc closes the chart
   // and should not also let the ship picked go).
@@ -793,6 +796,7 @@ async function main() {
     destination = port;
     lastGuide = -Infinity;
   }, {
+    follow: (port) => follow(port),
     goods: content.goods,
     known: (id) => sim.state.captain?.knownPrices[id],
     lean: (id, good) => tradeLean(content, { id }, good),
@@ -1361,6 +1365,9 @@ async function main() {
           sim.send({ type: 'Salvage', shipId: me.id });
         },
       };
+    // A course she has set herself on the chart comes before the voyage's own suggestions.
+    const chosenCourse = destination && me.assist?.mode !== 'course' ? destination : undefined;
+    if (v && v.step !== 'done' && chosenCourse) return { text: `Follow the course to ${chosenCourse.name}`, run: () => follow(chosenCourse) };
     // Her first prize: Space goes after the pirate wherever she is.
     const quarry = v?.step === 'prize' && v.pirateId ? sim.state.ships[v.pirateId] : undefined;
     if (quarry) {
@@ -2257,7 +2264,7 @@ async function main() {
             far={mark && `${Math.max(1, Math.round(Math.hypot(ship.x - mark.x, ship.y - mark.y) * kmPerTile))} km`}
           />
           {bound.step === 'helm' && !moments[0] ? <HelmLessons v={bound} irons={irons} windShown={windShown} /> : null}
-          {quarry && !moments[0] && !deedQueue.length ? <NedSays label="Sail ho!" line={`"A pirate's harrying a fishing boat off the cay. She's no great guns, Captain: take her."`} /> : null}
+          {quarry && !moments[0] && !deedQueue.length ? <NedSays label="Sail ho!" line={`"A pirate's harrying a fishing boat out at sea: follow the line. She's no great guns, Captain: take her."`} /> : null}
           {toCay ? (
             <CayMark
               name={bound.cay.name}
@@ -2383,7 +2390,22 @@ async function main() {
       const berth = lanes.berth(destination.id);
       guide = berth ? lanes.path([ship.x, ship.y], berth)?.slice(1) : undefined;
     }
-    sea3d.guide(destination && !ship.docked ? guide : undefined);
+    // No course of her own on the First Voyage: the line runs to her order in hand (the cay, the pirate, home).
+    const quest = sim.state.captain?.voyage;
+    const questAt = !destination && quest && !ship.docked && !fight
+      ? quest.step === 'helm' || quest.step === 'salvage'
+        ? ([quest.cay.x, quest.cay.y] as [number, number])
+        : quest.step === 'prize' && quest.pirateId && sim.state.ships[quest.pirateId]
+          ? ([sim.state.ships[quest.pirateId]!.x, sim.state.ships[quest.pirateId]!.y] as [number, number])
+          : quest.step === 'home'
+            ? lanes.berth(quest.home)
+            : undefined
+      : undefined;
+    if (questAt && now - lastQuestGuide > REPLAN_MS) {
+      lastQuestGuide = now;
+      questGuide = lanes.path([ship.x, ship.y], questAt)?.slice(1);
+    }
+    sea3d.guide(destination && !ship.docked ? guide : questAt ? questGuide : undefined);
     let course: { name: string; distanceKm: number; bearingDeg: number; following: boolean; days: number; food: number } | undefined;
     if (destination && guide?.length) {
       let tiles = 0;

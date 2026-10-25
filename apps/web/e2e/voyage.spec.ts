@@ -518,3 +518,17 @@ async function alongside(page: Page, id: string) {
     }
   }, id);
 }
+
+test("on the voyage, a course of her own on the chart: Space follows it (not the voyage's next order) and the chart closes", async ({ page }) => {
+  const errors = await voyageBegun(page);
+  await page.keyboard.press('e');
+  await expect.poll(async () => (await voyageOf(page)).step).toBe('helm');
+  await page.keyboard.press('m');
+  await page.locator('.chart-zoom').getByRole('button', { name: 'Whole Caribbean' }).click();
+  await page.locator('.chart-port', { hasText: /^Tortuga$/ }).dblclick();
+  await page.keyboard.press(' ');
+  await expect(page.locator('.chart')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => (window.__corsair.state.get('ships.player.assist') as { portId?: string } | undefined)?.portId)).toBe('town.tortuga');
+  expect((await page.locator('.hud-prompt').allInnerTexts()).join(' ')).not.toContain('Sail home');
+  expect(errors).toEqual([]);
+});

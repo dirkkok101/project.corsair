@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSim } from '@corsair/core';
-import { isLand, shipStats, tileAt } from '@corsair/data';
+import { isLand, shipStats, Tile, tileAt } from '@corsair/data';
 import { createEconomySystem, crewOf, quote, suggestTrade } from '@corsair/systems-economy';
 import { createNavigationSystem } from '@corsair/systems-navigation';
 import { bearingWord, createHonoursSystem, createTrafficSystem, createVoyageSystem, missionOffer, withVoyage } from '../src';
@@ -137,7 +137,12 @@ describe('the First Voyage, the first prize', () => {
     const pirate = () => sim.state.ships[voyage.pirateId!]!;
     const boat = () => sim.state.ships[voyage.boatId!]!;
     expect(pirate()).toMatchObject({ classId: content.voyage.pirate.classId, guns: 0, crew: content.voyage.pirate.crew, ai: { role: 'pirate', purse: content.voyage.pirate.purse, voyage: { meek: true } } });
-    expect(Math.hypot(boat().x - v.cay.x, boat().y - v.cay.y)).toBeCloseTo(content.voyage.pirate.offTiles, 0);
+    // Near the wreck, on deep open water: no land or shoal for the battle's reach about her.
+    const off = Math.hypot(boat().x - v.cay.x, boat().y - v.cay.y);
+    expect(off).toBeGreaterThanOrEqual(content.voyage.pirate.nearTiles[0]);
+    expect(off).toBeLessThanOrEqual(content.voyage.pirate.nearTiles[1]);
+    for (let r = 0; r <= content.voyage.pirate.clearTiles; r += 1)
+      for (let a = 0; a < 360; a += 30) expect(tileAt(map, boat().x + Math.sin((a * Math.PI) / 180) * r, boat().y - Math.cos((a * Math.PI) / 180) * r)).toBe(Tile.Deep);
     // She circles the boat for days, never chasing the captain alongside.
     sim.step(content.calendar.ticksPerDay * 2);
     expect(Math.hypot(pirate().x - boat().x, pirate().y - boat().y)).toBeCloseTo(content.voyage.harry.orbitTiles, 1);
@@ -210,5 +215,18 @@ describe('the First Voyage, given up', () => {
     sim.send({ type: 'Buy', shipId: 'player', good: 'sugar', quantity: 1 });
     sim.applyCommands();
     expect(sim.events().filter((e) => e.type === 'TradeRefused' && e.payload.reason === 'shuttered')).toHaveLength(0);
+  });
+});
+
+describe('the First Voyage, the first prize at every capital', () => {
+  it.each(capitals)("off $nation's cay the pirate is out on deep water, clear of shoals and land", ({ nation, home }) => {
+    const w = withVoyage(world(3).state, content, map, settlements, lanes, home.id, nation, 3);
+    const v = w.captain!.voyage!;
+    const at = { ...w, ships: { ...w.ships, player: { ...w.ships.player!, x: v.cay.x + 1, y: v.cay.y } }, captain: { ...w.captain!, voyage: { ...v, step: 'prize' as const } } };
+    const sim = createSim(at, [createTrafficSystem(content, settlements, lanes, map, windAt)]);
+    sim.step(1);
+    const boat = sim.state.ships[sim.state.captain!.voyage!.boatId!]!;
+    for (let r = 0; r <= content.voyage.pirate.clearTiles; r += 1)
+      for (let a = 0; a < 360; a += 30) expect(tileAt(map, boat.x + Math.sin((a * Math.PI) / 180) * r, boat.y - Math.cos((a * Math.PI) / 180) * r)).toBe(Tile.Deep);
   });
 });

@@ -1,6 +1,6 @@
 import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Mission, Nation, NewsItem, Prize, PrizePapers, SailSetting, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
-import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, sightTiles, tileAt, viewTiles } from '@corsair/data';
+import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, Tile, sightTiles, tileAt, viewTiles } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
 import { crewOf, famesOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
@@ -707,16 +707,20 @@ export function createTrafficSystem(
     const home = settlements.find((s) => s.id === v?.home);
     if (!v || !home) return undefined;
     const vp = content.voyage;
-    const room = vp.harry.orbitTiles + 1;
-    const clear = (x: number, y: number) =>
-      [0, 45, 90, 135, 180, 225, 270, 315].every((a) => !isLand(tileAt(map, x + Math.sin((a * Math.PI) / 180) * room, y - Math.cos((a * Math.PI) / 180) * room))) &&
-      !isLand(tileAt(map, x, y));
+    // Deep water all round (no land, no shoal) out to `clearTiles`, sampled ring by ring.
+    const deep = (x: number, y: number) => tileAt(map, x, y) === Tile.Deep;
+    const clear = (x: number, y: number) => {
+      for (let r = 0; r <= vp.pirate.clearTiles; r += 1)
+        for (let a = 0; a < 360; a += r ? 15 : 360) if (!deep(x + Math.sin((a * Math.PI) / 180) * r, y - Math.cos((a * Math.PI) / 180) * r)) return false;
+      return true;
+    };
     let spot: [number, number] | undefined;
-    for (let a = 0; a < 360 && !spot; a += 22.5) {
-      const x = v.cay.x + Math.sin((a * Math.PI) / 180) * vp.pirate.offTiles;
-      const y = v.cay.y - Math.cos((a * Math.PI) / 180) * vp.pirate.offTiles;
-      if (clear(x, y)) spot = [x, y];
-    }
+    for (let d = vp.pirate.nearTiles[0]; d <= vp.pirate.nearTiles[1] && !spot; d += 2)
+      for (let a = 0; a < 360 && !spot; a += 15) {
+        const x = v.cay.x + Math.sin((a * Math.PI) / 180) * d;
+        const y = v.cay.y - Math.cos((a * Math.PI) / 180) * d;
+        if (clear(x, y) && lanes.path([v.cay.x, v.cay.y], [x, y])) spot = [x, y];
+      }
     if (!spot) return undefined;
     const boat = spawn(content, state, 'merchant', home, spot, rng, tick, vp.boat.classId);
     const boatShip: Ship = { ...boat.ship, sails: 'furled', ai: { ...boat.ship.ai!, name: vp.boat.name, route: [], waitUntil: undefined, purse: 0, voyage: {} } };
