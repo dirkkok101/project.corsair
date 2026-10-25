@@ -944,14 +944,14 @@ export async function createSeaRenderer(
     const wakes = new Set<string>();
     const labelled = new Set<string>();
     // The ships in company with each flagship, the player's fleet or a pirate's prizes in tow: not on the sea map of
-    // their own (the sim pools them with her), so placed here each frame in line astern of her, on her track.
+    // their own (the sim pools them with her), so placed here each frame in line astern of her, each following the one ahead.
     const company: Ship[] = [];
     const leading = new Set<string>();
     for (const s of Object.values(state.ships)) {
       const fleet = s.id === options.playerId ? (state.captain?.fleet ?? []) : (s.ai?.prizes ?? []);
       if (!fleet.length || s.docked || inPort(s)) continue;
       leading.add(s.id);
-      const stations = consorts.stations(s.id, s, fleet.length, SHIP_LENGTH * farScale * CONSORT_SPACING, (x, y) => !isLand(tileAt(map, x, y)));
+      const stations = consorts.stations(s.id, s, fleet.length, SHIP_LENGTH * farScale * CONSORT_SPACING, (x, y) => !isLand(tileAt(map, x, y)), dt);
       // Those not yet out of port behind her are not drawn till they are.
       fleet.slice(0, stations.length).forEach((f, i) => {
         const at = stations[i]!;
