@@ -185,6 +185,22 @@ describe('fights at sea', () => {
     expect(chase.state.ships[id]!.ai!.chasing).toBe(false);
   });
 
+  it('a ship carried by boarding gives up more gold and cargo than one that strikes', () => {
+    const sim = world(6);
+    const { id, near } = spawnAlongside(sim, 'merchant', 'town.port_royal', 'town.cartagena');
+    const prize = { ...near.ships[id]!, cargo: { sugar: 12 }, ai: { ...near.ships[id]!.ai!, purse: 300 } };
+    const fight = createSim({ ...near, ships: { ...near.ships, [id]: prize } }, [traffic()]);
+    fight.send({ type: 'Attack', shipId: 'player', targetId: id });
+    fight.applyCommands();
+    fight.send({ type: 'BattleEnded', shipId: 'player', targetId: id, result: result('boarded') });
+    fight.applyCommands();
+    const loot = content.combat.boarding.loot;
+    expect(loot).toBeGreaterThan(1);
+    expect(fight.state.captain!.chest).toBe(Math.round(300 * loot));
+    expect(fight.state.prize!.ship.cargo.sugar).toBe(Math.round(12 * loot));
+    expect(fight.events().find((e) => e.type === 'BattleOver')!.payload.purse).toBe(Math.round(300 * loot));
+  });
+
   it("taking a merchant costs standing with her nation; her gold is plunder at once, and the plunder screen settles the rest", () => {
     const sim = world(6);
     const { id, near } = spawnAlongside(sim, 'merchant', 'town.port_royal', 'town.cartagena');

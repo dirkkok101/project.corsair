@@ -600,6 +600,8 @@ export const combatSchema = z.object({
     patrol: z.number().positive(),
     pirate: z.number().positive(),
     losses: share,
+    /** Boarded rather than struck, her purse and her cargo are this many times what she would strike with. */
+    loot: z.number().min(1),
     /** The repel window (seconds before the boarders go over) at boarding odds 0 and 1; its cost; how long she sheers off. */
     repelSeconds: z.tuple([z.number().positive(), z.number().positive()]),
     repelLosses: share,

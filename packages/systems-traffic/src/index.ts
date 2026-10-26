@@ -1444,7 +1444,9 @@ export function createTrafficSystem(
             captain = { ...captain, chest: (captain.chest ?? 0) + famousShare };
           }
           if (taken) {
-            purse = other.ai.purse ?? 0;
+            // Carried by boarding, her officers' purses and the stores hidden below are found too (combat.json boarding.loot).
+            const loot = outcome === 'boarded' ? cb.boarding.loot : 1;
+            purse = Math.round((other.ai.purse ?? 0) * loot);
             captain = { ...captain, chest: (captain.chest ?? 0) + purse };
             const share = other.ai.role === 'pirate' ? content.crew.volunteers.pirate : content.crew.volunteers.other;
             const berths = fleetBerths(content, state, player) - ships[player.id]!.crew!;
@@ -1455,6 +1457,7 @@ export function createTrafficSystem(
               ship: {
                 ...other,
                 ...theirs,
+                cargo: Object.fromEntries(Object.entries(other.cargo).map(([g, n]) => [g, Math.round(n * loot)])),
                 ai: {
                   ...other.ai,
                   name,

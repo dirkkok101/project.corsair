@@ -831,6 +831,7 @@ export function BattleHud({ state, content, enemyName, enemyTitle, enemyNation, 
             ) : (
               <span>
                 close to board: your boarders carry her <b>{Math.round(board.odds * 100)}%</b> of the time
+                {content.combat.boarding.loot > 1 ? ` · boarded, she gives up ${content.combat.boarding.loot === 1.5 ? 'half again' : `${content.combat.boarding.loot}×`} the gold and cargo` : ''}
               </span>
             )}
           </div>
