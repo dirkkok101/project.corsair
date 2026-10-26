@@ -39,6 +39,7 @@ test('a new career asks how well she knows the sea: the First Voyage, picked for
   expect(voyage.step).toBe('harbour');
   await expect(letter).toContainText(`Last night's storm drove a sloop onto ${voyage.cay.name}, a short sail to the ${voyage.cay.bearing}`);
   await expect(letter.locator('.orders li')).toHaveText([`1Sail out to ${voyage.cay.name} · a short sail ${voyage.cay.bearing} · the smoke on the horizon`, '2See what the storm left', '3Bring it home to Port Royal']);
+  await expect(letter.locator('.moment-fate')).toContainText('If you retired today');
   await expect(page.locator('.moment-opening')).toHaveCount(0);
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/voyage-letter.png' });

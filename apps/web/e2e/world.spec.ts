@@ -368,6 +368,9 @@ test('saves: docking autosaves, a reload offers Continue, and the career comes b
   await expect(letter.locator('.moment-goal')).toContainText('Sign on a full crew');
   // It says where the goal gets done, and the harbour's own labels make way for it.
   await expect(letter.locator('.moment-goal')).toContainText('the tavern at Port Royal');
+  // The career's end in view from its first letter: what she would retire to today, and the next fate up.
+  await expect(letter.locator('.moment-fate')).toContainText('If you retired today');
+  await expect(letter.locator('.moment-fate')).toContainText('a beggar on the quays of Port Royal · score 10 makes you keeper of a waterfront tavern');
   await expect(page.locator('.harbour-head')).toBeHidden();
   // The loading screen has faded from over it.
   await expect(page.locator('.loading')).toHaveCount(0);
@@ -525,6 +528,9 @@ test("the captain's goals: L opens the log at the next three, with progress and 
   await expect(goals).toHaveCount(3);
   await expect(goals.first()).toContainText('Mount a full battery');
   await expect(goals.first()).toContainText('10 / 18 guns');
+  // Opposite, what she would retire to today, and one click to the career's score.
+  await expect(page.locator('.goals-fate')).toContainText('A beggar on the quays of Port Royal');
+  await expect(page.locator('.goals-fate')).toContainText('10 makes you keeper of a waterfront tavern');
   await page.screenshot({ path: 'test-results/goals.png' });
   // One click plots the course to a shipwright that sells cannon.
   await goals.first().getByRole('button', { name: /^Plot a course to/ }).click();
@@ -742,8 +748,9 @@ test('promotion: merit banked before the letter makes him Major when he buys it,
   // The ladder: the letter and Captain passed on the way, Major his, the rest ahead.
   await expect(moment.locator('.promo-rung.passed')).toHaveCount(2);
   await expect(moment.locator('.promo-rung.new')).toHaveText('Major');
-  await expect(moment.locator('.promo-perk')).toHaveCount(2);
+  await expect(moment.locator('.promo-perk')).toHaveCount(3);
   await expect(moment.locator('.promo-perk').first()).toContainText('Repairs 20% cheaper');
+  await expect(moment.locator('.promo-perk').last()).toContainText('Upgrades 20% cheaper');
   await expect(moment.locator('.promo-next')).toContainText('Next: Colonel');
   await page.screenshot({ path: 'test-results/moment-promotion.png' });
   await page.keyboard.press('Enter');
