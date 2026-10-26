@@ -1,13 +1,15 @@
 import type { WorldState } from '@corsair/core';
 import { shipStats } from '@corsair/data';
 import type { ContentPack, PlacedSettlement } from '@corsair/data';
-import { crewOf, fleetBerths, fleetOf, hasGovernor, rankOf, shipRankNeeded } from '@corsair/systems-economy';
+import { crewOf, fateNow, fleetBerths, fleetOf, hasGovernor, rankOf, shipRankNeeded } from '@corsair/systems-economy';
 import { atWar, NATIONS } from '@corsair/systems-politics';
 import { topTen } from './index';
 
 // The captain's goals (slice 3 of docs/design/combat-model.md): the career's next steps, in order, each with its
 // progress and where it gets done, read from the world as it stands. The Goals page in the log shows the first
-// three not yet done; a trader and a fighter both always have a next step.
+// three not yet done; a trader and a fighter both always have a next step. Once the career's steps are all done,
+// the goals become ambitions measured against the world: the next fate to retire to, and the next name above hers
+// in the Top Ten (each new rung a goal of its own, so passing it is a deed).
 
 export interface Goal {
   id: string;
@@ -67,7 +69,7 @@ export function careerGoals(content: ContentPack, state: WorldState, settlements
   const colonel = content.politics.ranks.ladder[frigateRank]?.name ?? 'Colonel';
   const all = Object.keys(content.upgrades).length;
   const goal = (g: Omit<Goal, 'done'> & { done?: boolean }): Goal => ({ ...g, done: g.done ?? g.have >= g.of });
-  return [
+  const steps = [
     goal({ id: 'guns', title: 'Mount a full battery', why: 'Pirates think twice', have: stats.guns, of: stats.maxGuns, unit: 'guns', port: yard, cost: Math.max(0, stats.maxGuns - stats.guns) * content.combat.port.gunGold }),
     goal({
       id: 'crew',
@@ -91,4 +93,15 @@ export function careerGoals(content: ContentPack, state: WorldState, settlements
     goal({ id: 'topten', title: 'Enter the Top Ten', why: 'A name the whole Main knows', have: rank > 0 && rank <= 10 ? 1 : 0, of: 1, unit: '', page: 'top' }),
     goal({ id: 'hoard', title: 'Dig up a hoard', why: "A famous pirate's gold", have: hoards, of: 1, unit: 'hoards', page: 'maps', done: hoards > 0 || undefined }),
   ].map((g) => (g.id === 'hoard' && maps === 0 && !g.done ? { ...g, why: `${g.why}: find a map piece first` } : g));
+  if (steps.some((g) => !g.done)) return steps;
+  const lower = (t: string) => t[0]!.toLowerCase() + t.slice(1);
+  const fate = fateNow(content, state);
+  const ten = topTen(content, state);
+  const above = ten[ten.findIndex((r) => r.player) - 1];
+  const you = ten.find((r) => r.player)!;
+  const ambitions = [
+    ...(fate.next ? [goal({ id: `fate:${fate.next.score}`, title: `Retire ${lower(fate.next.title)}`, why: `Retired today: ${lower(fate.fate)}`, have: fate.total, of: fate.next.score, unit: 'score' })] : []),
+    ...(above ? [goal({ id: `topten:${above.id}`, title: `Pass ${above.name} in the Top Ten`, why: 'Richer than a famous pirate', have: you.wealth, of: above.wealth + 1, unit: 'gold', page: 'top' })] : []),
+  ];
+  return [...steps, ...ambitions];
 }

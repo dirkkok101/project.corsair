@@ -24,7 +24,7 @@ import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { PortNotice, Service } from './port';
-import { cargoUsed, closedTo, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, plagueDaysLeft, plagueLeftSaid, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { careerScore, cargoUsed, closedTo, fateNow, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, plagueDaysLeft, plagueLeftSaid, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -428,6 +428,9 @@ async function main() {
   // The honours already there when the career was loaded say nothing; each new one is queued once.
   const deedsSeen = new Set((sim.state.captain?.honours ?? []).map((h) => h.id));
   const deedQueue: Honour[] = [];
+  // What each deed added to her retirement score: the score's move in the frame it was done.
+  const deedScore = new Map<string, number>();
+  let scoreSeen = careerScore(content, sim.state).total;
   // When the card at the head of the queue was first shown (0: not yet), and whether it waits to be dismissed.
   let deedShownAt = 0;
   let deedStays = false;
@@ -443,6 +446,9 @@ async function main() {
   // A career on the First Voyage opens with the governor's letter of the storm's wreck, and her orders (a seed run
   // too, when it asks for the voyage).
   const voyage = sim.state.captain?.voyage;
+  // The career's end in view from its first letter: what she would retire to today, and the next fate up.
+  const fate0 = fateNow(content, sim.state);
+  const fate = { now: fate0.fate, ...(fate0.next ? { next: fate0.next.title, at: fate0.next.score } : {}) };
   if (!resumed && voyage) {
     moments.push({
       kind: 'voyage',
@@ -452,6 +458,7 @@ async function main() {
       cay: voyage.cay.name,
       bearing: voyage.cay.bearing,
       orders: voyageOrders(voyage, home.name),
+      fate,
     });
   }
   // A career begun from the start screen opens with the governor's letter and the first goal (a ?seed= run, for
@@ -472,6 +479,7 @@ async function main() {
       guns: shipStats(content, me).guns,
       men: crewOf(content, me),
       enemies: at.length ? `the ${at.map((n) => ({ spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' })[n] ?? n).join(' and the ')} are` : '',
+      fate,
       ...(goal ? { goal: { title: goal.title, have: goal.unit ? `${goal.have.toLocaleString()} of ${goal.of.toLocaleString()} ${goal.unit}` : 'not yet', where: building && goalPort ? `the ${building} at ${goalPort}` : goal.why } } : {}),
     });
   }
@@ -2289,11 +2297,14 @@ async function main() {
     // Bound for the cay on the First Voyage, the voyage guides her: its orders stand for the goal, its lesson for the prompt.
     const guided = !ship.docked && sim.state.captain?.voyage && !['harbour', 'done'].includes(sim.state.captain.voyage.step) ? sim.state.captain.voyage.step : undefined;
     // Her new honours, queued; a rank and a hoard have their own moments.
+    const scoreNow = careerScore(content, sim.state).total;
     for (const h of sim.state.captain?.honours ?? []) {
       if (deedsSeen.has(h.id)) continue;
       deedsSeen.add(h.id);
+      if (scoreNow > scoreSeen) deedScore.set(h.id, scoreNow - scoreSeen);
       if (h.kind !== 'rank' && h.kind !== 'hoard') deedQueue.push(h);
     }
+    scoreSeen = scoreNow;
     // The governors' missions in hand: the nearest is the sea's goal pill, and the log lists them all.
     const missions = missionGoals(sim.state, settlements);
     if (fight) logOpen = false;
@@ -2383,7 +2394,7 @@ async function main() {
           const order = voyage && voyage.step !== 'done' ? voyageOrders(voyage, settlements.find((s) => s.id === voyage.home)?.name ?? '').find((o) => !o.done) : undefined;
           const lower = (t: string) => t[0]!.toLowerCase() + t.slice(1);
           const next = bar?.next ?? (voyage && voyage.step !== 'done' ? order && lower(order.text) : goal && lower(goal.title));
-          return <DeedCard honour={deed} weight={deedStays ? 'standard' : 'small'} age={now - deedShownAt} next={next} bar={bar?.share} close={closeDeed} />;
+          return <DeedCard honour={deed} weight={deedStays ? 'standard' : 'small'} age={now - deedShownAt} next={next} bar={bar?.share} score={deedScore.get(deed.id)} close={closeDeed} />;
         })()
       ) : null,
       deedRoot,

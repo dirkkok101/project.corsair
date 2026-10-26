@@ -2,7 +2,7 @@ import type { Command, Hoard, WorldState } from "@corsair/core";
 import { difficultyOf, isLand, shipStats, tileAt } from "@corsair/data";
 import type { ContentPack, DifficultyLevel, PlacedSettlement, TileMap } from "@corsair/data";
 import { CareerCard } from "./career";
-import { cargoUsed, fleetBerths, fleetHold, fleetOf, fleetShipPace, hoardRing, shipValue } from "@corsair/systems-economy";
+import { cargoUsed, fateNow, fleetBerths, fleetHold, fleetOf, fleetShipPace, hoardRing, shipValue } from "@corsair/systems-economy";
 import type { Goal } from "@corsair/systems-traffic";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { papersLine, TopTen } from "./port";
@@ -309,19 +309,24 @@ function DeedsPage({ state, date }: Pick<LogProps, 'state' | 'date'>) {
   );
 }
 
-/** The next three goals not yet done, each with its progress and one click to where it gets done; opposite, the missions in hand and the done. */
+/**
+ * The next three goals not yet done, each with its progress and one click to where it gets done; opposite, what she
+ * would retire to today (the career's end in view), the missions in hand and the done.
+ */
 function Goals({
   goals,
   settlements,
   plot,
   open,
   level,
+  fate,
 }: {
   goals: Goal[];
   settlements: PlacedSettlement[];
   plot: LogProps['plot'];
-  open: (page: 'top' | 'maps' | 'chart') => void;
+  open: (page: 'top' | 'maps' | 'chart' | 'career') => void;
   level: DifficultyLevel;
+  fate: ReturnType<typeof fateNow>;
 }) {
   const missions = goals.filter((g) => g.mission);
   const next = goals.filter((g) => !g.done && !g.mission).slice(0, 3);
@@ -369,6 +374,18 @@ function Goals({
         )}
       </div>
       <div class="book-page">
+        <div class="goals-fate">
+          <span class="book-sub">If you retired today</span>
+          <b>{fate.fate}</b>
+          <span class="book-sub">
+            Score {fate.total}
+            {fate.next ? ` · ${fate.next.score} makes you ${fate.next.title[0]!.toLowerCase()}${fate.next.title.slice(1)}` : ' · the highest fate there is'}
+          </span>
+          <button class="k-btn small paper" onClick={() => open('career')}>
+            See your career
+          </button>
+        </div>
+        <div class="book-rule" />
         {missions.length ? (
           <>
             <h2 class="book-title">Missions</h2>
@@ -541,7 +558,7 @@ export function Log({ content, state, map, settlements, shipId, send, plot, clos
           {page === 'log' ? (
             <LogPage state={state} settlements={settlements} date={date} plot={plot} />
           ) : page === 'goals' ? (
-            <Goals goals={goals} settlements={settlements} plot={plot} open={(p) => (p === 'chart' ? openChart() : setPage(p))} level={difficultyOf(content, state.difficulty)} />
+            <Goals goals={goals} settlements={settlements} plot={plot} open={(p) => (p === 'chart' ? openChart() : setPage(p))} level={difficultyOf(content, state.difficulty)} fate={fateNow(content, state)} />
           ) : page === 'deeds' ? (
             <DeedsPage state={state} date={date} />
           ) : page === 'fleet' ? (

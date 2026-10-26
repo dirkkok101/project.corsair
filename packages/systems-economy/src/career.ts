@@ -103,6 +103,13 @@ export function careerScore(content: ContentPack, state: WorldState): CareerScor
   return { fames, gold, wealth, acres, land, ranks, rank, multiple, total, fate };
 }
 
+/** What became of him if he retired today, and the next fate up with the score it takes (none past the highest). */
+export function fateNow(content: ContentPack, state: WorldState): { total: number; fate: string; next?: { title: string; score: number } } {
+  const s = careerScore(content, state);
+  const next = content.politics.career.fates.find((f) => f.score > s.total);
+  return { total: s.total, fate: s.fate, ...(next ? { next: { title: next.title, score: next.score } } : {}) };
+}
+
 /** What a rung brings at its nation's ports, in words (a rung with nothing new brings nothing). */
 export function rungBrings(content: ContentPack, rung: number, land = true): string[] {
   const r = content.politics.ranks;

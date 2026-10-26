@@ -109,6 +109,37 @@ describe('honours', () => {
     expect(fight.state.captain!.honours!.length).toBeGreaterThanOrEqual(n);
   });
 
+  it('a new fate reached is said once, with the next one up; those reached before she was seen say nothing', () => {
+    const sim = begun();
+    expect((sim.state.captain!.honours ?? []).some((h) => h.kind === 'fame' && h.id.startsWith('fate:'))).toBe(false);
+    // Rich enough for the first fate above a beggar's (wealth alone: a point every score.goldPer gold).
+    const [, first, second] = content.politics.career.fates;
+    const gold = first!.score * content.politics.career.score.goldPer;
+    const sim2 = createSim({ ...sim.state, captain: { ...sim.state.captain!, gold } }, systems());
+    sim2.send({ type: 'Undock', shipId: 'player' });
+    sim2.applyCommands();
+    const h = sim2.state.captain!.honours!.find((x) => x.id === `fate:${first!.score}`)!;
+    expect(h).toMatchObject({ kind: 'fame', title: first!.title });
+    expect(h.lines).toEqual(['If you retired today', `Next: ${second!.title[0]!.toLowerCase()}${second!.title.slice(1)}, at a score of ${second!.score}`]);
+    sim2.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
+    sim2.applyCommands();
+    expect(sim2.state.captain!.honours!.filter((x) => x.id === h.id)).toHaveLength(1);
+  });
+
+  it('in the Top Ten, growing richer than a famous pirate is a deed: once, and not for those passed before', () => {
+    // Her 5,000 gold already puts her above the poorer famous pirates: they were passed before she was seen.
+    const sim = begun();
+    expect(sim.state.captain!.goalsDone).toContain('topten');
+    expect((sim.state.captain!.honours ?? []).some((h) => h.id.startsWith('topten:'))).toBe(false);
+    const next = content.pirates.captains.filter((c) => c.wealth > 5000).sort((a, b) => a.wealth - b.wealth)[0]!;
+    const sim2 = createSim({ ...sim.state, captain: { ...sim.state.captain!, gold: next.wealth + 100 } }, systems());
+    sim2.send({ type: 'Undock', shipId: 'player' });
+    sim2.applyCommands();
+    const passed = sim2.state.captain!.honours!.filter((h) => h.id.startsWith('topten:'));
+    expect(passed).toHaveLength(1);
+    expect(passed[0]).toMatchObject({ id: `topten:${next.id}`, kind: 'fame', title: `Richer than ${next.name}` });
+  });
+
   it('is deterministic: the same commands give the same honours', () => {
     const run = () => {
       const sim = begun();

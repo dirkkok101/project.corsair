@@ -24,9 +24,29 @@ export type Moment =
   /** A piece of a treasure map: whose, the line that came with it. */
   | { kind: 'map'; pirateId: string; line: string }
   /** The First Voyage's letter: the storm's wreck on the cay, and her orders. */
-  | { kind: 'voyage'; town: string; date: string; ship: string; cay: string; bearing: string; orders: Order[] }
+  | { kind: 'voyage'; town: string; date: string; ship: string; cay: string; bearing: string; orders: Order[]; fate?: Fate }
   /** A new career's opening letter (storyboard 1.4): her ship, the war, and the first goal. */
-  | { kind: 'opening'; town: string; date: string; ship: string; guns: number; men: number; enemies: string; goal?: { title: string; have: string; where: string } };
+  | { kind: 'opening'; town: string; date: string; ship: string; guns: number; men: number; enemies: string; goal?: { title: string; have: string; where: string }; fate?: Fate };
+
+/** What she would retire to today, and the next fate up with the score it takes. */
+type Fate = { now: string; next?: string; at?: number };
+
+/** The career's end in view (a new career's letter): the fate she would retire to today, and the next one up. */
+function FateLine({ fate }: { fate?: Fate }) {
+  if (!fate) return null;
+  const lower = (t: string) => t[0]!.toLowerCase() + t.slice(1);
+  return (
+    <div class="moment-fate">
+      <span class="moment-kicker">If you retired today</span> {lower(fate.now)}
+      {fate.next ? (
+        <span class="book-sub">
+          {' '}
+          · score {fate.at} makes you {lower(fate.next)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 const COUNTRY: Record<string, string> = { spain: 'Spain', england: 'England', france: 'France', netherlands: 'the Netherlands' };
 const ADJECTIVE: Record<string, string> = { spain: 'Spanish', england: 'English', france: 'French', netherlands: 'Dutch' };
@@ -117,6 +137,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
           <div class="book-rule" />
           <div class="moment-kicker">Your orders</div>
           <OrdersList orders={moment.orders} />
+          <FateLine fate={moment.fate} />
           <div class="moment-actions">
             <button class="k-btn primary" onClick={close}>
               To the harbour <Key k="Enter" />
@@ -144,6 +165,7 @@ export function MomentView({ moment, content, state, map, settlements, scene, cl
           </div>
           <div class="moment-signed">the Governor of {moment.town}</div>
           <div class="book-rule" />
+          <FateLine fate={moment.fate} />
           <div class="moment-goal">
             {moment.goal ? (
               <div>

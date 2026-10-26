@@ -5,7 +5,8 @@ import { ART } from '../ui-art';
 
 // The deed card (docs/design/first-voyage.md section 2, Design canvas board 13): every achievement said out loud.
 // A seal with the deed's mark, what kind of deed, what she did in the past tense, the one figure counted up and where
-// it went, up to two lines with the bar they moved, and the one thing to aim for next. Small at sea (it slides away),
+// it went, up to two lines with the bar they moved, what it added to her retirement score, and the one thing to aim
+// for next. Small at sea (it slides away),
 // standard in port or after a fight (it stays until dismissed); a rank keeps its own ceremony, the promotion moment.
 
 const KIND: Record<Honour['kind'], string> = {
@@ -18,6 +19,8 @@ const KIND: Record<Honour['kind'], string> = {
   rank: 'Rank',
   hoard: 'Treasure',
   contract: 'Contract',
+  fame: 'Your name',
+  find: 'A find',
 };
 const SEAL: Record<Honour['kind'], string> = {
   first: 'ui.icon.chest',
@@ -29,6 +32,8 @@ const SEAL: Record<Honour['kind'], string> = {
   rank: 'ui.icon.anchor',
   hoard: 'ui.icon.chest',
   contract: 'ui.icon.good.sugar',
+  fame: 'ui.icon.anchor',
+  find: 'ui.icon.chest',
 };
 const INTO: Record<NonNullable<Honour['into']>, string> = {
   purse: 'gold into your purse',
@@ -66,6 +71,7 @@ export function DeedCard({
   age,
   next,
   bar,
+  score,
   close,
 }: {
   honour: Honour;
@@ -75,8 +81,11 @@ export function DeedCard({
   /** The one thing to aim for now. */
   next?: string;
   bar?: number;
+  /** What it added to her retirement score. */
+  score?: number;
   close: () => void;
 }) {
+  const scored = score ? <span class="deed-score">+{score} to your score</span> : null;
   const shown = honour.gold === undefined ? undefined : Math.round(honour.gold * Math.min(1, age / COUNT_MS));
   const seal = ART[SEAL[honour.kind]] ? <img src={ART[SEAL[honour.kind]]} alt="" draggable={false} /> : null;
   if (weight === 'small')
@@ -93,6 +102,7 @@ export function DeedCard({
           ) : next ? (
             <span class="deed-note">Next: {next}</span>
           ) : null}
+          {scored}
         </div>
       </div>
     );
@@ -116,6 +126,7 @@ export function DeedCard({
           {l}
         </div>
       ))}
+      {scored ? <div class="deed-line">{scored}</div> : null}
       {bar !== undefined ? (
         <div class="deed-bar">
           <div style={{ width: `${Math.round(bar * 100)}%` }} />

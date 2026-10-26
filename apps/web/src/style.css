@@ -4777,6 +4777,38 @@ body {
   color: #6b5233;
 }
 
+.moment-fate {
+  margin: 4px 0 10px;
+  font: 600 14px var(--k-body);
+  color: #3b2a17;
+}
+
+.moment-fate .moment-kicker {
+  display: inline;
+  margin-right: 4px;
+  font-size: 12px;
+  color: #7a4a00;
+}
+
+.goals-fate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.goals-fate b {
+  font-family: var(--k-display);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.deed-score {
+  font: 700 12px var(--k-body);
+  color: #7a5a14;
+  letter-spacing: 0.02em;
+}
+
 .deed-note.gain,
 .deed-gold {
   color: #2f6b3a;

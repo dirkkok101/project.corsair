@@ -409,7 +409,7 @@ export interface Captain {
   laidUp?: LaidUpShip[];
   /** Her deeds said out loud (docs/design/first-voyage.md): each achievement once, oldest first, the last 200. */
   honours?: Honour[];
-  /** The career's goals done (careerGoals ids, sorted), so a goal newly done is said once; absent until first seen. */
+  /** The career's goals done (careerGoals ids, and her name's rungs: `fate:<score>`, `topten:<pirate>`), sorted, so each is said once; absent until first seen. */
   goalsDone?: string[];
   /** The First Voyage, while she sails it (docs/design/first-voyage.md); absent: a veteran's career, nothing guided. */
   voyage?: Voyage;
@@ -443,7 +443,7 @@ export interface Voyage {
 export interface Honour {
   /** Unique: a first ('first:sale'), a goal ('goal:guns'), a mission leg ('letter:<mission id>'), else kind and tick. */
   id: string;
-  kind: 'first' | 'goal' | 'mission' | 'bounty' | 'trade' | 'marque' | 'rank' | 'hoard' | 'contract';
+  kind: 'first' | 'goal' | 'mission' | 'bounty' | 'trade' | 'marque' | 'rank' | 'hoard' | 'contract' | 'fame' | 'find';
   title: string;
   tick: number;
   gold?: number;
