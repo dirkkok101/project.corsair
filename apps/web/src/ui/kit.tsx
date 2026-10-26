@@ -84,10 +84,12 @@ export function Rise({ rise = risen() }: { rise?: { amount: number; key: number 
 
 /** The purse's last rise (main.tsx sets it as gold comes in), shown for PURSE_RISE_MS by every purse on screen. */
 export const purseRise: { amount: number; at: number } = { amount: 0, at: -Infinity };
+/** Gold into the plunder chest (a prize's purse, bounties, a hoard), risen off the chest the same way. */
+export const chestRise: { amount: number; at: number } = { amount: 0, at: -Infinity };
 const PURSE_RISE_MS = 1800;
-/** The rise to show now, if one is still in the air. */
-export function risen(now = performance.now()): { amount: number; key: number } | undefined {
-  return now - purseRise.at < PURSE_RISE_MS ? { amount: purseRise.amount, key: purseRise.at } : undefined;
+/** The rise to show now, if one is still in the air: the purse's, or the chest's. */
+export function risen(now = performance.now(), rise = purseRise): { amount: number; key: number } | undefined {
+  return now - rise.at < PURSE_RISE_MS ? { amount: rise.amount, key: rise.at } : undefined;
 }
 
 /**

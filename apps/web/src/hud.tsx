@@ -2,7 +2,7 @@ import type { Ship, Wind, WorldState } from '@corsair/core';
 import type { ContentPack } from '@corsair/data';
 import { angleOffWind, pointOfSail, polarAt } from '@corsair/systems-navigation';
 import type { Polar } from '@corsair/data';
-import { Key, risen, Stat } from './ui/kit';
+import { chestRise, Key, risen, Stat } from './ui/kit';
 import { Art } from './ui-art';
 
 const ROSE = { size: 168, ring: 62, inner: 10, outer: 54 };
@@ -422,7 +422,7 @@ export function Hud(p: HudProps) {
       ) : null}
       <div class={`hud-strip${p.faded ? ' faded' : ''}`}>
         <Stat icon="ui.icon.gold" value={s.gold.toLocaleString()} title="Gold in your purse" rise={risen()} />
-        {s.chest ? <Stat icon="ui.icon.chest" value={s.chest.toLocaleString()} title="The plunder chest the crew sails for: divide it in a tavern" /> : null}
+        {s.chest ? <Stat icon="ui.icon.chest" value={s.chest.toLocaleString()} title="The plunder chest the crew sails for: divide it in a tavern" rise={risen(undefined, chestRise)} /> : null}
         <Stat icon="ui.icon.crew" value={`${s.crew} men`} title={`Crew ${s.crew} of ${s.berths} berths`} low={s.crew < s.berths / 3} />
         <Stat icon="ui.icon.food" value={`${food} ${food === 1 ? 'day' : 'days'}`} title="Food aboard, in days for this crew" low={s.foodDays <= 3} />
         <Stat icon="ui.icon.morale" value={s.morale} title="The crew's morale" low={s.moraleLow} />

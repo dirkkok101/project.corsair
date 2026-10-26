@@ -36,7 +36,7 @@ import { Log } from './log';
 import { letterMeans, MomentView } from './ui/moment';
 import { showLoading } from './ui/loading';
 import type { Moment } from './ui/moment';
-import { bandOf, purseRise } from './ui/kit';
+import { bandOf, chestRise, purseRise } from './ui/kit';
 import { DEED_SMALL_MS, DeedCard, meritBar } from './ui/deed';
 import { CayMark, HelmLessons, NedSays, OrdersCard, voyageOrders } from './voyage';
 import { createShipLabels, NEAR_TILES } from './shiplabels';
@@ -1103,6 +1103,7 @@ async function main() {
   let stripSeen = '';
   /** The purse as last seen, to tell gold paid in (undefined until the first frame). */
   let lastPurse: number | undefined;
+  let lastChest: number | undefined;
   let stripChanged = 0;
   // Said on the port screen when men desert as she makes port; cleared when she sails.
   let portNotice: PortNotice | undefined;
@@ -1934,19 +1935,26 @@ async function main() {
       acc -= dt;
       if (player().docked) break;
     }
-    // Gold paid in (a sale, a reward, rent, a share): it rises off the purse wherever the purse is shown, and the
-    // coins ring, more of them for more gold.
+    // Gold paid in (a sale, a reward, rent, a share) or plunder into the crew's chest (a prize's purse, bounties, a
+    // hoard): it rises off the purse or the chest wherever it is shown, and the coins ring, more of them for more gold.
     const purse = sim.state.captain?.gold ?? 0;
-    if (lastPurse !== undefined && purse > lastPurse) {
-      purseRise.amount = purse - lastPurse;
-      purseRise.at = performance.now();
+    const chest = Math.round(sim.state.captain?.chest ?? 0);
+    const gains = [
+      [purse, lastPurse, purseRise],
+      [chest, lastChest, chestRise],
+    ] as const;
+    for (const [now, last, rise] of gains) {
+      if (last === undefined || now <= last) continue;
+      rise.amount = now - last;
+      rise.at = performance.now();
       try {
-        audio.coins(Math.ceil((purse - lastPurse) / COINS_PER_RING));
+        audio.coins(Math.ceil((now - last) / COINS_PER_RING));
       } catch {
         // Sound is a nicety: a failure here must never stop the frame.
       }
     }
     lastPurse = purse;
+    lastChest = chest;
     // The course's look-out: about once a second, if the way to her next waypoint isn't clear water any more
     // (beating has carried her off the line, round the wrong side of a spit), plot a new route from where she is.
     if (sim.state.tick - lastReplanTick >= REPLAN_TICKS) {

@@ -56,7 +56,7 @@ import { enemiesOf, legalTarget } from '@corsair/systems-politics';
 import { havenKnown, missionOffer, topTen } from '@corsair/systems-traffic';
 import type { MissionOffer } from '@corsair/systems-traffic';
 import { RetireConfirm } from './career';
-import { Bust, curly, Key, Rise, risen, Speech, Stat } from './ui/kit';
+import { Bust, chestRise, curly, Key, Rise, risen, Speech, Stat } from './ui/kit';
 import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
@@ -912,7 +912,7 @@ function Holdings({ content, state, shipId, service }: { content: ContentPack; s
   const men = (
     <Stat icon="ui.icon.crew" value={`${crew} of ${berths} men${hurt ? ` · ${hurt} hurt` : ''}`} title={`Crew ${crew}, berths ${berths}${hurt ? `; ${hurt} wounded, mending at sea` : ''}`} low={crew < berths / 3} />
   );
-  const plunder = <Stat icon="ui.icon.chest" value={`${chest.toLocaleString()} in the chest`} title="The plunder chest: the crew's, divided at the tavern" />;
+  const plunder = <Stat icon="ui.icon.chest" value={`${chest.toLocaleString()} in the chest`} title="The plunder chest: the crew's, divided at the tavern" rise={risen(undefined, chestRise)} />;
   return (
     <div class="interior-holdings">
       {purse}

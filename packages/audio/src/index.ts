@@ -419,14 +419,15 @@ export function createAudio(options: { samples?: SampleManifest; tunes?: TuneDat
     },
     /**
      * Gold paid in: coins counted into the purse, `n` of them (more for a bigger sum), each a short bright chink (a
-     * few inharmonic partials dying fast, as struck metal does). Synthesised.
+     * few inharmonic partials dying fast, as struck metal does), each a little higher than the last, so a bigger sum
+     * climbs. Synthesised.
      */
     coins(n = 3) {
       if (ctx?.state !== 'running') return;
       const out = placed(ctx.currentTime, 0, 0.32);
       let at = ctx.currentTime + 0.01;
       for (let i = 0; i < Math.max(1, Math.min(8, n)); i++) {
-        const pitch = 0.94 + Math.random() * 0.12;
+        const pitch = 0.92 * 2 ** (i / 12) + Math.random() * 0.02;
         for (const [hz, level, ring] of [[2100, 0.5, 0.18], [3400, 0.3, 0.12], [5200, 0.18, 0.08]] as const) {
           const o = ctx.createOscillator();
           o.type = 'sine';
