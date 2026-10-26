@@ -4790,6 +4790,14 @@ body {
   color: #7a4a00;
 }
 
+.governor-estate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
 .goals-fate {
   display: flex;
   flex-direction: column;

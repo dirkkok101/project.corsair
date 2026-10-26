@@ -122,6 +122,15 @@ export function createHonoursSystem(content: ContentPack, settlements: PlacedSet
           case 'Promoted':
             add({ id: `rank:${p.nation}:${p.rank}`, kind: 'rank', title: `Made ${p.rank}`, lines: [`In the service of ${COUNTRY[String(p.nation)] ?? p.nation}`], ...base });
             break;
+          case 'EstateBought':
+            add({
+              id: `estate:${e.tick}`,
+              kind: 'fame',
+              title: `An estate in ${COUNTRY[String(p.nation)] ?? p.nation}`,
+              lines: [`${p.acres} acres, paying ${Math.round(Number(p.acres) * content.politics.ranks.rentPerAcre)} gold a month`],
+              ...base,
+            });
+            break;
           case 'HoardFound':
             add({ id: `hoard:${p.pirateId}`, kind: 'hoard', title: `${p.name}'s hoard dug up`, gold: Number(p.gold), into: 'chest', tick: e.tick });
             break;

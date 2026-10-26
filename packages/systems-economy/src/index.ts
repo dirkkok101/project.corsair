@@ -6,7 +6,7 @@ import { angleOffWind, conditionFactor, polarAt } from '@corsair/systems-navigat
 import { atWar, enemiesOf, NATIONS } from '@corsair/systems-politics';
 import { isLand, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
-import { careerScore, hasPerk, landOf, perkPrice, rankOf, tradeEdge } from './career';
+import { careerScore, estatePrice, hasPerk, landOf, perkPrice, rankOf, tradeEdge } from './career';
 import { voyageShut } from './voyage';
 
 export * from './career';
@@ -1032,6 +1032,22 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         return {
           state: { ...state, captain: { ...state.captain, retired: { tick: state.tick, score: score.total, fate: score.fate } } },
           events: [{ type: 'Retired', entityIds: [ship.id, ship.docked], payload: { score: score.total, fate: score.fate } }],
+        };
+      }
+      if (command.type === 'BuyEstate') {
+        const ship = state.ships[command.shipId];
+        if (!ship) return undefined;
+        if (!ship.docked) return refuse(state, ship, 'not-docked');
+        const s = byId.get(ship.docked)!;
+        if (!hasGovernor(s)) return refuse(state, ship, 'no-governor');
+        if (!hasPerk(content, state.captain, s.nation, 'estate')) return refuse(state, ship, 'rank-too-low');
+        const price = estatePrice(content, state.captain);
+        if (state.captain.gold < price) return refuse(state, ship, 'not-enough-gold');
+        const acres = content.politics.ranks.estate.acres;
+        const estates = { ...state.captain.estates, [s.nation]: (state.captain.estates?.[s.nation] ?? 0) + acres };
+        return {
+          state: { ...state, captain: { ...state.captain, gold: state.captain.gold - price, estates } },
+          events: [{ type: 'EstateBought', entityIds: [ship.id, s.id], payload: { nation: s.nation, acres, gold: price } }],
         };
       }
       if (command.type === 'BuyMarque' || command.type === 'CollectBounties') {

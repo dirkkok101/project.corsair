@@ -794,7 +794,9 @@ export const politicsSchema = z.object({
   /** Ranks per nation: the ladder by merit, each perk's rung and size, land and its rent. */
   ranks: z.object({
     ladder: z.array(z.object({ id: z.string(), name: z.string(), merit: z.number().min(0), acres: z.number().min(0).optional() })).min(1),
-    perks: z.record(z.enum(['recruit', 'repair', 'bestFits', 'price', 'frigate', 'upgrade']), z.object({ rung: z.string(), value: z.number().optional() })),
+    perks: z.record(z.enum(['recruit', 'repair', 'bestFits', 'price', 'frigate', 'upgrade', 'estate']), z.object({ rung: z.string(), value: z.number().optional() })),
+    /** Estates a governor sells from the estate perk's rung: `acres` a lot, the first for `gold`, each lot after (any nation) `rise` of that dearer. */
+    estate: z.object({ acres: z.number().int().positive(), gold: z.number().positive(), rise: z.number().min(0) }),
     acresPerMerit: z.number().min(0),
     rentPerAcre: z.number().min(0),
   }),

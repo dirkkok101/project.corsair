@@ -39,6 +39,7 @@ import {
   careerScore,
   famesOf,
   landOf,
+  estatePrice,
   perkPrice,
   rankOf,
   tradeEdge,
@@ -924,6 +925,33 @@ describe('the governor', () => {
     const rent = landed.events().filter((e) => e.type === 'RentPaid');
     expect(rent.length).toBe(1);
     expect(rent[0]!.payload.gold).toBe(Math.round(landOf(content, titled, 'england') * content.politics.ranks.rentPerAcre));
+  });
+
+  it("an admiral buys estates from his nation's governors, each lot dearer than the last, and they count as land", () => {
+    const ladder = content.politics.ranks.ladder;
+    const e = content.politics.ranks.estate;
+    const at = (rung: string) => ({ marques: ['england' as const], merit: { england: ladder.find((l) => l.id === rung)!.merit } });
+    const docked = (rung: string) => {
+      const sim = moored(portRoyal);
+      sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
+      sim.applyCommands();
+      return createSim({ ...sim.state, captain: { ...sim.state.captain!, ...at(rung), gold: 10_000 } }, [createEconomySystem(content, settlements)]);
+    };
+    const colonel = docked('colonel');
+    colonel.send({ type: 'BuyEstate', shipId: 'player' });
+    colonel.applyCommands();
+    expect(colonel.events().at(-1)).toMatchObject({ type: 'TradeRefused', payload: { reason: 'rank-too-low' } });
+    const admiral = docked('admiral');
+    const land = landOf(content, admiral.state.captain, 'england');
+    admiral.send({ type: 'BuyEstate', shipId: 'player' });
+    admiral.applyCommands();
+    expect(admiral.state.captain!.gold).toBe(10_000 - e.gold);
+    expect(landOf(content, admiral.state.captain, 'england')).toBe(land + e.acres);
+    expect(estatePrice(content, admiral.state.captain)).toBe(Math.round(e.gold * (1 + e.rise)));
+    admiral.send({ type: 'BuyEstate', shipId: 'player' });
+    admiral.applyCommands();
+    expect(admiral.state.captain!.gold).toBe(10_000 - e.gold - Math.round(e.gold * (1 + e.rise)));
+    expect(admiral.state.captain!.estates).toEqual({ england: 2 * e.acres });
   });
 
   it('retiring in port scores the career: fames, wealth, land and rank, times the difficulty', () => {

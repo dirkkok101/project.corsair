@@ -6,7 +6,7 @@ import type { ContentPack } from '@corsair/data';
 // Ranks, fame and the retirement score (slice 8 of docs/design/combat-model.md; politics.json ranks and career).
 // Everything here is read from the captain's merit and record, so nothing is stored twice.
 
-export type Perk = 'recruit' | 'repair' | 'bestFits' | 'price' | 'frigate' | 'upgrade';
+export type Perk = 'recruit' | 'repair' | 'bestFits' | 'price' | 'frigate' | 'upgrade' | 'estate';
 
 /** His rung with a nation (an index into the ladder, 0 its letter of marque), or -1 without its letter. */
 export function rankOf(content: ContentPack, captain: Captain | undefined, nation: Nation): number {
@@ -34,14 +34,22 @@ export function tradeEdge(content: ContentPack, captain: Captain | undefined, na
   return hasPerk(content, captain, nation, 'price') ? (content.politics.ranks.perks.price!.value ?? 0) : 0;
 }
 
-/** Acres a nation has granted him: his title's, and more for each merit past his first title. */
+/** Acres he holds of a nation: the estates he bought there, his title's land, and more for each merit past his first title. */
 export function landOf(content: ContentPack, captain: Captain | undefined, nation: Nation): number {
   const r = rankOf(content, captain, nation);
   const ladder = content.politics.ranks.ladder;
   const first = ladder.findIndex((l) => l.acres);
-  if (r < 0 || first < 0 || r < first) return 0;
+  const bought = captain?.estates?.[nation] ?? 0;
+  if (r < 0 || first < 0 || r < first) return bought;
   const titled = ladder.slice(0, r + 1).reduce((a, l) => l.acres ?? a, 0);
-  return titled + Math.round(content.politics.ranks.acresPerMerit * Math.max(0, (captain?.merit?.[nation] ?? 0) - ladder[first]!.merit));
+  return bought + titled + Math.round(content.politics.ranks.acresPerMerit * Math.max(0, (captain?.merit?.[nation] ?? 0) - ladder[first]!.merit));
+}
+
+/** What his next lot of estate land costs: dearer for every lot he has bought, in any nation. */
+export function estatePrice(content: ContentPack, captain: Captain | undefined): number {
+  const e = content.politics.ranks.estate;
+  const lots = Object.values(captain?.estates ?? {}).reduce((n, a) => n + (a ?? 0), 0) / e.acres;
+  return Math.round(e.gold * (1 + e.rise * lots));
 }
 
 export interface Fames {
@@ -124,6 +132,7 @@ export function rungBrings(content: ContentPack, rung: number, land = true): str
     if (perk === 'price') words.push(`${Math.round((p.value ?? 0) * 100)}% better prices`);
     if (perk === 'frigate') words.push("a frigate from its capital's yard");
     if (perk === 'upgrade') words.push(`upgrades ${off(p.value)}% cheaper`);
+    if (perk === 'estate') words.push(`estates of ${r.estate.acres} acres to buy from its governors, paying rent and adding to your name`);
   }
   const acres = r.ladder[rung]?.acres;
   if (acres && land) words.push(`a title and ${acres} acres of land paying ${Math.round(acres * r.rentPerAcre)} gold a month`);

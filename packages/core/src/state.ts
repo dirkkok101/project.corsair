@@ -370,6 +370,8 @@ export interface Captain {
   standing?: Partial<Record<Nation, number>>;
   /** Merit with each nation: a point for each deed its governors paid a bounty for (more for a famous pirate); it raises his rank there. */
   merit?: Partial<Record<Nation, number>>;
+  /** Acres of estates bought from each nation's governors (politics.json ranks.estate), on top of a title's land. */
+  estates?: Partial<Record<Nation, number>>;
   /** He retired (in port): when, his score, and what became of him. The career is over. */
   retired?: { tick: number; score: number; fate: string };
   /** The career so far, for the captain's goals: gold made trading, prizes taken, pirates beaten by class, famous pirates beaten. */
@@ -707,6 +709,8 @@ export type Command =
   | { type: 'SetRelation'; a: Nation; b: Nation; war: boolean }
   /** At a governor: buy a letter of marque from his nation, or collect bounties owed for deeds. */
   | { type: 'BuyMarque'; shipId: string }
+  /** Buy a lot of land from the governor of the port she lies in (an admiral of his nation's). */
+  | { type: 'BuyEstate'; shipId: string }
   | { type: 'CollectBounties'; shipId: string }
   /** At a governor: take the mission he offers this week. */
   /** Take the governor's mission this week; `kind` asks for one of that kind (the First Voyage's commissions). */

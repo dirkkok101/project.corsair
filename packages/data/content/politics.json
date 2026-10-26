@@ -204,7 +204,7 @@
     "famousBeaten": "{captain} was beaten off {town}. They say he has gone to ground and his crew have scattered."
   },
   "ranks": {
-    "$comment": "Ranks per nation (slice 8 of docs/design/combat-model.md, after Pirates! 2004): a letter of marque is the first rung; merit with a nation (each deed its governor pays a bounty for, a famous pirate handed over counting 'bountyStanding' as for standing) raises the captain up the 'ladder' while he holds its letter. Each rung brings one benefit at that nation's ports, from the rung named in 'perks' up: recruits at 'recruit' of the price (captain), repairs at 'repair' (major), and the shipwright's city-only fits at its towns too (major), 'price' better on every trade (colonel; its capital's yard builds him a frigate), upgrades at 'upgrade' (admiral); a title ('acres' on the rung, baron and up) brings land that pays 'rentPerAcre' gold a month and grows 'acresPerMerit' for each merit past the first title.",
+    "$comment": "Ranks per nation (slice 8 of docs/design/combat-model.md, after Pirates! 2004): a letter of marque is the first rung; merit with a nation (each deed its governor pays a bounty for, a famous pirate handed over counting 'bountyStanding' as for standing) raises the captain up the 'ladder' while he holds its letter. Each rung brings something new at that nation's ports, from the rung named in 'perks' up: recruits at 'recruit' of the price (captain), repairs at 'repair', the shipwright's city-only fits at its towns too and upgrades at 'upgrade' (major), 'price' better on every trade (colonel; its capital's yard builds him a frigate), and its governors sell him estates (admiral: 'estate.acres' acres a lot, the first for 'estate.gold' and each lot after, in any nation, 'estate.rise' of that dearer, so gold has something to buy late in a career that grows dearer as it goes); a title ('acres' on the rung, baron and up) brings land that pays 'rentPerAcre' gold a month and grows 'acresPerMerit' for each merit past the first title.",
     "ladder": [
       { "id": "marque", "name": "Letter of marque", "merit": 0 },
       { "id": "captain", "name": "Captain", "merit": 6 },
@@ -215,7 +215,8 @@
       { "id": "count", "name": "Count", "merit": 110, "acres": 250 },
       { "id": "duke", "name": "Duke", "merit": 150, "acres": 500 }
     ],
-    "perks": { "recruit": { "rung": "captain", "value": 0.7 }, "repair": { "rung": "major", "value": 0.8 }, "bestFits": { "rung": "major" }, "price": { "rung": "colonel", "value": 0.05 }, "frigate": { "rung": "colonel" }, "upgrade": { "rung": "admiral", "value": 0.8 } },
+    "perks": { "recruit": { "rung": "captain", "value": 0.7 }, "repair": { "rung": "major", "value": 0.8 }, "bestFits": { "rung": "major" }, "price": { "rung": "colonel", "value": 0.05 }, "frigate": { "rung": "colonel" }, "upgrade": { "rung": "major", "value": 0.8 }, "estate": { "rung": "admiral" } },
+    "estate": { "acres": 100, "gold": 1500, "rise": 0.25 },
     "acresPerMerit": 5,
     "rentPerAcre": 1
   },

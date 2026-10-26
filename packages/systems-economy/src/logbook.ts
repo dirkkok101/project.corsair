@@ -54,6 +54,8 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
       }
       case 'Promoted':
         return { kind: 'deed', text: `Made ${p.rank} by ${COUNTRY[String(p.nation)] ?? p.nation}.`, place: at };
+      case 'EstateBought':
+        return { kind: 'deed', text: `Bought ${p.acres} acres from ${COUNTRY[String(p.nation)] ?? p.nation} at ${town(at)}, for ${gold(p.gold)}.`, place: at };
       case 'MarqueBought':
         return { kind: 'deed', text: `Took ${p.nation === 'england' ? 'an' : 'a'} ${ADJECTIVE[String(p.nation)]} letter of marque at ${town(at)}.`, place: at };
       case 'BountiesPaid':

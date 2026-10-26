@@ -61,7 +61,7 @@ import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
-import { suggestTrade, voyageOpen } from '@corsair/systems-economy';
+import { estatePrice, suggestTrade, voyageOpen } from '@corsair/systems-economy';
 import { harbourLine, homeNeed, NedSays, OrdersCard, shutWhy, voyageOrders } from './voyage';
 
 export interface PortProps {
@@ -1363,7 +1363,7 @@ function Governor({
           </div>
         </div>
       ) : null}
-      <Rank content={content} state={state} nation={nation} />
+      <Rank content={content} state={state} nation={nation} buyEstate={() => send({ type: 'BuyEstate', shipId })} />
       {held ? (
         <div class="governor-row k-sub">
           You hold {/^[AEIOU]/.test(NATION[nation]) ? 'an' : 'a'} {NATION[nation]} letter of marque. It covers:{' '}
@@ -1461,13 +1461,18 @@ function MissionCard({
   );
 }
 
-/** His rank with the governor's nation, every rung on one line and his own marked: what the next asks and brings, and his land. */
-function Rank({ content, state, nation }: { content: ContentPack; state: WorldState; nation: PlacedSettlement['nation'] }) {
+/**
+ * His rank with the governor's nation, every rung on one line and his own marked: what the next asks and brings, and
+ * his land; an admiral's estates to buy, the next lot's price and what it brings.
+ */
+function Rank({ content, state, nation, buyEstate }: { content: ContentPack; state: WorldState; nation: PlacedSettlement['nation']; buyEstate: () => void }) {
   const ladder = content.politics.ranks.ladder;
   const r = rankOf(content, state.captain, nation);
   const merit = state.captain?.merit?.[nation] ?? 0;
   const next = ladder[r + 1];
   const acres = landOf(content, state.captain, nation);
+  const estate = content.politics.ranks.estate;
+  const estateGold = estatePrice(content, state.captain);
   return (
     <div class="k-paper governor-card governor-rank">
       <div class="moment-kicker">Your rank with {COUNTRY[nation]}</div>
@@ -1496,6 +1501,17 @@ function Rank({ content, state, nation }: { content: ContentPack; state: WorldSt
         )}
         {acres ? ` Your ${acres} acres pay ${Math.round(acres * content.politics.ranks.rentPerAcre)} gold a month in rent.` : ''}
       </div>
+      {nation !== 'pirate' && hasPerk(content, state.captain, nation, 'estate') ? (
+        <div class="governor-estate">
+          <span class="book-sub">
+            {estate.acres} acres: {Math.round(estate.acres * content.politics.ranks.rentPerAcre)} gold a month in rent, and {Math.floor(estate.acres / content.politics.career.score.acresPer)} to your score. Each lot
+            costs more than the last.
+          </span>
+          <button class="k-btn small primary" disabled={(state.captain?.gold ?? 0) < estateGold} onClick={buyEstate}>
+            Buy an estate · {estateGold.toLocaleString()} gold
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
