@@ -204,7 +204,7 @@
     "famousBeaten": "{captain} was beaten off {town}. They say he has gone to ground and his crew have scattered."
   },
   "ranks": {
-    "$comment": "Ranks per nation (slice 8 of docs/design/combat-model.md, after Pirates! 2004): a letter of marque is the first rung; merit with a nation (each deed its governor pays a bounty for, a famous pirate handed over counting 'bountyStanding' as for standing) raises the captain up the 'ladder' while he holds its letter. Each rung brings something new at that nation's ports, from the rung named in 'perks' up: recruits at 'recruit' of the price (captain), repairs at 'repair', the shipwright's city-only fits at its towns too and upgrades at 'upgrade' (major), 'price' better on every trade (colonel; its capital's yard builds him a frigate), and its governors sell him estates (admiral: 'estate.acres' acres a lot, the first for 'estate.gold' and each lot after, in any nation, 'estate.rise' of that dearer, so gold has something to buy late in a career that grows dearer as it goes); a title ('acres' on the rung, baron and up) brings land that pays 'rentPerAcre' gold a month and grows 'acresPerMerit' for each merit past the first title.",
+    "$comment": "Ranks per nation (slice 8 of docs/design/combat-model.md, after Pirates! 2004): a letter of marque is the first rung; merit with a nation (each deed its governor pays a bounty for, a famous pirate handed over counting 'bountyStanding' as for standing) raises the captain up the 'ladder' while he holds its letter. Each rung brings something new at that nation's ports, from the rung named in 'perks' up: recruits at 'recruit' of the price (captain), repairs at 'repair', the shipwright's city-only fits at its towns too and upgrades at 'upgrade' (major), 'price' better on every trade (colonel; its capital's yard builds him a frigate), and its governors sell him estates (admiral: 'estate.acres' acres a lot, the first for 'estate.gold' and each lot after, in any nation, 'estate.rise' times the last, so gold has something to buy late in a career that grows dearer as it goes); a title ('acres' on the rung, baron and up) brings land that pays 'rentPerAcre' gold a month and grows 'acresPerMerit' for each merit past the first title.",
     "ladder": [
       { "id": "marque", "name": "Letter of marque", "merit": 0 },
       { "id": "captain", "name": "Captain", "merit": 6 },
@@ -216,14 +216,14 @@
       { "id": "duke", "name": "Duke", "merit": 150, "acres": 500 }
     ],
     "perks": { "recruit": { "rung": "captain", "value": 0.7 }, "repair": { "rung": "major", "value": 0.8 }, "bestFits": { "rung": "major" }, "price": { "rung": "colonel", "value": 0.05 }, "frigate": { "rung": "colonel" }, "upgrade": { "rung": "major", "value": 0.8 }, "estate": { "rung": "admiral" } },
-    "estate": { "acres": 100, "gold": 1500, "rise": 0.25 },
+    "estate": { "acres": 100, "gold": 1500, "rise": 1.3 },
     "acresPerMerit": 5,
     "rentPerAcre": 1
   },
   "career": {
-    "$comment": "Fame and the retirement score (slice 8). Three fames (after Uncharted Waters), from the career's record: trade (a point for every 'trade.goldPer' gold made trading), war (a point a prize, a point a pirate beaten, 'war.famous' a famous pirate beaten) and adventure ('adventure.hoard' a hoard dug up, 'adventure.mapPiece' a piece of a map held). The score sums the fames, a point every 'score.goldPer' gold to his name, a point every 'score.acresPer' acres, and each nation's rank (score.rank, by rung, marque first), times the difficulty level's 'score'. Retiring in port ends the career; 'fates' names what became of him, the highest whose score he reached.",
-    "fame": { "trade": { "goldPer": 500 }, "war": { "prize": 1, "pirate": 1, "famous": 5 }, "adventure": { "hoard": 5, "mapPiece": 1 } },
-    "score": { "goldPer": 1000, "acresPer": 50, "rank": [1, 2, 3, 5, 7, 10, 13, 16] },
+    "$comment": "Fame and the retirement score (slice 8). Three fames (after Uncharted Waters), from the career's record: trade (from the gold made trading: the first point at 'trade.goldStep', each after it 'trade.goldStep' dearer than the last, so the tenth comes at 55 steps), war (a point a prize, a point a pirate beaten, 'war.famous' a famous pirate beaten) and adventure ('adventure.hoard' a hoard dug up, 'adventure.mapPiece' a piece of a map held). The score sums the fames, his wealth (the gold to his name, on the same rising ladder by 'score.goldStep': a fortune counts, but a second fortune counts for less than the first, so no one way of playing wins it alone), a point every 'score.acresPer' acres, and each nation's rank (score.rank, by rung, marque first), times the difficulty level's 'score'. Retiring in port ends the career; 'fates' names what became of him, the highest whose score he reached.",
+    "fame": { "trade": { "goldStep": 500 }, "war": { "prize": 1, "pirate": 1, "famous": 5 }, "adventure": { "hoard": 5, "mapPiece": 1 } },
+    "score": { "goldStep": 1000, "acresPer": 50, "rank": [1, 2, 3, 5, 7, 10, 13, 16] },
     "fates": [
       { "score": 0, "title": "A beggar on the quays of Port Royal" },
       { "score": 10, "title": "Keeper of a waterfront tavern" },

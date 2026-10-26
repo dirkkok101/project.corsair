@@ -49,7 +49,20 @@ export function landOf(content: ContentPack, captain: Captain | undefined, natio
 export function estatePrice(content: ContentPack, captain: Captain | undefined): number {
   const e = content.politics.ranks.estate;
   const lots = Object.values(captain?.estates ?? {}).reduce((n, a) => n + (a ?? 0), 0) / e.acres;
-  return Math.round(e.gold * (1 + e.rise * lots));
+  return Math.round(e.gold * e.rise ** lots);
+}
+
+/**
+ * Points on a rising ladder: the first at `step` gold, each after it `step` dearer than the last (n points take
+ * step x n(n+1)/2), so a fortune counts but a second counts for less than the first.
+ */
+export function ladderPoints(gold: number, step: number): number {
+  return Math.floor((Math.sqrt(1 + (8 * Math.max(0, gold)) / step) - 1) / 2 + 1e-9);
+}
+
+/** The gold the next point on the ladder takes, from `points` held. */
+export function ladderNext(points: number, step: number): number {
+  return (step * (points + 1) * (points + 2)) / 2;
 }
 
 export interface Fames {
@@ -66,7 +79,7 @@ export function famesOf(content: ContentPack, state: WorldState): Fames {
   const hoards = content.pirates.captains.filter((c) => state.famous?.[c.id]?.hoard?.found).length;
   const pieces = Object.values(state.captain?.mapPieces ?? {}).reduce((n, k) => n + k, 0);
   return {
-    trade: Math.floor(Math.max(0, record.tradeProfit ?? 0) / f.trade.goldPer),
+    trade: ladderPoints(record.tradeProfit ?? 0, f.trade.goldStep),
     war: (record.prizes ?? 0) * f.war.prize + pirates * f.war.pirate + (record.famousBeaten ?? 0) * f.war.famous,
     adventure: hoards * f.adventure.hoard + pieces * f.adventure.mapPiece,
   };
@@ -96,7 +109,7 @@ export function careerScore(content: ContentPack, state: WorldState): CareerScor
   const fames = famesOf(content, state);
   // His gold, and the captain's share of the chest the crew would divide.
   const gold = Math.floor((captain?.gold ?? 0) + (captain?.chest ?? 0) * content.crew.captainShare);
-  const wealth = Math.floor(gold / c.score.goldPer);
+  const wealth = ladderPoints(gold, c.score.goldStep);
   const acres = nations.reduce((n, nation) => n + landOf(content, captain, nation), 0);
   const land = Math.floor(acres / c.score.acresPer);
   const ladder = content.politics.ranks.ladder;

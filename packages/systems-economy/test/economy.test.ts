@@ -40,6 +40,8 @@ import {
   famesOf,
   landOf,
   estatePrice,
+  ladderNext,
+  ladderPoints,
   perkPrice,
   rankOf,
   tradeEdge,
@@ -968,11 +970,20 @@ describe('the governor', () => {
     admiral.applyCommands();
     expect(admiral.state.captain!.gold).toBe(10_000 - e.gold);
     expect(landOf(content, admiral.state.captain, 'england')).toBe(land + e.acres);
-    expect(estatePrice(content, admiral.state.captain)).toBe(Math.round(e.gold * (1 + e.rise)));
+    expect(estatePrice(content, admiral.state.captain)).toBe(Math.round(e.gold * e.rise));
     admiral.send({ type: 'BuyEstate', shipId: 'player' });
     admiral.applyCommands();
-    expect(admiral.state.captain!.gold).toBe(10_000 - e.gold - Math.round(e.gold * (1 + e.rise)));
+    expect(admiral.state.captain!.gold).toBe(10_000 - e.gold - Math.round(e.gold * e.rise));
     expect(admiral.state.captain!.estates).toEqual({ england: 2 * e.acres });
+  });
+
+  it('trade fame and wealth count on a rising ladder: each point a step dearer than the last', () => {
+    for (const n of [1, 2, 5, 20]) {
+      expect(ladderPoints(500 * ((n * (n + 1)) / 2), 500)).toBe(n);
+      expect(ladderPoints(500 * ((n * (n + 1)) / 2) - 1, 500)).toBe(n - 1);
+      expect(ladderNext(n - 1, 500)).toBe(500 * ((n * (n + 1)) / 2));
+    }
+    expect(ladderPoints(-100, 500)).toBe(0);
   });
 
   it('retiring in port scores the career: fames, wealth, land and rank, times the difficulty', () => {
@@ -980,11 +991,13 @@ describe('the governor', () => {
     sim.send({ type: 'Dock', shipId: 'player', settlementId: portRoyal.id });
     sim.applyCommands();
     const f = content.politics.career.fame;
-    const record = { tradeProfit: 5 * f.trade.goldPer, prizes: 2, beaten: { 'ship.sloop': 3 }, famousBeaten: 1 };
+    const record = { tradeProfit: 15 * f.trade.goldStep, prizes: 2, beaten: { 'ship.sloop': 3 }, famousBeaten: 1 };
     const s = { ...sim.state, difficulty: 'rogue', captain: { ...sim.state.captain!, gold: 12_000, chest: 0, record, marques: ['england' as const] } };
     expect(famesOf(content, s)).toEqual({ trade: 5, war: 2 * f.war.prize + 3 * f.war.pirate + f.war.famous, adventure: 0 });
     const score = careerScore(content, s);
-    const base = 5 + 2 * f.war.prize + 3 * f.war.pirate + f.war.famous + 12 + content.politics.career.score.rank[0]!;
+    // On the rising ladders: 15 steps of trade make 5 points (1 + 2 + 3 + 4 + 5); 12,000 gold makes 4 (10 steps, and
+    // the fifth point waits for 15,000).
+    const base = 5 + 2 * f.war.prize + 3 * f.war.pirate + f.war.famous + 4 + content.politics.career.score.rank[0]!;
     expect(score.total).toBe(Math.round(base * 1.25));
     const end = createSim(s, [createEconomySystem(content, settlements)]);
     end.send({ type: 'Retire', shipId: 'player' });

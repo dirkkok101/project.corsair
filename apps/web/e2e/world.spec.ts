@@ -1986,7 +1986,9 @@ test('retiring in port scores the career, ends it, and the start screen says how
   await expect(page.locator('.career-score')).toContainText('Trade fame');
   await expect(page.locator('.career-total')).toContainText('the next fate at');
   // Each part says his own figures, and what the next step brings.
-  await expect(page.locator('.career-score')).toContainText('0 so far');
+  await expect(page.locator('.career-score')).toContainText('0 gold made trading: the next point at 500');
+  // Wealth climbs the same ladder: 1,000 gold is the first point, and the second waits for 3,000.
+  await expect(page.locator('.career-score')).toContainText('the next point at 3,000');
   await expect(page.locator('.career-score')).toContainText('a Baron gets 100 acres');
   await page.screenshot({ path: 'test-results/retire-confirm.png' });
   await page.getByRole('button', { name: 'Not yet' }).click();

@@ -2,7 +2,7 @@ import { dateOf, formatDate } from '@corsair/core';
 import type { WorldState } from '@corsair/core';
 import { difficultyOf } from '@corsair/data';
 import type { ContentPack } from '@corsair/data';
-import { careerScore } from '@corsair/systems-economy';
+import { careerScore, ladderNext } from '@corsair/systems-economy';
 import { NATIONS } from '@corsair/systems-politics';
 
 export const COUNTRY: Record<string, string> = { england: 'England', france: 'France', netherlands: 'the Netherlands', spain: 'Spain' };
@@ -66,14 +66,14 @@ export function CareerCard({ content, state, final }: { content: ContentPack; st
     <div class="career">
       <table class="career-score">
         <tbody>
-          {row('Trade fame', s.fames.trade, `a point for every ${c.fame.trade.goldPer.toLocaleString()} gold made trading: ${Math.max(0, record.tradeProfit ?? 0).toLocaleString()} so far`)}
+          {row('Trade fame', s.fames.trade, `${Math.max(0, record.tradeProfit ?? 0).toLocaleString()} gold made trading: the next point at ${ladderNext(s.fames.trade, c.fame.trade.goldStep).toLocaleString()} (each point dearer than the last)`)}
           {row(
             'War fame',
             s.fames.war,
             `a point a prize and a pirate beaten, ${c.fame.war.famous} a famous pirate: ${count(record.prizes ?? 0, 'prize', 'prizes')}, ${count(pirates, 'pirate', 'pirates')}, ${count(record.famousBeaten ?? 0, 'famous pirate', 'famous pirates')}`,
           )}
           {row('Adventure fame', s.fames.adventure, `${c.fame.adventure.hoard} a hoard dug up, ${c.fame.adventure.mapPiece} a piece of a map: ${count(hoards, 'hoard', 'hoards')}, ${count(pieces, 'piece', 'pieces')}`)}
-          {row('Wealth', s.wealth, `${s.gold.toLocaleString()} gold, yours and your share of the chest: a point every ${c.score.goldPer.toLocaleString()}`)}
+          {row('Wealth', s.wealth, `${s.gold.toLocaleString()} gold, yours and your share of the chest: the next point at ${ladderNext(s.wealth, c.score.goldStep).toLocaleString()} (each dearer than the last)`)}
           {row('Land', s.land, s.acres ? `${s.acres} acres: a point every ${c.score.acresPer}` : landed ? `no title yet: a ${landed.name} gets ${landed.acres} acres` : 'no title yet')}
           {row(
             'Rank',

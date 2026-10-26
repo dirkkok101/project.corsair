@@ -795,19 +795,21 @@ export const politicsSchema = z.object({
   ranks: z.object({
     ladder: z.array(z.object({ id: z.string(), name: z.string(), merit: z.number().min(0), acres: z.number().min(0).optional() })).min(1),
     perks: z.record(z.enum(['recruit', 'repair', 'bestFits', 'price', 'frigate', 'upgrade', 'estate']), z.object({ rung: z.string(), value: z.number().optional() })),
-    /** Estates a governor sells from the estate perk's rung: `acres` a lot, the first for `gold`, each lot after (any nation) `rise` of that dearer. */
-    estate: z.object({ acres: z.number().int().positive(), gold: z.number().positive(), rise: z.number().min(0) }),
+    /** Estates a governor sells from the estate perk's rung: `acres` a lot, the first for `gold`, each lot after (any nation) `rise` times the last. */
+    estate: z.object({ acres: z.number().int().positive(), gold: z.number().positive(), rise: z.number().min(1) }),
     acresPerMerit: z.number().min(0),
     rentPerAcre: z.number().min(0),
   }),
   /** Three fames from the career's record, the retirement score, and the fates it names. */
   career: z.object({
     fame: z.object({
-      trade: z.object({ goldPer: z.number().positive() }),
+      /** Trade fame by a rising ladder: the first point at `goldStep` gold made, each after it `goldStep` dearer. */
+      trade: z.object({ goldStep: z.number().positive() }),
       war: z.object({ prize: z.number(), pirate: z.number(), famous: z.number() }),
       adventure: z.object({ hoard: z.number(), mapPiece: z.number() }),
     }),
-    score: z.object({ goldPer: z.number().positive(), acresPer: z.number().positive(), rank: z.array(z.number()) }),
+    /** Wealth points by the same ladder (`goldStep`); a point every `acresPer` acres; each rank's points. */
+    score: z.object({ goldStep: z.number().positive(), acresPer: z.number().positive(), rank: z.array(z.number()) }),
     fates: z.array(z.object({ score: z.number(), title: z.string() })).min(1),
   }),
 });

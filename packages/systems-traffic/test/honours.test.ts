@@ -1,7 +1,7 @@
 import { createSim } from '@corsair/core';
 import type { BattleResult, WorldState } from '@corsair/core';
 import { describe, expect, it } from 'vitest';
-import { createEconomySystem } from '@corsair/systems-economy';
+import { createEconomySystem, ladderNext } from '@corsair/systems-economy';
 import { createHonoursSystem, createTrafficSystem } from '../src';
 import { content, settlements, lanes, map, windAt, world } from './fixtures';
 
@@ -112,9 +112,9 @@ describe('honours', () => {
   it('a new fate reached is said once, with the next one up; those reached before she was seen say nothing', () => {
     const sim = begun();
     expect((sim.state.captain!.honours ?? []).some((h) => h.kind === 'fame' && h.id.startsWith('fate:'))).toBe(false);
-    // Rich enough for the first fate above a beggar's (wealth alone: a point every score.goldPer gold).
+    // Rich enough for the first fate above a beggar's (wealth alone, on its rising ladder).
     const [, first, second] = content.politics.career.fates;
-    const gold = first!.score * content.politics.career.score.goldPer;
+    const gold = ladderNext(first!.score - 1, content.politics.career.score.goldStep);
     const sim2 = createSim({ ...sim.state, captain: { ...sim.state.captain!, gold } }, systems());
     sim2.send({ type: 'Undock', shipId: 'player' });
     sim2.applyCommands();

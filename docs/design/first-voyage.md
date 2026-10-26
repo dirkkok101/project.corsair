@@ -62,7 +62,7 @@ in `content/rewards.json` (goal rewards, the big-trade threshold) and the voyage
   - **Plunder rings:** gold into the chest rises off it and rings coins, as the purse does. The coins climb in pitch.
   - **Boarding pays:** a ship carried by boarding gives up 1.5x her purse and cargo, the extra cargo within her hold.
   - **Ranks:** the upgrade discount comes at Major. Admiral brings estates from that nation's governors: 100 acres
-    for 1,500 gold, each lot after a quarter dearer. They pay rent and count to the score; this is the late-game gold
+    for 1,500 gold, each lot after 1.3 times the last. They pay rent and count to the score; this is the late-game gold
     sink. The governor's ball (intel, map pieces) and a permit or contract line were deferred.
   - **Finds at sea** (kind `find`): about one day in 33 under way, a sea chest adrift (50 to 150 gold, into the
     chest) or casks of a good, drawn from a stream of their own.
@@ -70,8 +70,12 @@ in `content/rewards.json` (goal rewards, the big-trade threshold) and the voyage
     was held on the rails): home with her prize the voyage gives no more orders at sea (no banner, no line, her own
     goals in the pill), every port's buildings open but her own governor's, who waits in the log until the sugar is
     sold and the plunder shared. The battery is advice. Pirates hunt her again from then on.
-  - **Open:** a frigate on Port Royal to Tortuga makes about 7,100 a voyage at the merchant's appetite. That is
-    about 370 wealth points in a year of weekly runs, against 140 for the highest fate (balance/wealth.test.ts).
+  - **Trade and wealth on a rising ladder** (decided 2026-10-26): a frigate on Port Royal to Tortuga makes about
+    7,100 a voyage at the merchant's appetite, and when the score was linear a year of weekly runs scored about
+    1,100 against 140 for a legend. An ordinary mixed year scored about 200. Now each trade-fame point costs 500 more
+    than the last, and each wealth point 1,000 more. The best run alone scores about 64 in a year and a legend in
+    about five; a mixed year scores about 76 (the governor's council). War, adventure, land and ranks stay linear.
+    The estate price compounds so estates don't become the cheap way round the ladder (balance/wealth.test.ts).
 
 ## 5. Decisions taken
 
