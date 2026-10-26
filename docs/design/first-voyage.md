@@ -52,6 +52,22 @@ in `content/rewards.json` (goal rewards, the big-trade threshold) and the voyage
   **purse** (bounties stay the crew's chest); both legs marked on the chart.
 - The HUD: gold changes rise off the purse; notes show in port; a coin's ring on every payment.
 - The first goal shown is the first one the purse can pay for.
+- Added 2026-10-26 (from the reward audit and docs/reference/onboarding/reward-systems-research.md):
+  - **The career's end in view:** the opening and voyage letters, the voyage's last deed and the log's Goals page
+    say what she would retire to today and the next fate up. A deed card says what it added to the score.
+  - **Her name's rungs are deeds** (kind `fame`): each new fate reached, and each famous pirate she grows richer
+    than once in the Top Ten. The Top Ten's poorest pirate starts at 2,600, above a First Voyage purse (about 870).
+  - **Ambitions after the goals:** once the 13 career steps are done, the goals become the next fate and the next
+    name above hers in the Top Ten.
+  - **Plunder rings:** gold into the chest rises off it and rings coins, as the purse does. The coins climb in pitch.
+  - **Boarding pays:** a ship carried by boarding gives up 1.5x her purse and cargo, the extra cargo within her hold.
+  - **Ranks:** the upgrade discount comes at Major. Admiral brings estates from that nation's governors: 100 acres
+    for 1,500 gold, each lot after a quarter dearer. They pay rent and count to the score; this is the late-game gold
+    sink. The governor's ball (intel, map pieces) and a permit or contract line were deferred.
+  - **Finds at sea** (kind `find`): about one day in 33 under way, a sea chest adrift (50 to 150 gold, into the
+    chest) or casks of a good, drawn from a stream of their own.
+  - **Open:** a frigate on Port Royal to Tortuga makes about 7,100 a voyage at the merchant's appetite. That is
+    about 370 wealth points in a year of weekly runs, against 140 for the highest fate (balance/wealth.test.ts).
 
 ## 5. Decisions taken
 
