@@ -1457,7 +1457,7 @@ export function createTrafficSystem(
               ship: {
                 ...other,
                 ...theirs,
-                cargo: Object.fromEntries(Object.entries(other.cargo).map(([g, n]) => [g, Math.round(n * loot)])),
+                cargo: looted(other.cargo, loot, (content.ships[other.classId]?.cargo ?? 0) - Object.values(other.cargo).reduce((a, b) => a + b, 0)),
                 ai: {
                   ...other.ai,
                   name,
@@ -2105,6 +2105,18 @@ export interface TopTenEntry {
  * The Top Ten (Pirates! 2004): the famous pirates and the captain, richest first. A pirate's wealth is her own
  * (pirates.json, then what she takes and loses); the captain's is her purse and the plunder chest.
  */
+/** A hold carried by boarding: each good `loot` times over, the extra no more than the room left in her hold. */
+function looted(cargo: Record<string, number>, loot: number, room: number): Record<string, number> {
+  let left = Math.max(0, room);
+  return Object.fromEntries(
+    Object.entries(cargo).map(([g, n]) => {
+      const extra = Math.min(left, Math.round(n * (loot - 1)));
+      left -= extra;
+      return [g, n + extra];
+    }),
+  );
+}
+
 export function topTen(content: ContentPack, state: WorldState): TopTenEntry[] {
   const pirates: TopTenEntry[] = content.pirates.captains.map((c) => {
     const f = state.famous?.[c.id];

@@ -1067,7 +1067,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
           // Merit he earned with this nation before he held its letter counts now: he may take it up above its first rung.
           const rank = rankOf(content, captain, nation);
           const promoted =
-            rank > 0 ? [{ type: 'Promoted', entityIds: [ship.id, s.id], payload: { nation, rank: content.politics.ranks.ladder[rank]!.name, acres: landOf(content, captain, nation) } }] : [];
+            rank > 0 ? [{ type: 'Promoted', entityIds: [ship.id, s.id], payload: { nation, rank: content.politics.ranks.ladder[rank]!.name, acres: landOf(content, captain, nation) - (captain.estates?.[nation] ?? 0) } }] : [];
           return {
             state: { ...state, captain },
             events: [{ type: 'MarqueBought', entityIds: [ship.id, s.id], payload: { nation, gold: price } }, ...promoted],
@@ -1095,7 +1095,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
                 {
                   type: 'Promoted',
                   entityIds: [ship.id, s.id],
-                  payload: { nation, rank: content.politics.ranks.ladder[now]!.name, from: content.politics.ranks.ladder[was]!.name, acres: landOf(content, { ...state.captain, merit }, nation) },
+                  payload: { nation, rank: content.politics.ranks.ladder[now]!.name, from: content.politics.ranks.ladder[was]!.name, acres: landOf(content, { ...state.captain, merit }, nation) - (state.captain.estates?.[nation] ?? 0) },
                 },
               ]
             : [];

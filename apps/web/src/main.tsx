@@ -2310,7 +2310,9 @@ async function main() {
     for (const h of sim.state.captain?.honours ?? []) {
       if (deedsSeen.has(h.id)) continue;
       deedsSeen.add(h.id);
+      // The frame's whole move goes to the first deed of it (a bounty and its mission paid together count once).
       if (scoreNow > scoreSeen) deedScore.set(h.id, scoreNow - scoreSeen);
+      scoreSeen = Math.max(scoreSeen, scoreNow);
       if (h.kind !== 'rank' && h.kind !== 'hoard') deedQueue.push(h);
     }
     scoreSeen = scoreNow;
