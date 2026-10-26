@@ -1676,6 +1676,27 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
             events.push({ type: 'RentPaid', entityIds: [], payload: { gold: rent, acres } });
           }
         }
+        // Now and then under way, something adrift: a sea chest, or casks of a good (rewards.json flotsam). From a
+        // stream of its own, by the day, so a find moves nothing else in the world.
+        const adrift = next.ships.player;
+        const guided = next.captain?.voyage && next.captain.voyage.step !== 'done';
+        if (adrift && next.captain && !adrift.docked && adrift.speed > 0 && !guided) {
+          const fl = content.rewards.flotsam;
+          const draw = rngStream(seedRng(days ^ (state.rng?.economy?.[0] ?? 0), 'flotsam'));
+          if (draw.float() < fl.chancePerDay) {
+            const room = Math.max(0, fleetHold(content, next, adrift) - cargoUsed(adrift));
+            const casks = draw.float() < fl.casksShare ? Math.min(room, Math.round(draw.range(fl.casks[0], fl.casks[1]))) : 0;
+            if (casks > 0) {
+              const good = fl.goods[Math.floor(draw.float() * fl.goods.length)]!;
+              next = { ...next, ships: { ...next.ships, player: { ...adrift, cargo: { ...adrift.cargo, [good]: (adrift.cargo[good] ?? 0) + casks } } } };
+              events.push({ type: 'Flotsam', entityIds: [adrift.id], payload: { good, units: casks } });
+            } else {
+              const gold = Math.round(draw.range(fl.gold[0], fl.gold[1]));
+              next = { ...next, captain: { ...next.captain, chest: (next.captain.chest ?? 0) + gold } };
+              events.push({ type: 'Flotsam', entityIds: [adrift.id], payload: { gold } });
+            }
+          }
+        }
         // Her bottom fouls by the day (unless copper-sheathed), and fine-grain powder spends itself.
         const player = next.ships.player;
         if (player) {

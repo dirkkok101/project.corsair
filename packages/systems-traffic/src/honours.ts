@@ -122,6 +122,15 @@ export function createHonoursSystem(content: ContentPack, settlements: PlacedSet
           case 'Promoted':
             add({ id: `rank:${p.nation}:${p.rank}`, kind: 'rank', title: `Made ${p.rank}`, lines: [`In the service of ${COUNTRY[String(p.nation)] ?? p.nation}`], ...base });
             break;
+          case 'Flotsam':
+            add({
+              id: `find:${e.tick}`,
+              kind: 'find',
+              title: p.good ? `Casks adrift` : 'A sea chest adrift',
+              ...(p.gold ? { gold: Number(p.gold), into: 'chest' as const } : { lines: [`${p.units} ${good(p.good).toLowerCase()} hauled aboard`] }),
+              tick: e.tick,
+            });
+            break;
           case 'EstateBought':
             add({
               id: `estate:${e.tick}`,

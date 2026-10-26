@@ -1124,6 +1124,14 @@ export type TreasureConfig = z.infer<typeof treasureSchema>;
 export const rewardsSchema = z.object({
   goals: z.object({ paid: z.number().int().min(0), gold: z.number().int().min(0) }),
   bigTrade: z.number().positive(),
+  /** Small surprises at sea: a sea chest adrift (gold into the chest) or casks of a good, now and then under way. */
+  flotsam: z.object({
+    chancePerDay: z.number().min(0).max(1),
+    gold: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+    casksShare: z.number().min(0).max(1),
+    casks: z.tuple([z.number().int().min(1), z.number().int().min(1)]),
+    goods: z.array(z.string()).min(1),
+  }),
 });
 export type RewardsConfig = z.infer<typeof rewardsSchema>;
 

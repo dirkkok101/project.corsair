@@ -54,6 +54,8 @@ export function createLogbookSystem(content: ContentPack, settlements: Pick<Plac
       }
       case 'Promoted':
         return { kind: 'deed', text: `Made ${p.rank} by ${COUNTRY[String(p.nation)] ?? p.nation}.`, place: at };
+      case 'Flotsam':
+        return { kind: 'deed', text: p.good ? `Picked up ${p.units} casks of ${good(p.good)} adrift.` : `Picked up a sea chest adrift: ${gold(p.gold)}, into the plunder chest.` };
       case 'EstateBought':
         return { kind: 'deed', text: `Bought ${p.acres} acres from ${COUNTRY[String(p.nation)] ?? p.nation} at ${town(at)}, for ${gold(p.gold)}.`, place: at };
       case 'MarqueBought':

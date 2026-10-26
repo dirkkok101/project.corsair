@@ -927,6 +927,27 @@ describe('the governor', () => {
     expect(rent[0]!.payload.gold).toBe(Math.round(landOf(content, titled, 'england') * content.politics.ranks.rentPerAcre));
   });
 
+  it('now and then under way she picks up something adrift: a sea chest into the plunder chest, or casks; never in port', () => {
+    const fl = content.rewards.flotsam;
+    const days = 400;
+    const run = (docked: boolean) => {
+      const sim = moored();
+      const me = { ...player(sim.state), speed: 4, ...(docked ? { docked: portRoyal.id } : {}) };
+      const at = createSim({ ...sim.state, captain: { ...sim.state.captain!, chest: 0 }, ships: { player: me } }, [createEconomySystem(content, settlements)]);
+      at.step(days * content.calendar.ticksPerDay);
+      return { sim: at, finds: at.events().filter((e) => e.type === 'Flotsam') };
+    };
+    const { sim, finds } = run(false);
+    expect(finds.length).toBeGreaterThan(days * fl.chancePerDay * 0.4);
+    expect(finds.length).toBeLessThan(days * fl.chancePerDay * 2);
+    const gold = finds.reduce((n, e) => n + Number(e.payload.gold ?? 0), 0);
+    expect(gold).toBeGreaterThan(0);
+    expect(sim.state.captain!.chest).toBe(gold);
+    for (const e of finds) if (e.payload.gold) expect(Number(e.payload.gold)).toBeGreaterThanOrEqual(fl.gold[0]);
+    expect(finds.some((e) => e.payload.good && fl.goods.includes(String(e.payload.good)))).toBe(true);
+    expect(run(true).finds).toHaveLength(0);
+  });
+
   it("an admiral buys estates from his nation's governors, each lot dearer than the last, and they count as land", () => {
     const ladder = content.politics.ranks.ladder;
     const e = content.politics.ranks.estate;
