@@ -61,7 +61,7 @@ import { ChartInset } from './ui/chart-inset';
 import { shipTitle } from './hail';
 import { Art, GoodIcon, shipIcon, shipKind } from './ui-art';
 import { useEffect, useState } from 'preact/hooks';
-import { estatePrice, suggestTrade, voyageOpen } from '@corsair/systems-economy';
+import { estatePrice, suggestTrade, voyageFree, voyageOpen } from '@corsair/systems-economy';
 import { harbourLine, homeNeed, NedSays, OrdersCard, shutWhy, voyageOrders } from './voyage';
 
 export interface PortProps {
@@ -649,7 +649,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const voyage = state.captain?.voyage;
   const atHome = voyage?.home === town.id;
   useEffect(() => {
-    if (request && voyageOpen(voyage, request.service)) setOpen(request.service);
+    if (request && voyageOpen(voyage, request.service, town.id)) setOpen(request.service);
   }, [request]);
   // The First Voyage's governor: he gives her his letter of marque the moment she comes in (its ceremony follows).
   useEffect(() => {
@@ -706,12 +706,12 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
   const { guns: mounted, maxGuns } = shipStats(content, ship);
   const need = Object.fromEntries(
     SERVICES.map((s) => [s.id, voyage && atHome && homeNeed(voyage, s.id, { sugar: ship.cargo[content.voyage.salvage.good] ?? 0, guns: Math.max(0, maxGuns - mounted), gunGold: content.combat.port.gunGold, chest: state.captain?.chest ?? 0 })]),
-  ) as Partial<Record<Service, { text: string; done: boolean }>>;
+  ) as Partial<Record<Service, { text: string; done: boolean; advice?: boolean }>>;
   const spots = SERVICES.filter((s) => hotspots[s.id]).map((s) => {
     const r = hotspots[s.id]!;
     const ready = READY.includes(s.id);
     // Shuttered on the voyage: its name dimmed, and why, in a line.
-    if (voyage && !voyageOpen(voyage, s.id))
+    if (voyage && !voyageOpen(voyage, s.id, town.id))
       return (
         <div key={s.id} class="port-spot shut" style={{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }}>
           <span>{s.name}</span>
@@ -735,7 +735,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
           {s.name}
           {badge[s.id] ? <b class="spot-badge">{badge[s.id]}</b> : null}
         </span>
-        {need[s.id] ? <small class={`spot-need${need[s.id]!.done ? ' done' : ''}`}>{need[s.id]!.text}</small> : null}
+        {need[s.id] ? <small class={`spot-need${need[s.id]!.done ? ' done' : need[s.id]!.advice ? ' advice' : ''}`}>{need[s.id]!.text}</small> : null}
       </button>
     );
   });
@@ -753,8 +753,9 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
     const berths = fleetBerths(content, state, ship);
     const food = Math.floor(foodDays(content, ship));
     const morale = moraleOf(content, state);
-    // One thing at a time on the voyage: the quartermaster speaks, the port's news waits.
-    const news = voyage && voyage.step !== 'done' ? undefined : arrivalNews(content, state, town, settlements, ship);
+    // One thing at a time on the voyage: the quartermaster speaks, the port's news waits (free of it, the news is told).
+    const free = voyageFree(voyage);
+    const news = !free ? undefined : arrivalNews(content, state, town, settlements, ship);
     const said = voyage && atHome && harbourLine(voyage);
     const home = voyage && settlements.find((x) => x.id === voyage.home)?.name;
     // The ships lying here, by the date: how many, and whose.
@@ -788,7 +789,7 @@ export function Port({ state, content, town, settlements, shipId, send, hotspots
             ) : null}
           </div>
         </div>
-        {voyage && home && voyage.step !== 'done' ? <OrdersCard orders={voyageOrders(voyage, home)} /> : null}
+        {voyage && home && voyage.step !== 'done' && (!free || atHome) ? <OrdersCard orders={voyageOrders(voyage, home)} /> : null}
         {said ? <NedSays line={said} /> : null}
         {news || notice ? (
           <div class="harbour-news">

@@ -7,7 +7,7 @@ import { atWar, enemiesOf, NATIONS } from '@corsair/systems-politics';
 import { isLand, shipStats, tileAt, upgradePrice } from '@corsair/data';
 import type { ContentPack, PlacedSettlement, TileMap } from '@corsair/data';
 import { careerScore, estatePrice, hasPerk, landOf, perkPrice, rankOf, tradeEdge } from './career';
-import { voyageShut } from './voyage';
+import { voyageFree, voyageShut } from './voyage';
 
 export * from './career';
 export * from './logbook';
@@ -970,7 +970,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
     command(state, command) {
       if (!state.markets || !state.captain) return undefined;
       // On the First Voyage, a building not yet open does no business.
-      const shut = voyageShut(state.captain.voyage, command);
+      const shut = voyageShut(state.captain.voyage, command, 'shipId' in command ? state.ships[command.shipId]?.docked : undefined);
       if (shut && 'shipId' in command && state.ships[command.shipId]) return refuse(state, state.ships[command.shipId]!, 'shuttered', { service: shut });
       if (command.type === 'Dock') {
         const ship = state.ships[command.shipId];
@@ -1679,7 +1679,7 @@ export function createEconomySystem(content: ContentPack, settlements: Settlemen
         // Now and then under way, something adrift: a sea chest, or casks of a good (rewards.json flotsam). From a
         // stream of its own, by the day, so a find moves nothing else in the world.
         const adrift = next.ships.player;
-        const guided = next.captain?.voyage && next.captain.voyage.step !== 'done';
+        const guided = !voyageFree(next.captain?.voyage);
         if (adrift && next.captain && !adrift.docked && adrift.speed > 0 && !guided) {
           const fl = content.rewards.flotsam;
           const draw = rngStream(seedRng(days ^ (state.rng?.economy?.[0] ?? 0), 'flotsam'));

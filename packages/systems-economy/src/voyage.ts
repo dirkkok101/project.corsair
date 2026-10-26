@@ -43,20 +43,33 @@ const SERVICE: Partial<Record<Command['type'], PortService>> = {
   CallOnGovernor: 'governor',
 };
 
-/** Whether a building is open to her (always, off the voyage). */
-export function voyageOpen(voyage: Voyage | undefined, service: PortService): boolean {
-  return !voyage || OPEN[voyage.step].includes(service);
+/**
+ * Home with her prize, the voyage guides her no more: she goes where she likes, every port open to her, and the
+ * governor's letter waits until she calls on him (docs/design/first-voyage.md).
+ */
+export function voyageFree(voyage: Voyage | undefined): boolean {
+  return !voyage || voyage.step === 'done' || voyage.step === 'governor' || (voyage.step === 'home' && Boolean(voyage.ashore));
+}
+
+/**
+ * Whether a building is open to her (always, off the voyage). Free of the voyage, every building is, but for her home
+ * port's governor, who sees her once the sugar is sold and the plunder shared.
+ */
+export function voyageOpen(voyage: Voyage | undefined, service: PortService, here?: string): boolean {
+  if (!voyage || OPEN[voyage.step].includes(service)) return true;
+  return voyageFree(voyage) && !(service === 'governor' && here === voyage.home);
 }
 
 /** The shuttered building a command would be done in, if the voyage has it shut. */
-export function voyageShut(voyage: Voyage | undefined, command: Command): PortService | undefined {
+export function voyageShut(voyage: Voyage | undefined, command: Command, here?: string): PortService | undefined {
   const service = SERVICE[command.type];
-  return service && !voyageOpen(voyage, service) ? service : undefined;
+  return service && !voyageOpen(voyage, service, here) ? service : undefined;
 }
 
 /**
  * The casks the cay's wreck gives up: enough that, sold at home, they cover `cover` times what a full battery costs
- * beyond her purse (at least `minUnits`), so the first sale fills her guns.
+ * beyond her purse (at least `minUnits`), so the first sale would fill her guns (if she chooses to: the battery is
+ * the shipwright's advice, not an order).
  */
 export function salvageUnits(content: ContentPack, state: WorldState, home: PlacedSettlement): number {
   const sv = content.voyage.salvage;

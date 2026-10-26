@@ -2,7 +2,7 @@ import { inPort, rngStream, seedRng } from '@corsair/core';
 import type { AiCaptain, EmittedEvent, FamousPirate, FleetShip, Mission, Nation, NewsItem, Prize, PrizePapers, SailSetting, Ship, Sighting, System, Wind, WorldState } from '@corsair/core';
 import { atDifficulty, crewQualityOf, difficultyOf, isLand, shipStats, Tile, sightTiles, tileAt, viewTiles } from '@corsair/data';
 import type { ContentPack, FamousPirateDef, PlacedSettlement, TileMap } from '@corsair/data';
-import { crewOf, famesOf, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
+import { crewOf, famesOf, voyageFree, fleetBerths, givePiece, hoardRing, fleetHold, fleetMinCrew, fleetOf, moraleOf, newsAt, normalStock, plagued, quote, shipValue, startPlague, withFleetPace } from '@corsair/systems-economy';
 import { angleOffWind, bestUpwindDeg, normalizeDeg, targetSpeed } from '@corsair/systems-navigation';
 import { atWar, legalTarget, NATIONS, raisePiracy } from '@corsair/systems-politics';
 import { zoneAt } from '@corsair/systems-weather';
@@ -899,10 +899,8 @@ export function createTrafficSystem(
   /** A famous pirate out for revenge on the captain who dug up her hoard. */
   const avenging = (state: WorldState, ship: Ship) => Boolean(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.revenge);
   // On the First Voyage, until the governor has seen her, no one hunts her: she learns the sea in peace.
-  const learning = (state: WorldState) => {
-    const step = state.captain?.voyage?.step;
-    return step !== undefined && step !== 'governor' && step !== 'done';
-  };
+  // Nobody hunts her while the First Voyage guides her; home with her prize, she is free, and fair game.
+  const learning = (state: WorldState) => !voyageFree(state.captain?.voyage);
   const hunts = (state: WorldState, ship: Ship, player?: Ship) =>
     !learning(state) &&
     ((ship.ai!.role === 'pirate' && !(ship.ai!.famous && state.famous?.[ship.ai!.famous]?.spared)) ||

@@ -5298,6 +5298,13 @@ body {
   background: #6fbf73;
 }
 
+/* Advice, not a chore (the shipwright's guns): quieter than what she has to do. */
+.port-spot .spot-need.advice {
+  background: rgba(239, 233, 218, 0.85);
+  color: #4a3a22;
+  font-weight: 600;
+}
+
 .first-sale {
   width: min(620px, calc(100vw - 60px));
   padding: 18px;

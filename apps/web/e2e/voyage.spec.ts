@@ -275,12 +275,13 @@ async function toHome(page: Page) {
   return errors;
 }
 
-test('chapter 3, home with a prize: three buildings, each for one thing; the first sale, a full battery, the plunder shared; then the governor', async ({ page }) => {
+test('chapter 3, home with a prize: the first sale and the plunder shared, then the governor; the guns are advice, not a chore', async ({ page }) => {
   const errors = await toHome(page);
   expect((await voyageOf(page)) as Voyage & { ashore?: boolean }).toMatchObject({ step: 'home', ashore: true });
   // What each building is for; the governor not yet.
   await expect(page.locator('.port-spot', { hasText: 'Merchant' }).locator('.spot-need')).toContainText('sugar to sell');
-  await expect(page.locator('.port-spot', { hasText: 'Shipwright' }).locator('.spot-need')).toContainText('guns to mount');
+  // The shipwright's guns are advice, quieter than a chore: her purse may go on a cargo instead.
+  await expect(page.locator('.port-spot', { hasText: 'Shipwright' }).locator('.spot-need.advice')).toContainText('When you can: 8 guns');
   await expect(page.locator('.port-spot', { hasText: 'Tavern' }).locator('.spot-need')).toContainText('to share');
   await expect(page.locator('.port-spot.shut', { hasText: 'Governor' })).toContainText("He's heard of your prize");
   await expect(page.locator('.voyage-orders')).toContainText('Sell the sugar');
@@ -300,14 +301,7 @@ test('chapter 3, home with a prize: three buildings, each for one thing; the fir
   await expect(page.locator('.merchant')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('.port-spot', { hasText: 'Merchant' }).locator('.spot-need.done')).toHaveText('Sold');
-  // The shipwright: fill the gun deck.
-  await page.locator('.port-spot', { hasText: 'Shipwright' }).click();
-  await page.locator('.shipwright').getByRole('button', { name: 'See the guns' }).click();
-  await page.locator('.shipwright').getByRole('button', { name: /^Fill the gun deck/ }).click();
-  await expect(page.locator('.deed-standard .deed-title')).toHaveText('A full battery');
-  await dismissDeeds(page);
-  await page.keyboard.press('Escape');
-  // The tavern: share out the plunder.
+  // The tavern: share out the plunder (no guns bought: the governor sees her all the same).
   await page.locator('.port-spot', { hasText: 'Tavern' }).click();
   await page.getByRole('button', { name: 'Divide the plunder' }).click();
   await expect.poll(async () => (await voyageOf(page)).step).toBe('governor');
@@ -316,9 +310,18 @@ test('chapter 3, home with a prize: three buildings, each for one thing; the fir
   // The governor's door open, and Ned says so.
   await expect(page.locator('.port-spot.shut')).toHaveCount(0);
   await expect(page.locator('.voyage-ned')).toContainText("He'll see you now");
+  await expect(page.locator('.voyage-ned')).toContainText('a full battery, and pirates think twice');
+  expect(await page.evaluate(() => window.__corsair.state.get('ships.player.guns'))).toBe(10);
   await expect(page.locator('.voyage-order.now')).toContainText('See the governor');
   await page.waitForTimeout(400);
   await page.screenshot({ path: 'test-results/voyage-governor-open.png' });
+  // Free to go where she likes before she sees him: at sea no order of the voyage's, and her own goal in the pill.
+  await page.locator('.port').getByRole('button', { name: /Set sail/ }).click();
+  await page.evaluate(() => window.__corsair.sim.step(5));
+  await expect(page.locator('.hud-order')).toHaveCount(0);
+  await expect(page.locator('.voyage-orders')).toHaveCount(0);
+  await expect(page.locator('.hud-goal')).toBeVisible();
+  await expect(page.locator('.hud-goal')).not.toContainText('governor');
   expect(errors).toEqual([]);
 });
 
@@ -331,7 +334,7 @@ async function dismissDeeds(page: Page) {
   }
 }
 
-/** Chapter 3's chores done quickly (it has its own test): sold, a full battery, the plunder shared. */
+/** Chapter 3 done quickly (it has its own test): sold, a full battery (as a captain may choose), the plunder shared. */
 async function toGovernor(page: Page) {
   const errors = await toHome(page);
   await page.evaluate(() => {

@@ -15,7 +15,7 @@ quartermaster** (bust.oldsalt).
 |---|---|---|---|
 | 1 Take the helm | Out of the capital to a nearby cay where a storm wrecked a sloop | steer (A D), more sail (W), the wind (only if she points into it) | Salvage: the good and 4 castaways; deed "First salvage" |
 | 2 First prize | A pirate periagua (no great guns) harrying a fishing boat off the cay | the gold arc, a broadside, she strikes, the plunder chest | Deed "First prize taken" (+340 into the chest, +6 men) |
-| 3 Home with a prize | The capital: Merchant, Shipwright, Tavern lit, each tagged with its need | sell a cargo, mount a full battery, share out the plunder | Deed "First cargo sold"; the battery full |
+| 3 Home with a prize | The capital: Merchant, Shipwright, Tavern lit, each tagged with its need | sell a cargo, share out the plunder (a full battery is the shipwright's advice, never a gate; changed 2026-10-26) | Deed "First cargo sold"; free from here: no voyage orders at sea, every port open, hunted again |
 | 4 The governor | The governor's office | rank and merit; his commissions | A letter of marque (ceremony); three matters on his desk: carry a letter, run a cargo, hunt a pirate |
 
 Rules: one prompt at a time, 8 words or fewer; buildings not yet needed stand shuttered with a one-line reason;
@@ -66,6 +66,10 @@ in `content/rewards.json` (goal rewards, the big-trade threshold) and the voyage
     sink. The governor's ball (intel, map pieces) and a permit or contract line were deferred.
   - **Finds at sea** (kind `find`): about one day in 33 under way, a sea chest adrift (50 to 150 gold, into the
     chest) or casks of a good, drawn from a stream of their own.
+  - **Free once home** (playtest, 2026-10-26: the full battery took the whole purse, so a captain who traded first
+    was held on the rails): home with her prize the voyage gives no more orders at sea (no banner, no line, her own
+    goals in the pill), every port's buildings open but her own governor's, who waits in the log until the sugar is
+    sold and the plunder shared. The battery is advice. Pirates hunt her again from then on.
   - **Open:** a frigate on Port Royal to Tortuga makes about 7,100 a voyage at the merchant's appetite. That is
     about 370 wealth points in a year of weekly runs, against 140 for the highest fate (balance/wealth.test.ts).
 

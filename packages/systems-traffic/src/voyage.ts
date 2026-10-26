@@ -91,7 +91,10 @@ export function withVoyage(world: WorldState, content: ContentPack, map: TileMap
   return { ...world, captain: { ...world.captain!, voyage } };
 }
 
-/** Home with her prize: in port, the cargo sold, the battery full and the plunder shared, then the governor. */
+/**
+ * Home with her prize: in port, the cargo sold and the plunder shared, then the governor. A full battery is the
+ * shipwright's advice, kept as a lesson when she mounts one, never a gate: her purse may be better spent on a cargo.
+ */
 function homeChores(content: ContentPack, state: WorldState, v: Voyage, me: Ship, events: readonly GameEvent[]): WorldState {
   const mine = events.filter((e) => e.entityIds[0] === me.id);
   const ashore = v.ashore || (me.docked === v.home && mine.some((e) => e.type === 'Docked'));
@@ -101,7 +104,7 @@ function homeChores(content: ContentPack, state: WorldState, v: Voyage, me: Ship
   const { guns, maxGuns } = shipStats(content, me);
   if (guns >= maxGuns) done.add('battery');
   if (mine.some((e) => e.type === 'PlunderDivided') || !(state.captain?.chest ?? 0)) done.add('shared');
-  const all = ['sold', 'battery', 'shared'].every((l) => done.has(l));
+  const all = ['sold', 'shared'].every((l) => done.has(l));
   const voyage: Voyage = { ...v, ashore: true, lessons: [...done], ...(all ? { step: 'governor' as const } : {}) };
   if (JSON.stringify(voyage) === JSON.stringify(v)) return state;
   return { ...state, captain: { ...state.captain!, voyage } };

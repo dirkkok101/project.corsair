@@ -24,7 +24,7 @@ import type { Toast } from './hud';
 import { shipKind } from './ui-art';
 import { Port } from './port';
 import type { PortNotice, Service } from './port';
-import { careerScore, cargoUsed, closedTo, fateNow, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, plagueDaysLeft, plagueLeftSaid, tradeLean, withEconomy } from '@corsair/systems-economy';
+import { careerScore, cargoUsed, voyageFree, closedTo, fateNow, createEconomySystem, createLogbookSystem, hasGovernor, hoardRing, crewOf, DOCK_RANGE, famine, fleetBerths, fleetHold, fleetMinCrew, fleetOf, fleetShipPace, foodDays, purseFull, shipValue, townOf, moraleOf, moraleWord, newsAt, newsText, plagued, plagueDaysLeft, plagueLeftSaid, tradeLean, withEconomy } from '@corsair/systems-economy';
 import { createCharts } from './chart';
 import type { CardLine } from './chart';
 import { bindInput } from './input';
@@ -1423,7 +1423,7 @@ async function main() {
     if (chased?.ai) return { kind: 'chase', her: chased, text: `Chasing the ${chased.ai.name}`, say: `Chase the ${shipTitle(chased)} ${chased.ai.name}` };
     if (destination) return { kind: 'course', port: destination, text: `Course to ${destination.name}`, say: `Sail the course to ${destination.name}` };
     const v = sim.state.captain?.voyage;
-    if (v && v.step !== 'done') {
+    if (v && !voyageFree(v)) {
       const atWreck = v.step === 'salvage' && Math.hypot(me.x - v.cay.x, me.y - v.cay.y) <= content.voyage.arriveTiles + 1;
       if ((v.step === 'helm' || v.step === 'salvage') && !atWreck) return { kind: 'mark', x: v.cay.x, y: v.cay.y, text: `Bound for ${v.cay.name}`, say: `Sail to ${v.cay.name}`, quest: true };
       const quarry = v.step === 'prize' && v.pirateId ? sim.state.ships[v.pirateId] : undefined;
@@ -2304,7 +2304,7 @@ async function main() {
     // The career's goals: the next is the sea's goal pill and a deed card's "Next", the rest wait in the log.
     const goals = careerGoals(content, sim.state, settlements);
     // Bound for the cay on the First Voyage, the voyage guides her: its orders stand for the goal, its lesson for the prompt.
-    const guided = !ship.docked && sim.state.captain?.voyage && !['harbour', 'done'].includes(sim.state.captain.voyage.step) ? sim.state.captain.voyage.step : undefined;
+    const guided = !ship.docked && sim.state.captain?.voyage && sim.state.captain.voyage.step !== 'harbour' && !voyageFree(sim.state.captain.voyage) ? sim.state.captain.voyage.step : undefined;
     // Her new honours, queued; a rank and a hoard have their own moments.
     const scoreNow = careerScore(content, sim.state).total;
     for (const h of sim.state.captain?.honours ?? []) {
@@ -2317,7 +2317,15 @@ async function main() {
     }
     scoreSeen = scoreNow;
     // The governors' missions in hand: the nearest is the sea's goal pill, and the log lists them all.
-    const missions = missionGoals(sim.state, settlements);
+    // Free of the First Voyage before its end, the governor's letter waits on her: a mission of its own until she calls.
+    const sailing = sim.state.captain?.voyage;
+    const waiting = sailing && sailing.step !== 'done' && voyageFree(sailing) ? settlements.find((s) => s.id === sailing.home) : undefined;
+    const missions = [
+      ...(waiting
+        ? [{ id: 'voyage:governor', title: `See the governor of ${waiting.name}`, why: sailing!.step === 'governor' ? "He's heard of your prize: a letter of marque, and work" : 'Sell the sugar and share the plunder first', have: 0, of: 1, unit: '', done: false, port: waiting.id, mission: true }]
+        : []),
+      ...missionGoals(sim.state, settlements),
+    ];
     if (fight) logOpen = false;
     render(
       logOpen ? (
@@ -2352,7 +2360,7 @@ async function main() {
     );
     // The First Voyage at sea, bound for the cay: the orders, the lesson, the smoke.
     const voyage = sim.state.captain?.voyage;
-    const bound = voyage && !ship.docked && !fight && voyage.step !== 'harbour' && voyage.step !== 'done' ? voyage : undefined;
+    const bound = voyage && !ship.docked && !fight && voyage.step !== 'harbour' && !voyageFree(voyage) ? voyage : undefined;
     const toCay = bound?.step === 'helm' || bound?.step === 'salvage';
     // The wreck lies on the cay until she has done with it; it smokes until she has salvaged it.
     const wrecked = voyage && ['helm', 'salvage', 'prize'].includes(voyage.step) ? voyage.cay : undefined;
@@ -2402,9 +2410,9 @@ async function main() {
           const bar = meritBar(content, sim.state.captain, deed.nation);
           const goal = nextGoal(goals, sim.state.captain?.gold ?? 0);
           // On the First Voyage the next thing is her next order.
-          const order = voyage && voyage.step !== 'done' ? voyageOrders(voyage, settlements.find((s) => s.id === voyage.home)?.name ?? '').find((o) => !o.done) : undefined;
+          const order = voyage && !voyageFree(voyage) ? voyageOrders(voyage, settlements.find((s) => s.id === voyage.home)?.name ?? '').find((o) => !o.done) : undefined;
           const lower = (t: string) => t[0]!.toLowerCase() + t.slice(1);
-          const next = bar?.next ?? (voyage && voyage.step !== 'done' ? order && lower(order.text) : goal && lower(goal.title));
+          const next = bar?.next ?? (voyage && !voyageFree(voyage) ? order && lower(order.text) : goal && lower(goal.title));
           return <DeedCard honour={deed} weight={deedStays ? 'standard' : 'small'} age={now - deedShownAt} next={next} bar={bar?.share} score={deedScore.get(deed.id)} close={closeDeed} />;
         })()
       ) : null,
@@ -2498,7 +2506,7 @@ async function main() {
     }
     // No course of her own on the First Voyage: the line runs to her order in hand (the cay, the pirate, home).
     const quest = sim.state.captain?.voyage;
-    const questAt = !destination && quest && !ship.docked && !fight
+    const questAt = !destination && quest && !ship.docked && !fight && !voyageFree(quest)
       ? quest.step === 'helm' || quest.step === 'salvage'
         ? ([quest.cay.x, quest.cay.y] as [number, number])
         : quest.step === 'prize' && quest.pirateId && sim.state.ships[quest.pirateId]
@@ -2644,7 +2652,8 @@ async function main() {
         toasts={[...[digNote, courseNote].flatMap((n) => (n && now < n.until ? [n] : [])), ...(crewWarning ? [crewWarning] : [])]}
         goal={(() => {
           if (guided) return undefined;
-          const g = missions[0] ?? nextGoal(goals, sim.state.captain?.gold ?? 0);
+          // The governor's waiting letter is the log's to keep, not the pill's: free, her own goals lead.
+          const g = missions.find((m) => m.id !== 'voyage:governor') ?? nextGoal(goals, sim.state.captain?.gold ?? 0);
           return g && { title: g.title, have: g.have, of: g.of, unit: g.unit, mission: g.mission };
         })()}
         strip={strip}

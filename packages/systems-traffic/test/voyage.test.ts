@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSim } from '@corsair/core';
 import { isLand, shipStats, Tile, tileAt } from '@corsair/data';
-import { createEconomySystem, crewOf, quote, suggestTrade } from '@corsair/systems-economy';
+import { createEconomySystem, crewOf, quote, suggestTrade, voyageFree, voyageOpen } from '@corsair/systems-economy';
 import { createNavigationSystem } from '@corsair/systems-navigation';
 import { bearingWord, createHonoursSystem, createTrafficSystem, createVoyageSystem, missionOffer, withVoyage } from '../src';
 import { content, settlements, lanes, map, windAt, world } from './fixtures';
@@ -156,7 +156,8 @@ describe('the First Voyage, the first prize', () => {
     sim.step(2);
     expect(boat().ai!.voyage).toBeUndefined();
     expect(boat().ai!.route.length).toBeGreaterThan(0);
-    // Home: ashore, the merchant, shipwright and tavern open; the three chores done, the governor.
+    // Home: ashore, she is free of the voyage (every port's buildings open to her, but her own governor's); two chores
+    // done, the governor. The battery is advice, not a chore: she sees him with her guns as they were.
     sim.send({ type: 'Teleport', shipId: 'player', x: royal.x + 2, y: royal.y + 2 });
     sim.step(1);
     sim.send({ type: 'Dock', shipId: 'player', settlementId: royal.id });
@@ -165,14 +166,18 @@ describe('the First Voyage, the first prize', () => {
     sim.send({ type: 'CollectBounties', shipId: 'player' });
     sim.applyCommands();
     expect(sim.events().at(-1)!.payload.reason).toBe('shuttered');
+    expect(voyageFree(sim.state.captain!.voyage)).toBe(true);
+    expect(voyageOpen(sim.state.captain!.voyage, 'governor', 'town.tortuga')).toBe(true);
+    expect(voyageOpen(sim.state.captain!.voyage, 'governor', royal.id)).toBe(false);
+    const guns = sim.state.ships.player!.guns;
     sim.send({ type: 'Sell', shipId: 'player', good: 'sugar', quantity: 1000 });
-    sim.send({ type: 'BuyGuns', shipId: 'player', count: 20 });
     sim.applyCommands();
-    expect(sim.state.captain!.voyage!.lessons).toEqual(expect.arrayContaining(['sold', 'battery']));
+    expect(sim.state.captain!.voyage!.lessons).toEqual(['sold']);
     expect(sim.state.captain!.voyage!.step).toBe('home');
     sim.send({ type: 'DividePlunder', shipId: 'player' });
     sim.applyCommands();
     expect(sim.state.captain!.voyage!.step).toBe('governor');
+    expect(sim.state.ships.player!.guns).toBe(guns);
     // The governor: no commission before his letter; the letter free, then her pick of his three.
     sim.send({ type: 'ChooseCommission', shipId: 'player', kind: 'courier' });
     sim.applyCommands();
