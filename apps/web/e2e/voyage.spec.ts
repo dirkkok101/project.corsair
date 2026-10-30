@@ -193,7 +193,7 @@ test('chapter 2, the first prize: a pirate harrying a boat, chased and fought wi
   await alongside(page, v.pirateId);
   await page.waitForTimeout(300);
   if (!(await page.evaluate(() => window.__corsair.battle.active()))) {
-    await expect(hint(page, 'Attack the pirate Salt Rat').locator('.k-key')).toHaveText('F');
+    await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Attack her');
     await page.keyboard.press('f');
   }
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
@@ -245,7 +245,7 @@ async function toHome(page: Page) {
   await page.keyboard.press('Enter');
   const v = (await voyageOf(page)) as Voyage & { pirateId: string };
   await alongside(page, v.pirateId);
-  await expect(hint(page, 'Attack the pirate')).toBeVisible();
+  await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Attack her');
   await page.keyboard.press('f');
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);
   await page.evaluate(() => {
@@ -496,7 +496,7 @@ test('playtest, chapter 2 as a newcomer: Space to chase, F to attack, then side 
   // Space chases her (her order); alongside, F attacks.
   await expect(hint(page, 'Chase the pirate')).toBeVisible();
   await page.keyboard.press(' ');
-  await expect(hint(page, 'Attack the pirate')).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Attack her', { timeout: 90_000 });
   const chased = Math.round((Date.now() - started) / 1000);
   await page.keyboard.press('f');
   await expect.poll(() => page.evaluate(() => window.__corsair.battle.active())).toBe(true);

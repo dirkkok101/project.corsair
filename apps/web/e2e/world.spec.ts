@@ -864,7 +864,9 @@ test('ships at sea: AI ships sail, a ship alongside can be hailed, and the chart
     }
     return newest;
   });
-  await expect(hint(page, 'Hail the English fluyt').locator('.k-key')).toHaveText('F');
+  // She is the ship picked: her card's button hails her on F, and no hint repeats it.
+  await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Hail her');
+  await expect(hint(page, 'Hail the English fluyt')).toHaveCount(0);
   // Her nation, name and what she is ride under her on the 3D sea.
   const label = page.locator('.ship-label', { hasText: 'fluyt, merchant' });
   await expect(label).toBeVisible();
@@ -1335,9 +1337,9 @@ test('the ship key: Sail ho! picks her, F chases her down and she is hailed alon
     return id;
   });
   await frames(page);
-  // Called out, she is the ship picked: her card says who and where, and F chases her (its button names the key).
+  // Called out, she is the ship picked: her card says who and where, and F chases her (its button names the key, so no hint repeats it).
   await expect(page.locator('.hud-picked')).toBeVisible();
-  await expect(hint(page, 'Chase the').locator('.k-key')).toHaveText('F');
+  await expect(hint(page, 'Chase the')).toHaveCount(0);
   await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Chase her');
   await expect(page.locator('.hud-picked .k-btn.primary .k-key')).toHaveText('F');
   await page.screenshot({ path: 'test-results/sea-picked.png' });
@@ -1501,8 +1503,8 @@ test('courses and clicks together: a chart course, a ship clicked, open water, S
   let at = await shipAt();
   await page.mouse.click(at.px, at.py);
   await frames(page);
-  await expect(page.locator('.hud-picked')).toBeVisible();
-  await expect(hint(page, 'Chase the').locator('.k-key')).toHaveText('F');
+  await expect(page.locator('.hud-picked .k-btn.primary')).toContainText('Chase her');
+  await expect(hint(page, 'Chase the')).toHaveCount(0);
   await expect(hint(page, 'Sail the course to Cartagena')).toBeVisible();
   await expect(order).toContainText(/Course to Cartagena · \d+ km/);
   // Open water lets her go: only the course's hint is left.

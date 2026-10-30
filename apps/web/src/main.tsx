@@ -2604,7 +2604,10 @@ async function main() {
           const out: string[] = [];
           if (order && !underWay(order)) out.push(`${order.say} · Space`);
           if (place) out.push(`${place.text} · E`);
-          else if (shipAct) out.push(`${shipAct.text} · F`);
+          // The picked ship's card already offers her F order; the hint is only for a ship it does not show.
+          else if (shipAct) {
+            if (shipForF() !== picked) out.push(`${shipAct.text} · F`);
+          }
           else if (raider && raided?.ai)
             out.push(
               raided.ai.role === 'patrol'
